@@ -1,13 +1,15 @@
 /// <reference types="@girs/gjs/ambient" />
-/// <reference types="@girs/gnome-shell" />
-/// <reference types="@girs/soup-3.0" />
-/// <reference types="@girs/st-18" />
-/// <reference types="@girs/clutter-18" />
-/// <reference types="@girs/adw-1" />
-/// <reference types="@girs/gtk-4.0" />
-/// <reference types="@girs/gio-2.0" />
-/// <reference types="@girs/glib-2.0" />
-/// <reference types="@girs/gobject-2.0" />
+/// <reference types="@girs/gnome-shell/ambient" />
+/// <reference types="@girs/gnome-shell/extensions/ambient" />
+/// <reference types="@girs/gnome-shell/ui/ambient" />
+/// <reference types="@girs/soup-3.0/ambient" />
+/// <reference types="@girs/st-18/ambient" />
+/// <reference types="@girs/clutter-18/ambient" />
+/// <reference types="@girs/adw-1/ambient" />
+/// <reference types="@girs/gtk-4.0/ambient" />
+/// <reference types="@girs/gio-2.0/ambient" />
+/// <reference types="@girs/glib-2.0/ambient" />
+/// <reference types="@girs/gobject-2.0/ambient" />
 
 // GJS globals that aren't declared as modules by @girs/gjs
 declare const console: {

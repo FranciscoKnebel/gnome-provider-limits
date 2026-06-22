@@ -36,13 +36,11 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
 
     // Refresh row
     this._addRefreshRow();
-    this.addMenuItem(
-      new PopupMenu.PopupMenuItem(_("Settings"), {
-        activate: () => {
-          // TODO: open preferences
-        },
-      }),
-    );
+    const settingsItem = new PopupMenu.PopupMenuItem(_("Settings"));
+    settingsItem.connect("activate", () => {
+      // TODO: open preferences
+    });
+    this.addMenuItem(settingsItem);
   }
 
   private _addProviderSection(name: string, result: ReaderResult, locale: string): void {

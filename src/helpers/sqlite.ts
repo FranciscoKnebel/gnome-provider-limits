@@ -30,7 +30,7 @@ export async function querySqlite<T>(
   try {
     parsed = JSON.parse(result.stdout) as T;
   } catch (error) {
-    throw new Error(`SQLite query returned invalid JSON: ${error}\nstdout: ${result.stdout}`);
+    throw new Error(`SQLite query returned invalid JSON: ${result.stdout}`, { cause: error });
   }
 
   cache.set(cacheKey, {

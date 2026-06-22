@@ -6,8 +6,9 @@ import St from "gi://St";
 import { Extension, gettext as _ } from "resource:///org/gnome/shell/extensions/extension.js";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
+import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
-import { DEFAULT_REFRESH_SHORT_INTERVAL_SECONDS } from "./constants.js";
+import { DEFAULT_REFRESH_SHORT_INTERVAL_SECONDS, PROVIDER_NAMES } from "./constants.js";
 import type { BaseReader, ReaderResult } from "./readers/base.js";
 import { ClaudeReader } from "./readers/claude.js";
 import { CodexReader } from "./readers/codex.js";
@@ -29,6 +30,9 @@ const ProviderLimitsIndicator = GObject.registerClass(
     declare _statusBar: StatusBarWidget;
     declare _panel: PanelWidget;
 
+    // @ts-expect-error GJS registerClass allows custom _init signatures at runtime;
+    //    TypeScript cannot model the union of inherited base overloads with an
+    //    additional custom argument, so property assignability with Button fails.
     _init(extension: Extension) {
       super._init(0.5, _("Provider Limits"));
 
@@ -58,7 +62,10 @@ const ProviderLimitsIndicator = GObject.registerClass(
       this.add_child(box);
 
       this._panel = new PanelWidget(this._settings, this._readers);
-      this.menu.addMenuItem(this._panel);
+      // PanelMenu.Button always creates a real PopupMenu (only PopupDummyMenu when
+      // dontCreateMenu=true, which we never pass). The type is a union though, so
+      // narrow to PopupMenu.PopupMenu before using addMenuItem.
+      (this.menu as PopupMenu.PopupMenu).addMenuItem(this._panel);
 
       this._initReaders();
       this._restartRefreshTimer();
@@ -66,7 +73,6 @@ const ProviderLimitsIndicator = GObject.registerClass(
     }
 
     private _initReaders(): void {
-      const { PROVIDER_NAMES } = require("./constants.js");
       for (const name of PROVIDER_NAMES) {
         if (!this._settings.get_boolean(`${name}-enabled`)) continue;
 
@@ -172,11 +178,18 @@ const ProviderLimitsIndicator = GObject.registerClass(
 );
 
 export default class ProviderLimitsExtension extends Extension {
-  private _indicator: ProviderLimitsIndicator | null = null;
+  private _indicator: InstanceType<typeof ProviderLimitsIndicator> | null = null;
 
   enable(): void {
     this._indicator = new ProviderLimitsIndicator(this);
-    Main.panel.addToStatusArea(PROVIDER_LIMITS_UUID, this._indicator, 0, "right");
+    Main.panel.addToStatusArea(
+      PROVIDER_LIMITS_UUID,
+      // @ts-expect-error GJS registerClass casts our class to Button at runtime;
+      //    the custom _init signature prevents structural assignability here.
+      this._indicator,
+      0,
+      "right",
+    );
   }
 
   disable(): void {

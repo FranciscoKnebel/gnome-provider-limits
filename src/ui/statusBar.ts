@@ -4,7 +4,7 @@ import GLib from "gi://GLib";
 import St from "gi://St";
 
 import { formatField } from "../formatters.js";
-import type { ReaderResult } from "../readers/base.js";
+import type { FieldType, ReaderResult } from "../readers/base.js";
 import { ReaderStatus } from "../readers/base.js";
 
 export class StatusBarWidget extends St.BoxLayout {
@@ -95,7 +95,7 @@ export class StatusBarWidget extends St.BoxLayout {
     return labels[name] ?? name;
   }
 
-  private _getFieldType(providerName: string, fieldName: string): string {
+  private _getFieldType(providerName: string, fieldName: string): FieldType {
     // TODO: look up from reader.FIELDS — for scaffold, return 'text'
     void providerName;
     void fieldName;
