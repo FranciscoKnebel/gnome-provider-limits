@@ -1,13 +1,19 @@
 import GLib from "gi://GLib";
 
+import { querySqlite } from "../helpers/sqlite.js";
 import type { FieldDef, FieldResult, ReaderResult } from "./base.js";
 import { BaseReader, FieldStatus } from "./base.js";
+import {
+  type OpenCodeDbRow,
+  type OpenCodeDiskStats,
+  normalizeOpenCodeDbRow,
+  parseOpenCodeAuthText,
+} from "./opencodeParser.js";
 
 const OPENCODE_DB_PATH = `${GLib.get_home_dir()}/.local/share/opencode/opencode.db`;
 const OPENCODE_AUTH_PATH = `${GLib.get_home_dir()}/.local/share/opencode/auth.json`;
-const OPENCODE_SERVER_URL = "https://opencode.ai/_server";
 
-const FIELDS: readonly FieldDef[] = [
+export const OPENCODE_FIELDS: readonly FieldDef[] = [
   {
     name: "used_percent_rolling",
     label: "Used % (rolling 5h)",
@@ -59,15 +65,9 @@ const FIELDS: readonly FieldDef[] = [
   },
 ];
 
-interface OpenCodeDiskStats {
-  totalCost: number;
-  sessionsCount: number;
-  tokenExpiresAt: number | null;
-}
-
 export class OpenCodeReader extends BaseReader {
   get FIELDS(): readonly FieldDef[] {
-    return FIELDS;
+    return OPENCODE_FIELDS;
   }
 
   async read(): Promise<ReaderResult> {
@@ -92,12 +92,44 @@ export class OpenCodeReader extends BaseReader {
   }
 
   private async _readFromDisk(): Promise<OpenCodeDiskStats | null> {
-    // TODO: implement via helpers/sqlite.ts — query opencode.db session table
-    // + read auth.json for token_expires_at
-    void OPENCODE_DB_PATH;
-    void OPENCODE_AUTH_PATH;
-    void OPENCODE_SERVER_URL;
-    return null;
+    let totalCost = 0;
+    let sessionsCount = 0;
+
+    try {
+      const rows = await querySqlite<OpenCodeDbRow[]>(
+        OPENCODE_DB_PATH,
+        "SELECT CAST(SUM(cost) AS REAL) AS total_cost, COUNT(*) AS sessions_count FROM session",
+        { timeoutSeconds: 5 },
+      );
+      const stats = normalizeOpenCodeDbRow(rows?.[0]);
+      totalCost = stats.totalCost;
+      sessionsCount = stats.sessionsCount;
+    } catch (error) {
+      console.warn(`[opencode] sqlite read failed: ${error}`);
+    }
+
+    const tokenExpiresAt = this._readTokenExpiry();
+
+    if (totalCost === 0 && sessionsCount === 0 && tokenExpiresAt === null) {
+      return null;
+    }
+
+    return { totalCost, sessionsCount, tokenExpiresAt };
+  }
+
+  private _readTokenExpiry(): number | null {
+    const authPath = OPENCODE_AUTH_PATH;
+    const file = GLib.file_get_contents(authPath);
+    if (!file) return null;
+
+    let text: string;
+    try {
+      text = new TextDecoder().decode(file[1]);
+    } catch {
+      return null;
+    }
+
+    return parseOpenCodeAuthText(text);
   }
 
   private _parseDiskResult(stats: OpenCodeDiskStats, pathsTried: readonly string[]): ReaderResult {
