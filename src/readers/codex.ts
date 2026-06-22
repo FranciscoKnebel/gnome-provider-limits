@@ -1,13 +1,25 @@
 import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 
+import { HttpClient, HttpError, TokenError } from "../helpers/http.js";
+import { querySqlite } from "../helpers/sqlite.js";
 import type { FieldDef, FieldResult, ReaderResult } from "./base.js";
 import { BaseReader, FieldStatus } from "./base.js";
+import {
+  codexWindowMinutes,
+  type CodexLogRow,
+  type CodexOauthUsagePayload,
+  type CodexRateLimitWindow,
+  type CodexRateLimitsPayload,
+  normalizeCodexOauthPayload,
+  parseCodexLogBody,
+} from "./codexParser.js";
 
 const CODEX_AUTH_PATH = `${GLib.get_home_dir()}/.codex/auth.json`;
 const CODEX_LOGS_DB = `${GLib.get_home_dir()}/.codex/logs_2.sqlite`;
+const CODEX_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
 
-const FIELDS: readonly FieldDef[] = [
+export const CODEX_FIELDS: readonly FieldDef[] = [
   {
     name: "used_percent_primary",
     label: "Used % (5h window)",
@@ -66,27 +78,13 @@ const FIELDS: readonly FieldDef[] = [
   },
 ];
 
-interface CodexRateLimitWindow {
-  used_percent?: number;
-  window_minutes?: number;
-  reset_after_seconds?: number;
-  reset_at?: number;
-}
-
-interface CodexRateLimitsPayload {
-  rate_limits?: {
-    allowed?: boolean;
-    limit_reached?: boolean;
-    primary?: CodexRateLimitWindow | null;
-    secondary?: CodexRateLimitWindow | null;
-  };
-  plan_type?: string;
-  credits?: { balance?: string; has_credits?: boolean; unlimited?: boolean } | null;
-}
+Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish");
 
 export class CodexReader extends BaseReader {
+  private _http: HttpClient | null = null;
+
   get FIELDS(): readonly FieldDef[] {
-    return FIELDS;
+    return CODEX_FIELDS;
   }
 
   async read(): Promise<ReaderResult> {
@@ -120,6 +118,12 @@ export class CodexReader extends BaseReader {
     return this._errorResult("Codex: all paths failed. Run `codex login`.", pathsTried);
   }
 
+  override destroy(): void {
+    this._http?.destroy();
+    this._http = null;
+    super.destroy();
+  }
+
   private async _readAuthToken(): Promise<string | null> {
     const file = Gio.File.new_for_path(CODEX_AUTH_PATH);
     const [contents] = await file.load_contents_async(null);
@@ -129,15 +133,37 @@ export class CodexReader extends BaseReader {
   }
 
   private async _fetchUsage(token: string): Promise<CodexRateLimitsPayload | null> {
-    // TODO: implement via helpers/http.ts (Soup.Session)
-    void token;
-    return null;
+    if (!this._http) this._http = new HttpClient();
+    try {
+      const payload = await this._http.getJson<CodexOauthUsagePayload>(CODEX_USAGE_URL, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      return normalizeCodexOauthPayload(payload);
+    } catch (error) {
+      // 401 means stale token; let the upper fallback chain try disk.
+      if (error instanceof TokenError) {
+        console.warn(`[codex] oauth token rejected: ${error.message}`);
+        return null;
+      }
+      if (error instanceof HttpError) {
+        console.warn(`[codex] oauth http ${error.statusCode}: ${error.message}`);
+        return null;
+      }
+      throw error;
+    }
   }
 
   private async _readFromDisk(): Promise<CodexRateLimitsPayload | null> {
-    // TODO: implement via helpers/sqlite.ts (python3 subprocess)
-    void CODEX_LOGS_DB;
-    return null;
+    const rows = await querySqlite<CodexLogRow[]>(
+      CODEX_LOGS_DB,
+      "SELECT feedback_log_body FROM logs WHERE feedback_log_body LIKE '%codex.rate_limits%' ORDER BY ts DESC LIMIT 1",
+      { timeoutSeconds: 5 },
+    );
+
+    const body = rows?.[0]?.feedback_log_body;
+    if (!body) return null;
+
+    return parseCodexLogBody(body);
   }
 
   private _parsePayload(
@@ -184,14 +210,14 @@ export class CodexReader extends BaseReader {
     fields.push(
       this._makeField(
         "window_minutes_primary",
-        primary?.window_minutes ?? null,
+        codexWindowMinutes(primary as CodexRateLimitWindow | null),
         primary ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
       ),
     );
     fields.push(
       this._makeField(
         "window_minutes_secondary",
-        secondary?.window_minutes ?? null,
+        codexWindowMinutes(secondary as CodexRateLimitWindow | null),
         secondary ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
       ),
     );
