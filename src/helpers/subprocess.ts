@@ -4,6 +4,9 @@ import GLib from "gi://GLib";
 import { SUBPROCESS_TIMEOUT_SECONDS } from "../constants.js";
 
 Gio._promisify(Gio.Subprocess.prototype, "wait_check_async", "wait_check_finish");
+Gio._promisify(Gio.InputStream.prototype, "read_bytes_async", "read_bytes_finish");
+Gio._promisify(Gio.OutputStream.prototype, "write_bytes_async", "write_bytes_finish");
+Gio._promisify(Gio.OutputStream.prototype, "close_async", "close_finish");
 
 export class SubprocessError extends Error {
   constructor(
@@ -53,13 +56,18 @@ export async function runSubprocess(
   });
 
   try {
-    // Write stdin if provided
+    // Write stdin if provided, then close the pipe so the child sees EOF.
     if (options?.input) {
       const stdinPipe = subprocess.get_stdin_pipe();
-      const data = new TextEncoder().encode(options.input);
-      // TODO: write to stdin pipe asynchronously
-      void stdinPipe;
-      void data;
+      if (stdinPipe) {
+        const data = new TextEncoder().encode(options.input);
+        await stdinPipe.write_bytes_async(new GLib.Bytes(data), GLib.PRIORITY_DEFAULT, null);
+        try {
+          await stdinPipe.close_async(GLib.PRIORITY_DEFAULT, null);
+        } catch {
+          // Closing stdin after write is best-effort; ignore failures.
+        }
+      }
     }
 
     await subprocess.wait_check_async(null);
@@ -85,8 +93,31 @@ export async function runSubprocess(
 async function readPipe(stream: Gio.InputStream | null): Promise<string> {
   if (!stream) return "";
 
-  // TODO: implement async read via Gio.DataInputStream
-  // For now, placeholder
-  void stream;
-  return "";
+  const chunks: Uint8Array[] = [];
+  const decoder = new TextDecoder();
+
+  // Read until EOF. read_bytes_async resolves with an empty Bytes on EOF.
+  while (true) {
+    const bytes = await stream.read_bytes_async(4096, GLib.PRIORITY_DEFAULT, null);
+    const data = bytes instanceof Uint8Array ? bytes : bytes.toArray();
+    if (data.length === 0) break;
+    chunks.push(data);
+  }
+
+  try {
+    await stream.close_async(GLib.PRIORITY_DEFAULT, null);
+  } catch {
+    // Closing after read is best-effort; ignore failures.
+  }
+
+  if (chunks.length === 0) return "";
+
+  const total = chunks.reduce((sum, c) => sum + c.length, 0);
+  const merged = new Uint8Array(total);
+  let offset = 0;
+  for (const c of chunks) {
+    merged.set(c, offset);
+    offset += c.length;
+  }
+  return decoder.decode(merged);
 }
