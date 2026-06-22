@@ -1,0 +1,125 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the gnome-provider-limits package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: gnome-provider-limits 0.1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-06-22 14:00+%0000\n"
+"PO-Revision-Date: \n"
+"Last-Translator: \n"
+"Language-Team: \n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+
+#: (extracted from source)
+msgid "Provider Limits"
+msgstr ""
+
+#: (extracted from source)
+msgid "General"
+msgstr ""
+
+#: (extracted from source)
+msgid "Refresh"
+msgstr ""
+
+#: (extracted from source)
+msgid "Control how often the extension refreshes provider data."
+msgstr ""
+
+#: (extracted from source)
+msgid "Short interval"
+msgstr ""
+
+#: (extracted from source)
+msgid "Seconds between refreshes when data is changing."
+msgstr ""
+
+#: (extracted from source)
+msgid "Long interval"
+msgstr ""
+
+#: (extracted from source)
+msgid "Seconds between refreshes when data is stable."
+msgstr ""
+
+#: (extracted from source)
+msgid "Stable reads threshold"
+msgstr ""
+
+#: (extracted from source)
+msgid "Number of unchanged reads before degrading to the long interval."
+msgstr ""
+
+#: (extracted from source)
+msgid "Language"
+msgstr ""
+
+#: (extracted from source)
+msgid "Display language for the extension."
+msgstr ""
+
+#: (extracted from source)
+msgid "System"
+msgstr ""
+
+#: (extracted from source)
+msgid "Display language"
+msgstr ""
+
+#: (extracted from source)
+msgid "Override the system locale, or follow it."
+msgstr ""
+
+#: (extracted from source)
+msgid "Providers"
+msgstr ""
+
+#: (extracted from source)
+msgid "Enable and reorder providers by dragging the rows."
+msgstr ""
+
+#: (extracted from source)
+msgid "Remove"
+msgstr ""
+
+#: (extracted from source)
+msgid "Status bar fields"
+msgstr ""
+
+#: (extracted from source)
+msgid "Panel fields"
+msgstr ""
+
+#: (extracted from source)
+msgid "Settings"
+msgstr ""
+
+#: (extracted from source)
+msgid "CLI path"
+msgstr ""
+
+#: (extracted from source)
+msgid "Drag rows to reorder. Use “+” to add fields."
+msgstr ""
+
+#: (extracted from source)
+msgid "Add field"
+msgstr ""
+
+#: (extracted from source)
+msgid "No more fields available"
+msgstr ""
+
+#: (extracted from source)
+msgid "Error"
+msgstr ""
+
+#: (extracted from source)
+msgid "Refresh now"
+msgstr ""

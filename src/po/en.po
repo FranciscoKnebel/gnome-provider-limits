@@ -1,0 +1,126 @@
+# en translations for gnome-provider-limits.
+# Copyright (C) 2026 Francisco Knebel
+# This file is distributed under the same license as the gnome-provider-limits package.
+# Francisco Knebel <franciscopaivaknebel@gmail.com>, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: gnome-provider-limits 0.1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2026-06-22 14:01+0000\n"
+"PO-Revision-Date: \n"
+"Last-Translator: Francisco Knebel <franciscopaivaknebel@gmail.com>\n"
+"Language-Team: \n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+#: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
+msgid "Provider Limits"
+msgstr "Provider Limits"
+
+#: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
+msgid "General"
+msgstr "General"
+
+#: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
+msgid "Refresh"
+msgstr "Refresh"
+
+#: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
+msgid "Control how often the extension refreshes provider data."
+msgstr "Control how often the extension refreshes provider data."
+
+#: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
+msgid "Short interval"
+msgstr "Short interval"
+
+#: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
+msgid "Seconds between refreshes when data is changing."
+msgstr "Seconds between refreshes when data is changing."
+
+#: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
+msgid "Long interval"
+msgstr "Long interval"
+
+#: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
+msgid "Seconds between refreshes when data is stable."
+msgstr "Seconds between refreshes when data is stable."
+
+#: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
+msgid "Stable reads threshold"
+msgstr "Stable reads threshold"
+
+#: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
+msgid "Number of unchanged reads before degrading to the long interval."
+msgstr "Number of unchanged reads before degrading to the long interval."
+
+#: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
+msgid "Language"
+msgstr "Language"
+
+#: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
+msgid "Display language for the extension."
+msgstr "Display language for the extension."
+
+#: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
+msgid "System"
+msgstr "System"
+
+#: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
+msgid "Display language"
+msgstr "Display language"
+
+#: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
+msgid "Override the system locale, or follow it."
+msgstr "Override the system locale, or follow it."
+
+#: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
+msgid "Providers"
+msgstr "Providers"
+
+#: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
+msgid "Enable and reorder providers by dragging the rows."
+msgstr "Enable and reorder providers by dragging the rows."
+
+#: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
+msgid "Remove"
+msgstr "Remove"
+
+#: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
+msgid "Status bar fields"
+msgstr "Status bar fields"
+
+#: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
+msgid "Panel fields"
+msgstr "Panel fields"
+
+#: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
+msgid "Settings"
+msgstr "Settings"
+
+#: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
+msgid "CLI path"
+msgstr "CLI path"
+
+#: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
+msgid "Drag rows to reorder. Use “+” to add fields."
+msgstr "Drag rows to reorder. Use “+” to add fields."
+
+#: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
+msgid "Add field"
+msgstr "Add field"
+
+#: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
+msgid "No more fields available"
+msgstr "No more fields available"
+
+#: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
+msgid "Error"
+msgstr "Error"
+
+#: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
+msgid "Refresh now"
+msgstr "Refresh now"
