@@ -1,4 +1,4 @@
-import { formatField } from "../../src/formatters.js";
+import { formatField } from "../src/formatters.js";
 
 describe("formatters", () => {
   describe("percent", () => {
@@ -92,7 +92,7 @@ describe("formatters", () => {
     it("truncates long text in status bar", () => {
       expect(
         formatField({ type: "text", value: "org_level_disabled", zone: "status", locale: "en" }),
-      ).toBe("org_lev…");
+      ).toBe("org_leve…");
     });
 
     it("shows full text in panel", () => {

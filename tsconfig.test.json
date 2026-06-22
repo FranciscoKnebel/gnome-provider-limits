@@ -1,0 +1,22 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "rootDir": ".",
+    "outDir": "dist",
+    "module": "ES2022",
+    "moduleResolution": "bundler",
+    "types": ["jasmine", "node"]
+  },
+  "include": [
+    "src/globals.d.ts",
+    "src/constants.ts",
+    "src/formatters.ts",
+    "src/readers/base.ts",
+    "src/readers/codexParser.ts",
+    "src/readers/claudeParser.ts",
+    "src/readers/opencodeParser.ts",
+    "tests/**/*.ts"
+  ],
+  "exclude": ["node_modules", "dist"]
+}
