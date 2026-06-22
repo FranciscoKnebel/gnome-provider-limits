@@ -1,13 +1,16 @@
 import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 
+import { HttpClient, HttpError, TokenError } from "../helpers/http.js";
+import { runSubprocess } from "../helpers/subprocess.js";
 import type { FieldDef, FieldResult, ReaderResult } from "./base.js";
 import { BaseReader, FieldStatus } from "./base.js";
+import { type ClaudeUsagePayload, parseClaudeCliOutput } from "./claudeParser.js";
 
 const CLAUDE_CREDENTIALS_PATH = `${GLib.get_home_dir()}/.claude/.credentials.json`;
 const CLAUDE_USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
 
-const FIELDS: readonly FieldDef[] = [
+export const CLAUDE_FIELDS: readonly FieldDef[] = [
   {
     name: "used_percent_session",
     label: "Used % (session 5h)",
@@ -66,17 +69,19 @@ const FIELDS: readonly FieldDef[] = [
   },
 ];
 
-interface ClaudeUsagePayload {
-  five_hour?: { used_percent?: number; reset_at?: number } | null;
-  seven_day?: { used_percent?: number; reset_at?: number } | null;
-  seven_day_sonnet?: { used_percent?: number; reset_at?: number } | null;
-  seven_day_opus?: { used_percent?: number; reset_at?: number } | null;
-  extra_usage?: { enabled?: boolean; disabled_reason?: string } | null;
-}
+Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish");
 
 export class ClaudeReader extends BaseReader {
+  private _http: HttpClient | null = null;
+
   get FIELDS(): readonly FieldDef[] {
-    return FIELDS;
+    return CLAUDE_FIELDS;
+  }
+
+  override destroy(): void {
+    this._http?.destroy();
+    this._http = null;
+    super.destroy();
   }
 
   async read(): Promise<ReaderResult> {
@@ -122,17 +127,48 @@ export class ClaudeReader extends BaseReader {
   }
 
   private async _fetchUsage(token: string): Promise<ClaudeUsagePayload | null> {
-    // TODO: implement via helpers/http.ts with header
-    // 'anthropic-beta: oauth-2025-04-20'
-    void token;
-    void CLAUDE_USAGE_URL;
-    return null;
+    if (!this._http) this._http = new HttpClient();
+    try {
+      return await this._http.getJson<ClaudeUsagePayload>(CLAUDE_USAGE_URL, {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "anthropic-beta": "oauth-2025-04-20",
+        },
+      });
+    } catch (error) {
+      if (error instanceof TokenError) {
+        console.warn(`[claude] oauth token rejected: ${error.message}`);
+        return null;
+      }
+      if (error instanceof HttpError) {
+        console.warn(`[claude] oauth http ${error.statusCode}: ${error.message}`);
+        return null;
+      }
+      throw error;
+    }
   }
 
   private async _readFromCli(): Promise<ClaudeUsagePayload | null> {
-    // TODO: implement via helpers/subprocess.ts — invoke
-    // `claude --allowed-tools ""` in PTY, send /usage, parse output
-    return null;
+    const cliPath = this.settings.get_string("claude-cli-path")?.trim() || "claude";
+    const probeDir = GLib.build_filenamev([GLib.get_tmp_dir(), "provider-limits-claude-probe"]);
+    GLib.mkdir_with_parents(probeDir, 0o700);
+
+    // Drive the bare TUI: start with no tools, send /usage, then /exit.
+    const inputLines = ["/usage", "/exit", ""].join("\n") + "\n";
+
+    let result;
+    try {
+      result = await runSubprocess([cliPath, "--allowed-tools", ""], {
+        input: inputLines,
+        timeoutSeconds: 15,
+        cwd: probeDir,
+      });
+    } catch (error) {
+      console.warn(`[claude] cli probe failed: ${error}`);
+      return null;
+    }
+
+    return parseClaudeCliOutput(result.stdout);
   }
 
   private _parsePayload(payload: ClaudeUsagePayload, pathsTried: readonly string[]): ReaderResult {
