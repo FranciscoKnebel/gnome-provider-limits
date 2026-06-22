@@ -1,0 +1,22 @@
+{
+  "$schema": "https://oxc.rs/schema.json",
+  "categories": {
+    "correctness": "error",
+    "suspicious": "warn",
+    "pedantic": "off",
+    "perf": "warn",
+    "style": "off"
+  },
+  "rules": {
+    "no-unused-vars": "error",
+    "no-console": "off",
+    "no-underscore-dangle": "off",
+    "typescript/no-explicit-any": "warn",
+    "typescript/no-non-null-assertion": "warn",
+    "typescript/no-floating-promises": "error",
+    "typescript/no-misused-promises": "error",
+    "import/no-cycle": "warn",
+    "no-await-in-loop": "off"
+  },
+  "ignorePatterns": ["dist/", "node_modules/"]
+}

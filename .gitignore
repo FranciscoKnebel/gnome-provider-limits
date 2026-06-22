@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.zip
+
+# Compiled schemas
+src/schemas/gschemas.compiled
+
+# Editor / OS
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+
+# Logs
+*.log
+
+# Local environment
+.env
+.env.local
+
+# Package manager lockfiles (keep package-lock.json tracked)
+yarn.lock
+pnpm-lock.yaml

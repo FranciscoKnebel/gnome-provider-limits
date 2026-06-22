@@ -1,0 +1,41 @@
+{
+  "name": "gnome-provider-limits",
+  "version": "0.1.0",
+  "private": true,
+  "description": "GNOME Shell extension that shows session limits of multiple AI coding providers (Codex, Claude, OpenCode) in the top bar.",
+  "homepage": "https://github.com/FranciscoKnebel/gnome-provider-limits",
+  "license": "GPL-3.0",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/FranciscoKnebel/gnome-provider-limits.git"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "clean": "rm -rf dist src/schemas/gschemas.compiled",
+    "lint": "oxlint",
+    "lint:fix": "oxlint --fix",
+    "format": "oxfmt --write .",
+    "format:check": "oxfmt --check .",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "jasmine --config=jasmine.json",
+    "schema:compile": "glib-compile-schemas src/schemas",
+    "pack": "npm run build && npm run schema:compile && gnome-extensions pack dist/ -o dist/ --schema src/schemas/org.gnome.shell.extensions.gnome-provider-limits.gschema.xml --podir src/po --gettext-domain gnome-provider-limits",
+    "install:local": "npm run pack && gnome-extensions install --force dist/*.zip",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm run test"
+  },
+  "devDependencies": {
+    "@girs/adw-1": "^1.10.0-4.0.0-rc.9",
+    "@girs/clutter-18": "^18.0.0-4.0.0-rc.9",
+    "@girs/gio-2.0": "^2.88.0-4.0.0-rc.9",
+    "@girs/gjs": "^4.0.0-rc.9",
+    "@girs/glib-2.0": "^2.88.0-4.0.0-rc.9",
+    "@girs/gnome-shell": "^50.0.0",
+    "@girs/gobject-2.0": "^2.88.0-4.0.0-rc.9",
+    "@girs/gtk-4.0": "^4.23.0-4.0.0-rc.9",
+    "@girs/soup-3.0": "^3.6.6-4.0.4",
+    "jasmine": "^5.0.0",
+    "oxfmt": "^0.55.0",
+    "oxlint": "^1.70.0",
+    "typescript": "^5.4.0"
+  }
+}

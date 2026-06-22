@@ -1,0 +1,50 @@
+/* Provider Limits stylesheet */
+
+/* Usage color thresholds (ADR-0018) */
+.usage-critical {
+  color: #e01b24;
+}
+
+.usage-warning {
+  color: #e5a50a;
+}
+
+.usage-ok {
+  color: inherit;
+}
+
+/* Status bar */
+.provider-limits-status-bar {
+  spacing: 6px;
+}
+
+.provider-limits-provider-label {
+  font-weight: bold;
+  color: inherit;
+}
+
+.provider-limits-separator {
+  color: rgba(255, 255, 255, 0.3);
+}
+
+/* Panel */
+.provider-limits-panel-header {
+  font-weight: bold;
+  font-size: 1.1em;
+}
+
+.provider-limits-panel-section {
+  spacing: 4px;
+}
+
+.provider-limits-field-label {
+  color: inherit;
+}
+
+.provider-limits-field-value {
+  color: inherit;
+}
+
+.provider-limits-dim {
+  color: rgba(255, 255, 255, 0.5);
+}

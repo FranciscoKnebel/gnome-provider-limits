@@ -1,0 +1,10 @@
+{
+  "name": "Provider Limits",
+  "description": "Show usage limits of multiple AI coding providers (Codex, Claude, OpenCode) in the GNOME top bar.",
+  "uuid": "gnome-provider-limits@franciscoknebel.com",
+  "settings-schema": "org.gnome.shell.extensions.gnome-provider-limits",
+  "gettext-domain": "gnome-provider-limits",
+  "shell-version": ["45", "46", "47", "48", "49", "50"],
+  "url": "https://github.com/FranciscoKnebel/gnome-provider-limits",
+  "version": 1
+}

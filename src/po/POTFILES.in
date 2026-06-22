@@ -1,0 +1,9 @@
+src/extension.ts
+src/prefs.ts
+src/constants.ts
+src/formatters.ts
+src/readers/codex.ts
+src/readers/claude.ts
+src/readers/opencode.ts
+src/ui/statusBar.ts
+src/ui/panel.ts

@@ -1,0 +1,111 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<schemalist>
+  <schema id="org.gnome.shell.extensions.gnome-provider-limits"
+          path="/org/gnome/shell/extensions/gnome-provider-limits/">
+
+    <!-- Globals: adaptive refresh (ADR-0006) -->
+    <key name="refresh-short-interval-seconds" type="i">
+      <default>10</default>
+      <summary>Short refresh interval</summary>
+      <description>Seconds between refreshes when provider data is actively changing.</description>
+    </key>
+    <key name="refresh-long-interval-seconds" type="i">
+      <default>120</default>
+      <summary>Long refresh interval</summary>
+      <description>Seconds between refreshes when provider data has been stable.</description>
+    </key>
+    <key name="refresh-stable-reads-threshold" type="i">
+      <default>3</default>
+      <summary>Stable reads threshold</summary>
+      <description>Number of consecutive reads with no change before degrading to the long interval.</description>
+    </key>
+
+    <!-- Globals: i18n (ADR-0014) -->
+    <key name="language" type="s">
+      <default>''</default>
+      <summary>Display language</summary>
+      <description>Language code (e.g. 'en', 'pt_BR') or empty string to follow the system locale.</description>
+    </key>
+
+    <!-- Globals: debug (ADR-0019) -->
+    <key name="debug-logging" type="b">
+      <default>false</default>
+      <summary>Debug logging</summary>
+      <description>Enable verbose logging for diagnostics. Credentials are never logged regardless of this setting.</description>
+    </key>
+
+    <!-- Globals: provider order (ADR-0010) -->
+    <key name="providers-order" type="as">
+      <default>['codex','claude','opencode']</default>
+      <summary>Providers display order</summary>
+      <description>Order in which providers appear in the status bar and panel.</description>
+    </key>
+
+    <!-- Per-provider: Codex (ADR-0008) -->
+    <key name="codex-enabled" type="b">
+      <default>true</default>
+      <summary>Codex enabled</summary>
+      <description>Whether Codex appears in the status bar and panel.</description>
+    </key>
+    <key name="codex-cli-path" type="s">
+      <default>''</default>
+      <summary>Codex CLI path</summary>
+      <description>Path to the Codex CLI binary. Empty string means auto-detect in PATH.</description>
+    </key>
+    <key name="codex-status-fields" type="as">
+      <default>['used_percent_primary','reset_at_primary']</default>
+      <summary>Codex status bar fields</summary>
+      <description>Fields shown for Codex in the status bar, in display order.</description>
+    </key>
+    <key name="codex-panel-fields" type="as">
+      <default>['used_percent_secondary','reset_at_secondary','window_minutes_primary','window_minutes_secondary','limit_reached','plan_type']</default>
+      <summary>Codex panel fields</summary>
+      <description>Fields shown for Codex in the panel, in display order.</description>
+    </key>
+
+    <!-- Per-provider: Claude (ADR-0008) -->
+    <key name="claude-enabled" type="b">
+      <default>true</default>
+      <summary>Claude enabled</summary>
+      <description>Whether Claude appears in the status bar and panel.</description>
+    </key>
+    <key name="claude-cli-path" type="s">
+      <default>''</default>
+      <summary>Claude CLI path</summary>
+      <description>Path to the Claude CLI binary. Empty string means auto-detect in PATH.</description>
+    </key>
+    <key name="claude-status-fields" type="as">
+      <default>['used_percent_session','reset_at_session']</default>
+      <summary>Claude status bar fields</summary>
+      <description>Fields shown for Claude in the status bar, in display order.</description>
+    </key>
+    <key name="claude-panel-fields" type="as">
+      <default>['used_percent_weekly','reset_at_weekly','used_percent_sonnet','used_percent_opus','has_extra_usage_enabled','extra_usage_disabled_reason']</default>
+      <summary>Claude panel fields</summary>
+      <description>Fields shown for Claude in the panel, in display order.</description>
+    </key>
+
+    <!-- Per-provider: OpenCode (ADR-0008) -->
+    <key name="opencode-enabled" type="b">
+      <default>true</default>
+      <summary>OpenCode enabled</summary>
+      <description>Whether OpenCode appears in the status bar and panel.</description>
+    </key>
+    <key name="opencode-cli-path" type="s">
+      <default>''</default>
+      <summary>OpenCode CLI path</summary>
+      <description>Path to the OpenCode CLI binary. Empty string means auto-detect in PATH.</description>
+    </key>
+    <key name="opencode-status-fields" type="as">
+      <default>['used_percent_rolling','reset_at_rolling']</default>
+      <summary>OpenCode status bar fields</summary>
+      <description>Fields shown for OpenCode in the status bar, in display order.</description>
+    </key>
+    <key name="opencode-panel-fields" type="as">
+      <default>['used_percent_weekly','reset_at_weekly','total_cost','sessions_count','token_expires_at']</default>
+      <summary>OpenCode panel fields</summary>
+      <description>Fields shown for OpenCode in the panel, in display order.</description>
+    </key>
+
+  </schema>
+</schemalist>
