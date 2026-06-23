@@ -22,8 +22,8 @@ Usage rules:
   < 50ms per query; spaced refresh (seconds/minutes, see refresh ADR) makes
   overhead negligible.
 - `JSON.parse` of stdout in GJS. Subprocess errors (python3 missing, DB
-locked, schema changed) become "unavailable" for the affected fields. They
-don't crash the extension.
+  locked, schema changed) become "unavailable" for the affected fields. They
+  don't crash the extension.
 - For the Claude reader, GJS reads `~/.claude.json` directly with `JSON.parse`
   (no subprocess, no SQLite). The data is plain JSON.
 - `opencode stats` as optional fallback for window aggregation, if disk data
