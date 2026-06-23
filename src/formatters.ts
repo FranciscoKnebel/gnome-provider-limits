@@ -18,9 +18,9 @@ export function formatField(options: FormatFieldOptions): string {
     case "percent":
       return formatPercent(value, zone);
     case "timestamp":
-      return formatTimestamp(value, zone);
+      return formatTimestamp(value, zone, options.locale);
     case "tokens":
-      return formatTokens(value, zone);
+      return formatTokens(value, zone, options.locale);
     case "cost":
       return formatCost(value, options.locale);
     case "count":
@@ -41,10 +41,12 @@ function formatPercent(value: unknown, _zone: FieldZone): string {
   return `${rounded}%`;
 }
 
-function formatTimestamp(value: unknown, zone: FieldZone): string {
-  const num = Number(value);
-  if (!Number.isFinite(num)) return "—";
+function formatTimestamp(value: unknown, zone: FieldZone, locale: string): string {
+  const raw = Number(value);
+  if (!Number.isFinite(raw)) return "—";
 
+  // APIs return Unix seconds; Date.now() uses ms. Normalize to ms.
+  const num = raw < 1e12 ? raw * 1000 : raw;
   const now = Date.now();
   const diffSec = Math.round((num - now) / 1000);
 
@@ -53,7 +55,7 @@ function formatTimestamp(value: unknown, zone: FieldZone): string {
   const relative = formatRelative(diffSec, zone);
   if (zone === "panel") {
     const date = new Date(num);
-    const abs = date.toLocaleString(undefined, {
+    const abs = date.toLocaleString(locale, {
       hour: "2-digit",
       minute: "2-digit",
     });
@@ -86,7 +88,7 @@ function formatRelative(seconds: number, zone: FieldZone): string {
   return d > 0 ? `${w}w${sep}${d}d` : `${w}w`;
 }
 
-function formatTokens(value: unknown, zone: FieldZone): string {
+function formatTokens(value: unknown, zone: FieldZone, locale: string): string {
   const num = Number(value);
   if (!Number.isFinite(num)) return "—";
 
@@ -102,7 +104,7 @@ function formatTokens(value: unknown, zone: FieldZone): string {
   const formatted = abs >= 100 * divisor ? Math.round(scaled).toString() : scaled.toFixed(1);
 
   if (zone === "panel") {
-    return `${num.toLocaleString()} (${formatted}${suffix})`;
+    return `${num.toLocaleString(locale)} (${formatted}${suffix})`;
   }
   return `${formatted}${suffix}`;
 }
