@@ -27,8 +27,9 @@ const ProviderLimitsIndicator = GObject.registerClass(
     declare _refreshSourceId: number | null;
     declare _stableReads: number;
     declare _icon: St.Icon;
-    declare _statusBar: StatusBarWidget;
+    declare _statusBar: InstanceType<typeof StatusBarWidget>;
     declare _panel: PanelWidget;
+    declare _settingsChangedIds: number[];
 
     // @ts-expect-error GJS registerClass allows custom _init signatures at runtime;
     //    TypeScript cannot model the union of inherited base overloads with an
@@ -42,6 +43,7 @@ const ProviderLimitsIndicator = GObject.registerClass(
       this._results = new Map();
       this._refreshSourceId = null;
       this._stableReads = 0;
+      this._settingsChangedIds = [];
 
       const box = new St.BoxLayout({
         style_class: "provider-limits-status-bar",
@@ -57,17 +59,21 @@ const ProviderLimitsIndicator = GObject.registerClass(
       });
       box.add_child(this._icon);
 
-      this._statusBar = new StatusBarWidget(this._settings);
+      this._statusBar = new StatusBarWidget(this._settings, this._readers);
       box.add_child(this._statusBar);
       this.add_child(box);
 
-      this._panel = new PanelWidget(this._settings, this._readers);
+      this._panel = new PanelWidget(this._settings, this._readers, () => {
+        this._extension.openPreferences();
+      });
       // PanelMenu.Button always creates a real PopupMenu (only PopupDummyMenu when
       // dontCreateMenu=true, which we never pass). The type is a union though, so
       // narrow to PopupMenu.PopupMenu before using addMenuItem.
-      (this.menu as PopupMenu.PopupMenu).addMenuItem(this._panel);
+      (this.menu as PopupMenu.PopupMenu).addMenuItem(this._panel.section);
 
       this._initReaders();
+      this._applyLanguageOverride();
+      this._connectSettingsSignals();
       this._restartRefreshTimer();
       void this.refresh();
     }
@@ -80,6 +86,70 @@ const ProviderLimitsIndicator = GObject.registerClass(
         if (reader) {
           this._readers.set(name, reader);
         }
+      }
+    }
+
+    private _connectSettingsSignals(): void {
+      for (const name of PROVIDER_NAMES) {
+        this._settingsChangedIds.push(
+          this._settings.connect(`changed::${name}-enabled`, () => {
+            this._onProviderEnabledChanged(name);
+          }),
+        );
+        this._settingsChangedIds.push(
+          this._settings.connect(`changed::${name}-display-name`, () => {
+            this._render();
+          }),
+        );
+        this._settingsChangedIds.push(
+          this._settings.connect(`changed::${name}-display-name-short`, () => {
+            this._render();
+          }),
+        );
+      }
+
+      this._settingsChangedIds.push(
+        this._settings.connect(`changed::providers-order`, () => {
+          this._render();
+        }),
+      );
+
+      this._settingsChangedIds.push(
+        this._settings.connect(`changed::language`, () => {
+          this._applyLanguageOverride();
+          this._render();
+        }),
+      );
+    }
+
+    private _applyLanguageOverride(): void {
+      const lang = this._settings.get_string("language");
+      if (lang && lang.trim()) {
+        GLib.setenv("LANGUAGE", lang.trim(), true);
+      } else {
+        GLib.unsetenv("LANGUAGE");
+      }
+    }
+
+    private _onProviderEnabledChanged(name: string): void {
+      const enabled = this._settings.get_boolean(`${name}-enabled`);
+
+      if (enabled) {
+        if (this._readers.has(name)) return;
+
+        const reader = this._createReader(name);
+        if (reader) {
+          this._readers.set(name, reader);
+          void this.refresh();
+        }
+      } else {
+        const reader = this._readers.get(name);
+        if (!reader) return;
+
+        reader.destroy();
+        this._readers.delete(name);
+        this._results.delete(name);
+        this._render();
       }
     }
 
@@ -109,6 +179,8 @@ const ProviderLimitsIndicator = GObject.registerClass(
 
         try {
           const result = await reader.read();
+          if (!this._readers.has(name)) continue;
+
           this._results.set(name, result);
 
           const prev = previousResults.get(name);
@@ -161,6 +233,11 @@ const ProviderLimitsIndicator = GObject.registerClass(
     }
 
     destroy(): void {
+      for (const id of this._settingsChangedIds) {
+        this._settings.disconnect(id);
+      }
+      this._settingsChangedIds = [];
+
       if (this._refreshSourceId !== null) {
         GLib.Source.remove(this._refreshSourceId);
         this._refreshSourceId = null;
