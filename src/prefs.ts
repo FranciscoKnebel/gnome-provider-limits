@@ -9,7 +9,7 @@ import {
   gettext as _,
 } from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
 
-import { PROVIDER_LABELS, PROVIDER_NAMES } from "./constants.js";
+import { PROVIDER_NAMES } from "./constants.js";
 import { formatField } from "./formatters.js";
 import type { FieldDef, FieldType } from "./readers/base.js";
 import { CLAUDE_FIELDS } from "./readers/claude.js";
@@ -127,11 +127,41 @@ const ProviderLimitsPreferencesPage = GObject.registerClass(
 
       const listBox = this._buildReorderableStringList(
         "providers-order",
-        (name) => PROVIDER_LABELS[name] ?? name,
+        (name) => this._settings.get_string(`${name}-display-name`) ?? name,
         { showToggle: true },
       );
       group.add(listBox);
+
+      for (const name of PROVIDER_NAMES) {
+        this._settings.connect(`changed::${name}-display-name`, () => {
+          this._rebuildStringList(listBox, "providers-order");
+        });
+      }
+
       return group;
+    }
+
+    private _rebuildStringList(listBox: Gtk.ListBox, key: string): void {
+      let currentChild = listBox.get_first_child();
+      while (currentChild) {
+        const next = currentChild.get_next_sibling();
+        listBox.remove(currentChild);
+        currentChild = next;
+      }
+
+      const values = this._settings.get_strv(key);
+      for (const value of values) {
+        const row = this._buildReorderableRow({
+          key,
+          value,
+          label: this._settings.get_string(`${value}-display-name`) ?? value,
+        });
+
+        const toggle = new Gtk.Switch({ valign: Gtk.Align.CENTER });
+        this._settings.bind(`${value}-enabled`, toggle, "active", Gio.SettingsBindFlags.DEFAULT);
+        row.add_suffix(toggle);
+        listBox.append(row);
+      }
     }
 
     private _createSpinRow(
@@ -280,15 +310,20 @@ const ProviderPage = GObject.registerClass(
   class ProviderPage extends Adw.PreferencesPage {
     declare _settings: Gio.Settings;
     declare _provider: string;
+    declare _titleChangedId: number;
 
     _init(settings: Gio.Settings, provider: string) {
       super._init({
-        title: PROVIDER_LABELS[provider] ?? provider,
+        title: settings.get_string(`${provider}-display-name`) ?? provider,
         icon_name: "preferences-system-symbolic",
       });
 
       this._settings = settings;
       this._provider = provider;
+
+      this._titleChangedId = settings.connect(`changed::${provider}-display-name`, () => {
+        this.title = settings.get_string(`${provider}-display-name`) ?? provider;
+      });
 
       this.add(this._buildSettingsGroup());
       this.add(this._buildFieldsGroup("status-fields", _("Status bar fields")));
@@ -297,6 +332,30 @@ const ProviderPage = GObject.registerClass(
 
     private _buildSettingsGroup(): Adw.PreferencesGroup {
       const group = new Adw.PreferencesGroup({ title: _("Settings") });
+
+      const displayNameRow = new Adw.EntryRow({
+        title: _("Display name"),
+        text: this._settings.get_string(`${this._provider}-display-name`) ?? "",
+      });
+      this._settings.bind(
+        `${this._provider}-display-name`,
+        displayNameRow,
+        "text",
+        Gio.SettingsBindFlags.DEFAULT,
+      );
+      group.add(displayNameRow);
+
+      const shortNameRow = new Adw.EntryRow({
+        title: _("Short display name"),
+        text: this._settings.get_string(`${this._provider}-display-name-short`) ?? "",
+      });
+      this._settings.bind(
+        `${this._provider}-display-name-short`,
+        shortNameRow,
+        "text",
+        Gio.SettingsBindFlags.DEFAULT,
+      );
+      group.add(shortNameRow);
 
       const cliRow = new Adw.EntryRow({
         title: _("CLI path"),
@@ -434,25 +493,35 @@ const ProviderPage = GObject.registerClass(
     ): void {
       const popover = new Gtk.Popover();
       const listBox = new Gtk.ListBox({
-        selection_mode: Gtk.SelectionMode.SINGLE,
+        selection_mode: Gtk.SelectionMode.NONE,
         show_separators: false,
       });
       listBox.add_css_class("boxed-list");
 
       const used = new Set(this._settings.get_strv(key));
+      const availableNames: string[] = [];
       for (const def of available) {
         if (used.has(def.name)) continue;
+        availableNames.push(def.name);
         const row = new Adw.ActionRow({
           title: def.label,
           subtitle: this._preview(def, zone, locale),
         });
-        row.connect("activated", () => {
-          const values = this._settings.get_strv(key);
-          this._settings.set_strv(key, [...values, def.name]);
-          popover.popdown();
-        });
         listBox.append(row);
       }
+
+      const clickGesture = new Gtk.GestureClick();
+      clickGesture.set_propagation_phase(Gtk.PropagationPhase.BUBBLE);
+      clickGesture.connect("pressed", (_g: Gtk.GestureClick, _n: number, _x: number, y: number) => {
+        const boxRow = listBox.get_row_at_y(y);
+        if (!boxRow) return;
+        const name = availableNames[boxRow.get_index()];
+        if (!name) return;
+        const values = this._settings.get_strv(key);
+        this._settings.set_strv(key, [...values, name]);
+        popover.popdown();
+      });
+      listBox.add_controller(clickGesture);
 
       if (used.size >= available.length) {
         listBox.append(
