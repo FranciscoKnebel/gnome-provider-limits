@@ -9,18 +9,29 @@ import { formatField } from "../formatters.js";
 import type { BaseReader, ReaderResult } from "../readers/base.js";
 import { ReaderStatus } from "../readers/base.js";
 
-export class PanelWidget extends PopupMenu.PopupMenuSection {
+export class PanelWidget {
   private _settings: Gio.Settings;
   private _readers: Map<string, BaseReader>;
+  private _section: PopupMenu.PopupMenuSection;
+  private _openPreferences: () => void;
 
-  constructor(settings: Gio.Settings, readers: Map<string, BaseReader>) {
-    super();
+  constructor(
+    settings: Gio.Settings,
+    readers: Map<string, BaseReader>,
+    openPreferences: () => void,
+  ) {
     this._settings = settings;
     this._readers = readers;
+    this._openPreferences = openPreferences;
+    this._section = new PopupMenu.PopupMenuSection();
+  }
+
+  get section(): PopupMenu.PopupMenuSection {
+    return this._section;
   }
 
   render(results: Map<string, ReaderResult>): void {
-    this.removeAll();
+    this._section.removeAll();
 
     const order = this._settings.get_strv("providers-order");
     const locale = this._getLocale();
@@ -31,16 +42,15 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
       if (result.status === ReaderStatus.DISABLED) continue;
 
       this._addProviderSection(name, result, locale);
-      this.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+      this._section.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
     }
 
-    // Refresh row
     this._addRefreshRow();
     const settingsItem = new PopupMenu.PopupMenuItem(_("Settings"));
     settingsItem.connect("activate", () => {
-      // TODO: open preferences
+      this._openPreferences();
     });
-    this.addMenuItem(settingsItem);
+    this._section.addMenuItem(settingsItem);
   }
 
   private _addProviderSection(name: string, result: ReaderResult, locale: string): void {
@@ -50,7 +60,7 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
       can_focus: false,
     });
     header.add_style_class_name("provider-limits-panel-header");
-    this.addMenuItem(header);
+    this._section.addMenuItem(header);
 
     if (result.status === ReaderStatus.ERROR) {
       const errorRow = new PopupMenu.PopupMenuItem(result.lastError ?? _("Error"), {
@@ -58,7 +68,7 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
         can_focus: false,
       });
       errorRow.add_style_class_name("provider-limits-dim");
-      this.addMenuItem(errorRow);
+      this._section.addMenuItem(errorRow);
       return;
     }
 
@@ -99,7 +109,7 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
 
       row.add_child(labelLabel);
       row.add_child(valueLabel);
-      this.addMenuItem(row);
+      this._section.addMenuItem(row);
     }
   }
 
@@ -107,7 +117,7 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     const row = new PopupMenu.PopupBaseMenuItem();
     row.add_child(
       new St.Label({
-        text: _("Refresh now"),
+        text: _("Force refresh"),
         x_expand: true,
         x_align: Clutter.ActorAlign.START,
       }),
@@ -115,18 +125,18 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     row.connect("activate", () => {
       // TODO: trigger refresh
     });
-    this.addMenuItem(row);
+    this._section.addMenuItem(row);
   }
 
   private _getHeader(name: string, result: ReaderResult): string {
-    const labels: Record<string, string> = {
-      codex: "Codex",
-      claude: "Claude",
-      opencode: "OpenCode",
-    };
-    const label = labels[name] ?? name;
+    const label = this._getProviderDisplayName(name);
     const statusText = this._statusText(result.status);
     return `${label}  ${statusText}`;
+  }
+
+  private _getProviderDisplayName(name: string): string {
+    const label = this._settings.get_string(`${name}-display-name`);
+    return label || name;
   }
 
   private _statusText(status: ReaderStatus): string {
