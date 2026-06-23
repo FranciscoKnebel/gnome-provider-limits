@@ -1,12 +1,6 @@
 export const PROVIDER_NAMES = ["codex", "claude", "opencode"] as const;
 export type ProviderName = (typeof PROVIDER_NAMES)[number];
 
-export const PROVIDER_LABELS: Record<string, string> = {
-  codex: "Codex",
-  claude: "Claude",
-  opencode: "OpenCode",
-};
-
 export const DEFAULT_REFRESH_SHORT_INTERVAL_SECONDS = 10;
 export const DEFAULT_REFRESH_LONG_INTERVAL_SECONDS = 120;
 export const DEFAULT_REFRESH_STABLE_READS_THRESHOLD = 3;
