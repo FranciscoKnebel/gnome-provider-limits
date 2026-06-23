@@ -121,5 +121,5 @@ msgid "Error"
 msgstr ""
 
 #: (extracted from source)
-msgid "Refresh now"
+msgid "Force refresh"
 msgstr ""

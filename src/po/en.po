@@ -122,5 +122,5 @@ msgid "Error"
 msgstr "Error"
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
-msgid "Refresh now"
-msgstr "Refresh now"
+msgid "Force refresh"
+msgstr "Force refresh"
