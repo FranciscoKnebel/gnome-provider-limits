@@ -28,6 +28,13 @@ export const CODEX_FIELDS: readonly FieldDef[] = [
     defaultZone: "status",
   },
   {
+    name: "remaining_percent_primary",
+    label: "Remaining % (5h window)",
+    type: "percent",
+    description: "Percentage remaining in the primary 5-hour rolling window.",
+    defaultZone: "status",
+  },
+  {
     name: "reset_at_primary",
     label: "Reset at (5h window)",
     type: "timestamp",
@@ -39,6 +46,13 @@ export const CODEX_FIELDS: readonly FieldDef[] = [
     label: "Used % (weekly)",
     type: "percent",
     description: "Percentage used in the weekly window.",
+    defaultZone: "panel",
+  },
+  {
+    name: "remaining_percent_secondary",
+    label: "Remaining % (weekly)",
+    type: "percent",
+    description: "Percentage remaining in the weekly window.",
     defaultZone: "panel",
   },
   {
@@ -188,6 +202,13 @@ export class CodexReader extends BaseReader {
     );
     fields.push(
       this._makeField(
+        "remaining_percent_primary",
+        primary?.used_percent != null ? 100 - primary.used_percent : null,
+        primary ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
+      ),
+    );
+    fields.push(
+      this._makeField(
         "reset_at_primary",
         primary?.reset_at ?? null,
         primary ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
@@ -197,6 +218,13 @@ export class CodexReader extends BaseReader {
       this._makeField(
         "used_percent_secondary",
         secondary?.used_percent ?? null,
+        secondary ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
+      ),
+    );
+    fields.push(
+      this._makeField(
+        "remaining_percent_secondary",
+        secondary?.used_percent != null ? 100 - secondary.used_percent : null,
         secondary ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
       ),
     );

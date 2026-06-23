@@ -22,6 +22,13 @@ export const OPENCODE_FIELDS: readonly FieldDef[] = [
     defaultZone: "status",
   },
   {
+    name: "remaining_percent_rolling",
+    label: "Remaining % (rolling 5h)",
+    type: "percent",
+    description: "Percentage remaining in the rolling 5-hour window.",
+    defaultZone: "status",
+  },
+  {
     name: "reset_at_rolling",
     label: "Reset at (rolling)",
     type: "timestamp",
@@ -33,6 +40,13 @@ export const OPENCODE_FIELDS: readonly FieldDef[] = [
     label: "Used % (weekly)",
     type: "percent",
     description: "Percentage used in the weekly window.",
+    defaultZone: "panel",
+  },
+  {
+    name: "remaining_percent_weekly",
+    label: "Remaining % (weekly)",
+    type: "percent",
+    description: "Percentage remaining in the weekly window.",
     defaultZone: "panel",
   },
   {
@@ -137,8 +151,10 @@ export class OpenCodeReader extends BaseReader {
 
     // v1: only telemetry fields from disk; limit fields unavailable
     fields.push(this._makeField("used_percent_rolling", null, FieldStatus.UNAVAILABLE));
+    fields.push(this._makeField("remaining_percent_rolling", null, FieldStatus.UNAVAILABLE));
     fields.push(this._makeField("reset_at_rolling", null, FieldStatus.UNAVAILABLE));
     fields.push(this._makeField("used_percent_weekly", null, FieldStatus.UNAVAILABLE));
+    fields.push(this._makeField("remaining_percent_weekly", null, FieldStatus.UNAVAILABLE));
     fields.push(this._makeField("reset_at_weekly", null, FieldStatus.UNAVAILABLE));
     fields.push(this._makeField("total_cost", stats.totalCost, FieldStatus.OK));
     fields.push(this._makeField("sessions_count", stats.sessionsCount, FieldStatus.OK));

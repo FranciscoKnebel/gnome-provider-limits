@@ -19,6 +19,13 @@ export const CLAUDE_FIELDS: readonly FieldDef[] = [
     defaultZone: "status",
   },
   {
+    name: "remaining_percent_session",
+    label: "Remaining % (session 5h)",
+    type: "percent",
+    description: "Percentage remaining in the current 5-hour session window.",
+    defaultZone: "status",
+  },
+  {
     name: "reset_at_session",
     label: "Reset at (session)",
     type: "timestamp",
@@ -30,6 +37,13 @@ export const CLAUDE_FIELDS: readonly FieldDef[] = [
     label: "Used % (weekly)",
     type: "percent",
     description: "Percentage used in the weekly window.",
+    defaultZone: "panel",
+  },
+  {
+    name: "remaining_percent_weekly",
+    label: "Remaining % (weekly)",
+    type: "percent",
+    description: "Percentage remaining in the weekly window.",
     defaultZone: "panel",
   },
   {
@@ -47,10 +61,24 @@ export const CLAUDE_FIELDS: readonly FieldDef[] = [
     defaultZone: "panel",
   },
   {
+    name: "remaining_percent_sonnet",
+    label: "Remaining % (Sonnet weekly)",
+    type: "percent",
+    description: "Model-specific weekly remaining for Sonnet.",
+    defaultZone: "panel",
+  },
+  {
     name: "used_percent_opus",
     label: "Used % (Opus weekly)",
     type: "percent",
     description: "Model-specific weekly usage for Opus.",
+    defaultZone: "panel",
+  },
+  {
+    name: "remaining_percent_opus",
+    label: "Remaining % (Opus weekly)",
+    type: "percent",
+    description: "Model-specific weekly remaining for Opus.",
     defaultZone: "panel",
   },
   {
@@ -189,6 +217,13 @@ export class ClaudeReader extends BaseReader {
     );
     fields.push(
       this._makeField(
+        "remaining_percent_session",
+        session?.used_percent != null ? 100 - session.used_percent : null,
+        session ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
+      ),
+    );
+    fields.push(
+      this._makeField(
         "reset_at_session",
         session?.reset_at ?? null,
         session ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
@@ -198,6 +233,13 @@ export class ClaudeReader extends BaseReader {
       this._makeField(
         "used_percent_weekly",
         weekly?.used_percent ?? null,
+        weekly ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
+      ),
+    );
+    fields.push(
+      this._makeField(
+        "remaining_percent_weekly",
+        weekly?.used_percent != null ? 100 - weekly.used_percent : null,
         weekly ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
       ),
     );
@@ -217,8 +259,22 @@ export class ClaudeReader extends BaseReader {
     );
     fields.push(
       this._makeField(
+        "remaining_percent_sonnet",
+        sonnet?.used_percent != null ? 100 - sonnet.used_percent : null,
+        sonnet ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
+      ),
+    );
+    fields.push(
+      this._makeField(
         "used_percent_opus",
         opus?.used_percent ?? null,
+        opus ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
+      ),
+    );
+    fields.push(
+      this._makeField(
+        "remaining_percent_opus",
+        opus?.used_percent != null ? 100 - opus.used_percent : null,
         opus ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
       ),
     );
