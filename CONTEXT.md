@@ -45,7 +45,7 @@ _Avoid_: Profile, preset.
 
 **Limit Field**:
 A field that expresses an active provider restriction on usage, e.g.
-`used_percent`, `reset_at`, `limit_reached`. All three providers expose limits
+`used_percent`, `remaining_percent`, `reset_at`, `limit_reached`. All three providers expose limits
 via HTTP using disk tokens/cookies (Codex OAuth, Claude OAuth, OpenCode web
 cookies); Codex also via disk (`logs_2.sqlite`).
 _Avoid_: Quota (when referring to telemetry).
@@ -55,6 +55,12 @@ A field that expresses usage already performed, with no reference to a ceiling
 , e.g. `totalCost`, `lastTotalInputTokens`, `sessionsCount`. Cannot be
 presented as "remaining" or "percentage of limit".
 _Avoid_: Usage metric, statistic.
+
+**Provider Display Name**:
+User-configurable label for a provider in the UI.
+`*-display-name` (full, used in panel and prefs) and `*-display-name-short`
+(compact, used in status bar). Defaults match the previous hardcoded labels.
+_Avoid_: Label, title (when referring to the configuration key).
 
 **Language**:
 Display language of the extension. Default follows the system locale (`LANG` /
