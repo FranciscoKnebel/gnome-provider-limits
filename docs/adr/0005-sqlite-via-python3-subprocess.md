@@ -11,7 +11,7 @@ Introspection exists but isn't installed by default either.
 Decision: read SQLite by invoking `python3` via `Gio.Subprocess`, with the
 needed query serialized as an argument and the result returned as JSON on
 stdout. Python3 is stdlib on every Linux desktop with GNOME, and `sqlite3` is
-in its stdlib — zero extra dependencies beyond python3 which is already
+in its stdlib, so zero extra dependencies beyond python3 which is already
 there.
 
 Usage rules:
@@ -22,10 +22,10 @@ Usage rules:
   < 50ms per query; spaced refresh (seconds/minutes, see refresh ADR) makes
   overhead negligible.
 - `JSON.parse` of stdout in GJS. Subprocess errors (python3 missing, DB
-  locked, schema changed) become "unavailable" for the affected fields — they
-  don't crash the extension.
+locked, schema changed) become "unavailable" for the affected fields. They
+don't crash the extension.
 - For the Claude reader, GJS reads `~/.claude.json` directly with `JSON.parse`
-  (no subprocess, no SQLite) — the data is plain JSON.
+  (no subprocess, no SQLite). The data is plain JSON.
 - `opencode stats` as optional fallback for window aggregation, if disk data
   isn't enough; never as the default path.
 

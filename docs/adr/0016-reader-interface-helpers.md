@@ -5,7 +5,7 @@ Readers are the layer that knows where and how to read each provider's state
 (ADR-0015) and separates readers (per-provider read logic) from helpers
 (reusable IO wrappers).
 
-## `src/readers/base.ts` — common interface
+## `src/readers/base.ts`: common interface
 
 ```ts
 export enum ReaderStatus {
@@ -56,24 +56,24 @@ export abstract class BaseReader {
 }
 ```
 
-## `src/helpers/http.ts` — Soup.Session wrapper
+## `src/helpers/http.ts`: Soup.Session wrapper
 
 Wrapper for `Soup.Session` with `Gio._promisify(send_and_read_async)`, common
 headers, JSON parse, HTTP error normalization into typed classes:
 
-- `TokenError` (401/403) — invalid/expired/revoked token.
-- `RateLimitError` (429) — reverse rate limit on the usage API itself.
-- `ServerError` (5xx) — transient provider error.
-- `NetworkError` (timeout/no network) — no connectivity.
+- `TokenError` (401/403): invalid/expired/revoked token.
+- `RateLimitError` (429): reverse rate limit on the usage API itself.
+- `ServerError` (5xx): transient provider error.
+- `NetworkError` (timeout/no network): no connectivity.
 
-## `src/helpers/subprocess.ts` — Gio.Subprocess wrapper
+## `src/helpers/subprocess.ts`: Gio.Subprocess wrapper
 
 `Gio.Subprocess` with stdin/stdout/stderr pipes, await via
 `Gio._promisify(wait_check_async)`, parse stdout as string/JSON, timeout via
 `GLib.Timeout` that forces `subprocess.force_exit()`. Used by `sqlite.ts`
 (python3) and Claude CLI PTY (fallback).
 
-## `src/helpers/sqlite.ts` — python3 + sqlite3 wrapper
+## `src/helpers/sqlite.ts`: python3 + sqlite3 wrapper
 
 Invokes `python3 -c "import sqlite3, json; ..."` via `subprocess.ts`, returns
 parsed JSON. In-memory cache by `(dbPath, queryKey)` for N seconds (default
@@ -103,7 +103,7 @@ Each reader extends `BaseReader` and implements `read()` trying paths in order
 Rationale: `FieldResult` with per-field `status` enables the granular error
 handling of ADR-0013. `ReaderResult` with aggregated `status` + `pathsTried` +
 `lastError` enables the visible per-provider state in the panel (ADR-0012) and
-the adaptive polling intelligence (ADR-0006 — `error` doesn't degrade,
+the adaptive polling intelligence (ADR-0006: `error` doesn't degrade,
 `unavailable` degrades). Reusable helpers (`http.ts`, `subprocess.ts`,
 `sqlite.ts`) avoid duplication between readers. TypeScript ensures
 readers/UI agree on the data shape.

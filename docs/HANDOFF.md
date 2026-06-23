@@ -1,4 +1,4 @@
-# Handoff: gnome-provider-limits — v1 implementation continuation
+# Handoff: gnome-provider-limits, v1 implementation continuation
 
 ## Context
 
@@ -27,26 +27,26 @@ GObject type fixes is the next focus.
    English (repo is public, all content must be English).
 
 4. **Verification**: `npm run format:check` passes. `npm run lint` passes
-   (0 errors, 1 warning). `npm run typecheck` has 26 errors — all from
+    (0 errors, 1 warning). `npm run typecheck` has 26 errors, all from
    GObject.registerClass + TS type inference (see "Next steps" below).
 
-## Reference artifacts (do not re-read all — reference by path as needed)
+## Reference artifacts (do not re-read all; reference by path as needed)
 
-- **ADRs**: `docs/adr/0001-*.md` through `docs/adr/0019-*.md` — 19 decisions.
+- **ADRs**: `docs/adr/0001-*.md` through `docs/adr/0019-*.md`, covering 19 decisions.
   Key ones for implementation:
-  - `0011-http-direct-with-disk-tokens.md` — reader HTTP strategy
-  - `0016-reader-interface-helpers.md` — BaseReader interface, helper shapes
-  - `0013-error-handling-three-levels.md` — FieldStatus, fallback chains
-  - `0018-field-formatting-by-type.md` — formatField() contract
-  - `0019-security-policy.md` — no caching credentials, redactForLog
-- **Glossary**: `CONTEXT.md` — 10 domain terms
+  - `0011-http-direct-with-disk-tokens.md`: reader HTTP strategy
+  - `0016-reader-interface-helpers.md`: BaseReader interface, helper shapes
+  - `0013-error-handling-three-levels.md`: FieldStatus, fallback chains
+  - `0018-field-formatting-by-type.md`: formatField() contract
+  - `0019-security-policy.md`: no caching credentials, redactForLog
+- **Glossary**: `CONTEXT.md` with 10 domain terms
 - **Contribution guide**: `AGENTS.md` (symlinked as `CLAUDE.md`)
 - **Reference extension** (installed locally):
-  `~/.local/share/gnome-shell/extensions/codex-usage-indicator@stone.dev/` —
+  `~/.local/share/gnome-shell/extensions/codex-usage-indicator@stone.dev/`:
   uses `Soup.Session` with Bearer token, `Adw` prefs, `PanelMenu.Button`.
   Useful as a working JS example of the GJS patterns we need.
 - **CodexBar docs** (web): `https://github.com/steipete/CodexBar/blob/main/docs/`
-  — `codex.md`, `claude.md`, `opencode.md` document the exact API endpoints,
+  These files document the exact API endpoints,
   payload shapes, and fallback chains per provider. These are the source of
   truth for reader implementations.
 
@@ -63,7 +63,7 @@ npm run test          → not yet runnable (jasmine needs GJS runner setup)
 
 ### 1. Fix GObject.registerClass TypeScript type inference (26 errors)
 
-This is the blocker — nothing else can be typechecked until these are
+This is the blocker. Nothing else can be typechecked until these are
 resolved. The errors fall into 3 categories:
 
 **a) `resource:///` module resolution (5 errors)**
@@ -90,7 +90,7 @@ in TS's type inference. Affected:
 - `PanelWidget` (extends `PopupMenu.PopupMenuSection`): missing `removeAll`,
   `addMenuItem`.
 - `ProviderLimitsPreferencesPage` (extends `Adw.PreferencesPage`): missing
-  `_settings` (it's a custom field, not parent — needs `declare` like
+  `_settings` (it's a custom field, not parent, so needs `declare` like
   `extension.ts` already does for its fields).
 - `StatusBarWidget` (extends `St.BoxLayout`): missing `add_child`,
   `remove_child`.
@@ -100,7 +100,7 @@ in `extension.ts` lines 25-33). For parent members (`add_child`, `menu`,
 `addMenuItem`, `removeAll`), either:
 
 - Study the gjsify/gnome-shell hello-world example:
-  `node_modules/@girs/gnome-shell/` repo has `examples/hello-world/` — check
+  `node_modules/@girs/gnome-shell/` repo has `examples/hello-world/`. Check
   their `tsconfig.json` and class patterns.
 - Or use type assertions (`this as unknown as PanelMenu.Button`).add_child(...)
   as a last resort.
@@ -109,17 +109,17 @@ in `extension.ts` lines 25-33). For parent members (`add_child`, `menu`,
 
 **c) Misc (7 errors)**
 
-- `src/extension.ts:69` — `require()` is not available in ESM/GJS. Replace
+- `src/extension.ts:69`: `require()` is not available in ESM/GJS. Replace
   with a static import of `PROVIDER_NAMES` at the top of the file (it was
   originally there but got moved to `require` during a fix attempt).
-- `src/extension.ts:175` — `ProviderLimitsIndicator` used as type but it's a
+- `src/extension.ts:175`: `ProviderLimitsIndicator` used as type but it's a
   value (from `registerClass`). Use `InstanceType<typeof
 ProviderLimitsIndicator>` or restructure.
-- `src/prefs.ts:145` — `getSettings()` doesn't exist on
+- `src/prefs.ts:145`: `getSettings()` doesn't exist on
   `ExtensionPreferences`. Check the `@girs/gnome-shell` type for the correct
   method name (might be `this.getSettings()` via `ExtensionPreferences`
-  base class — verify the ambient declaration).
-- `src/ui/statusBar.ts:66` — `string` not assignable to `FieldType`. The
+  base class. Verify the ambient declaration).
+- `src/ui/statusBar.ts:66`: `string` not assignable to `FieldType`. The
   `_getFieldType` method returns `string` but should return `FieldType`.
   Change the return type annotation.
 
@@ -147,7 +147,7 @@ feedback_log_body LIKE '%codex.rate_limits%' ORDER BY ts DESC LIMIT 1`.
   `ClaudeUsagePayload`.
 - `_readFromCli()`: use `helpers/subprocess.ts` to invoke `claude
 --allowed-tools ""` in a PTY, send `/usage`, parse rendered "Current
-  session" and "Current week" output. This is the most complex fallback —
+  session" and "Current week" output. This is the most complex fallback.
   study CodexBar's `ClaudeStatusProbe.swift` for parsing patterns.
 
 **OpenCode reader** (`src/readers/opencode.ts`):
@@ -190,7 +190,7 @@ Each row = `Adw.ActionRow` with field label + formatted preview suffix.
 
 ### 6. Create symbolic icon
 
-`src/icons/provider-limits-symbolic.svg` — a simple symbolic SVG icon for
+`src/icons/provider-limits-symbolic.svg`, a simple symbolic SVG icon for
 the status bar. Can be a minimal gauge/meter shape. Reference existing
 symbolic icons in `/usr/share/icons/Adwaita/scalable/status/` for style.
 
@@ -210,13 +210,13 @@ gnome-extensions enable gnome-provider-limits@franciscoknebel.com
 
 ## Suggested skills
 
-- **`grilling`** — if the user wants to stress-test any remaining design
+- **`grilling`**: if the user wants to stress-test any remaining design
   decisions before implementation (e.g., the GObject type fix approach, or
   the OpenCode cookie import strategy for v1.x).
-- **`domain-modeling`** — if new domain terms emerge during implementation
+- **`domain-modeling`**: if new domain terms emerge during implementation
   (e.g., cookie import mechanics, PTY parsing patterns). Update
   `CONTEXT.md` and add ADRs if hard-to-reverse decisions come up.
-- **`customize-opencode`** — if the user wants to adjust opencode's own
+- **`customize-opencode`**: if the user wants to adjust opencode's own
   configuration (skills, commands, agents) while working on this project.
 
 ## Environment notes
@@ -225,7 +225,7 @@ gnome-extensions enable gnome-provider-limits@franciscoknebel.com
 - GNOME Shell 50.1 on Ubuntu 26.04 LTS
 - `gjs` and `gnome-extensions` CLI available
 - `python3` available (for SQLite helper)
-- `sqlite3` CLI NOT installed (hence the python3 approach — ADR-0005)
+- `sqlite3` CLI NOT installed (hence the python3 approach, per ADR-0005)
 - Provider CLIs installed: `~/.local/bin/claude`, `~/.local/bin/codex`,
   `~/.opencode/bin/opencode`
 - Real provider state on disk for testing:
@@ -233,16 +233,16 @@ gnome-extensions enable gnome-provider-limits@franciscoknebel.com
   - `~/.claude/.credentials.json`, `~/.claude.json`
   - `~/.local/share/opencode/opencode.db`, `~/.local/share/opencode/auth.json`
 - Claude org auth is currently expired ("Your organization does not have
-  access to Claude") — Claude reader will hit this during testing; useful for
+  access to Claude"). Claude reader will hit this during testing; useful for
   testing the error handling path (ADR-0013).
 
 ## Key decisions to respect
 
-- **No JSON in GSettings** (ADR-0008) — all config is native typed keys
-- **No credential caching** (ADR-0019) — read from disk every refresh
-- **No keyring/libsecret** (ADR-0019) — reuse provider's own disk credentials
+- **No JSON in GSettings** (ADR-0008): all config is native typed keys
+- **No credential caching** (ADR-0019): read from disk every refresh
+- **No keyring/libsecret** (ADR-0019): reuse provider's own disk credentials
 - **English only** in all code, docs, commits, issues, PRs
-- **TypeScript strict mode** — no `any` without justification
-- **oxfmt + oxlint** — run `npm run format` and `npm run lint` before
+- **TypeScript strict mode**: no `any` without justification
+- **oxfmt + oxlint**: run `npm run format` and `npm run lint` before
   committing. Floating promises are errors.
 - **No comments** unless necessary for clarity (AGENTS.md)

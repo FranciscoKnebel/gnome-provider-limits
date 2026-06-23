@@ -2,7 +2,7 @@
 
 Each provider exposes its own set of fields (e.g. prompts used, % remaining,
 reset timestamp), because each CLI persists different data. The extension
-doesn't force a single schema — each reader publishes the fields it can read,
+doesn't force a single schema. Each reader publishes the fields it can read,
 and the user configures:
 
 - **which fields** appear for each provider;

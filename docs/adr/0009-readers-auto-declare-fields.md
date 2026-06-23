@@ -28,8 +28,8 @@ Supported types (`type`), which guide UI formatting:
 
 Separation of concerns:
 
-- **Available** — from `reader.FIELDS` (static, declarative).
-- **Displayed** — from GSettings `*-status-fields` / `*-panel-fields`
+- **Available:** from `reader.FIELDS` (static, declarative).
+- **Displayed:** from GSettings `*-status-fields` / `*-panel-fields`
   (ADR-0008). The user chooses a subset of available and orders them.
 
 If a field fails at runtime, the reader returns `null` for it; the UI shows
@@ -37,7 +37,7 @@ If a field fails at runtime, the reader returns `null` for it; the UI shows
 value again. Schema defaults (ADR-0008) already include a reasonable
 selection.
 
-Rationale: co-locates field metadata with the logic that reads it — easy to
+Rationale: co-locates field metadata with the logic that reads it, making it easy to
 keep in sync. If the reader gains a new field, it appears in the prefs list
 automatically; the user decides whether to display it. A central catalog in
 `constants.ts` would decouple metadata from logic and be easy to get out of

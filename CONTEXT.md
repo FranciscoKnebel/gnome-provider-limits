@@ -19,7 +19,7 @@ _Avoid_: Parser, scraper, client.
 **SQLite Helper**:
 `python3` invocation via `Gio.Subprocess` with `sqlite3` from the stdlib, used
 by readers that need to read provider SQLite databases (Codex, OpenCode).
-Returns JSON on stdout. Not a daemon — spawned per refresh.
+Returns JSON on stdout. Not a daemon; spawned per refresh.
 _Avoid_: Driver, connector, ORM.
 
 **Field**:
@@ -44,7 +44,7 @@ Per-provider configuration that defines which fields to display, in which zone
 _Avoid_: Profile, preset.
 
 **Limit Field**:
-A field that expresses an active provider restriction on usage — e.g.
+A field that expresses an active provider restriction on usage, e.g.
 `used_percent`, `reset_at`, `limit_reached`. All three providers expose limits
 via HTTP using disk tokens/cookies (Codex OAuth, Claude OAuth, OpenCode web
 cookies); Codex also via disk (`logs_2.sqlite`).
@@ -52,7 +52,7 @@ _Avoid_: Quota (when referring to telemetry).
 
 **Telemetry Field**:
 A field that expresses usage already performed, with no reference to a ceiling
-— e.g. `totalCost`, `lastTotalInputTokens`, `sessionsCount`. Cannot be
+, e.g. `totalCost`, `lastTotalInputTokens`, `sessionsCount`. Cannot be
 presented as "remaining" or "percentage of limit".
 _Avoid_: Usage metric, statistic.
 

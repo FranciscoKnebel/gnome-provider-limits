@@ -44,7 +44,7 @@ panel (ADR-0012), and the prefs preview (ADR-0017) with a sample `value`.
 - Status bar: `$3.71` (2 decimals, `$` prefix).
 - Panel: same.
 - i18n: currency symbol by locale via
-  `Intl.NumberFormat(locale, {style: 'currency', currency: 'USD'})` — GJS
+  `Intl.NumberFormat(locale, {style: 'currency', currency: 'USD'})`. GJS
   supports `Intl`.
 
 ### `count` (OpenCode `sessionsCount`, Codex `credits`)
@@ -88,8 +88,8 @@ export function formatField({
 - i18n via `Intl.NumberFormat` / `Intl.DateTimeFormat` (GJS supports) and
   `gettext` for fixed strings ("now", "yes", "no").
 - Color by threshold (`≥80%` red) in `stylesheet.css` via CSS class
-  (`.usage-critical`, `.usage-warning`), not inline — consistent with GNOME
-  theme (dark/light) and easy to adjust.
+  (`.usage-critical`, `.usage-warning`), not inline. This keeps consistency with GNOME
+  theme (dark/light) and remains easy to adjust.
 
 Rationale: status bar is compact (few chars per field), panel is verbose (more
 context). The same function with `zone` adjusts. i18n via `Intl` + `gettext`

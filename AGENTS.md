@@ -1,4 +1,4 @@
-# AGENTS.md — Provider Limits GNOME Extension
+# AGENTS.md: Provider Limits GNOME Extension
 
 Guidelines for agents (and humans) contributing to this repository.
 
@@ -34,7 +34,7 @@ making architectural changes. Key decisions:
 - **ADR-0016:** Readers implement `BaseReader` interface (`FIELDS` +
   `read()` → `ReaderResult`). Helpers (`http.ts`, `subprocess.ts`,
   `sqlite.ts`) are reusable wrappers.
-- **ADR-0019:** Security — read tokens from disk every refresh, never cache
+- **ADR-0019:** Security: read tokens from disk every refresh, never cache
   credentials, never log credentials, never persist credentials ourselves,
   destroy everything in `disable()`.
 
@@ -135,7 +135,7 @@ src/
 
 - **jasmine** running in GJS (via `jasmine-gjs` or `gjs-console` runner).
 - One `*.test.ts` per module, in `tests/`.
-- Mock `Soup.Session`, `Gio.Subprocess`, `Gio.File` — tests don't hit
+- Mock `Soup.Session`, `Gio.Subprocess`, `Gio.File`, so tests don't hit
   network/disk/CLI.
 - Use real payload fixtures (JSON/SQLite) captured from provider disk for
   parser tests. Put fixtures in `tests/fixtures/`.

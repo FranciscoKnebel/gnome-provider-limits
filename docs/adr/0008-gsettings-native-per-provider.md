@@ -13,12 +13,12 @@ Globals (adaptive refresh, ADR-0006):
 Per provider (prefix `<provider>-`), repeated for each of the 3 providers
 (codex, claude, opencode):
 
-- `<provider>-enabled` (b, default true) — whether the provider appears in UI
-- `<provider>-cli-path` (s, default `''` = auto-detect in PATH) — path to the
+- `<provider>-enabled` (b, default true): whether the provider appears in UI
+- `<provider>-cli-path` (s, default `''` = auto-detect in PATH): path to the
   CLI binary for fallback (ADR-0003)
-- `<provider>-status-fields` (as — ordered array of field names) — which
+- `<provider>-status-fields` (as, ordered array of field names): which
   fields appear in the status bar and in which order
-- `<provider>-panel-fields` (as — ordered array of field names) — which
+- `<provider>-panel-fields` (as, ordered array of field names): which
   fields appear in the panel and in which order
 
 Total: 3 globals + 3 providers × 4 keys = 15 keys. Verbose in the schema, but
@@ -36,7 +36,7 @@ essentials, panel with the rest):
 - `opencode-status-fields`: `['used_percent_rolling','reset_at_rolling']`
 - `opencode-panel-fields`: `['used_percent_weekly','reset_at_weekly','totalCost','sessionsCount','tokenExpiresAt']`
 
-Rationale: the user rejected JSON embedded in a string — keep values in the
+Rationale: the user rejected JSON embedded in a string, so keep values in the
 most common format expected by GSettings. Per-provider prefixed keys are
 verbose in the XML schema, but each is simple and native. Adding a new
 provider = adding 4 keys (mechanical, explicit). Default `as` arrays come with

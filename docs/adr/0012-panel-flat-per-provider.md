@@ -3,7 +3,7 @@
 The panel (expanded window on clicking the status bar button) uses flat
 layout: one section per provider, fields rendered as `PopupBaseMenuItem` with
 `St.Label` on the left (field label, from `reader.FIELDS[].label`) and
-`St.Label` on the right (value formatted by `type`). No submenus — all
+`St.Label` on the right (value formatted by `type`). No submenus. All
 providers visible in one click, scroll if needed.
 
 Provider order = `providers-order` (as, ADR-0010). Field order within each

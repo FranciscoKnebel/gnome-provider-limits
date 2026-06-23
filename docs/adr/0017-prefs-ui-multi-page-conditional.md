@@ -3,33 +3,33 @@
 The preferences window (`Adw.PreferencesWindow`) has **1 "General" page + 1
 page per enabled provider** (up to 4 pages: General + Codex + Claude +
 OpenCode). Pages for disabled providers (`<provider>-enabled=false`) are **not
-shown** — the user only sees a provider's page when they enable it in General.
+shown**. The user only sees a provider's page when they enable it in General.
 Re-enabling recreates the page.
 
 ## "General" page
 
-- **"Refresh" group** — `Adw.SpinRow` for `refresh-short-interval-seconds`
+- **"Refresh" group**: `Adw.SpinRow` for `refresh-short-interval-seconds`
   (10-3600), `refresh-long-interval-seconds` (60-3600),
   `refresh-stable-reads-threshold` (1-10). Direct bind to GSettings int keys.
-- **"Language" group** — `Adw.ComboRow` for `language` (system / en / pt_BR).
+- **"Language" group**: `Adw.ComboRow` for `language` (system / en / pt_BR).
   Bind to GSettings string key.
-- **"Providers" group** — sortable list of providers for `providers-order`
+- **"Providers" group**: sortable list of providers for `providers-order`
   (as). Each row = `Adw.ActionRow` with provider name + `Adw.SwitchRow` as
   suffix for `<provider>-enabled`. DnD to reorder. Toggle enables/disables the
   provider and adds/removes its page to the window dynamically.
 
 ## Per-provider page (Codex / Claude / OpenCode)
 
-- **"Settings" group** — `Adw.EntryRow` for `<provider>-cli-path` (bind
+- **"Settings" group**: `Adw.EntryRow` for `<provider>-cli-path` (bind
   string). (The `enabled` toggle is already in General; don't repeat here.)
-- **"Status bar fields" group** — sortable list of fields in
+- **"Status bar fields" group**: sortable list of fields in
   `<provider>-status-fields`. Each row = `Adw.ActionRow` with field label
   (from `reader.FIELDS[].label`) + formatted preview by `type` as suffix
   (e.g. percent → "42%", timestamp → "2h 30m", tokens → "1.0M", cost →
   "$3.71"). DnD to reorder. "+" button in the group header opens a popover
   with available fields (from `reader.FIELDS` minus those already in the list).
   "−" button as suffix of each row to remove.
-- **"Panel fields" group** — same structure for `<provider>-panel-fields`.
+- **"Panel fields" group**: same structure for `<provider>-panel-fields`.
 
 ## Widget strategy
 
@@ -46,7 +46,7 @@ Re-enabling recreates the page.
 ## GSettings binding
 
 - **Globals and per-provider settings:** `settings.bind(key, row,
-'value'|'selected'|'text', Gio.SettingsBindFlags.DEFAULT)` — direct, as in
+'value'|'selected'|'text', Gio.SettingsBindFlags.DEFAULT)`. This is direct, as in
   the reference extension.
 - **Field lists:** no direct bind (GSettings `as` doesn't bind to ListBox).
   Reorder/add/remove triggers `settings.set_strv(key, newArray)`. List is
@@ -68,8 +68,8 @@ Re-enabling recreates the page.
 4. Connects `changed::providers-order` to reorder pages (rare, but supported).
 
 Rationale: 4 pages keep each focused and short. Provider pages only if
-enabled reduces clutter (user who only uses Codex sees only General + Codex).
-1:1 mapping with GSettings keys (ADR-0008) — each widget corresponds to one
+enabled reduces clutter. A user who only uses Codex sees only General + Codex.
+1:1 mapping with GSettings keys (ADR-0008). Each widget corresponds to one
 key. Formatted preview in the row educates the user about what the field
 shows before they enable it. DnD via GTK4 is the standard for sortable lists.
 The "+ popover" with available fields (from `reader.FIELDS`) ensures new

@@ -10,17 +10,17 @@ definitions via `@girs/*` npm packages.
 UI toolkit:
 
 - **St** (Shell Toolkit, synchronous, Clutter-based) for the status bar and
-  panel — required by GNOME Shell. `PanelMenu.Button` with `St.BoxLayout` /
+  panel, as required by GNOME Shell. `PanelMenu.Button` with `St.BoxLayout` /
   `St.Icon` / `St.Label` / `Clutter.ActorAlign` for the status bar;
   `PopupMenu.PopupMenuSection` + `PopupMenu.PopupBaseMenuItem` + separators
   for the panel.
-- **Adw** (libadwaita) for the preferences window — `Adw.PreferencesPage` →
+- **Adw** (libadwaita) for the preferences window: `Adw.PreferencesPage` →
   `Adw.PreferencesGroup` → `Adw.SpinRow` / `Adw.ComboRow` / `Adw.ActionRow`
   / `Adw.EntryRow`. Standard since GNOME 45+.
 
 Build (updated by ADR-0015): `tsc -p tsconfig.json` → generates `.js` in
 `dist/`. Then `glib-compile-schemas schemas/` and `gnome-extensions pack`. No
-bundler — `tsc` alone transpiles TS to ESM that GJS runs directly. The
+bundler. `tsc` alone transpiles TS to ESM that GJS runs directly. The
 reference extension (`codex-usage-indicator@stone.dev`, installed in the
 environment) confirms the ESM/GObject.registerClass/Adw mold in JS; we just
 add TS on top.
@@ -59,4 +59,4 @@ GNOME 45. TypeScript adds type safety to GObject Introspection wrappers
 (non-trivial APIs) and to contracts between readers/UI/settings (ADR-0015).
 The folder structure separates readers (per-provider read logic) from ui
 (rendering) from helpers (IO wrappers), keeping each file small with single
-responsibility — aligned with the "lightweight" requirement.
+responsibility, aligned with the "lightweight" requirement.

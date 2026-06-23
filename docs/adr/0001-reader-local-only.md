@@ -15,5 +15,5 @@ as "unavailable" instead of simulating the value.
 
 Rationale: keeps the extension offline-first, avoids dealing with network auth
 and reverse rate-limiting, and respects user token privacy. The cost is being
-dependent on what each CLI decides to write — and not all of them write
+dependent on what each CLI decides to write. Not all of them write
 "remaining limit" explicitly.

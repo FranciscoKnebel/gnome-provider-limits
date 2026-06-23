@@ -60,7 +60,7 @@ gnome-provider-limits/                  # repo root
 │   ├── helpers/
 │   └── helpers/
 │       └── mocks.ts                    # mocks for Gio/Soup/Gio.File
-├── dist/                               # tsc output (.js) — gitignored
+├── dist/                               # tsc output (.js), gitignored
 ├── tsconfig.json
 ├── package.json
 ├── package-lock.json
@@ -98,14 +98,14 @@ dist/` + `glib-compile-schemas src/schemas`. User installs with
 `gnome-extensions pack dist/ -o dist/ --schema
 src/schemas/org.gnome.shell.extensions.gnome-provider-limits.gschema.xml
 --podir src/po --gettext-domain gnome-provider-limits` generates the `.zip`
-with compiled schemas and translations included. No bundler — `tsc` alone.
+with compiled schemas and translations included. No bundler, just `tsc` alone.
 
 ## CI
 
 GitHub Actions on tag push:
 
 1. `npm ci`
-2. `npm test` (jasmine in GJS — ADR-0015)
+2. `npm test` (jasmine in GJS, per ADR-0015)
 3. `npm run build` (`tsc`)
 4. `glib-compile-schemas src/schemas`
 5. `gnome-extensions pack dist/ -o dist/` (with schemas + po + gettext-domain)
