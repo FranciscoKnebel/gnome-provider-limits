@@ -41,11 +41,21 @@
       <description>Order in which providers appear in the status bar and panel.</description>
     </key>
 
-    <!-- Per-provider: Codex (ADR-0008) -->
+    <!-- Per-provider: Codex (ADR-0008, ADR-0020) -->
     <key name="codex-enabled" type="b">
       <default>true</default>
       <summary>Codex enabled</summary>
       <description>Whether Codex appears in the status bar and panel.</description>
+    </key>
+    <key name="codex-display-name" type="s">
+      <default>'Codex'</default>
+      <summary>Codex display name</summary>
+      <description>Full display name for Codex in the panel and preferences.</description>
+    </key>
+    <key name="codex-display-name-short" type="s">
+      <default>'codex'</default>
+      <summary>Codex short display name</summary>
+      <description>Compact label for Codex in the status bar.</description>
     </key>
     <key name="codex-cli-path" type="s">
       <default>''</default>
@@ -63,11 +73,21 @@
       <description>Fields shown for Codex in the panel, in display order.</description>
     </key>
 
-    <!-- Per-provider: Claude (ADR-0008) -->
+    <!-- Per-provider: Claude (ADR-0008, ADR-0020) -->
     <key name="claude-enabled" type="b">
       <default>true</default>
       <summary>Claude enabled</summary>
       <description>Whether Claude appears in the status bar and panel.</description>
+    </key>
+    <key name="claude-display-name" type="s">
+      <default>'Claude'</default>
+      <summary>Claude display name</summary>
+      <description>Full display name for Claude in the panel and preferences.</description>
+    </key>
+    <key name="claude-display-name-short" type="s">
+      <default>'claude'</default>
+      <summary>Claude short display name</summary>
+      <description>Compact label for Claude in the status bar.</description>
     </key>
     <key name="claude-cli-path" type="s">
       <default>''</default>
@@ -85,11 +105,21 @@
       <description>Fields shown for Claude in the panel, in display order.</description>
     </key>
 
-    <!-- Per-provider: OpenCode (ADR-0008) -->
+    <!-- Per-provider: OpenCode (ADR-0008, ADR-0020) -->
     <key name="opencode-enabled" type="b">
       <default>true</default>
       <summary>OpenCode enabled</summary>
       <description>Whether OpenCode appears in the status bar and panel.</description>
+    </key>
+    <key name="opencode-display-name" type="s">
+      <default>'OpenCode'</default>
+      <summary>OpenCode display name</summary>
+      <description>Full display name for OpenCode in the panel and preferences.</description>
+    </key>
+    <key name="opencode-display-name-short" type="s">
+      <default>'opc'</default>
+      <summary>OpenCode short display name</summary>
+      <description>Compact label for OpenCode in the status bar.</description>
     </key>
     <key name="opencode-cli-path" type="s">
       <default>''</default>
