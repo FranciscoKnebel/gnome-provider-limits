@@ -1,0 +1,42 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  release:
+    runs-on: ubuntu
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+
+      - run: npm ci
+
+      - run: npm run check
+
+      - run: npm run build
+
+      - name: Compile schemas
+        run: glib-compile-schemas src/schemas
+
+      - name: Pack extension
+        run: |
+          gnome-extensions pack dist/ -o dist/ \
+            --schema src/schemas/org.gnome.shell.extensions.gnome-provider-limits.gschema.xml \
+            --podir src/po \
+            --gettext-domain gnome-provider-limits
+
+      - name: Upload release artifact
+        uses: softprops/action-gh-release@v3
+        with:
+          files: dist/*.zip
+          generate_release_notes: true
+          fail_on_unmatched_files: true
