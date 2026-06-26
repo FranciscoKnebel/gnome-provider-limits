@@ -28,5 +28,6 @@ pnpm-lock.yaml
 
 coverage/
 
-# ADRs (keep local only, not tracked in repo)
+# Local docs (keep local only, not tracked in repo)
 docs/adr/
+docs/HANDOFF.md
