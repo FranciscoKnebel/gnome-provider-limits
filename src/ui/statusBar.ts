@@ -4,10 +4,11 @@ import GLib from "gi://GLib";
 import GObject from "gi://GObject";
 import St from "gi://St";
 
-import { formatField } from "../formatters.js";
-import type { BaseReader } from "../readers/base.js";
-import type { FieldType, ReaderResult } from "../readers/base.js";
+import { resolveLocale } from "../helpers/locale.js";
+import { providerDisplayNameShort } from "../helpers/provider-settings.js";
+import type { BaseReader, ReaderResult } from "../readers/base.js";
 import { ReaderStatus } from "../readers/base.js";
+import { getFieldRows } from "./fieldRows.js";
 
 export const StatusBarWidget = GObject.registerClass(
   class StatusBarWidget extends St.BoxLayout {
@@ -25,7 +26,11 @@ export const StatusBarWidget = GObject.registerClass(
 
     render(results: Map<string, ReaderResult>): void {
       const order = this._settings.get_strv("providers-order");
-      const locale = this._getLocale();
+      const locale = resolveLocale(
+        this._settings.get_string("language"),
+        GLib.getenv("LC_MESSAGES"),
+        GLib.getenv("LANG"),
+      );
 
       // Destroy all existing children to avoid accumulation on re-render
       let child = this.get_first_child();
@@ -54,28 +59,22 @@ export const StatusBarWidget = GObject.registerClass(
         isFirst = false;
 
         // Provider label
+        const labelText = this._getProviderLabel(name);
         const label = new St.Label({
-          text: this._getProviderLabel(name),
+          text: labelText,
           style_class: "provider-limits-provider-label",
           y_align: Clutter.ActorAlign.CENTER,
         });
         this.add_child(label);
 
         // Fields
-        const statusFields = this._settings.get_strv(`${name}-status-fields`);
-        for (const fieldName of statusFields) {
-          const field = result.fields.find((f) => f.name === fieldName);
-          if (!field) continue;
+        const reader = this._readers.get(name);
+        const fieldNames = this._settings.get_strv(`${name}-status-fields`);
+        const rows = getFieldRows(reader, result, fieldNames, "status", locale);
 
-          const text = formatField({
-            type: this._getFieldType(name, fieldName),
-            value: field.value,
-            zone: "status",
-            locale,
-          });
-
+        for (const rowData of rows) {
           const fieldLabel = new St.Label({
-            text,
+            text: rowData.valueText,
             y_align: Clutter.ActorAlign.CENTER,
           });
           this.add_child(fieldLabel);
@@ -83,24 +82,8 @@ export const StatusBarWidget = GObject.registerClass(
       }
     }
 
-    private _getLocale(): string {
-      const lang = this._settings.get_string("language");
-      if (lang && lang.trim()) return lang.trim();
-
-      const envLang = GLib.getenv("LC_MESSAGES") ?? GLib.getenv("LANG") ?? "en";
-      return envLang.split(".")[0].replace("_", "_");
-    }
-
     private _getProviderLabel(name: string): string {
-      const label = this._settings.get_string(`${name}-display-name-short`);
-      return label || name;
-    }
-
-    private _getFieldType(providerName: string, fieldName: string): FieldType {
-      const reader = this._readers.get(providerName);
-      if (!reader) return "text";
-      const def = reader.FIELDS.find((f) => f.name === fieldName);
-      return def?.type ?? "text";
+      return providerDisplayNameShort(this._settings, name);
     }
   },
 );
