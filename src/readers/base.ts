@@ -63,6 +63,34 @@ export abstract class BaseReader {
     return { name, value, status, error: error ?? null };
   }
 
+  protected _makePercentFieldPair(
+    key: string,
+    usedPct: number | null | undefined,
+    status: FieldStatus,
+  ): [FieldResult, FieldResult] {
+    return [
+      this._makeField(`used_percent_${key}`, usedPct ?? null, status),
+      this._makeField(`remaining_percent_${key}`, usedPct != null ? 100 - usedPct : null, status),
+    ];
+  }
+
+  protected _makeWindowFields(
+    key: string,
+    data:
+      | {
+          used_percent?: number | null;
+          reset_at?: number | string | null;
+        }
+      | null
+      | undefined,
+  ): FieldResult[] {
+    const status = data ? FieldStatus.OK : FieldStatus.UNAVAILABLE;
+    return [
+      ...this._makePercentFieldPair(key, data?.used_percent ?? null, status),
+      this._makeField(`reset_at_${key}`, data?.reset_at ?? null, status),
+    ];
+  }
+
   protected _okResult(fields: readonly FieldResult[], pathsTried: readonly string[]): ReaderResult {
     return {
       provider: this.providerName,
@@ -97,5 +125,26 @@ export abstract class BaseReader {
       lastError: message,
       pathsTried,
     };
+  }
+
+  protected _classifyResult(
+    fields: FieldResult[],
+    pathsTried: readonly string[],
+    prefix?: string,
+  ): ReaderResult {
+    const hasAny = fields.some((f) => f.status === FieldStatus.OK);
+    if (!hasAny) {
+      return this._errorResult(
+        `${prefix ?? this.providerName}: no usable fields.`,
+        pathsTried,
+      );
+    }
+
+    const hasUnavailable = fields.some(
+      (f) => f.status === FieldStatus.UNAVAILABLE || f.status === FieldStatus.ERROR,
+    );
+    return hasUnavailable
+      ? this._partialResult(fields, pathsTried)
+      : this._okResult(fields, pathsTried);
   }
 }
