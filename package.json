@@ -19,7 +19,7 @@
     "format": "oxfmt --write .",
     "format:check": "oxfmt --check .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
-    "test": "npm run build:tests && jasmine --config=jasmine.json",
+    "test": "npm run build:tests && c8 jasmine --config=jasmine.json",
     "test:gjs": "gjs -m tests/run-gjs-tests.mjs",
     "schema:compile": "glib-compile-schemas src/schemas",
     "copy:assets": "cp src/metadata.json dist/metadata.json && cp src/stylesheet.css dist/stylesheet.css && rm -rf dist/icons dist/po dist/schemas dist/src dist/tests && cp -r src/icons dist/icons && mkdir -p dist/schemas && cp src/schemas/gschemas.compiled dist/schemas/gschemas.compiled && cp src/schemas/org.gnome.shell.extensions.gnome-provider-limits.gschema.xml dist/schemas/",

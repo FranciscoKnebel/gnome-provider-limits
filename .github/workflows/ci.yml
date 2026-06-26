@@ -2,66 +2,41 @@ name: CI
 
 on:
   push:
-    branches: [main]
-    tags: ["v*"]
+    branches: ["*"]
   pull_request:
-    branches: [main]
+    branches: ["*"]
 
 jobs:
   check:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@v4
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v4
         with:
-          node-version: "24"
-          cache: "npm"
+          node-version: "22"
+          cache: npm
 
-      - name: Install dependencies
-        run: npm ci
+      - run: npm ci
 
-      - name: Format check
-        run: npm run format:check
-
-      - name: Lint
-        run: npm run lint
-
-      - name: Typecheck
-        run: npm run typecheck
-
-      - name: Test
-        run: npm test
-
-  release:
-    needs: check
-    runs-on: ubuntu-latest
-    if: startsWith(github.ref, 'refs/tags/v')
-    steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-node@v6
-        with:
-          node-version: "24"
-          cache: "npm"
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build
-        run: npm run build
-
-      - name: Compile schemas
-        run: glib-compile-schemas src/schemas
-
-      - name: Pack extension
+      - name: Run checks + tests with coverage
+        id: tests
         run: |
-          gnome-extensions pack dist/ -o dist/ \
-            --schema src/schemas/org.gnome.shell.extensions.gnome-provider-limits.gschema.xml \
-            --podir src/po \
-            --gettext-domain gnome-provider-limits
+          npm run check 2>&1 | tee /tmp/ci-output.txt
 
-      - name: Upload release artifact
-        uses: softprops/action-gh-release@v3
+      - name: Coverage summary
+        if: always()
+        run: |
+          {
+            echo "## CI Results"
+            echo ""
+            echo '```'
+            awk '/^[-|]/,0' /tmp/ci-output.txt
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          files: dist/*.zip
+          name: coverage-lcov
+          path: coverage/lcov.info
