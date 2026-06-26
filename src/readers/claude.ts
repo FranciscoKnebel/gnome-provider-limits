@@ -202,54 +202,16 @@ export class ClaudeReader extends BaseReader {
   private _parsePayload(payload: ClaudeUsagePayload, pathsTried: readonly string[]): ReaderResult {
     const fields: FieldResult[] = [];
 
-    const session = payload.five_hour;
-    const weekly = payload.seven_day;
-    const sonnet = payload.seven_day_sonnet;
-    const opus = payload.seven_day_opus;
-    const extra = payload.extra_usage;
+    const windows = [
+      { key: "session", data: payload.five_hour },
+      { key: "weekly", data: payload.seven_day },
+    ] as const;
 
-    fields.push(
-      this._makeField(
-        "used_percent_session",
-        session?.used_percent ?? null,
-        session ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
-      ),
-    );
-    fields.push(
-      this._makeField(
-        "remaining_percent_session",
-        session?.used_percent != null ? 100 - session.used_percent : null,
-        session ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
-      ),
-    );
-    fields.push(
-      this._makeField(
-        "reset_at_session",
-        session?.reset_at ?? null,
-        session ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
-      ),
-    );
-    fields.push(
-      this._makeField(
-        "used_percent_weekly",
-        weekly?.used_percent ?? null,
-        weekly ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
-      ),
-    );
-    fields.push(
-      this._makeField(
-        "remaining_percent_weekly",
-        weekly?.used_percent != null ? 100 - weekly.used_percent : null,
-        weekly ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
-      ),
-    );
-    fields.push(
-      this._makeField(
-        "reset_at_weekly",
-        weekly?.reset_at ?? null,
-        weekly ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
-      ),
-    );
+    for (const { key, data } of windows) {
+      fields.push(...this._makeWindowFields(key, data));
+    }
+
+    const sonnet = payload.seven_day_sonnet;
     fields.push(
       this._makeField(
         "used_percent_sonnet",
@@ -257,13 +219,8 @@ export class ClaudeReader extends BaseReader {
         sonnet ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
       ),
     );
-    fields.push(
-      this._makeField(
-        "remaining_percent_sonnet",
-        sonnet?.used_percent != null ? 100 - sonnet.used_percent : null,
-        sonnet ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
-      ),
-    );
+
+    const opus = payload.seven_day_opus;
     fields.push(
       this._makeField(
         "used_percent_opus",
@@ -271,13 +228,8 @@ export class ClaudeReader extends BaseReader {
         opus ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
       ),
     );
-    fields.push(
-      this._makeField(
-        "remaining_percent_opus",
-        opus?.used_percent != null ? 100 - opus.used_percent : null,
-        opus ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
-      ),
-    );
+
+    const extra = payload.extra_usage;
     fields.push(
       this._makeField(
         "has_extra_usage_enabled",
@@ -293,17 +245,6 @@ export class ClaudeReader extends BaseReader {
       ),
     );
 
-    const hasAny = fields.some((f) => f.status === FieldStatus.OK);
-    if (!hasAny) {
-      return this._errorResult("Claude: payload had no usable fields.", pathsTried);
-    }
-
-    const hasUnavailable = fields.some(
-      (f) => f.status === FieldStatus.UNAVAILABLE || f.status === FieldStatus.ERROR,
-    );
-
-    return hasUnavailable
-      ? this._partialResult(fields, pathsTried)
-      : this._okResult(fields, pathsTried);
+    return this._classifyResult(fields, pathsTried, "Claude");
   }
 }

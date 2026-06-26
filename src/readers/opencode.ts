@@ -150,11 +150,9 @@ export class OpenCodeReader extends BaseReader {
     const fields: FieldResult[] = [];
 
     // v1: only telemetry fields from disk; limit fields unavailable
-    fields.push(this._makeField("used_percent_rolling", null, FieldStatus.UNAVAILABLE));
-    fields.push(this._makeField("remaining_percent_rolling", null, FieldStatus.UNAVAILABLE));
+    fields.push(...this._makePercentFieldPair("rolling", null, FieldStatus.UNAVAILABLE));
     fields.push(this._makeField("reset_at_rolling", null, FieldStatus.UNAVAILABLE));
-    fields.push(this._makeField("used_percent_weekly", null, FieldStatus.UNAVAILABLE));
-    fields.push(this._makeField("remaining_percent_weekly", null, FieldStatus.UNAVAILABLE));
+    fields.push(...this._makePercentFieldPair("weekly", null, FieldStatus.UNAVAILABLE));
     fields.push(this._makeField("reset_at_weekly", null, FieldStatus.UNAVAILABLE));
     fields.push(this._makeField("total_cost", stats.totalCost, FieldStatus.OK));
     fields.push(this._makeField("sessions_count", stats.sessionsCount, FieldStatus.OK));

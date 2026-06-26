@@ -9,7 +9,6 @@ import {
   codexWindowMinutes,
   type CodexLogRow,
   type CodexOauthUsagePayload,
-  type CodexRateLimitWindow,
   type CodexRateLimitsPayload,
   normalizeCodexOauthPayload,
   parseCodexLogBody,
@@ -190,65 +189,20 @@ export class CodexReader extends BaseReader {
     }
 
     const fields: FieldResult[] = [];
-    const primary = rl.primary;
-    const secondary = rl.secondary;
 
-    fields.push(
-      this._makeField(
-        "used_percent_primary",
-        primary?.used_percent ?? null,
-        primary ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
-      ),
-    );
-    fields.push(
-      this._makeField(
-        "remaining_percent_primary",
-        primary?.used_percent != null ? 100 - primary.used_percent : null,
-        primary ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
-      ),
-    );
-    fields.push(
-      this._makeField(
-        "reset_at_primary",
-        primary?.reset_at ?? null,
-        primary ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
-      ),
-    );
-    fields.push(
-      this._makeField(
-        "used_percent_secondary",
-        secondary?.used_percent ?? null,
-        secondary ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
-      ),
-    );
-    fields.push(
-      this._makeField(
-        "remaining_percent_secondary",
-        secondary?.used_percent != null ? 100 - secondary.used_percent : null,
-        secondary ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
-      ),
-    );
-    fields.push(
-      this._makeField(
-        "reset_at_secondary",
-        secondary?.reset_at ?? null,
-        secondary ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
-      ),
-    );
-    fields.push(
-      this._makeField(
-        "window_minutes_primary",
-        codexWindowMinutes(primary as CodexRateLimitWindow | null),
-        primary ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
-      ),
-    );
-    fields.push(
-      this._makeField(
-        "window_minutes_secondary",
-        codexWindowMinutes(secondary as CodexRateLimitWindow | null),
-        secondary ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
-      ),
-    );
+    const windows = [
+      { key: "primary", data: rl.primary },
+      { key: "secondary", data: rl.secondary },
+    ] as const;
+
+    for (const { key, data } of windows) {
+      const status = data ? FieldStatus.OK : FieldStatus.UNAVAILABLE;
+      fields.push(...this._makeWindowFields(key, data));
+      fields.push(
+        this._makeField(`window_minutes_${key}`, codexWindowMinutes(data ?? null), status),
+      );
+    }
+
     fields.push(this._makeField("limit_reached", rl.limit_reached ?? null, FieldStatus.OK));
     fields.push(
       this._makeField(
@@ -258,17 +212,6 @@ export class CodexReader extends BaseReader {
       ),
     );
 
-    const hasAny = fields.some((f) => f.status === FieldStatus.OK);
-    if (!hasAny) {
-      return this._errorResult("Codex: payload had no usable fields.", pathsTried);
-    }
-
-    const hasUnavailable = fields.some(
-      (f) => f.status === FieldStatus.UNAVAILABLE || f.status === FieldStatus.ERROR,
-    );
-
-    return hasUnavailable
-      ? this._partialResult(fields, pathsTried)
-      : this._okResult(fields, pathsTried);
+    return this._classifyResult(fields, pathsTried, "Codex");
   }
 }
