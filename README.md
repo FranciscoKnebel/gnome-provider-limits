@@ -1,5 +1,7 @@
 # gnome-provider-limits
 
+[![CI](https://img.shields.io/github/actions/workflow/status/FranciscoKnebel/gnome-provider-limits/ci.yml?branch=main&label=CI&logo=github)](https://github.com/FranciscoKnebel/gnome-provider-limits/actions/workflows/ci.yml)
+[![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/FranciscoKnebel/gnome-provider-limits/gh-pages/coverage.json)](https://github.com/FranciscoKnebel/gnome-provider-limits/actions/workflows/ci.yml)
 [![GNOME Shell](https://img.shields.io/badge/GNOME_Shell-45–50-4a86cf)](https://extensions.gnome.org)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
 

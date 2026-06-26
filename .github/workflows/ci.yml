@@ -8,7 +8,7 @@ on:
 
 jobs:
   check:
-    runs-on: ubuntu
+    runs-on: ubuntu-26.04
     steps:
       - uses: actions/checkout@v7
 
@@ -46,3 +46,38 @@ jobs:
         with:
           name: coverage-lcov
           path: coverage/lcov.info
+
+  coverage-badge:
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: check
+    runs-on: ubuntu
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: coverage-lcov
+
+      - name: Generate badge JSON
+        run: |
+          LINE_PCT=$(awk -F'[, ]+' '/^DA:/ { covered += $3; total++ } END { if (total > 0) printf "%.0f", covered/total*100 }' lcov.info)
+          COLOR=$([ "$LINE_PCT" -ge 90 ] && echo "brightgreen" || [ "$LINE_PCT" -ge 80 ] && echo "green" || [ "$LINE_PCT" -ge 70 ] && echo "yellowgreen" || [ "$LINE_PCT" -ge 60 ] && echo "yellow" || echo "red")
+          mkdir -p public
+          cat > public/coverage.json << EOF
+          {
+            "schemaVersion": 1,
+            "label": "coverage",
+            "message": "${LINE_PCT}%",
+            "color": "${COLOR}"
+          }
+          EOF
+
+      - name: Deploy to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./public
+          publish_branch: gh-pages
+          keep_files: false
