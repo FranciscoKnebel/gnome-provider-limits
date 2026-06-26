@@ -53,10 +53,12 @@ export interface HttpRequestOptions {
 export class HttpClient {
   private _session: Soup.Session;
 
-  constructor() {
-    this._session = new Soup.Session({
-      timeout: HTTP_TIMEOUT_SECONDS,
-    });
+  constructor(session?: Soup.Session) {
+    this._session =
+      session ??
+      new Soup.Session({
+        timeout: HTTP_TIMEOUT_SECONDS,
+      });
   }
 
   async getJson<T>(url: string, options?: HttpRequestOptions): Promise<T> {
