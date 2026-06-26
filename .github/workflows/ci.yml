@@ -23,6 +23,7 @@ jobs:
         run: npm run check
 
       - name: Coverage summary
+        if: always()
         uses: irongut/CodeCoverageSummary@v1.3.0
         with:
           filename: coverage/lcov.info
@@ -33,7 +34,10 @@ jobs:
 
       - name: Add coverage to step summary
         if: always()
-        run: cat /tmp/coverage-summary.md >> "$GITHUB_STEP_SUMMARY"
+        run: |
+          if [ -f /tmp/coverage-summary.md ]; then
+            cat /tmp/coverage-summary.md >> "$GITHUB_STEP_SUMMARY"
+          fi
 
       - name: Post coverage to PR
         if: github.event_name == 'pull_request'
