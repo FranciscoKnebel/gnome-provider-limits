@@ -18,7 +18,7 @@ already have a canonical name.
 
 ## Architecture
 
-19 ADRs in `docs/adr/` cover all hard-to-reverse decisions. Read them before
+ADRs (kept locally in `docs/adr/`) cover all hard-to-reverse decisions. Read them before
 making architectural changes. Key decisions:
 
 - **ADR-0007:** Target GNOME Shell 45+, GJS/ESM, St + Adw. Sources in

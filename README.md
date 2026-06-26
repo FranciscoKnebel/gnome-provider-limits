@@ -39,7 +39,7 @@ This extension reads the state each provider already persists on disk (auth toke
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). For architectural decisions, read the ADRs in `docs/adr/` before proposing hard-to-reverse changes.
+See [CONTRIBUTING.md](CONTRIBUTING.md). For architectural decisions, read the ADRs (kept locally in `docs/adr/`) before proposing hard-to-reverse changes.
 
 ## License
 

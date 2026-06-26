@@ -25,3 +25,8 @@ src/schemas/gschemas.compiled
 # Package manager lockfiles (keep package-lock.json tracked)
 yarn.lock
 pnpm-lock.yaml
+
+coverage/
+
+# ADRs (keep local only, not tracked in repo)
+docs/adr/

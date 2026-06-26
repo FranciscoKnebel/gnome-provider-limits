@@ -97,6 +97,6 @@ src/
 ├── po/                   # i18n: POTFILES.in, .pot, en.po, pt_BR.po
 ├── icons/                # Symbolic SVGs
 └── stylesheet.css        # St styling + usage-color thresholds
-docs/adr/                 # 19 Architecture Decision Records
+docs/adr/                 # 19 ADRs (keep local only, not tracked)
 tests/                    # Jasmine tests + fixtures
 ```

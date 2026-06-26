@@ -27,12 +27,12 @@ GObject type fixes is the next focus.
    English (repo is public, all content must be English).
 
 4. **Verification**: `npm run format:check` passes. `npm run lint` passes
-    (0 errors, 1 warning). `npm run typecheck` has 26 errors, all from
+   (0 errors, 1 warning). `npm run typecheck` has 26 errors, all from
    GObject.registerClass + TS type inference (see "Next steps" below).
 
 ## Reference artifacts (do not re-read all; reference by path as needed)
 
-- **ADRs**: `docs/adr/0001-*.md` through `docs/adr/0019-*.md`, covering 19 decisions.
+- **ADRs**: `docs/adr/0001-*.md` through `docs/adr/0019-*.md`, covering 19 decisions (kept locally, not tracked in repo).
   Key ones for implementation:
   - `0011-http-direct-with-disk-tokens.md`: reader HTTP strategy
   - `0016-reader-interface-helpers.md`: BaseReader interface, helper shapes
