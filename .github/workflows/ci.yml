@@ -52,7 +52,7 @@ jobs:
 
       - name: Generate badge JSON
         run: |
-          LINE_PCT=$(awk -F'[, ]+' '/^DA:/ { covered += $3; total++ } END { if (total > 0) printf "%.0f", covered/total*100 }' lcov.info)
+          LINE_PCT=$(awk -F'[, ]+' '/^DA:/ { total++; if ($2 > 0) covered++ } END { if (total > 0) printf "%.0f", covered/total*100 }' lcov.info)
           COLOR=$([ "$LINE_PCT" -ge 90 ] && echo "brightgreen" || [ "$LINE_PCT" -ge 80 ] && echo "green" || [ "$LINE_PCT" -ge 70 ] && echo "yellowgreen" || [ "$LINE_PCT" -ge 60 ] && echo "yellow" || echo "red")
           mkdir -p public
           cat > public/coverage.json << EOF
