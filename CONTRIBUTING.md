@@ -31,19 +31,14 @@ npm ci
 
 ### 2. Available commands
 
-```bash
-npm run typecheck       # Type-check with tsc (no output)
-npm run lint            # Lint with oxlint
-npm run lint:fix        # Auto-fix lint issues
-npm run format          # Format with oxfmt
-npm run format:check    # Check formatting without writing
-npm run test            # Build test bundle and run jasmine
-npm run check           # Run all of the above together
-npm run build           # Compile TypeScript -> dist/
-npm run schema:compile  # Compile GSettings schema
-npm run pack            # Full build + schema + zip the extension
-npm run install:local   # pack + install into the current user session
-```
+See [`package.json`](package.json) under `scripts` for the full list. Key ones:
+
+| Command             | Description                            |
+| ------------------- | -------------------------------------- |
+| `npm run typecheck` | `tsc --noEmit`                         |
+| `npm run lint`      | oxlint                                 |
+| `npm run check`     | typecheck + lint + format:check + test |
+| `npm run test`      | Build test bundle and run jasmine      |
 
 Run `npm run check` before pushing to catch type errors, lint violations, and formatting issues in one step.
 
@@ -97,6 +92,5 @@ src/
 ├── po/                   # i18n: POTFILES.in, .pot, en.po, pt_BR.po
 ├── icons/                # Symbolic SVGs
 └── stylesheet.css        # St styling + usage-color thresholds
-docs/adr/                 # 19 ADRs (keep local only, not tracked)
 tests/                    # Jasmine tests + fixtures
 ```
