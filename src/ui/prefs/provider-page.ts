@@ -130,40 +130,36 @@ export const ProviderPage = GObject.registerClass(
         this._showAddPopover(addButton, key, available, zone, locale);
       });
 
-      const { listBox } = buildReorderableList(
-        this._settings,
-        key,
-        (name) => {
-          const def = available.find((f) => f.name === name);
-          if (!def) return null;
+      const { listBox } = buildReorderableList(this._settings, key, (name) => {
+        const def = available.find((f) => f.name === name);
+        if (!def) return null;
 
-          const row = new Adw.ActionRow({
-            title: def.label,
-            subtitle: this._preview(def, zone, locale),
-            activatable: false,
-          });
+        const row = new Adw.ActionRow({
+          title: def.label,
+          subtitle: this._preview(def, zone, locale),
+          activatable: false,
+        });
 
-          const dragHandle = new Gtk.Image({ icon_name: "list-drag-handle-symbolic" });
-          row.add_prefix(dragHandle);
+        const dragHandle = new Gtk.Image({ icon_name: "list-drag-handle-symbolic" });
+        row.add_prefix(dragHandle);
 
-          const removeButton = new Gtk.Button({
-            icon_name: "list-remove-symbolic",
-            valign: Gtk.Align.CENTER,
-            tooltip_text: _("Remove"),
-          });
-          removeButton.add_css_class("flat");
-          removeButton.connect("clicked", () => {
-            const values = this._settings.get_strv(key).filter((v) => v !== name);
-            this._settings.set_strv(key, values);
-          });
-          row.add_suffix(removeButton);
+        const removeButton = new Gtk.Button({
+          icon_name: "list-remove-symbolic",
+          valign: Gtk.Align.CENTER,
+          tooltip_text: _("Remove"),
+        });
+        removeButton.add_css_class("flat");
+        removeButton.connect("clicked", () => {
+          const values = this._settings.get_strv(key).filter((v) => v !== name);
+          this._settings.set_strv(key, values);
+        });
+        row.add_suffix(removeButton);
 
-          setupDragSource(row, name);
-          setupDropTarget(row, this._settings, key);
+        setupDragSource(row, name);
+        setupDropTarget(row, this._settings, key);
 
-          return row;
-        },
-      );
+        return row;
+      });
       group.add(listBox);
       return group;
     }

@@ -134,10 +134,7 @@ export abstract class BaseReader {
   ): ReaderResult {
     const hasAny = fields.some((f) => f.status === FieldStatus.OK);
     if (!hasAny) {
-      return this._errorResult(
-        `${prefix ?? this.providerName}: no usable fields.`,
-        pathsTried,
-      );
+      return this._errorResult(`${prefix ?? this.providerName}: no usable fields.`, pathsTried);
     }
 
     const hasUnavailable = fields.some(
