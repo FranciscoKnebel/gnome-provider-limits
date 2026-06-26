@@ -6,7 +6,11 @@ on:
       - "v*"
 
 jobs:
+  check:
+    uses: ./.github/workflows/checks.yml
+
   release:
+    needs: check
     runs-on: ubuntu-26.04
     permissions:
       contents: write
@@ -19,8 +23,6 @@ jobs:
           cache: npm
 
       - run: npm ci
-
-      - run: npm run check
 
       - run: npm run build
 

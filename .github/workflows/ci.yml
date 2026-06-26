@@ -8,26 +8,21 @@ on:
 
 jobs:
   check:
+    uses: ./.github/workflows/checks.yml
+
+  coverage:
+    needs: check
     runs-on: ubuntu-26.04
     steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-node@v6
+      - uses: actions/download-artifact@v4
         with:
-          node-version: "24"
-          cache: npm
-
-      - run: npm ci
-
-      - name: Run checks
-        run: npm run check
+          name: coverage
 
       - name: Coverage summary
-        if: always()
         uses: irongut/CodeCoverageSummary@v1.3.0
         with:
-          filename: coverage/lcov.info
-          format: lcov
+          filename: cobertura-coverage.xml
+          format: markdown
           output: file
           badge: true
 
@@ -44,24 +39,16 @@ jobs:
         with:
           path: code-coverage-results.md
 
-      - uses: actions/upload-artifact@v7
-        if: always()
-        with:
-          name: coverage-lcov
-          path: coverage/lcov.info
-
   coverage-badge:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
-    needs: check
+    needs: coverage
     runs-on: ubuntu
     permissions:
       contents: write
     steps:
-      - uses: actions/checkout@v7
-
       - uses: actions/download-artifact@v4
         with:
-          name: coverage-lcov
+          name: coverage
 
       - name: Generate badge JSON
         run: |
