@@ -16,28 +16,6 @@ Read `CONTEXT.md` for the project glossary before making changes. Use the
 terms defined there consistently. Don't introduce synonyms for terms that
 already have a canonical name.
 
-## Architecture
-
-ADRs (kept locally in `docs/adr/`) cover all hard-to-reverse decisions. Read them before
-making architectural changes. Key decisions:
-
-- **ADR-0007:** Target GNOME Shell 45+, GJS/ESM, St + Adw. Sources in
-  TypeScript, transpiled by `tsc` (no bundler).
-- **ADR-0008:** All config in GSettings-native keys, prefixed per provider.
-  No JSON embedded in strings.
-- **ADR-0011:** Readers make HTTP calls to provider APIs using tokens/cookies
-  already on disk (`~/.codex/auth.json`, `~/.claude/.credentials.json`).
-  No own auth flow, no transmitting tokens to third parties.
-- **ADR-0013:** Error handling at 3 levels: per field (FieldStatus), per
-  reader (fallback chain), per provider (visible state in header). No error
-  crashes the extension.
-- **ADR-0016:** Readers implement `BaseReader` interface (`FIELDS` +
-  `read()` → `ReaderResult`). Helpers (`http.ts`, `subprocess.ts`,
-  `sqlite.ts`) are reusable wrappers.
-- **ADR-0019:** Security: read tokens from disk every refresh, never cache
-  credentials, never log credentials, never persist credentials ourselves,
-  destroy everything in `disable()`.
-
 ## Development
 
 ### Prerequisites
@@ -86,7 +64,7 @@ src/
 ├── extension.ts           # entry point (PanelMenu.Button + refresh loop)
 ├── prefs.ts               # Adw preferences window
 ├── constants.ts           # defaults, provider names, schema ID
-├── formatters.ts          # field formatting by type (ADR-0018)
+├── formatters.ts          # field formatting by type
 ├── readers/
 │   ├── base.ts            # BaseReader, ReaderResult, FieldDef interfaces
 │   ├── codex.ts           # OAuth API + disk fallback
@@ -129,7 +107,7 @@ src/
 3. Update GSettings defaults in the schema XML if the field should appear by
    default.
 4. The field appears automatically in the prefs UI "available fields"
-   popover (ADR-0009). No prefs code changes needed.
+   popover. No prefs code changes needed.
 
 ## Testing
 
@@ -145,7 +123,7 @@ src/
 
 - [ ] No tokens, cookies, or PII in logs. Use `redactForLog()` from
       `helpers/log.ts` when logging objects.
-- [ ] No credentials cached beyond the `read()` call scope (ADR-0019).
+- [ ] No credentials cached beyond the `read()` call scope.
 - [ ] No files created outside GSettings (no cache/state files in v1).
 - [ ] `reader.destroy()` clears local variables (tokens, cookies).
 - [ ] No new dependencies that handle credentials (no keyring, no
@@ -167,5 +145,5 @@ src/
 - Run `npm run check` before pushing (typecheck + lint + format + test).
 - Explain **why** the change is needed, not only what changed.
 - Update `CONTEXT.md` glossary when new domain terms emerge.
-- Update or add ADRs when making hard-to-reverse decisions.
+
 - Never commit tokens, cookies, `.env` files, or local CLI state.

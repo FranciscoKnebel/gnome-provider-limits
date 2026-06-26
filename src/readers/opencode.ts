@@ -87,7 +87,7 @@ export class OpenCodeReader extends BaseReader {
   async read(): Promise<ReaderResult> {
     const pathsTried: string[] = [];
 
-    // v1: disk only (ADR-0011, ADR-0016)
+    // v1: disk only
     // v1.x will add Web cookies path
     try {
       pathsTried.push("disk");

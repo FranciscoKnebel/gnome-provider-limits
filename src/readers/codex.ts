@@ -103,7 +103,7 @@ export class CodexReader extends BaseReader {
   async read(): Promise<ReaderResult> {
     const pathsTried: string[] = [];
 
-    // Path 1: OAuth API (ADR-0011)
+    // Path 1: OAuth API
     try {
       pathsTried.push("oauth-api");
       const token = await this._readAuthToken();
@@ -117,7 +117,7 @@ export class CodexReader extends BaseReader {
       console.warn(`[codex] oauth-api failed: ${error}`);
     }
 
-    // Path 2: disk fallback (ADR-0011)
+    // Path 2: disk fallback
     try {
       pathsTried.push("disk");
       const payload = await this._readFromDisk();

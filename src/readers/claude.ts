@@ -115,7 +115,7 @@ export class ClaudeReader extends BaseReader {
   async read(): Promise<ReaderResult> {
     const pathsTried: string[] = [];
 
-    // Path 1: OAuth API (ADR-0011)
+    // Path 1: OAuth API
     try {
       pathsTried.push("oauth-api");
       const token = await this._readAuthToken();
@@ -129,7 +129,7 @@ export class ClaudeReader extends BaseReader {
       console.warn(`[claude] oauth-api failed: ${error}`);
     }
 
-    // Path 2: CLI PTY fallback (ADR-0011)
+    // Path 2: CLI PTY fallback
     try {
       pathsTried.push("cli-pty");
       const payload = await this._readFromCli();

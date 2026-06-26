@@ -14,7 +14,7 @@ jobs:
     needs: check
     runs-on: ubuntu-26.04
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: coverage
 
@@ -42,11 +42,11 @@ jobs:
   coverage-badge:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     needs: coverage
-    runs-on: ubuntu
+    runs-on: ubuntu-26.04
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: coverage
 

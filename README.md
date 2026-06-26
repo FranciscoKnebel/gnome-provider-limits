@@ -62,7 +62,7 @@ src/
 ├── extension.ts         # Entry point (PanelMenu.Button + refresh loop)
 ├── prefs.ts             # Adw preferences window
 ├── constants.ts         # Defaults, provider names, schema ID
-├── formatters.ts        # Field formatting by type (ADR-0018)
+├── formatters.ts        # Field formatting by type
 ├── readers/             # One reader per provider (BaseReader interface)
 │   ├── base.ts
 │   ├── codex.ts         + codexParser.ts
@@ -74,14 +74,12 @@ src/
 ├── po/                  # i18n (POTFILES.in, .pot, en.po, pt_BR.po)
 ├── icons/               # Symbolic SVG
 └── stylesheet.css       # St styling
-
-docs/adr/                # 20 ADRs (architectural decision records)
 tests/                   # Jasmine tests + fixtures (mock all I/O)
 ```
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md). For architectural decisions, read the ADRs in `docs/adr/` before proposing hard-to-reverse changes.
+See [CONTRIBUTING.md](CONTRIBUTING.md) before proposing hard-to-reverse changes.
 
 ## License
 

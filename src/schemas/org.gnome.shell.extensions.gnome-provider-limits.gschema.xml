@@ -3,7 +3,7 @@
   <schema id="org.gnome.shell.extensions.gnome-provider-limits"
           path="/org/gnome/shell/extensions/gnome-provider-limits/">
 
-    <!-- Globals: adaptive refresh (ADR-0006) -->
+    <!-- Globals: adaptive refresh -->
     <key name="refresh-short-interval-seconds" type="i">
       <default>10</default>
       <summary>Short refresh interval</summary>
@@ -20,28 +20,28 @@
       <description>Number of consecutive reads with no change before degrading to the long interval.</description>
     </key>
 
-    <!-- Globals: i18n (ADR-0014) -->
+    <!-- Globals: i18n -->
     <key name="language" type="s">
       <default>''</default>
       <summary>Display language</summary>
       <description>Language code (e.g. 'en', 'pt_BR') or empty string to follow the system locale.</description>
     </key>
 
-    <!-- Globals: debug (ADR-0019) -->
+    <!-- Globals: debug -->
     <key name="debug-logging" type="b">
       <default>false</default>
       <summary>Debug logging</summary>
       <description>Enable verbose logging for diagnostics. Credentials are never logged regardless of this setting.</description>
     </key>
 
-    <!-- Globals: provider order (ADR-0010) -->
+    <!-- Globals: provider order -->
     <key name="providers-order" type="as">
       <default>['codex','claude','opencode']</default>
       <summary>Providers display order</summary>
       <description>Order in which providers appear in the status bar and panel.</description>
     </key>
 
-    <!-- Per-provider: Codex (ADR-0008, ADR-0020) -->
+    <!-- Per-provider: Codex -->
     <key name="codex-enabled" type="b">
       <default>true</default>
       <summary>Codex enabled</summary>
@@ -73,7 +73,7 @@
       <description>Fields shown for Codex in the panel, in display order.</description>
     </key>
 
-    <!-- Per-provider: Claude (ADR-0008, ADR-0020) -->
+    <!-- Per-provider: Claude -->
     <key name="claude-enabled" type="b">
       <default>true</default>
       <summary>Claude enabled</summary>
@@ -105,7 +105,7 @@
       <description>Fields shown for Claude in the panel, in display order.</description>
     </key>
 
-    <!-- Per-provider: OpenCode (ADR-0008, ADR-0020) -->
+    <!-- Per-provider: OpenCode -->
     <key name="opencode-enabled" type="b">
       <default>true</default>
       <summary>OpenCode enabled</summary>
