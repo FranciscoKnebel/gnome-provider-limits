@@ -9,6 +9,7 @@ import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
 import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
 import { DEFAULT_REFRESH_SHORT_INTERVAL_SECONDS, PROVIDER_NAMES } from "./constants.js";
+import { readerResultsEqual } from "./helpers/reader.js";
 import type { BaseReader, ReaderResult } from "./readers/base.js";
 import { ClaudeReader } from "./readers/claude.js";
 import { CodexReader } from "./readers/codex.js";
@@ -63,13 +64,20 @@ const ProviderLimitsIndicator = GObject.registerClass(
       box.add_child(this._statusBar);
       this.add_child(box);
 
-      this._panel = new PanelWidget(this._settings, this._readers, () => {
-        this._extension.openPreferences();
-      });
+      this._panel = new PanelWidget(
+        this._settings,
+        this._readers,
+        () => {
+          this._extension.openPreferences();
+        },
+        () => {
+          void this.refresh();
+        },
+      );
       // PanelMenu.Button always creates a real PopupMenu (only PopupDummyMenu when
       // dontCreateMenu=true, which we never pass). The type is a union though, so
       // narrow to PopupMenu.PopupMenu before using addMenuItem.
-      (this.menu as PopupMenu.PopupMenu).addMenuItem(this._panel.section);
+      (this.menu as PopupMenu.PopupMenu).addMenuItem(this._panel);
 
       this._initReaders();
       this._applyLanguageOverride();
@@ -90,30 +98,23 @@ const ProviderLimitsIndicator = GObject.registerClass(
     }
 
     private _connectSettingsSignals(): void {
+      const onRender = () => this._render();
+
       for (const name of PROVIDER_NAMES) {
         this._settingsChangedIds.push(
-          this._settings.connect(`changed::${name}-enabled`, () => {
-            this._onProviderEnabledChanged(name);
-          }),
+          this._settings.connect(`changed::${name}-enabled`, () =>
+            this._onProviderEnabledChanged(name),
+          ),
         );
         this._settingsChangedIds.push(
-          this._settings.connect(`changed::${name}-display-name`, () => {
-            this._render();
-          }),
+          this._settings.connect(`changed::${name}-display-name`, onRender),
         );
         this._settingsChangedIds.push(
-          this._settings.connect(`changed::${name}-display-name-short`, () => {
-            this._render();
-          }),
+          this._settings.connect(`changed::${name}-display-name-short`, onRender),
         );
       }
 
-      this._settingsChangedIds.push(
-        this._settings.connect(`changed::providers-order`, () => {
-          this._render();
-        }),
-      );
-
+      this._settingsChangedIds.push(this._settings.connect(`changed::providers-order`, onRender));
       this._settingsChangedIds.push(
         this._settings.connect(`changed::language`, () => {
           this._applyLanguageOverride();
@@ -171,24 +172,29 @@ const ProviderLimitsIndicator = GObject.registerClass(
       const previousResults = new Map(this._results);
       this._results.clear();
 
+      const entries = order
+        .map((name) => ({ name, reader: this._readers.get(name) }))
+        .filter((e): e is { name: string; reader: BaseReader } => !!e.reader);
+
+      const settled = await Promise.allSettled(entries.map((e) => e.reader.read()));
+
       let anyChanged = false;
 
-      for (const name of order) {
-        const reader = this._readers.get(name);
-        if (!reader) continue;
+      for (const [i, result] of settled.entries()) {
+        const name = entries[i].name;
 
-        try {
-          const result = await reader.read();
-          if (!this._readers.has(name)) continue;
+        if (result.status === "rejected") {
+          console.error(`[provider-limits] reader ${name} failed:`, result.reason);
+          continue;
+        }
 
-          this._results.set(name, result);
+        if (!this._readers.has(name)) continue;
 
-          const prev = previousResults.get(name);
-          if (!prev || JSON.stringify(prev) !== JSON.stringify(result)) {
-            anyChanged = true;
-          }
-        } catch (error) {
-          console.error(`[provider-limits] reader ${name} failed:`, error);
+        this._results.set(name, result.value);
+
+        const prev = previousResults.get(name);
+        if (!prev || !readerResultsEqual(prev, result.value)) {
+          anyChanged = true;
         }
       }
 
