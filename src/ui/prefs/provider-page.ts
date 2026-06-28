@@ -127,7 +127,43 @@ export const ProviderPage = GObject.registerClass(
       group.set_header_suffix(addButton);
 
       addButton.connect("clicked", () => {
-        this._showAddPopover(addButton, key, available, zone, locale);
+        const popover = new Gtk.Popover();
+        const listBox = new Gtk.ListBox({
+          selection_mode: Gtk.SelectionMode.NONE,
+          show_separators: false,
+        });
+        listBox.add_css_class("boxed-list");
+
+        const used = new Set(this._settings.get_strv(key));
+        for (const def of available) {
+          if (used.has(def.name)) continue;
+
+          const row = new Adw.ActionRow({
+            title: _(def.label),
+            subtitle: this._preview(def, zone, locale),
+          });
+          row.connect("activated", () => {
+            const values = this._settings.get_strv(key);
+            this._settings.set_strv(key, [...values, def.name]);
+            popover.popdown();
+          });
+          listBox.append(row);
+        }
+
+        if (used.size >= available.length) {
+          listBox.append(
+            new Adw.ActionRow({
+              title: _("No more fields available"),
+              activatable: false,
+            }),
+          );
+        }
+
+        popover.set_child(listBox);
+        popover.set_position(Gtk.PositionType.BOTTOM);
+        popover.set_parent(addButton);
+        popover.popup();
+        popover.connect("closed", () => popover.unparent());
       });
 
       const { listBox } = buildReorderableList(this._settings, key, (name) => {
@@ -135,7 +171,7 @@ export const ProviderPage = GObject.registerClass(
         if (!def) return null;
 
         const row = new Adw.ActionRow({
-          title: def.label,
+          title: _(def.label),
           subtitle: this._preview(def, zone, locale),
           activatable: false,
         });
@@ -164,60 +200,13 @@ export const ProviderPage = GObject.registerClass(
       return group;
     }
 
-    private _showAddPopover(
-      anchor: Gtk.Widget,
-      key: string,
-      available: readonly FieldDef[],
-      zone: "status" | "panel",
-      locale: string,
-    ): void {
-      const popover = new Gtk.Popover();
-      const listBox = new Gtk.ListBox({
-        selection_mode: Gtk.SelectionMode.NONE,
-        show_separators: false,
-      });
-      listBox.add_css_class("boxed-list");
-
-      const used = new Set(this._settings.get_strv(key));
-      for (const def of available) {
-        if (used.has(def.name)) continue;
-
-        const row = new Adw.ActionRow({
-          title: def.label,
-          subtitle: this._preview(def, zone, locale),
-        });
-        row.connect("activated", () => {
-          const values = this._settings.get_strv(key);
-          this._settings.set_strv(key, [...values, def.name]);
-          popover.popdown();
-        });
-        listBox.append(row);
-      }
-
-      if (used.size >= available.length) {
-        listBox.append(
-          new Adw.ActionRow({
-            title: _("No more fields available"),
-            activatable: false,
-          }),
-        );
-      }
-
-      popover.set_child(listBox);
-      popover.set_position(Gtk.PositionType.BOTTOM);
-      if (anchor instanceof Gtk.Button) {
-        popover.set_parent(anchor);
-      }
-      popover.popup();
-      popover.connect("closed", () => popover.unparent());
-    }
-
     private _preview(def: FieldDef, zone: "status" | "panel", locale: string): string {
       return formatField({
         type: def.type,
         value: SAMPLE_VALUES[def.type],
         zone,
         locale,
+        t: _,
       });
     }
   },

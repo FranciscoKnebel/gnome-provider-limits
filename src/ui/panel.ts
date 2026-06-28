@@ -79,7 +79,7 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
 
     const reader = this._readers.get(name);
     const fieldNames = this._settings.get_strv(`${name}-panel-fields`);
-    const rows = getFieldRows(reader, result, fieldNames, "panel", locale);
+    const rows = getFieldRows(reader, result, fieldNames, "panel", locale, _);
 
     for (const rowData of rows) {
       const row = new PopupMenu.PopupBaseMenuItem({
@@ -88,7 +88,7 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
       });
 
       const labelLabel = new St.Label({
-        text: rowData.label,
+        text: _(rowData.label),
         style_class: "provider-limits-field-label",
         x_expand: true,
         x_align: Clutter.ActorAlign.START,
@@ -135,11 +135,11 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
       case ReaderStatus.OK:
         return "";
       case ReaderStatus.PARTIAL:
-        return "(partial)";
+        return _("(partial)");
       case ReaderStatus.ERROR:
-        return "(error)";
+        return _("(error)");
       case ReaderStatus.UNAVAILABLE:
-        return "(unavailable)";
+        return _("(unavailable)");
       default:
         return "";
     }

@@ -106,8 +106,8 @@ msgid "CLI path"
 msgstr "Caminho da CLI"
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
-msgid "Drag rows to reorder. Use “+” to add fields."
-msgstr "Arraste as linhas para reordenar. Use “+” para adicionar campos."
+msgid "Drag rows to reorder. Use \u201c+\u201d to add fields."
+msgstr "Arraste as linhas para reordenar. Use \u201c+\u201d para adicionar campos."
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Add field"
@@ -124,3 +124,159 @@ msgstr "Erro"
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Force refresh"
 msgstr "Forçar atualização"
+
+#: src/ui/panel.ts
+msgid "(partial)"
+msgstr "(parcial)"
+
+#: src/ui/panel.ts
+msgid "(error)"
+msgstr "(erro)"
+
+#: src/ui/panel.ts
+msgid "(unavailable)"
+msgstr "(indisponível)"
+
+#: src/ui/prefs/main-page.ts
+msgid "English"
+msgstr "Inglês"
+
+#: src/ui/prefs/main-page.ts
+msgid "Portugu\u00eas (Brasil)"
+msgstr "Portugu\u00eas (Brasil)"
+
+#: src/readers/codex.ts
+msgid "Used % (5h window)"
+msgstr "% usado (janela 5h)"
+
+#: src/readers/codex.ts
+msgid "Remaining % (5h window)"
+msgstr "% restante (janela 5h)"
+
+#: src/readers/codex.ts
+msgid "Reset at (5h window)"
+msgstr "Reset em (janela 5h)"
+
+#: src/readers/codex.ts
+msgid "Used % (weekly)"
+msgstr "% usado (semanal)"
+
+#: src/readers/codex.ts
+msgid "Remaining % (weekly)"
+msgstr "% restante (semanal)"
+
+#: src/readers/codex.ts
+msgid "Reset at (weekly)"
+msgstr "Reset em (semanal)"
+
+#: src/readers/codex.ts
+msgid "Window (5h)"
+msgstr "Janela (5h)"
+
+#: src/readers/codex.ts
+msgid "Window (weekly)"
+msgstr "Janela (semanal)"
+
+#: src/readers/codex.ts
+msgid "Limit reached"
+msgstr "Limite atingido"
+
+#: src/readers/codex.ts
+msgid "Plan type"
+msgstr "Tipo de plano"
+
+#: src/readers/claude.ts
+msgid "Used % (session 5h)"
+msgstr "% usado (sess\u00e3o 5h)"
+
+#: src/readers/claude.ts
+msgid "Remaining % (session 5h)"
+msgstr "% restante (sess\u00e3o 5h)"
+
+#: src/readers/claude.ts
+msgid "Reset at (session)"
+msgstr "Reset em (sess\u00e3o)"
+
+#: src/readers/claude.ts
+msgid "Used % (weekly)"
+msgstr "% usado (semanal)"
+
+#: src/readers/claude.ts
+msgid "Remaining % (weekly)"
+msgstr "% restante (semanal)"
+
+#: src/readers/claude.ts
+msgid "Reset at (weekly)"
+msgstr "Reset em (semanal)"
+
+#: src/readers/claude.ts
+msgid "Used % (Sonnet weekly)"
+msgstr "% usado Sonnet (semanal)"
+
+#: src/readers/claude.ts
+msgid "Remaining % (Sonnet weekly)"
+msgstr "% restante Sonnet (semanal)"
+
+#: src/readers/claude.ts
+msgid "Used % (Opus weekly)"
+msgstr "% usado Opus (semanal)"
+
+#: src/readers/claude.ts
+msgid "Remaining % (Opus weekly)"
+msgstr "% restante Opus (semanal)"
+
+#: src/readers/claude.ts
+msgid "Extra usage enabled"
+msgstr "Uso extra ativado"
+
+#: src/readers/claude.ts
+msgid "Extra usage disabled reason"
+msgstr "Motivo do uso extra desativado"
+
+#: src/readers/opencode.ts
+msgid "Used % (rolling 5h)"
+msgstr "% usado (cont\u00ednuo 5h)"
+
+#: src/readers/opencode.ts
+msgid "Remaining % (rolling 5h)"
+msgstr "% restante (cont\u00ednuo 5h)"
+
+#: src/readers/opencode.ts
+msgid "Reset at (rolling)"
+msgstr "Reset em (cont\u00ednuo)"
+
+#: src/readers/opencode.ts
+msgid "Used % (weekly)"
+msgstr "% usado (semanal)"
+
+#: src/readers/opencode.ts
+msgid "Remaining % (weekly)"
+msgstr "% restante (semanal)"
+
+#: src/readers/opencode.ts
+msgid "Reset at (weekly)"
+msgstr "Reset em (semanal)"
+
+#: src/readers/opencode.ts
+msgid "Total cost"
+msgstr "Custo total"
+
+#: src/readers/opencode.ts
+msgid "Sessions count"
+msgstr "N\u00ba de sess\u00f5es"
+
+#: src/readers/opencode.ts
+msgid "Token expires in"
+msgstr "Token expira em"
+
+#: src/formatters.ts
+msgid "now"
+msgstr "agora"
+
+#: src/formatters.ts
+msgid "yes"
+msgstr "sim"
+
+#: src/formatters.ts
+msgid "no"
+msgstr "n\u00e3o"

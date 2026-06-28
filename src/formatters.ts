@@ -5,10 +5,12 @@ export interface FormatFieldOptions {
   value: unknown;
   zone: FieldZone;
   locale: string;
+  t?: (s: string) => string;
 }
 
 export function formatField(options: FormatFieldOptions): string {
-  const { type, value, zone } = options;
+  const { type, value, zone, t } = options;
+  const tr = t ?? ((s: string) => s);
 
   if (value === null || value === undefined) {
     return "—";
@@ -18,7 +20,7 @@ export function formatField(options: FormatFieldOptions): string {
     case "percent":
       return formatPercent(value, zone);
     case "timestamp":
-      return formatTimestamp(value, zone, options.locale);
+      return formatTimestamp(value, zone, options.locale, tr);
     case "tokens":
       return formatTokens(value, zone, options.locale);
     case "cost":
@@ -26,7 +28,7 @@ export function formatField(options: FormatFieldOptions): string {
     case "count":
       return formatCount(value, options.locale);
     case "bool":
-      return formatBool(value, zone);
+      return formatBool(value, zone, tr);
     case "text":
       return formatText(value, zone);
     default:
@@ -41,7 +43,12 @@ function formatPercent(value: unknown, _zone: FieldZone): string {
   return `${rounded}%`;
 }
 
-function formatTimestamp(value: unknown, zone: FieldZone, locale: string): string {
+function formatTimestamp(
+  value: unknown,
+  zone: FieldZone,
+  locale: string,
+  tr: (s: string) => string,
+): string {
   const raw = Number(value);
   if (!Number.isFinite(raw)) return "—";
 
@@ -50,28 +57,32 @@ function formatTimestamp(value: unknown, zone: FieldZone, locale: string): strin
   const now = Date.now();
   const diffSec = Math.round((num - now) / 1000);
 
-  if (diffSec < 0) return "now";
+  if (diffSec < 60) return tr("now");
 
   const relative = formatRelative(diffSec, zone);
   if (zone === "panel") {
-    const date = new Date(num);
-    const abs = date.toLocaleString(locale, {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-    return `${relative} (${abs})`;
+    try {
+      const date = new Date(num);
+      const abs = date.toLocaleString(locale, {
+        hour: "2-digit",
+        minute: "2-digit",
+      });
+      return `${relative} (${abs})`;
+    } catch {
+      return relative;
+    }
   }
   return relative;
 }
 
 function formatRelative(seconds: number, zone: FieldZone): string {
+  // Caller handles "now" (seconds < 60). This function only runs for >= 60.
   const sep = zone === "status" ? "" : " ";
   const mins = Math.floor(seconds / 60);
   const hours = Math.floor(seconds / 3600);
   const days = Math.floor(seconds / 86400);
   const weeks = Math.floor(seconds / 604800);
 
-  if (seconds < 60) return "now";
   if (seconds < 3600) return `${mins}m`;
   if (seconds < 86400) {
     const h = hours;
@@ -136,11 +147,11 @@ function formatCount(value: unknown, locale: string): string {
   }
 }
 
-function formatBool(value: unknown, zone: FieldZone): string {
+function formatBool(value: unknown, zone: FieldZone, tr: (s: string) => string): string {
   if (zone === "status") {
     return value ? "✓" : "✗";
   }
-  return value ? "yes" : "no";
+  return value ? tr("yes") : tr("no");
 }
 
 function formatText(value: unknown, zone: FieldZone): string {

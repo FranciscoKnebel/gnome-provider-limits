@@ -1,5 +1,6 @@
 import Adw from "gi://Adw";
 import Gio from "gi://Gio";
+import GLib from "gi://GLib";
 import GObject from "gi://GObject";
 import Gtk from "gi://Gtk";
 import { gettext as _ } from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
@@ -69,7 +70,7 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
         description: _("Display language for the extension."),
       });
 
-      const model = Gtk.StringList.new([_("System"), "English", "Português (Brasil)"]);
+      const model = Gtk.StringList.new([_("System"), _("English"), _("Português (Brasil)")]);
       const row = new Adw.ComboRow({
         title: _("Display language"),
         subtitle: _("Override the system locale, or follow it."),
@@ -81,7 +82,14 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
 
       row.connect("notify::selected", (combo: Adw.ComboRow) => {
         const values = ["", "en", "pt_BR"];
-        this._settings.set_string("language", values[combo.selected] ?? "");
+        const lang = values[combo.selected] ?? "";
+        this._settings.set_string("language", lang);
+        if (lang && lang.trim()) {
+          GLib.setenv("LANGUAGE", lang.trim(), true);
+        } else {
+          GLib.unsetenv("LANGUAGE");
+        }
+        GLib.get_language_names();
       });
 
       group.add(row);

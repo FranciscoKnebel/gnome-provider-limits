@@ -6,16 +6,16 @@ import { getFieldRows } from "../../src/ui/fieldRows.js";
 
 describe("formatters", () => {
   describe("resolveLocale", () => {
-    it("returns settings override when non-empty", () => {
-      expect(resolveLocale("pt_BR", "en_US.utf8", "en_US.utf8")).toBe("pt_BR");
+    it("returns settings override with normalized hyphens", () => {
+      expect(resolveLocale("pt_BR", "en_US.utf8", "en_US.utf8")).toBe("pt-BR");
     });
 
-    it("falls back to LC_MESSAGES when no override", () => {
-      expect(resolveLocale("", "pt_BR.utf8", "en_US.utf8")).toBe("pt_BR");
+    it("falls back to LC_MESSAGES with normalized hyphens", () => {
+      expect(resolveLocale("", "pt_BR.utf8", "en_US.utf8")).toBe("pt-BR");
     });
 
-    it("falls back to LANG when no LC_MESSAGES", () => {
-      expect(resolveLocale("", null, "pt_BR.utf8")).toBe("pt_BR");
+    it("falls back to LANG with normalized hyphens", () => {
+      expect(resolveLocale("", null, "pt_BR.utf8")).toBe("pt-BR");
     });
 
     it("falls back to en when nothing is set", () => {
@@ -23,7 +23,7 @@ describe("formatters", () => {
     });
 
     it("strips charset suffix from env values", () => {
-      expect(resolveLocale("", "en_US.UTF-8", null)).toBe("en_US");
+      expect(resolveLocale("", "en_US.UTF-8", null)).toBe("en-US");
     });
   });
 

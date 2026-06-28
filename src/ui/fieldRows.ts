@@ -13,6 +13,7 @@ export function getFieldRows(
   fieldNames: string[],
   zone: "status" | "panel",
   locale: string,
+  t?: (s: string) => string,
 ): FieldRow[] {
   const rows: FieldRow[] = [];
 
@@ -32,6 +33,7 @@ export function getFieldRows(
       value: field.value,
       zone,
       locale,
+      t,
     });
 
     rows.push({ label: fieldDef.label, valueText });

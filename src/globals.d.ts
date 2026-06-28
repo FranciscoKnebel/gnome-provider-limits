@@ -28,3 +28,13 @@ declare class TextDecoder {
   decode(input?: Uint8Array | ArrayBuffer | null): string;
   readonly encoding: string;
 }
+
+// GJS built-in gettext module
+declare module "gettext" {
+  export function bindtextdomain(domain: string, dirname: string): void;
+  export function textdomain(domain: string | null): string;
+  export function dgettext(domain: string, msgid: string): string;
+  export function ngettext(msgid: string, msgid_plural: string, n: number): string;
+  export function dcgettext(domain: string, msgid: string, category: number): string;
+  export function bind_textdomain_codeset(domain: string, codeset: string | null): string | null;
+}

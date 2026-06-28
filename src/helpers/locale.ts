@@ -3,7 +3,7 @@ export function resolveLocale(
   envLcMessages: string | null,
   envLang: string | null,
 ): string {
-  if (settingsLang && settingsLang.trim()) return settingsLang.trim();
-  const env = envLcMessages ?? envLang ?? "en";
-  return env.split(".")[0];
+  const raw =
+    settingsLang?.trim() || envLcMessages?.split(".")[0] || envLang?.split(".")[0] || "en";
+  return raw.replace(/_/g, "-");
 }

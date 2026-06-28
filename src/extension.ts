@@ -1,3 +1,4 @@
+import Gettext from "gettext";
 import Clutter from "gi://Clutter";
 import Gio from "gi://Gio";
 import GLib from "gi://GLib";
@@ -36,10 +37,15 @@ const ProviderLimitsIndicator = GObject.registerClass(
     //    TypeScript cannot model the union of inherited base overloads with an
     //    additional custom argument, so property assignability with Button fails.
     _init(extension: Extension) {
-      super._init(0.5, _("Provider Limits"));
-
       this._extension = extension;
       this._settings = extension.getSettings();
+
+      // Override language before any _() calls so gettext picks it up
+      // from the first render onward.
+      this._applyLanguageOverride();
+
+      super._init(0.5, _("Provider Limits"));
+
       this._readers = new Map();
       this._results = new Map();
       this._refreshSourceId = null;
@@ -80,7 +86,6 @@ const ProviderLimitsIndicator = GObject.registerClass(
       (this.menu as PopupMenu.PopupMenu).addMenuItem(this._panel);
 
       this._initReaders();
-      this._applyLanguageOverride();
       this._connectSettingsSignals();
       this._restartRefreshTimer();
       void this.refresh();
@@ -130,6 +135,10 @@ const ProviderLimitsIndicator = GObject.registerClass(
       } else {
         GLib.unsetenv("LANGUAGE");
       }
+      GLib.get_language_names();
+      const localeDir = GLib.build_filenamev([this._extension.path, "locale"]);
+      Gettext.bindtextdomain("gnome-provider-limits", localeDir);
+      Gettext.textdomain("gnome-provider-limits");
     }
 
     private _onProviderEnabledChanged(name: string): void {
