@@ -1,8 +1,4 @@
----
-title: Provider Limits
-layout: default
-description: GNOME Shell extension that shows usage limits of AI coding providers (Codex, Claude, OpenCode) in the top bar.
----
+# gnome-provider-limits
 
 [![CI](https://img.shields.io/github/actions/workflow/status/FranciscoKnebel/gnome-provider-limits/ci.yml?branch=main&label=CI&logo=github)](https://github.com/FranciscoKnebel/gnome-provider-limits/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/FranciscoKnebel/gnome-provider-limits/gh-pages/coverage.json)](https://github.com/FranciscoKnebel/gnome-provider-limits/actions/workflows/ci.yml)

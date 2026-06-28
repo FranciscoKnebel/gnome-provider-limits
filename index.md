@@ -26,10 +26,10 @@ feature_row2:
     excerpt: "Tokens and cookies are read fresh on every refresh and discarded immediately"
   - image_path: ""
     title: "Adaptive polling"
-    excerpt: "Refreshes every 10s while readings change, slows to 120s once stable"
+    excerpt: "Configurable updates, slows down when readings are stable"
   - image_path: ""
     title: "Internationalization"
-    excerpt: "English and Brazilian Portuguese included"
+    excerpt: "Multilanguage support included"
 ---
 
 [![CI](https://img.shields.io/github/actions/workflow/status/FranciscoKnebel/gnome-provider-limits/ci.yml?branch=main&label=CI&logo=github)](https://github.com/FranciscoKnebel/gnome-provider-limits/actions/workflows/ci.yml)
