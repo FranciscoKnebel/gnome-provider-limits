@@ -75,5 +75,4 @@ jobs:
         with:
           branch: gh-pages
           folder: public
-          jekyll: true
           token: ${{ secrets.GITHUB_TOKEN }}
