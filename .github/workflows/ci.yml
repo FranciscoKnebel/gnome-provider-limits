@@ -68,12 +68,12 @@ jobs:
 
       - name: Copy site files
         run: |
-          cp README.md _config.yml public/
+          cp README.md index.md _config.yml Gemfile public/
 
       - name: Deploy to gh-pages
-        uses: peaceiris/actions-gh-pages@v4
+        uses: JamesIves/github-pages-deploy-action@v4
         with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./public
-          publish_branch: gh-pages
-          keep_files: false
+          branch: gh-pages
+          folder: public
+          jekyll: true
+          token: ${{ secrets.GITHUB_TOKEN }}
