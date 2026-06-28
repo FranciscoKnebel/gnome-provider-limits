@@ -68,7 +68,7 @@ jobs:
 
       - name: Copy site files
         run: |
-          cp README.md index.md _config.yml Gemfile public/
+          cp README.md index.md _config.yml Gemfile CNAME public/
 
       - name: Deploy to gh-pages
         uses: JamesIves/github-pages-deploy-action@v4
