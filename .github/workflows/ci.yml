@@ -39,13 +39,15 @@ jobs:
         with:
           path: code-coverage-results.md
 
-  coverage-badge:
+  gh-pages:
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     needs: coverage
     runs-on: ubuntu-26.04
     permissions:
       contents: write
     steps:
+      - uses: actions/checkout@v7
+
       - uses: actions/download-artifact@v8
         with:
           name: coverage
@@ -63,6 +65,10 @@ jobs:
             "color": "${COLOR}"
           }
           EOF
+
+      - name: Copy site files
+        run: |
+          cp README.md _config.yml public/
 
       - name: Deploy to gh-pages
         uses: peaceiris/actions-gh-pages@v4

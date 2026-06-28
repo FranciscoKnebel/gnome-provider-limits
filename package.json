@@ -27,7 +27,8 @@
     "pack": "npm run clean && npm run build && npm run schema:compile && npm run copy:assets && cd dist && zip -r ../dist/gnome-provider-limits@franciscoknebel.com.shell-extension.zip . -x '*.zip' && cd ..",
     "install:local": "npm run pack && gnome-extensions install --force dist/*.zip",
     "uninstall:local": "gnome-extensions uninstall gnome-provider-limits@franciscoknebel.com",
-    "check": "npm run typecheck && npm run lint && npm run format:check && npm run test"
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm run check:i18n && npm run test",
+    "check:i18n": "node scripts/check-i18n.mjs"
   },
   "devDependencies": {
     "@girs/adw-1": "^1.10.0-4.0.0-rc.9",

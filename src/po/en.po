@@ -106,8 +106,8 @@ msgid "CLI path"
 msgstr "CLI path"
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
-msgid "Drag rows to reorder. Use \u201c+\u201d to add fields."
-msgstr "Drag rows to reorder. Use \u201c+\u201d to add fields."
+msgid "Drag rows to reorder. Use \"+\" to add fields."
+msgstr "Drag rows to reorder. Use \"+\" to add fields."
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Add field"
@@ -144,6 +144,14 @@ msgstr "English"
 #: src/ui/prefs/main-page.ts
 msgid "Portugu\u00eas (Brasil)"
 msgstr "Portugu\u00eas (Brasil)"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Display name"
+msgstr "Display name"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Short display name"
+msgstr "Short display name"
 
 #: src/readers/codex.ts
 msgid "Used % (5h window)"
