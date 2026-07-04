@@ -1,10 +1,9 @@
 {
   "name": "Provider Limits",
-  "description": "Show usage limits of multiple AI coding providers (Codex, Claude, OpenCode) in the GNOME top bar.",
+  "description": "Monitor session and weekly rate limits of AI coding CLIs (Codex, Claude, OpenCode) directly in the GNOME top bar — no extra commands, no dashboards, no breaking flow.\n\n* Multi-provider: Codex, Claude, and OpenCode in a single indicator\n* Two display zones: compact status bar for at-a-glance fields; expanded panel on click for full detail\n* Per-provider field configuration: choose which fields appear in each zone and in what order\n* Adaptive polling: refreshes every 10 seconds while readings change, slows to 120 seconds once stable\n* Resilient readers: each provider tries its OAuth API first, falls back to disk or CLI, and returns partial data rather than failing silently\n\nThe extension only reads local state each provider already persists on disk (auth tokens, SQLite databases, credentials files). Tokens are read fresh on every refresh and discarded immediately — nothing is stored or sent to third parties. Network calls go only to the provider APIs.\n\nRequires GNOME Shell 45+ and Python 3 (stdlib only) for SQLite reading.",
   "uuid": "gnome-provider-limits@franciscoknebel.com",
   "settings-schema": "org.gnome.shell.extensions.gnome-provider-limits",
   "gettext-domain": "gnome-provider-limits",
   "shell-version": ["45", "46", "47", "48", "49", "50"],
-  "url": "https://github.com/FranciscoKnebel/gnome-provider-limits",
-  "version": 1
+  "url": "https://github.com/FranciscoKnebel/gnome-provider-limits"
 }

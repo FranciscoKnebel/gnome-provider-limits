@@ -26,6 +26,7 @@ import { PanelWidget } from "./ui/panel.js";
 import { StatusBarWidget } from "./ui/statusBar.js";
 
 const PROVIDER_LIMITS_UUID = "gnome-provider-limits@franciscoknebel.com";
+const MIN_REFRESH_INDICATOR_MS = 2000;
 
 const ProviderLimitsIndicator = GObject.registerClass(
   class ProviderLimitsIndicator extends PanelMenu.Button {
@@ -34,6 +35,7 @@ const ProviderLimitsIndicator = GObject.registerClass(
     declare _readers: Map<ProviderName, BaseReader>;
     declare _results: Map<ProviderName, ReaderResult>;
     declare _refreshSourceId: number | null;
+    declare _refreshStopSourceId: number | null;
     declare _stableReads: number;
     declare _icon: St.Icon;
     declare _statusBar: InstanceType<typeof StatusBarWidget>;
@@ -60,6 +62,7 @@ const ProviderLimitsIndicator = GObject.registerClass(
       this._readers = new Map();
       this._results = new Map();
       this._refreshSourceId = null;
+      this._refreshStopSourceId = null;
       this._stableReads = 0;
       this._settingsChangedIds = [];
       this._refreshGeneration = 0;
@@ -192,7 +195,12 @@ const ProviderLimitsIndicator = GObject.registerClass(
 
     async refresh(): Promise<void> {
       const generation = ++this._refreshGeneration;
+      const refreshStartedAt = Date.now();
       this._pendingRefreshes++;
+      if (this._refreshStopSourceId !== null) {
+        GLib.Source.remove(this._refreshStopSourceId);
+        this._refreshStopSourceId = null;
+      }
       this._panel.setRunning(true);
 
       try {
@@ -259,9 +267,23 @@ const ProviderLimitsIndicator = GObject.registerClass(
         this._pendingRefreshes--;
         if (this._pendingRefreshes <= 0) {
           this._pendingRefreshes = 0;
-          this._panel.setRunning(false);
+          this._scheduleStopRefreshIndicator(refreshStartedAt);
         }
       }
+    }
+
+    private _scheduleStopRefreshIndicator(refreshStartedAt: number): void {
+      const remainingMs = Math.max(0, MIN_REFRESH_INDICATOR_MS - (Date.now() - refreshStartedAt));
+      if (remainingMs === 0) {
+        this._panel.setRunning(false);
+        return;
+      }
+
+      this._refreshStopSourceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, remainingMs, () => {
+        this._refreshStopSourceId = null;
+        if (!this._destroyed && this._pendingRefreshes === 0) this._panel.setRunning(false);
+        return GLib.SOURCE_REMOVE;
+      });
     }
 
     private _render(): void {
@@ -312,6 +334,11 @@ const ProviderLimitsIndicator = GObject.registerClass(
       if (this._refreshSourceId !== null) {
         GLib.Source.remove(this._refreshSourceId);
         this._refreshSourceId = null;
+      }
+
+      if (this._refreshStopSourceId !== null) {
+        GLib.Source.remove(this._refreshStopSourceId);
+        this._refreshStopSourceId = null;
       }
 
       for (const reader of this._readers.values()) {

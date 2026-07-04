@@ -148,7 +148,7 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
   }
 
   private _addRefreshRow(lastRefreshAt: number | null, locale: string): void {
-    const row = new PopupMenu.PopupBaseMenuItem();
+    const row = new PopupMenu.PopupBaseMenuItem({ activate: false });
     row.reactive = !this._running;
 
     const buttonLabel = new St.Label({
@@ -173,9 +173,9 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     if (this._running) spinner.play();
     row.add_child(spinner);
 
-    row.connect("activate", () => {
-      if (this._running) return;
-      this._onRefresh?.();
+    row.connect("button-release-event", () => {
+      if (!this._running) this._onRefresh?.();
+      return Clutter.EVENT_STOP;
     });
 
     this._refreshRow = row;

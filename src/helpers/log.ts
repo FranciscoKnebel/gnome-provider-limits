@@ -40,10 +40,6 @@ export function redactForLog(value: unknown, seen = new WeakSet<object>()): unkn
   return result;
 }
 
-export function logDebug(message: string, ...args: unknown[]): void {
-  console.log(`[provider-limits] ${message}`, ...args.map((arg) => redactForLog(arg)));
-}
-
 export function logError(message: string, error: unknown): void {
   if (error instanceof Error) {
     console.error(`[provider-limits] ${message}: ${error.message}`, redactForLog(error));

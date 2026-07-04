@@ -27,13 +27,6 @@
       <description>Language code (e.g. 'en', 'pt_BR') or empty string to follow the system locale.</description>
     </key>
 
-    <!-- Globals: debug -->
-    <key name="debug-logging" type="b">
-      <default>false</default>
-      <summary>Debug logging</summary>
-      <description>Enable verbose logging for diagnostics. Credentials are never logged regardless of this setting.</description>
-    </key>
-
     <!-- Globals: provider order -->
     <key name="providers-order" type="as">
       <default>['codex','claude','opencode']</default>

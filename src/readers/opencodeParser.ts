@@ -84,7 +84,9 @@ export function buildOpenCodeObservedSpendLimits(
       usedPercent,
       remainingPercent: Math.max(0, 100 - usedPercent),
       resetAt:
-        firstRecordedAt === null ? null : Math.floor((firstRecordedAt + window.durationMs) / 1000),
+        firstRecordedAt === null
+          ? Math.floor(nowMs / 1000)
+          : Math.floor((firstRecordedAt + window.durationMs) / 1000),
     };
   });
 }

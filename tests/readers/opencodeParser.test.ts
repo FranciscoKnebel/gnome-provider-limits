@@ -72,5 +72,23 @@ describe("opencodeParser", () => {
       expect(limit?.remainingUsd).toBe(0);
       expect(limit?.remainingPercent).toBe(0);
     });
+
+    it("marks an empty observed spend window as resetting now", () => {
+      const nowMs = 1_800_000_000_000;
+      const [limit] = buildOpenCodeObservedSpendLimits(
+        [{ cost: 5, time_created: nowMs - 6 * 60 * 60 * 1000 }],
+        [{ id: "rolling", durationMs: 5 * 60 * 60 * 1000, limitUsd: 12 }],
+        nowMs,
+      );
+
+      expect(limit).toEqual({
+        id: "rolling",
+        usedUsd: 0,
+        remainingUsd: 12,
+        usedPercent: 0,
+        remainingPercent: 100,
+        resetAt: Math.floor(nowMs / 1000),
+      });
+    });
   });
 });
