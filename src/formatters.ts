@@ -161,3 +161,34 @@ function formatText(value: unknown, zone: FieldZone): string {
   }
   return str;
 }
+
+/**
+ * Absolute (non-relative) timestamp for `Last Refresh At` and per-provider
+ * `Last Updated` labels in the panel. Shows time only when on the same day,
+ * otherwise date + time.
+ */
+export function formatAbsoluteTimestamp(ms: number, locale: string): string {
+  if (!Number.isFinite(ms)) return "—";
+  const date = new Date(ms);
+  const now = new Date();
+  const sameDay =
+    date.getFullYear() === now.getFullYear() &&
+    date.getMonth() === now.getMonth() &&
+    date.getDate() === now.getDate();
+  try {
+    if (sameDay) {
+      return date.toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" });
+    }
+    return date.toLocaleString(locale, {
+      month: "short",
+      day: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  } catch {
+    const hh = String(date.getHours()).padStart(2, "0");
+    const mm = String(date.getMinutes()).padStart(2, "0");
+    if (sameDay) return `${hh}:${mm}`;
+    return `${date.toISOString().slice(0, 10)} ${hh}:${mm}`;
+  }
+}

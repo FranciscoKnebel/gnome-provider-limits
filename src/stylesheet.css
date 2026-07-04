@@ -48,3 +48,10 @@
 .provider-limits-dim {
   color: rgba(255, 255, 255, 0.5);
 }
+
+/* Panel footer */
+.provider-limits-refresh-spinner {
+  width: 14px;
+  height: 14px;
+  -st-icon-style: symbolic;
+}

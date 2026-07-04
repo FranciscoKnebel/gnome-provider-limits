@@ -40,6 +40,8 @@ const ProviderLimitsIndicator = GObject.registerClass(
     declare _panel: PanelWidget;
     declare _settingsChangedIds: number[];
     declare _refreshGeneration: number;
+    declare _pendingRefreshes: number;
+    declare _lastRefreshAt: number | null;
     declare _destroyed: boolean;
 
     // @ts-expect-error GJS registerClass allows custom _init signatures at runtime;
@@ -61,6 +63,8 @@ const ProviderLimitsIndicator = GObject.registerClass(
       this._stableReads = 0;
       this._settingsChangedIds = [];
       this._refreshGeneration = 0;
+      this._pendingRefreshes = 0;
+      this._lastRefreshAt = null;
       this._destroyed = false;
 
       const box = new St.BoxLayout({
@@ -188,70 +192,82 @@ const ProviderLimitsIndicator = GObject.registerClass(
 
     async refresh(): Promise<void> {
       const generation = ++this._refreshGeneration;
-      const order = normalizeProvidersOrder(this._settings.get_strv("providers-order"));
-      const previousResults = this._results;
+      this._pendingRefreshes++;
+      this._panel.setRunning(true);
 
-      const entries = order
-        .map((name) => ({ name, reader: this._readers.get(name) }))
-        .filter((e): e is { name: ProviderName; reader: BaseReader } => !!e.reader);
+      try {
+        const order = normalizeProvidersOrder(this._settings.get_strv("providers-order"));
+        const previousResults = this._results;
 
-      const settled = await Promise.allSettled(entries.map((e) => e.reader.read()));
+        const entries = order
+          .map((name) => ({ name, reader: this._readers.get(name) }))
+          .filter((e): e is { name: ProviderName; reader: BaseReader } => !!e.reader);
 
-      let anyChanged = false;
-      const nextResults = new Map<ProviderName, ReaderResult>();
+        const settled = await Promise.allSettled(entries.map((e) => e.reader.read()));
 
-      for (const [i, result] of settled.entries()) {
-        const name = entries[i].name;
+        let anyChanged = false;
+        const nextResults = new Map<ProviderName, ReaderResult>();
 
-        if (!this._readers.has(name)) continue;
+        for (const [i, result] of settled.entries()) {
+          const name = entries[i].name;
 
-        if (result.status === "rejected") {
-          logError(`reader ${name} failed`, result.reason);
-          nextResults.set(name, {
-            provider: name,
-            status: ReaderStatus.ERROR,
-            fields: [],
-            lastUpdated: Date.now(),
-            lastError:
-              result.reason instanceof Error ? result.reason.message : String(result.reason),
-            pathsTried: [],
-          });
+          if (!this._readers.has(name)) continue;
+
+          if (result.status === "rejected") {
+            logError(`reader ${name} failed`, result.reason);
+            nextResults.set(name, {
+              provider: name,
+              status: ReaderStatus.ERROR,
+              fields: [],
+              lastUpdated: Date.now(),
+              lastError:
+                result.reason instanceof Error ? result.reason.message : String(result.reason),
+              pathsTried: [],
+            });
+            const prev = previousResults.get(name);
+            if (!prev || prev.status !== ReaderStatus.ERROR) anyChanged = true;
+            continue;
+          }
+
+          nextResults.set(name, result.value);
+
           const prev = previousResults.get(name);
-          if (!prev || prev.status !== ReaderStatus.ERROR) anyChanged = true;
-          continue;
+          if (!prev || !readerResultsEqual(prev, result.value)) {
+            anyChanged = true;
+          }
         }
 
-        nextResults.set(name, result.value);
+        if (generation !== this._refreshGeneration || this._destroyed) return;
 
-        const prev = previousResults.get(name);
-        if (!prev || !readerResultsEqual(prev, result.value)) {
-          anyChanged = true;
+        for (const [name, result] of previousResults) {
+          if (nextResults.has(name)) continue;
+          if (!this._readers.has(name)) continue;
+          nextResults.set(name, result);
+        }
+
+        this._results = nextResults;
+        this._lastRefreshAt = Date.now();
+
+        if (anyChanged) {
+          this._stableReads = 0;
+        } else {
+          this._stableReads++;
+        }
+
+        this._render();
+      } finally {
+        this._pendingRefreshes--;
+        if (this._pendingRefreshes <= 0) {
+          this._pendingRefreshes = 0;
+          this._panel.setRunning(false);
         }
       }
-
-      if (generation !== this._refreshGeneration || this._destroyed) return;
-
-      for (const [name, result] of previousResults) {
-        if (nextResults.has(name)) continue;
-        if (!this._readers.has(name)) continue;
-        nextResults.set(name, result);
-      }
-
-      this._results = nextResults;
-
-      if (anyChanged) {
-        this._stableReads = 0;
-      } else {
-        this._stableReads++;
-      }
-
-      this._render();
     }
 
     private _render(): void {
       if (this._destroyed) return;
       this._statusBar.render(this._results);
-      this._panel.render(this._results);
+      this._panel.render(this._results, this._lastRefreshAt);
     }
 
     private _getCurrentInterval(): number {
