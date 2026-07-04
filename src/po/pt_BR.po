@@ -113,6 +113,14 @@ msgstr "Arraste as linhas para reordenar. Use \"+\" para adicionar campos."
 msgid "Add field"
 msgstr "Adicionar campo"
 
+#: src/ui/prefs/provider-page.ts
+msgid "Select a field to add:"
+msgstr "Selecione um campo para adicionar:"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Cancel"
+msgstr "Cancelar"
+
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "No more fields available"
 msgstr "Nenhum outro campo disponível"

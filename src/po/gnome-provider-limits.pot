@@ -112,6 +112,14 @@ msgstr ""
 msgid "Add field"
 msgstr ""
 
+#: src/ui/prefs/provider-page.ts
+msgid "Select a field to add:"
+msgstr ""
+
+#: src/ui/prefs/provider-page.ts
+msgid "Cancel"
+msgstr ""
+
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "No more fields available"
 msgstr ""

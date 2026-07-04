@@ -113,6 +113,14 @@ msgstr "Drag rows to reorder. Use \"+\" to add fields."
 msgid "Add field"
 msgstr "Add field"
 
+#: src/ui/prefs/provider-page.ts
+msgid "Select a field to add:"
+msgstr "Select a field to add:"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Cancel"
+msgstr "Cancel"
+
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "No more fields available"
 msgstr "No more fields available"
