@@ -134,6 +134,18 @@ msgid "Force refresh"
 msgstr "Force refresh"
 
 #: src/ui/panel.ts
+msgid "Refreshing…"
+msgstr "Refreshing…"
+
+#: src/ui/panel.ts
+msgid "Last refresh:"
+msgstr "Last refresh:"
+
+#: src/ui/panel.ts
+msgid "Last updated:"
+msgstr "Last updated:"
+
+#: src/ui/panel.ts
 msgid "(partial)"
 msgstr "(partial)"
 

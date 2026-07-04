@@ -1,4 +1,4 @@
-import { formatField } from "../src/formatters.js";
+import { formatAbsoluteTimestamp, formatField } from "../src/formatters.js";
 
 describe("formatters", () => {
   describe("percent", () => {
@@ -99,6 +99,27 @@ describe("formatters", () => {
       expect(
         formatField({ type: "text", value: "org_level_disabled", zone: "panel", locale: "en" }),
       ).toBe("org_level_disabled");
+    });
+  });
+
+  describe("formatAbsoluteTimestamp", () => {
+    it("returns dash for non-finite input", () => {
+      expect(formatAbsoluteTimestamp(Number.NaN, "en")).toBe("—");
+      expect(formatAbsoluteTimestamp(Number.POSITIVE_INFINITY, "en")).toBe("—");
+    });
+
+    it("returns only time when same day as now", () => {
+      const ms = Date.now() - 60_000;
+      const result = formatAbsoluteTimestamp(ms, "en");
+      expect(result).toMatch(/^\d{1,2}:\d{2}/);
+      expect(result).not.toContain(",");
+    });
+
+    it("includes date when input is on a previous day", () => {
+      const ms = Date.now() - 7 * 86_400_000;
+      const result = formatAbsoluteTimestamp(ms, "en");
+      expect(result.length).toBeGreaterThan(5);
+      expect(result).toMatch(/\d{1,2}:\d{2}/);
     });
   });
 });
