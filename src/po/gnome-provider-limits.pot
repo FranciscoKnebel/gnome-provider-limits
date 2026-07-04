@@ -285,6 +285,42 @@ msgid "Reset at (weekly)"
 msgstr ""
 
 #: src/readers/opencode.ts
+msgid "Used % (monthly)"
+msgstr ""
+
+#: src/readers/opencode.ts
+msgid "Remaining % (monthly)"
+msgstr ""
+
+#: src/readers/opencode.ts
+msgid "Reset at (monthly)"
+msgstr ""
+
+#: src/readers/opencode.ts
+msgid "Used cost (rolling 5h)"
+msgstr ""
+
+#: src/readers/opencode.ts
+msgid "Remaining cost (rolling 5h)"
+msgstr ""
+
+#: src/readers/opencode.ts
+msgid "Used cost (weekly)"
+msgstr ""
+
+#: src/readers/opencode.ts
+msgid "Remaining cost (weekly)"
+msgstr ""
+
+#: src/readers/opencode.ts
+msgid "Used cost (monthly)"
+msgstr ""
+
+#: src/readers/opencode.ts
+msgid "Remaining cost (monthly)"
+msgstr ""
+
+#: src/readers/opencode.ts
 msgid "Total cost"
 msgstr ""
 
@@ -294,6 +330,42 @@ msgstr ""
 
 #: src/readers/opencode.ts
 msgid "Token expires in"
+msgstr ""
+
+#: src/readers/opencode.ts
+msgid "Usage source"
+msgstr ""
+
+#: src/ui/prefs/provider-page.ts
+msgid "OpenCode Go observed spend limits"
+msgstr ""
+
+#: src/ui/prefs/provider-page.ts
+msgid "USD ceilings used to calculate local observed spend windows."
+msgstr ""
+
+#: src/ui/prefs/provider-page.ts
+msgid "Rolling 5-hour ceiling"
+msgstr ""
+
+#: src/ui/prefs/provider-page.ts
+msgid "Default: 12 USD."
+msgstr ""
+
+#: src/ui/prefs/provider-page.ts
+msgid "Weekly ceiling"
+msgstr ""
+
+#: src/ui/prefs/provider-page.ts
+msgid "Default: 30 USD."
+msgstr ""
+
+#: src/ui/prefs/provider-page.ts
+msgid "Monthly ceiling"
+msgstr ""
+
+#: src/ui/prefs/provider-page.ts
+msgid "Default: 60 USD."
 msgstr ""
 
 #: src/formatters.ts

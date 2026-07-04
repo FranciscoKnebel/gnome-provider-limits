@@ -286,6 +286,42 @@ msgid "Reset at (weekly)"
 msgstr "Reset at (weekly)"
 
 #: src/readers/opencode.ts
+msgid "Used % (monthly)"
+msgstr "Used % (monthly)"
+
+#: src/readers/opencode.ts
+msgid "Remaining % (monthly)"
+msgstr "Remaining % (monthly)"
+
+#: src/readers/opencode.ts
+msgid "Reset at (monthly)"
+msgstr "Reset at (monthly)"
+
+#: src/readers/opencode.ts
+msgid "Used cost (rolling 5h)"
+msgstr "Used cost (rolling 5h)"
+
+#: src/readers/opencode.ts
+msgid "Remaining cost (rolling 5h)"
+msgstr "Remaining cost (rolling 5h)"
+
+#: src/readers/opencode.ts
+msgid "Used cost (weekly)"
+msgstr "Used cost (weekly)"
+
+#: src/readers/opencode.ts
+msgid "Remaining cost (weekly)"
+msgstr "Remaining cost (weekly)"
+
+#: src/readers/opencode.ts
+msgid "Used cost (monthly)"
+msgstr "Used cost (monthly)"
+
+#: src/readers/opencode.ts
+msgid "Remaining cost (monthly)"
+msgstr "Remaining cost (monthly)"
+
+#: src/readers/opencode.ts
 msgid "Total cost"
 msgstr "Total cost"
 
@@ -296,6 +332,42 @@ msgstr "Sessions count"
 #: src/readers/opencode.ts
 msgid "Token expires in"
 msgstr "Token expires in"
+
+#: src/readers/opencode.ts
+msgid "Usage source"
+msgstr "Usage source"
+
+#: src/ui/prefs/provider-page.ts
+msgid "OpenCode Go observed spend limits"
+msgstr "OpenCode Go observed spend limits"
+
+#: src/ui/prefs/provider-page.ts
+msgid "USD ceilings used to calculate local observed spend windows."
+msgstr "USD ceilings used to calculate local observed spend windows."
+
+#: src/ui/prefs/provider-page.ts
+msgid "Rolling 5-hour ceiling"
+msgstr "Rolling 5-hour ceiling"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Default: 12 USD."
+msgstr "Default: 12 USD."
+
+#: src/ui/prefs/provider-page.ts
+msgid "Weekly ceiling"
+msgstr "Weekly ceiling"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Default: 30 USD."
+msgstr "Default: 30 USD."
+
+#: src/ui/prefs/provider-page.ts
+msgid "Monthly ceiling"
+msgstr "Monthly ceiling"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Default: 60 USD."
+msgstr "Default: 60 USD."
 
 #: src/formatters.ts
 msgid "now"

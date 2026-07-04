@@ -134,6 +134,10 @@ src/
 ## i18n
 
 - Strings in `extension.ts` and `prefs.ts` wrapped in `_()` (gettext).
+- Any user-visible label or text added or changed by an implementation must be
+  added to all existing language files in `src/po/` (`gnome-provider-limits.pot`,
+  `en.po`, `pt_BR.po`, and any future languages). Do not leave new labels only
+  in source code.
 - gettext domain: `gnome-provider-limits` (in `metadata.json`).
 - Initial languages: `en` (base) + `pt_BR`. Add `.po` files in `src/po/`.
 - `language` GSettings key (default `''` = follow system locale).

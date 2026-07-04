@@ -286,6 +286,42 @@ msgid "Reset at (weekly)"
 msgstr "Reset em (semanal)"
 
 #: src/readers/opencode.ts
+msgid "Used % (monthly)"
+msgstr "% usado (mensal)"
+
+#: src/readers/opencode.ts
+msgid "Remaining % (monthly)"
+msgstr "% restante (mensal)"
+
+#: src/readers/opencode.ts
+msgid "Reset at (monthly)"
+msgstr "Reset em (mensal)"
+
+#: src/readers/opencode.ts
+msgid "Used cost (rolling 5h)"
+msgstr "Custo usado (contínuo 5h)"
+
+#: src/readers/opencode.ts
+msgid "Remaining cost (rolling 5h)"
+msgstr "Custo restante (contínuo 5h)"
+
+#: src/readers/opencode.ts
+msgid "Used cost (weekly)"
+msgstr "Custo usado (semanal)"
+
+#: src/readers/opencode.ts
+msgid "Remaining cost (weekly)"
+msgstr "Custo restante (semanal)"
+
+#: src/readers/opencode.ts
+msgid "Used cost (monthly)"
+msgstr "Custo usado (mensal)"
+
+#: src/readers/opencode.ts
+msgid "Remaining cost (monthly)"
+msgstr "Custo restante (mensal)"
+
+#: src/readers/opencode.ts
 msgid "Total cost"
 msgstr "Custo total"
 
@@ -296,6 +332,42 @@ msgstr "N\u00ba de sess\u00f5es"
 #: src/readers/opencode.ts
 msgid "Token expires in"
 msgstr "Token expira em"
+
+#: src/readers/opencode.ts
+msgid "Usage source"
+msgstr "Fonte de uso"
+
+#: src/ui/prefs/provider-page.ts
+msgid "OpenCode Go observed spend limits"
+msgstr "Limites de gasto observado do OpenCode Go"
+
+#: src/ui/prefs/provider-page.ts
+msgid "USD ceilings used to calculate local observed spend windows."
+msgstr "Tetos em USD usados para calcular janelas de gasto observado local."
+
+#: src/ui/prefs/provider-page.ts
+msgid "Rolling 5-hour ceiling"
+msgstr "Teto contínuo de 5 horas"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Default: 12 USD."
+msgstr "Padrão: 12 USD."
+
+#: src/ui/prefs/provider-page.ts
+msgid "Weekly ceiling"
+msgstr "Teto semanal"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Default: 30 USD."
+msgstr "Padrão: 30 USD."
+
+#: src/ui/prefs/provider-page.ts
+msgid "Monthly ceiling"
+msgstr "Teto mensal"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Default: 60 USD."
+msgstr "Padrão: 60 USD."
 
 #: src/formatters.ts
 msgid "now"
