@@ -147,6 +147,12 @@ export const ProviderPage = GObject.registerClass(
           dialog.set_response_enabled("none", false);
         }
 
+        dialog.connect("response", (_widget, response) => {
+          if (response === "cancel" || response === "none") return;
+          const values = this._settings.get_strv(key);
+          this._settings.set_strv(key, [...values, response]);
+        });
+
         dialog.present();
       });
 
