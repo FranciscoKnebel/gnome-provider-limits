@@ -50,8 +50,10 @@ export async function runSubprocess(
   const subprocess = launcher.spawnv(args as string[]);
 
   let timedOut = false;
+  let timeoutActive = true;
   const timeoutId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, timeout, () => {
     timedOut = true;
+    timeoutActive = false;
     subprocess.force_exit();
     return GLib.SOURCE_REMOVE;
   });
@@ -74,6 +76,6 @@ export async function runSubprocess(
     if (error instanceof SubprocessError) throw error;
     throw error;
   } finally {
-    GLib.Source.remove(timeoutId);
+    if (timeoutActive) GLib.Source.remove(timeoutId);
   }
 }

@@ -247,7 +247,7 @@ export class ClaudeReader extends BaseReader {
       this._makeField(
         "has_extra_usage_enabled",
         extra?.enabled ?? null,
-        extra ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
+        typeof extra?.enabled === "boolean" ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
       ),
     );
     fields.push(

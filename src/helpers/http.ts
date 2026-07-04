@@ -105,7 +105,7 @@ export class HttpClient {
       }
 
       if (statusCode < 200 || statusCode >= 300) {
-        throw this._errorForStatus(statusCode, payload, bodyText);
+        throw this._errorForStatus(statusCode, payload);
       }
 
       return payload;
@@ -115,8 +115,8 @@ export class HttpClient {
     }
   }
 
-  private _errorForStatus(statusCode: number, payload: unknown, bodyText: string): HttpError {
-    const message = this._extractErrorMessage(payload) ?? bodyText ?? `HTTP ${statusCode}`;
+  private _errorForStatus(statusCode: number, payload: unknown): HttpError {
+    const message = this._extractErrorMessage(payload) ?? `HTTP ${statusCode}`;
 
     if (statusCode === 401 || statusCode === 403) {
       return new TokenError(message, payload);

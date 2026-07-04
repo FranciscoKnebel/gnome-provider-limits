@@ -32,16 +32,24 @@ export function buildReorderableList(
   });
   listBox.add_css_class("boxed-list");
 
+  let isRendering = false;
+
   const render = () => {
-    clearListBox(listBox);
-    const currentValues = settings.get_strv(key);
-    const values = normalizeValues ? [...normalizeValues(currentValues)] : currentValues;
-    if (normalizeValues && !stringArraysEqual(currentValues, values)) {
-      settings.set_strv(key, values);
-    }
-    for (const value of values) {
-      const row = buildRow(value);
-      if (row) listBox.append(row);
+    if (isRendering) return;
+    isRendering = true;
+    try {
+      clearListBox(listBox);
+      const currentValues = settings.get_strv(key);
+      const values = normalizeValues ? [...normalizeValues(currentValues)] : currentValues;
+      if (normalizeValues && !stringArraysEqual(currentValues, values)) {
+        settings.set_strv(key, values);
+      }
+      for (const value of values) {
+        const row = buildRow(value);
+        if (row) listBox.append(row);
+      }
+    } finally {
+      isRendering = false;
     }
   };
 

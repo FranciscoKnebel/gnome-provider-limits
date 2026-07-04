@@ -18,7 +18,7 @@ import {
 import { logError } from "./helpers/log.js";
 import { normalizeProvidersOrder } from "./helpers/provider-settings.js";
 import { readerResultsEqual } from "./helpers/reader.js";
-import type { BaseReader, ReaderResult } from "./readers/base.js";
+import { type BaseReader, type ReaderResult, ReaderStatus } from "./readers/base.js";
 import { ClaudeReader } from "./readers/claude.js";
 import { CodexReader } from "./readers/codex.js";
 import { OpenCodeReader } from "./readers/opencode.js";
@@ -203,12 +203,23 @@ const ProviderLimitsIndicator = GObject.registerClass(
       for (const [i, result] of settled.entries()) {
         const name = entries[i].name;
 
+        if (!this._readers.has(name)) continue;
+
         if (result.status === "rejected") {
           logError(`reader ${name} failed`, result.reason);
+          nextResults.set(name, {
+            provider: name,
+            status: ReaderStatus.ERROR,
+            fields: [],
+            lastUpdated: Date.now(),
+            lastError:
+              result.reason instanceof Error ? result.reason.message : String(result.reason),
+            pathsTried: [],
+          });
+          const prev = previousResults.get(name);
+          if (!prev || prev.status !== ReaderStatus.ERROR) anyChanged = true;
           continue;
         }
-
-        if (!this._readers.has(name)) continue;
 
         nextResults.set(name, result.value);
 
@@ -221,7 +232,8 @@ const ProviderLimitsIndicator = GObject.registerClass(
       if (generation !== this._refreshGeneration || this._destroyed) return;
 
       for (const [name, result] of previousResults) {
-        if (!this._readers.has(name) || nextResults.has(name)) continue;
+        if (nextResults.has(name)) continue;
+        if (!this._readers.has(name)) continue;
         nextResults.set(name, result);
       }
 

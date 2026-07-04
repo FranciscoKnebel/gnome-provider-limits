@@ -201,10 +201,16 @@ export class CodexReader extends BaseReader {
     ] as const;
 
     for (const { key, data } of windows) {
-      const status = data ? FieldStatus.OK : FieldStatus.UNAVAILABLE;
       fields.push(...this._makeWindowFields(key, data));
+      const minutes = codexWindowMinutes(data ?? null);
       fields.push(
-        this._makeField(`window_minutes_${key}`, codexWindowMinutes(data ?? null), status),
+        this._makeField(
+          `window_minutes_${key}`,
+          minutes,
+          typeof minutes === "number" && Number.isFinite(minutes)
+            ? FieldStatus.OK
+            : FieldStatus.UNAVAILABLE,
+        ),
       );
     }
 
