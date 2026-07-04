@@ -47,7 +47,6 @@ export class NetworkError extends Error {
 
 export interface HttpRequestOptions {
   headers?: Record<string, string>;
-  timeoutSeconds?: number;
 }
 
 export class HttpClient {
@@ -61,14 +60,14 @@ export class HttpClient {
       });
   }
 
-  async getJson<T>(url: string, options?: HttpRequestOptions): Promise<T> {
+  async getJson(url: string, options?: HttpRequestOptions): Promise<unknown> {
     const message = Soup.Message.new("GET", url);
     this._applyHeaders(message, options?.headers);
 
-    return this._sendAndParse<T>(message, options);
+    return this._sendAndParse(message);
   }
 
-  async postJson<T>(url: string, body: unknown, options?: HttpRequestOptions): Promise<T> {
+  async postJson(url: string, body: unknown, options?: HttpRequestOptions): Promise<unknown> {
     const message = Soup.Message.new("POST", url);
     this._applyHeaders(message, options?.headers);
 
@@ -78,7 +77,7 @@ export class HttpClient {
       new GLib.Bytes(new TextEncoder().encode(jsonBody)),
     );
 
-    return this._sendAndParse<T>(message, options);
+    return this._sendAndParse(message);
   }
 
   private _applyHeaders(message: Soup.Message, headers?: Record<string, string>): void {
@@ -89,7 +88,7 @@ export class HttpClient {
     }
   }
 
-  private async _sendAndParse<T>(message: Soup.Message, _options?: HttpRequestOptions): Promise<T> {
+  private async _sendAndParse(message: Soup.Message): Promise<unknown> {
     try {
       const bytes = await this._session.send_and_read_async(message, GLib.PRIORITY_DEFAULT, null);
 
@@ -109,7 +108,7 @@ export class HttpClient {
         throw this._errorForStatus(statusCode, payload, bodyText);
       }
 
-      return payload as T;
+      return payload;
     } catch (error) {
       if (error instanceof HttpError) throw error;
       throw new NetworkError(`Request failed: ${error}`);

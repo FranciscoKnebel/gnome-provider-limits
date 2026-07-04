@@ -1,4 +1,5 @@
 import { SQLITE_CACHE_TTL_SECONDS } from "../constants.js";
+import { redactForLog } from "./log.js";
 import { runSubprocess } from "./subprocess.js";
 
 interface CacheEntry {
@@ -8,17 +9,17 @@ interface CacheEntry {
 
 const cache = new Map<string, CacheEntry>();
 
-export async function querySqlite<T>(
+export async function querySqlite(
   dbPath: string,
   query: string,
   options?: { timeoutSeconds?: number },
-): Promise<T> {
+): Promise<unknown> {
   const cacheKey = `${dbPath}:${query}`;
   const now = Date.now();
 
   const cached = cache.get(cacheKey);
   if (cached && cached.expiresAt > now) {
-    return cached.result as T;
+    return cached.result;
   }
 
   const script = buildPythonScript(dbPath, query);
@@ -26,11 +27,14 @@ export async function querySqlite<T>(
     timeoutSeconds: options?.timeoutSeconds ?? 10,
   });
 
-  let parsed: T;
+  let parsed: unknown;
   try {
-    parsed = JSON.parse(result.stdout) as T;
+    parsed = JSON.parse(result.stdout) as unknown;
   } catch (error) {
-    throw new Error(`SQLite query returned invalid JSON: ${result.stdout}`, { cause: error });
+    const sample = result.stdout.slice(0, 500);
+    throw new Error(`SQLite query returned invalid JSON: ${String(redactForLog(sample))}`, {
+      cause: error,
+    });
   }
 
   cache.set(cacheKey, {

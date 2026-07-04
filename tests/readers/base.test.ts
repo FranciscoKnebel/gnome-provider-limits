@@ -1,3 +1,5 @@
+import type Gio from "gi://Gio";
+
 import {
   BaseReader,
   FieldStatus,
@@ -85,9 +87,10 @@ function errorField(name: string): FieldResult {
 
 describe("BaseReader", () => {
   let reader: TestReader;
+  const settings = {} as Gio.Settings;
 
   beforeEach(() => {
-    reader = new TestReader({} as any, "test-provider");
+    reader = new TestReader(settings, "test-provider");
   });
 
   describe("constructor", () => {
@@ -96,7 +99,7 @@ describe("BaseReader", () => {
     });
 
     it("stores settings", () => {
-      expect(reader["settings"]).toEqual({} as any);
+      expect(reader["settings"]).toBe(settings);
     });
   });
 
@@ -143,7 +146,7 @@ describe("BaseReader", () => {
         undefined as unknown as null,
         FieldStatus.UNAVAILABLE,
       );
-      expect(field.value).toBeUndefined();
+      expect(field.value).toBeNull();
     });
   });
 
@@ -234,6 +237,9 @@ describe("BaseReader", () => {
       expect(fields[0].value).toBeNull();
       expect(fields[1].value).toBeNull();
       expect(fields[2].value).toBeNull();
+      fields.forEach((f) => {
+        expect(f.status).toBe(FieldStatus.UNAVAILABLE);
+      });
     });
 
     it("handles string reset_at", () => {

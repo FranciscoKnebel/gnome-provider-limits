@@ -14,13 +14,16 @@ const SENSITIVE_KEYS = [
   "api_key",
 ] as const;
 
-export function redactForLog(value: unknown): unknown {
+export function redactForLog(value: unknown, seen = new WeakSet<object>()): unknown {
   if (value === null || value === undefined) return value;
   if (typeof value === "string") return "<redacted>";
   if (typeof value !== "object") return value;
 
+  if (seen.has(value)) return "[Circular]";
+  seen.add(value);
+
   if (Array.isArray(value)) {
-    return value.map(redactForLog);
+    return value.map((item) => redactForLog(item, seen));
   }
 
   const obj = value as Record<string, unknown>;
@@ -30,7 +33,7 @@ export function redactForLog(value: unknown): unknown {
     if (SENSITIVE_KEYS.some((s) => key.toLowerCase().includes(s.toLowerCase()))) {
       result[key] = "<redacted>";
     } else {
-      result[key] = redactForLog(val);
+      result[key] = redactForLog(val, seen);
     }
   }
 
@@ -38,7 +41,7 @@ export function redactForLog(value: unknown): unknown {
 }
 
 export function logDebug(message: string, ...args: unknown[]): void {
-  console.log(`[provider-limits] ${message}`, ...args.map(redactForLog));
+  console.log(`[provider-limits] ${message}`, ...args.map((arg) => redactForLog(arg)));
 }
 
 export function logError(message: string, error: unknown): void {
@@ -50,5 +53,5 @@ export function logError(message: string, error: unknown): void {
 }
 
 export function logWarn(message: string, ...args: unknown[]): void {
-  console.warn(`[provider-limits] ${message}`, ...args.map(redactForLog));
+  console.warn(`[provider-limits] ${message}`, ...args.map((arg) => redactForLog(arg)));
 }

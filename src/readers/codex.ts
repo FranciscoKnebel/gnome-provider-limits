@@ -2,13 +2,13 @@ import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 
 import { HttpClient, HttpError, TokenError } from "../helpers/http.js";
+import { logWarn } from "../helpers/log.js";
 import { querySqlite } from "../helpers/sqlite.js";
 import type { FieldDef, FieldResult, ReaderResult } from "./base.js";
 import { BaseReader, FieldStatus } from "./base.js";
 import {
   codexWindowMinutes,
   type CodexLogRow,
-  type CodexOauthUsagePayload,
   type CodexRateLimitsPayload,
   normalizeCodexOauthPayload,
   parseCodexLogBody,
@@ -114,7 +114,7 @@ export class CodexReader extends BaseReader {
         }
       }
     } catch (error) {
-      console.warn(`[codex] oauth-api failed: ${error}`);
+      logWarn("codex oauth-api failed", error);
     }
 
     // Path 2: disk fallback
@@ -125,7 +125,7 @@ export class CodexReader extends BaseReader {
         return this._parsePayload(payload, pathsTried);
       }
     } catch (error) {
-      console.warn(`[codex] disk fallback failed: ${error}`);
+      logWarn("codex disk fallback failed", error);
     }
 
     return this._errorResult("Codex: all paths failed. Run `codex login`.", pathsTried);
@@ -141,25 +141,29 @@ export class CodexReader extends BaseReader {
     const file = Gio.File.new_for_path(CODEX_AUTH_PATH);
     const [contents] = await file.load_contents_async(null);
     const text = new TextDecoder().decode(contents);
-    const auth = JSON.parse(text);
-    return auth?.tokens?.access_token ?? null;
+    const auth = JSON.parse(text) as unknown;
+    if (!auth || typeof auth !== "object" || !("tokens" in auth)) return null;
+    const tokens = auth.tokens;
+    if (!tokens || typeof tokens !== "object" || !("access_token" in tokens)) return null;
+    const token = tokens.access_token;
+    return typeof token === "string" && token.trim() ? token : null;
   }
 
   private async _fetchUsage(token: string): Promise<CodexRateLimitsPayload | null> {
     if (!this._http) this._http = new HttpClient();
     try {
-      const payload = await this._http.getJson<CodexOauthUsagePayload>(CODEX_USAGE_URL, {
+      const payload = await this._http.getJson(CODEX_USAGE_URL, {
         headers: { Authorization: `Bearer ${token}` },
       });
       return normalizeCodexOauthPayload(payload);
     } catch (error) {
       // 401 means stale token; let the upper fallback chain try disk.
       if (error instanceof TokenError) {
-        console.warn(`[codex] oauth token rejected: ${error.message}`);
+        logWarn("codex oauth token rejected", error);
         return null;
       }
       if (error instanceof HttpError) {
-        console.warn(`[codex] oauth http ${error.statusCode}: ${error.message}`);
+        logWarn(`codex oauth http ${error.statusCode}`, error);
         return null;
       }
       throw error;
@@ -167,13 +171,14 @@ export class CodexReader extends BaseReader {
   }
 
   private async _readFromDisk(): Promise<CodexRateLimitsPayload | null> {
-    const rows = await querySqlite<CodexLogRow[]>(
+    const rows = await querySqlite(
       CODEX_LOGS_DB,
       "SELECT feedback_log_body FROM logs WHERE feedback_log_body LIKE '%codex.rate_limits%' ORDER BY ts DESC LIMIT 1",
       { timeoutSeconds: 5 },
     );
 
-    const body = rows?.[0]?.feedback_log_body;
+    const firstRow = Array.isArray(rows) ? (rows[0] as CodexLogRow | undefined) : undefined;
+    const body = firstRow?.feedback_log_body;
     if (!body) return null;
 
     return parseCodexLogBody(body);
@@ -203,7 +208,13 @@ export class CodexReader extends BaseReader {
       );
     }
 
-    fields.push(this._makeField("limit_reached", rl.limit_reached ?? null, FieldStatus.OK));
+    fields.push(
+      this._makeField(
+        "limit_reached",
+        rl.limit_reached ?? null,
+        typeof rl.limit_reached === "boolean" ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
+      ),
+    );
     fields.push(
       this._makeField(
         "plan_type",

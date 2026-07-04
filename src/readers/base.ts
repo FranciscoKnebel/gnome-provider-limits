@@ -56,11 +56,11 @@ export abstract class BaseReader {
 
   protected _makeField<T>(
     name: string,
-    value: T | null,
+    value: T | null | undefined,
     status: FieldStatus,
     error?: string | null,
   ): FieldResult<T> {
-    return { name, value, status, error: error ?? null };
+    return { name, value: value ?? null, status, error: error ?? null };
   }
 
   protected _makePercentFieldPair(
@@ -68,9 +68,10 @@ export abstract class BaseReader {
     usedPct: number | null | undefined,
     status: FieldStatus,
   ): [FieldResult, FieldResult] {
+    const hasUsedPct = typeof usedPct === "number" && Number.isFinite(usedPct);
     return [
-      this._makeField(`used_percent_${key}`, usedPct ?? null, status),
-      this._makeField(`remaining_percent_${key}`, usedPct != null ? 100 - usedPct : null, status),
+      this._makeField(`used_percent_${key}`, hasUsedPct ? usedPct : null, status),
+      this._makeField(`remaining_percent_${key}`, hasUsedPct ? 100 - usedPct : null, status),
     ];
   }
 
@@ -84,10 +85,14 @@ export abstract class BaseReader {
       | null
       | undefined,
   ): FieldResult[] {
-    const status = data ? FieldStatus.OK : FieldStatus.UNAVAILABLE;
+    const percentStatus =
+      typeof data?.used_percent === "number" && Number.isFinite(data.used_percent)
+        ? FieldStatus.OK
+        : FieldStatus.UNAVAILABLE;
+    const resetStatus = data?.reset_at != null ? FieldStatus.OK : FieldStatus.UNAVAILABLE;
     return [
-      ...this._makePercentFieldPair(key, data?.used_percent ?? null, status),
-      this._makeField(`reset_at_${key}`, data?.reset_at ?? null, status),
+      ...this._makePercentFieldPair(key, data?.used_percent ?? null, percentStatus),
+      this._makeField(`reset_at_${key}`, data?.reset_at ?? null, resetStatus),
     ];
   }
 

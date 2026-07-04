@@ -2,6 +2,7 @@ import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 
 import { HttpClient, HttpError, TokenError } from "../helpers/http.js";
+import { logWarn } from "../helpers/log.js";
 import { runSubprocess } from "../helpers/subprocess.js";
 import type { FieldDef, FieldResult, ReaderResult } from "./base.js";
 import { BaseReader, FieldStatus } from "./base.js";
@@ -126,7 +127,7 @@ export class ClaudeReader extends BaseReader {
         }
       }
     } catch (error) {
-      console.warn(`[claude] oauth-api failed: ${error}`);
+      logWarn("claude oauth-api failed", error);
     }
 
     // Path 2: CLI PTY fallback
@@ -137,7 +138,7 @@ export class ClaudeReader extends BaseReader {
         return this._parsePayload(payload, pathsTried);
       }
     } catch (error) {
-      console.warn(`[claude] cli-pty fallback failed: ${error}`);
+      logWarn("claude cli-pty fallback failed", error);
     }
 
     return this._errorResult(
@@ -150,26 +151,33 @@ export class ClaudeReader extends BaseReader {
     const file = Gio.File.new_for_path(CLAUDE_CREDENTIALS_PATH);
     const [contents] = await file.load_contents_async(null);
     const text = new TextDecoder().decode(contents);
-    const creds = JSON.parse(text);
-    return creds?.access_token ?? creds?.token ?? null;
+    const creds = JSON.parse(text) as unknown;
+    if (!creds || typeof creds !== "object") return null;
+    const token =
+      "access_token" in creds && typeof creds.access_token === "string"
+        ? creds.access_token
+        : "token" in creds && typeof creds.token === "string"
+          ? creds.token
+          : null;
+    return token && token.trim() ? token : null;
   }
 
   private async _fetchUsage(token: string): Promise<ClaudeUsagePayload | null> {
     if (!this._http) this._http = new HttpClient();
     try {
-      return await this._http.getJson<ClaudeUsagePayload>(CLAUDE_USAGE_URL, {
+      return (await this._http.getJson(CLAUDE_USAGE_URL, {
         headers: {
           Authorization: `Bearer ${token}`,
           "anthropic-beta": "oauth-2025-04-20",
         },
-      });
+      })) as ClaudeUsagePayload;
     } catch (error) {
       if (error instanceof TokenError) {
-        console.warn(`[claude] oauth token rejected: ${error.message}`);
+        logWarn("claude oauth token rejected", error);
         return null;
       }
       if (error instanceof HttpError) {
-        console.warn(`[claude] oauth http ${error.statusCode}: ${error.message}`);
+        logWarn(`claude oauth http ${error.statusCode}`, error);
         return null;
       }
       throw error;
@@ -192,7 +200,7 @@ export class ClaudeReader extends BaseReader {
         cwd: probeDir,
       });
     } catch (error) {
-      console.warn(`[claude] cli probe failed: ${error}`);
+      logWarn("claude cli probe failed", error);
       return null;
     }
 
@@ -213,18 +221,18 @@ export class ClaudeReader extends BaseReader {
 
     const sonnet = payload.seven_day_sonnet;
     fields.push(
-      this._makeField(
-        "used_percent_sonnet",
-        sonnet?.used_percent ?? null,
+      ...this._makePercentFieldPair(
+        "sonnet",
+        sonnet?.used_percent,
         sonnet ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
       ),
     );
 
     const opus = payload.seven_day_opus;
     fields.push(
-      this._makeField(
-        "used_percent_opus",
-        opus?.used_percent ?? null,
+      ...this._makePercentFieldPair(
+        "opus",
+        opus?.used_percent,
         opus ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
       ),
     );

@@ -38,20 +38,26 @@ export interface CodexLogRow {
   feedback_log_body?: string | null;
 }
 
-export function normalizeCodexOauthPayload(
-  raw: CodexOauthUsagePayload,
-): CodexRateLimitsPayload | null {
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function asWindow(value: unknown): CodexRateLimitWindow | null {
+  return isRecord(value) ? (value as CodexRateLimitWindow) : null;
+}
+
+export function normalizeCodexOauthPayload(raw: unknown): CodexRateLimitsPayload | null {
+  if (!isRecord(raw) || !isRecord(raw.rate_limit)) return null;
   const rl = raw.rate_limit;
-  if (!rl) return null;
   return {
     rate_limits: {
-      allowed: rl.allowed,
-      limit_reached: rl.limit_reached,
-      primary: rl.primary_window ?? null,
-      secondary: rl.secondary_window ?? null,
+      allowed: typeof rl.allowed === "boolean" ? rl.allowed : undefined,
+      limit_reached: typeof rl.limit_reached === "boolean" ? rl.limit_reached : undefined,
+      primary: asWindow(rl.primary_window),
+      secondary: asWindow(rl.secondary_window),
     },
-    plan_type: raw.plan_type,
-    credits: raw.credits ?? null,
+    plan_type: typeof raw.plan_type === "string" ? raw.plan_type : undefined,
+    credits: isRecord(raw.credits) ? raw.credits : null,
   };
 }
 
