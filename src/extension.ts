@@ -9,7 +9,14 @@ import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
 import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
-import { DEFAULT_REFRESH_SHORT_INTERVAL_SECONDS, PROVIDER_NAMES } from "./constants.js";
+import {
+  DEFAULT_REFRESH_SHORT_INTERVAL_SECONDS,
+  GETTEXT_DOMAIN,
+  PROVIDER_NAMES,
+  type ProviderName,
+} from "./constants.js";
+import { logError } from "./helpers/log.js";
+import { normalizeProvidersOrder } from "./helpers/provider-settings.js";
 import { readerResultsEqual } from "./helpers/reader.js";
 import type { BaseReader, ReaderResult } from "./readers/base.js";
 import { ClaudeReader } from "./readers/claude.js";
@@ -24,14 +31,16 @@ const ProviderLimitsIndicator = GObject.registerClass(
   class ProviderLimitsIndicator extends PanelMenu.Button {
     declare _extension: Extension;
     declare _settings: Gio.Settings;
-    declare _readers: Map<string, BaseReader>;
-    declare _results: Map<string, ReaderResult>;
+    declare _readers: Map<ProviderName, BaseReader>;
+    declare _results: Map<ProviderName, ReaderResult>;
     declare _refreshSourceId: number | null;
     declare _stableReads: number;
     declare _icon: St.Icon;
     declare _statusBar: InstanceType<typeof StatusBarWidget>;
     declare _panel: PanelWidget;
     declare _settingsChangedIds: number[];
+    declare _refreshGeneration: number;
+    declare _destroyed: boolean;
 
     // @ts-expect-error GJS registerClass allows custom _init signatures at runtime;
     //    TypeScript cannot model the union of inherited base overloads with an
@@ -51,6 +60,8 @@ const ProviderLimitsIndicator = GObject.registerClass(
       this._refreshSourceId = null;
       this._stableReads = 0;
       this._settingsChangedIds = [];
+      this._refreshGeneration = 0;
+      this._destroyed = false;
 
       const box = new St.BoxLayout({
         style_class: "provider-limits-status-bar",
@@ -137,11 +148,11 @@ const ProviderLimitsIndicator = GObject.registerClass(
       }
       GLib.get_language_names();
       const localeDir = GLib.build_filenamev([this._extension.path, "locale"]);
-      Gettext.bindtextdomain("gnome-provider-limits", localeDir);
-      Gettext.textdomain("gnome-provider-limits");
+      Gettext.bindtextdomain(GETTEXT_DOMAIN, localeDir);
+      Gettext.textdomain(GETTEXT_DOMAIN);
     }
 
-    private _onProviderEnabledChanged(name: string): void {
+    private _onProviderEnabledChanged(name: ProviderName): void {
       const enabled = this._settings.get_boolean(`${name}-enabled`);
 
       if (enabled) {
@@ -163,7 +174,7 @@ const ProviderLimitsIndicator = GObject.registerClass(
       }
     }
 
-    private _createReader(name: string): BaseReader | null {
+    private _createReader(name: ProviderName): BaseReader {
       switch (name) {
         case "codex":
           return new CodexReader(this._settings, "codex");
@@ -171,19 +182,18 @@ const ProviderLimitsIndicator = GObject.registerClass(
           return new ClaudeReader(this._settings, "claude");
         case "opencode":
           return new OpenCodeReader(this._settings, "opencode");
-        default:
-          return null;
       }
     }
 
     async refresh(): Promise<void> {
-      const order = this._settings.get_strv("providers-order");
-      const previousResults = new Map(this._results);
-      this._results.clear();
+      const generation = ++this._refreshGeneration;
+      const order = normalizeProvidersOrder(this._settings.get_strv("providers-order"));
+      const previousResults = this._results;
+      const nextResults = new Map(previousResults);
 
       const entries = order
         .map((name) => ({ name, reader: this._readers.get(name) }))
-        .filter((e): e is { name: string; reader: BaseReader } => !!e.reader);
+        .filter((e): e is { name: ProviderName; reader: BaseReader } => !!e.reader);
 
       const settled = await Promise.allSettled(entries.map((e) => e.reader.read()));
 
@@ -193,19 +203,23 @@ const ProviderLimitsIndicator = GObject.registerClass(
         const name = entries[i].name;
 
         if (result.status === "rejected") {
-          console.error(`[provider-limits] reader ${name} failed:`, result.reason);
+          logError(`reader ${name} failed`, result.reason);
           continue;
         }
 
         if (!this._readers.has(name)) continue;
 
-        this._results.set(name, result.value);
+        nextResults.set(name, result.value);
 
         const prev = previousResults.get(name);
         if (!prev || !readerResultsEqual(prev, result.value)) {
           anyChanged = true;
         }
       }
+
+      if (generation !== this._refreshGeneration || this._destroyed) return;
+
+      this._results = nextResults;
 
       if (anyChanged) {
         this._stableReads = 0;
@@ -217,6 +231,7 @@ const ProviderLimitsIndicator = GObject.registerClass(
     }
 
     private _render(): void {
+      if (this._destroyed) return;
       this._statusBar.render(this._results);
       this._panel.render(this._results);
     }
@@ -240,14 +255,21 @@ const ProviderLimitsIndicator = GObject.registerClass(
         GLib.PRIORITY_DEFAULT,
         Math.max(interval, DEFAULT_REFRESH_SHORT_INTERVAL_SECONDS),
         () => {
-          void this.refresh();
-          this._restartRefreshTimer();
+          void this._refreshAndRestartTimer();
           return GLib.SOURCE_REMOVE;
         },
       );
     }
 
+    private async _refreshAndRestartTimer(): Promise<void> {
+      await this.refresh();
+      if (!this._destroyed) this._restartRefreshTimer();
+    }
+
     destroy(): void {
+      this._destroyed = true;
+      this._refreshGeneration++;
+
       for (const id of this._settingsChangedIds) {
         this._settings.disconnect(id);
       }

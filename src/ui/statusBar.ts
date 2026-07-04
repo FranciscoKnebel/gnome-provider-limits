@@ -5,8 +5,9 @@ import GObject from "gi://GObject";
 import St from "gi://St";
 import { gettext as _ } from "resource:///org/gnome/shell/extensions/extension.js";
 
+import type { ProviderName } from "../constants.js";
 import { resolveLocale } from "../helpers/locale.js";
-import { providerDisplayNameShort } from "../helpers/provider-settings.js";
+import { normalizeProvidersOrder, providerDisplayNameShort } from "../helpers/provider-settings.js";
 import type { BaseReader, ReaderResult } from "../readers/base.js";
 import { ReaderStatus } from "../readers/base.js";
 import { getFieldRows } from "./fieldRows.js";
@@ -14,9 +15,9 @@ import { getFieldRows } from "./fieldRows.js";
 export const StatusBarWidget = GObject.registerClass(
   class StatusBarWidget extends St.BoxLayout {
     declare _settings: Gio.Settings;
-    declare _readers: Map<string, BaseReader>;
+    declare _readers: Map<ProviderName, BaseReader>;
 
-    _init(settings: Gio.Settings, readers: Map<string, BaseReader>) {
+    _init(settings: Gio.Settings, readers: Map<ProviderName, BaseReader>) {
       super._init({
         style_class: "provider-limits-status-bar",
         y_align: Clutter.ActorAlign.CENTER,
@@ -25,8 +26,8 @@ export const StatusBarWidget = GObject.registerClass(
       this._readers = readers;
     }
 
-    render(results: Map<string, ReaderResult>): void {
-      const order = this._settings.get_strv("providers-order");
+    render(results: Map<ProviderName, ReaderResult>): void {
+      const order = normalizeProvidersOrder(this._settings.get_strv("providers-order"));
       const locale = resolveLocale(
         this._settings.get_string("language"),
         GLib.getenv("LC_MESSAGES"),
@@ -83,7 +84,7 @@ export const StatusBarWidget = GObject.registerClass(
       }
     }
 
-    private _getProviderLabel(name: string): string {
+    private _getProviderLabel(name: ProviderName): string {
       return providerDisplayNameShort(this._settings, name);
     }
   },

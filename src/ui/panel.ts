@@ -5,21 +5,22 @@ import St from "gi://St";
 import { gettext as _ } from "resource:///org/gnome/shell/extensions/extension.js";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
+import type { ProviderName } from "../constants.js";
 import { resolveLocale } from "../helpers/locale.js";
-import { providerDisplayName } from "../helpers/provider-settings.js";
+import { normalizeProvidersOrder, providerDisplayName } from "../helpers/provider-settings.js";
 import type { BaseReader, ReaderResult } from "../readers/base.js";
 import { ReaderStatus } from "../readers/base.js";
 import { getFieldRows } from "./fieldRows.js";
 
 export class PanelWidget extends PopupMenu.PopupMenuSection {
   private _settings: Gio.Settings;
-  private _readers: Map<string, BaseReader>;
+  private _readers: Map<ProviderName, BaseReader>;
   private _openPreferences: () => void;
   private _onRefresh?: () => void;
 
   constructor(
     settings: Gio.Settings,
-    readers: Map<string, BaseReader>,
+    readers: Map<ProviderName, BaseReader>,
     openPreferences: () => void,
     onRefresh?: () => void,
   ) {
@@ -30,10 +31,10 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     this._onRefresh = onRefresh;
   }
 
-  render(results: Map<string, ReaderResult>): void {
+  render(results: Map<ProviderName, ReaderResult>): void {
     this.removeAll();
 
-    const order = this._settings.get_strv("providers-order");
+    const order = normalizeProvidersOrder(this._settings.get_strv("providers-order"));
     const locale = resolveLocale(
       this._settings.get_string("language"),
       GLib.getenv("LC_MESSAGES"),
@@ -57,7 +58,7 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     this.addMenuItem(settingsItem);
   }
 
-  private _addProviderSection(name: string, result: ReaderResult, locale: string): void {
+  private _addProviderSection(name: ProviderName, result: ReaderResult, locale: string): void {
     const displayName = this._getProviderDisplayName(name);
     const headerText = this._buildHeaderText(displayName, result.status);
     const header = new PopupMenu.PopupMenuItem(headerText, {
@@ -121,7 +122,7 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     this.addMenuItem(row);
   }
 
-  private _getProviderDisplayName(name: string): string {
+  private _getProviderDisplayName(name: ProviderName): string {
     return providerDisplayName(this._settings, name);
   }
 

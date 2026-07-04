@@ -5,7 +5,7 @@ export const DEFAULT_REFRESH_SHORT_INTERVAL_SECONDS = 10;
 export const DEFAULT_REFRESH_LONG_INTERVAL_SECONDS = 120;
 export const DEFAULT_REFRESH_STABLE_READS_THRESHOLD = 3;
 
-export const DEFAULT_PROVIDERS_ORDER: string[] = ["codex", "claude", "opencode"];
+export const DEFAULT_PROVIDERS_ORDER: readonly ProviderName[] = PROVIDER_NAMES;
 
 export const SQLITE_CACHE_TTL_SECONDS = 5;
 export const COOKIE_CACHE_TTL_SECONDS = 300;

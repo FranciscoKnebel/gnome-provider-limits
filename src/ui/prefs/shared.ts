@@ -23,7 +23,8 @@ export function buildReorderableList(
   settings: Gio.Settings,
   key: string,
   buildRow: (value: string) => Adw.ActionRow | null,
-): { listBox: Gtk.ListBox; render: () => void } {
+  normalizeValues?: (values: readonly string[]) => readonly string[],
+): { listBox: Gtk.ListBox; render: () => void; destroy: () => void } {
   const listBox = new Gtk.ListBox({
     selection_mode: Gtk.SelectionMode.SINGLE,
     show_separators: false,
@@ -33,7 +34,12 @@ export function buildReorderableList(
 
   const render = () => {
     clearListBox(listBox);
-    const values = settings.get_strv(key);
+    const currentValues = settings.get_strv(key);
+    const values = normalizeValues ? [...normalizeValues(currentValues)] : currentValues;
+    if (normalizeValues && !stringArraysEqual(currentValues, values)) {
+      settings.set_strv(key, values);
+      return;
+    }
     for (const value of values) {
       const row = buildRow(value);
       if (row) listBox.append(row);
@@ -41,8 +47,18 @@ export function buildReorderableList(
   };
 
   render();
-  settings.connect(`changed::${key}`, render);
-  return { listBox, render };
+  const changedId = settings.connect(`changed::${key}`, render);
+  return {
+    listBox,
+    render,
+    destroy: () => {
+      settings.disconnect(changedId);
+    },
+  };
+}
+
+function stringArraysEqual(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((value, index) => value === b[index]);
 }
 
 export function setupDropTarget(row: Adw.ActionRow, settings: Gio.Settings, key: string): void {

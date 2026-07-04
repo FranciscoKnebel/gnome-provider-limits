@@ -5,13 +5,19 @@ import GObject from "gi://GObject";
 import Gtk from "gi://Gtk";
 import { gettext as _ } from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
 
-import { PROVIDER_NAMES } from "../../constants.js";
-import { providerDisplayName } from "../../helpers/provider-settings.js";
+import { PROVIDER_NAMES, type ProviderName } from "../../constants.js";
+import {
+  isProviderName,
+  normalizeProvidersOrder,
+  providerDisplayName,
+} from "../../helpers/provider-settings.js";
 import { buildReorderableList, setupDragSource, setupDropTarget } from "./shared.js";
 
 export const ProviderLimitsPreferencesPage = GObject.registerClass(
   class ProviderLimitsPreferencesPage extends Adw.PreferencesPage {
     declare _settings: Gio.Settings;
+    declare _settingsChangedIds: number[];
+    declare _destroyCallbacks: (() => void)[];
 
     _init(settings: Gio.Settings) {
       super._init({
@@ -20,9 +26,22 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
       });
 
       this._settings = settings;
+      this._settingsChangedIds = [];
+      this._destroyCallbacks = [];
+      this.connect("destroy", () => this.cleanup());
       this.add(this._buildRefreshGroup());
       this.add(this._buildLanguageGroup());
       this.add(this._buildProvidersGroup());
+    }
+
+    cleanup(): void {
+      for (const id of this._settingsChangedIds) {
+        this._settings.disconnect(id);
+      }
+      this._settingsChangedIds = [];
+
+      for (const destroy of this._destroyCallbacks) destroy();
+      this._destroyCallbacks = [];
     }
 
     private _buildRefreshGroup(): Adw.PreferencesGroup {
@@ -102,10 +121,11 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
         description: _("Enable and reorder providers by dragging the rows."),
       });
 
-      const { listBox, render } = buildReorderableList(
+      const { listBox, render, destroy } = buildReorderableList(
         this._settings,
         "providers-order",
         (value) => {
+          if (!isProviderName(value)) return null;
           const row = this._buildReorderableRow({
             key: "providers-order",
             value,
@@ -116,11 +136,15 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
           row.add_suffix(toggle);
           return row;
         },
+        normalizeProvidersOrder,
       );
+      this._destroyCallbacks.push(destroy);
       group.add(listBox);
 
       for (const name of PROVIDER_NAMES) {
-        this._settings.connect(`changed::${name}-display-name`, render);
+        this._settingsChangedIds.push(
+          this._settings.connect(`changed::${name}-display-name`, render),
+        );
       }
 
       return group;
@@ -155,7 +179,7 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
 
     private _buildReorderableRow(args: {
       key: string;
-      value: string;
+      value: ProviderName;
       label: string;
     }): Adw.ActionRow {
       const { key, value, label } = args;
@@ -167,18 +191,6 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
 
       const dragHandle = new Gtk.Image({ icon_name: "list-drag-handle-symbolic" });
       row.add_prefix(dragHandle);
-
-      const removeButton = new Gtk.Button({
-        icon_name: "list-remove-symbolic",
-        valign: Gtk.Align.CENTER,
-        tooltip_text: _("Remove"),
-      });
-      removeButton.add_css_class("flat");
-      removeButton.connect("clicked", () => {
-        const values = this._settings.get_strv(key).filter((v) => v !== value);
-        this._settings.set_strv(key, values);
-      });
-      row.add_suffix(removeButton);
 
       setupDragSource(row, value);
       setupDropTarget(row, this._settings, key);

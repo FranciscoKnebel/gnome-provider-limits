@@ -7,7 +7,7 @@ import {
   gettext as _,
 } from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
 
-import { PROVIDER_NAMES } from "./constants.js";
+import { PROVIDER_NAMES, type ProviderName } from "./constants.js";
 import { ProviderLimitsPreferencesPage } from "./ui/prefs/main-page.js";
 import { ProviderPage } from "./ui/prefs/provider-page.js";
 
@@ -25,6 +25,7 @@ export default class ProviderLimitsPreferences extends ExtensionPreferences {
 
   private _removeAllPages(window: Adw.PreferencesWindow): void {
     for (const page of this._pages) {
+      if ("cleanup" in page && typeof page.cleanup === "function") page.cleanup();
       window.remove(page);
     }
     this._pages = [];
@@ -56,7 +57,7 @@ export default class ProviderLimitsPreferences extends ExtensionPreferences {
     window.add(mainPage);
     this._pages.push(mainPage);
 
-    const providerPages = new Map<string, Adw.PreferencesPage>();
+    const providerPages = new Map<ProviderName, Adw.PreferencesPage>();
 
     for (const name of PROVIDER_NAMES) {
       if (settings.get_boolean(`${name}-enabled`)) {
@@ -76,6 +77,7 @@ export default class ProviderLimitsPreferences extends ExtensionPreferences {
             this._pages.push(page);
           }
         } else if (existing) {
+          if ("cleanup" in existing && typeof existing.cleanup === "function") existing.cleanup();
           window.remove(existing);
           this._pages = this._pages.filter((p) => p !== existing);
           providerPages.delete(name);
@@ -108,7 +110,7 @@ export default class ProviderLimitsPreferences extends ExtensionPreferences {
     return Promise.resolve();
   }
 
-  private _buildProviderPage(settings: Gio.Settings, name: string): Adw.PreferencesPage {
+  private _buildProviderPage(settings: Gio.Settings, name: ProviderName): Adw.PreferencesPage {
     return new ProviderPage(settings, name);
   }
 }
