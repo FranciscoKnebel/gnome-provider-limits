@@ -126,13 +126,28 @@
       <summary>OpenCode CLI path</summary>
       <description>Path to the OpenCode CLI binary. Empty string means auto-detect in PATH.</description>
     </key>
+    <key name="opencode-limit-rolling-5h-usd" type="d">
+      <default>12.0</default>
+      <summary>OpenCode rolling 5-hour spend ceiling</summary>
+      <description>USD ceiling used to calculate observed local OpenCode Go usage in the rolling 5-hour window.</description>
+    </key>
+    <key name="opencode-limit-weekly-usd" type="d">
+      <default>30.0</default>
+      <summary>OpenCode weekly spend ceiling</summary>
+      <description>USD ceiling used to calculate observed local OpenCode Go usage in the weekly window.</description>
+    </key>
+    <key name="opencode-limit-monthly-usd" type="d">
+      <default>60.0</default>
+      <summary>OpenCode monthly spend ceiling</summary>
+      <description>USD ceiling used to calculate observed local OpenCode Go usage in the monthly window.</description>
+    </key>
     <key name="opencode-status-fields" type="as">
       <default>['used_percent_rolling','reset_at_rolling']</default>
       <summary>OpenCode status bar fields</summary>
       <description>Fields shown for OpenCode in the status bar, in display order.</description>
     </key>
     <key name="opencode-panel-fields" type="as">
-      <default>['used_percent_weekly','reset_at_weekly','total_cost','sessions_count','token_expires_at']</default>
+      <default>['used_percent_weekly','reset_at_weekly','used_percent_monthly','reset_at_monthly','used_cost_rolling','used_cost_weekly','used_cost_monthly','total_cost','sessions_count','plan_type','usage_source']</default>
       <summary>OpenCode panel fields</summary>
       <description>Fields shown for OpenCode in the panel, in display order.</description>
     </key>

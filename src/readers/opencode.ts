@@ -1,24 +1,22 @@
-import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 
-import { HttpClient, HttpError, TokenError } from "../helpers/http.js";
 import { logWarn } from "../helpers/log.js";
 import { querySqlite } from "../helpers/sqlite.js";
 import type { FieldDef, FieldResult, ReaderResult } from "./base.js";
 import { BaseReader, FieldStatus } from "./base.js";
 import {
+  buildOpenCodeObservedSpendLimits,
+  type OpenCodeCostEntryRow,
   type OpenCodeDbRow,
   type OpenCodeDiskStats,
-  type OpenCodeRateLimitsPayload,
+  type OpenCodeObservedSpendLimit,
+  type OpenCodeObservedSpendWindow,
   normalizeOpenCodeDbRow,
-  normalizeOpenCodeOauthPayload,
-  parseOpenCodeAccessToken,
-  parseOpenCodeAuthText,
 } from "./opencodeParser.js";
 
 const OPENCODE_DB_PATH = `${GLib.get_home_dir()}/.local/share/opencode/opencode.db`;
-const OPENCODE_AUTH_PATH = `${GLib.get_home_dir()}/.local/share/opencode/auth.json`;
-const OPENCODE_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
+const HOUR_MS = 60 * 60 * 1000;
+const DAY_MS = 24 * HOUR_MS;
 
 export const OPENCODE_FIELDS: readonly FieldDef[] = [
   {
@@ -64,6 +62,69 @@ export const OPENCODE_FIELDS: readonly FieldDef[] = [
     defaultZone: "panel",
   },
   {
+    name: "used_percent_monthly",
+    label: "Used % (monthly)",
+    type: "percent",
+    description: "Percentage of the observed local monthly OpenCode Go spend ceiling used.",
+    defaultZone: "panel",
+  },
+  {
+    name: "remaining_percent_monthly",
+    label: "Remaining % (monthly)",
+    type: "percent",
+    description: "Percentage of the observed local monthly OpenCode Go spend ceiling remaining.",
+    defaultZone: "panel",
+  },
+  {
+    name: "reset_at_monthly",
+    label: "Reset at (monthly)",
+    type: "timestamp",
+    description: "When the local monthly observed spend window resets.",
+    defaultZone: "panel",
+  },
+  {
+    name: "used_cost_rolling",
+    label: "Used cost (rolling 5h)",
+    type: "cost",
+    description: "Observed local OpenCode Go spend in the rolling 5-hour window.",
+    defaultZone: "panel",
+  },
+  {
+    name: "remaining_cost_rolling",
+    label: "Remaining cost (rolling 5h)",
+    type: "cost",
+    description: "Remaining local OpenCode Go spend before the rolling 5-hour ceiling.",
+    defaultZone: "panel",
+  },
+  {
+    name: "used_cost_weekly",
+    label: "Used cost (weekly)",
+    type: "cost",
+    description: "Observed local OpenCode Go spend in the weekly window.",
+    defaultZone: "panel",
+  },
+  {
+    name: "remaining_cost_weekly",
+    label: "Remaining cost (weekly)",
+    type: "cost",
+    description: "Remaining local OpenCode Go spend before the weekly ceiling.",
+    defaultZone: "panel",
+  },
+  {
+    name: "used_cost_monthly",
+    label: "Used cost (monthly)",
+    type: "cost",
+    description: "Observed local OpenCode Go spend in the monthly window.",
+    defaultZone: "panel",
+  },
+  {
+    name: "remaining_cost_monthly",
+    label: "Remaining cost (monthly)",
+    type: "cost",
+    description: "Remaining local OpenCode Go spend before the monthly ceiling.",
+    defaultZone: "panel",
+  },
+  {
     name: "total_cost",
     label: "Total cost",
     type: "cost",
@@ -78,45 +139,28 @@ export const OPENCODE_FIELDS: readonly FieldDef[] = [
     defaultZone: "panel",
   },
   {
-    name: "token_expires_at",
-    label: "Token expires in",
-    type: "timestamp",
-    description: "When the OAuth token expires.",
+    name: "plan_type",
+    label: "Plan type",
+    type: "text",
+    description: "Observed spend model used for OpenCode Go.",
+    defaultZone: "panel",
+  },
+  {
+    name: "usage_source",
+    label: "Usage source",
+    type: "text",
+    description: "Where OpenCode Go usage was read from.",
     defaultZone: "panel",
   },
 ];
 
-Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish");
-
 export class OpenCodeReader extends BaseReader {
-  private _http: HttpClient | null = null;
-
   get FIELDS(): readonly FieldDef[] {
     return OPENCODE_FIELDS;
   }
 
-  override destroy(): void {
-    this._http?.destroy();
-    this._http = null;
-    super.destroy();
-  }
-
   async read(): Promise<ReaderResult> {
     const pathsTried: string[] = [];
-
-    try {
-      pathsTried.push("oauth-api");
-      const authText = await this._readAuthText();
-      const token = authText ? parseOpenCodeAccessToken(authText) : null;
-      if (authText && token) {
-        const payload = await this._fetchUsage(token);
-        if (payload) {
-          return this._parsePayload(payload, parseOpenCodeAuthText(authText), pathsTried);
-        }
-      }
-    } catch (error) {
-      logWarn("opencode oauth-api failed", error);
-    }
 
     try {
       pathsTried.push("disk");
@@ -129,40 +173,15 @@ export class OpenCodeReader extends BaseReader {
     }
 
     return this._errorResult(
-      "OpenCode: no data. Run `opencode auth login` or start OpenCode to refresh local state.",
+      "OpenCode: no local Go usage data. Start OpenCode Go to refresh local state.",
       pathsTried,
     );
-  }
-
-  private async _readAuthText(): Promise<string | null> {
-    const file = Gio.File.new_for_path(OPENCODE_AUTH_PATH);
-    const [contents] = await file.load_contents_async(null);
-    return new TextDecoder().decode(contents);
-  }
-
-  private async _fetchUsage(token: string): Promise<OpenCodeRateLimitsPayload | null> {
-    if (!this._http) this._http = new HttpClient();
-    try {
-      const payload = await this._http.getJson(OPENCODE_USAGE_URL, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      return normalizeOpenCodeOauthPayload(payload);
-    } catch (error) {
-      if (error instanceof TokenError) {
-        logWarn("opencode oauth token rejected", error);
-        return null;
-      }
-      if (error instanceof HttpError) {
-        logWarn(`opencode oauth http ${error.statusCode}`, error);
-        return null;
-      }
-      throw error;
-    }
   }
 
   private async _readFromDisk(): Promise<OpenCodeDiskStats | null> {
     let totalCost = 0;
     let sessionsCount = 0;
+    let limits: OpenCodeObservedSpendLimit[] = [];
 
     try {
       const rows = await querySqlite(
@@ -178,77 +197,82 @@ export class OpenCodeReader extends BaseReader {
       logWarn("opencode sqlite read failed", error);
     }
 
-    const tokenExpiresAt = this._readTokenExpiry();
+    try {
+      const windows = this._observedSpendWindows();
+      const oldestWindow = windows.reduce((max, window) => Math.max(max, window.durationMs), 0);
+      const sinceMs = Date.now() - oldestWindow;
+      const sinceSeconds = Math.floor(sinceMs / 1000);
+      const rows = await querySqlite(
+        OPENCODE_DB_PATH,
+        `SELECT cost, time_created FROM session WHERE (time_created >= 1000000000000 AND time_created >= ${sinceMs}) OR (time_created < 1000000000000 AND time_created >= ${sinceSeconds}) ORDER BY time_created ASC`,
+        { timeoutSeconds: 5 },
+      );
+      limits = buildOpenCodeObservedSpendLimits(
+        Array.isArray(rows) ? (rows as OpenCodeCostEntryRow[]) : [],
+        windows,
+        Date.now(),
+      );
+    } catch (error) {
+      logWarn("opencode observed spend read failed", error);
+    }
 
-    if (totalCost === 0 && sessionsCount === 0 && tokenExpiresAt === null) {
+    if (totalCost === 0 && sessionsCount === 0 && limits.length === 0) {
       return null;
     }
 
-    return { totalCost, sessionsCount, tokenExpiresAt };
+    return { totalCost, sessionsCount, limits };
   }
 
-  private _readTokenExpiry(): number | null {
-    const authPath = OPENCODE_AUTH_PATH;
-    const file = GLib.file_get_contents(authPath);
-    if (!file) return null;
+  private _observedSpendWindows(): readonly OpenCodeObservedSpendWindow[] {
+    return [
+      {
+        id: "rolling",
+        durationMs: 5 * HOUR_MS,
+        limitUsd: this._spendLimit("opencode-limit-rolling-5h-usd", 12),
+      },
+      {
+        id: "weekly",
+        durationMs: 7 * DAY_MS,
+        limitUsd: this._spendLimit("opencode-limit-weekly-usd", 30),
+      },
+      {
+        id: "monthly",
+        durationMs: 30 * DAY_MS,
+        limitUsd: this._spendLimit("opencode-limit-monthly-usd", 60),
+      },
+    ];
+  }
 
-    let text: string;
-    try {
-      text = new TextDecoder().decode(file[1]);
-    } catch {
-      return null;
-    }
-
-    return parseOpenCodeAuthText(text);
+  private _spendLimit(key: string, fallback: number): number {
+    const value = this.settings.get_double(key);
+    return Number.isFinite(value) && value > 0 ? value : fallback;
   }
 
   private _parseDiskResult(stats: OpenCodeDiskStats, pathsTried: readonly string[]): ReaderResult {
     const fields: FieldResult[] = [];
 
-    // v1: only telemetry fields from disk; limit fields unavailable
-    fields.push(...this._makePercentFieldPair("rolling", null, FieldStatus.UNAVAILABLE));
-    fields.push(this._makeField("reset_at_rolling", null, FieldStatus.UNAVAILABLE));
-    fields.push(...this._makePercentFieldPair("weekly", null, FieldStatus.UNAVAILABLE));
-    fields.push(this._makeField("reset_at_weekly", null, FieldStatus.UNAVAILABLE));
-    fields.push(this._makeField("total_cost", stats.totalCost, FieldStatus.OK));
-    fields.push(this._makeField("sessions_count", stats.sessionsCount, FieldStatus.OK));
-    fields.push(
-      this._makeField(
-        "token_expires_at",
-        stats.tokenExpiresAt,
-        stats.tokenExpiresAt !== null ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
-      ),
-    );
-
-    return this._partialResult(
-      fields,
-      pathsTried,
-      "Limit fields unavailable from OAuth API; showing disk telemetry only.",
-    );
-  }
-
-  private _parsePayload(
-    payload: OpenCodeRateLimitsPayload,
-    tokenExpiresAt: number | null,
-    pathsTried: readonly string[],
-  ): ReaderResult {
-    const rl = payload.rate_limits;
-    if (!rl) {
-      return this._errorResult("OpenCode: no rate_limits in payload.", pathsTried);
+    for (const limit of stats.limits) {
+      fields.push(this._makeField(`used_percent_${limit.id}`, limit.usedPercent, FieldStatus.OK));
+      fields.push(
+        this._makeField(`remaining_percent_${limit.id}`, limit.remainingPercent, FieldStatus.OK),
+      );
+      fields.push(
+        this._makeField(
+          `reset_at_${limit.id}`,
+          limit.resetAt,
+          limit.resetAt !== null ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
+        ),
+      );
+      fields.push(this._makeField(`used_cost_${limit.id}`, limit.usedUsd, FieldStatus.OK));
+      fields.push(
+        this._makeField(`remaining_cost_${limit.id}`, limit.remainingUsd, FieldStatus.OK),
+      );
     }
 
-    const fields: FieldResult[] = [];
-    fields.push(...this._makeWindowFields("rolling", rl.rolling));
-    fields.push(...this._makeWindowFields("weekly", rl.weekly));
-    fields.push(this._makeField("total_cost", null, FieldStatus.UNAVAILABLE));
-    fields.push(this._makeField("sessions_count", null, FieldStatus.UNAVAILABLE));
-    fields.push(
-      this._makeField(
-        "token_expires_at",
-        tokenExpiresAt,
-        tokenExpiresAt !== null ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
-      ),
-    );
+    fields.push(this._makeField("total_cost", stats.totalCost, FieldStatus.OK));
+    fields.push(this._makeField("sessions_count", stats.sessionsCount, FieldStatus.OK));
+    fields.push(this._makeField("plan_type", "OpenCode Go", FieldStatus.OK));
+    fields.push(this._makeField("usage_source", "observed local spend", FieldStatus.OK));
 
     return this._classifyResult(fields, pathsTried, "OpenCode");
   }

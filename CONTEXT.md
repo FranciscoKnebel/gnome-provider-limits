@@ -45,10 +45,24 @@ _Avoid_: Profile, preset.
 
 **Limit Field**:
 A field that expresses an active provider restriction on usage, e.g.
-`used_percent`, `remaining_percent`, `reset_at`, `limit_reached`. All three providers expose limits
-via HTTP using disk tokens/cookies (Codex OAuth, Claude OAuth, OpenCode web
-cookies); Codex also via disk (`logs_2.sqlite`).
+`used_percent`, `remaining_percent`, `reset_at`, `limit_reached`. Codex and
+Claude expose limits via provider APIs using disk tokens/cookies; Codex also via
+disk (`logs_2.sqlite`). OpenCode must not reuse Codex-compatible account limits
+as OpenCode limits.
 _Avoid_: Quota (when referring to telemetry).
+
+**OpenCode Go State**:
+Local usage state written by OpenCode Go. In this project, OpenCode fields must
+come from OpenCode Go state, not from Codex-compatible OpenAI account limits,
+even when OpenCode uses an OpenAI account under the hood.
+_Avoid_: Codex limits, OpenAI usage limits.
+
+**OpenCode Observed Spend Limit**:
+Limit field calculated from OpenCode Go local spend observed in
+`opencode.db`, using fixed OpenCode Go windows and USD ceilings. It is not an
+official provider-reported account limit, and it does not include OpenCode usage
+outside the local OpenCode Go state.
+_Avoid_: Official OpenCode limit, OpenAI limit, Codex limit.
 
 **Telemetry Field**:
 A field that expresses usage already performed, with no reference to a ceiling

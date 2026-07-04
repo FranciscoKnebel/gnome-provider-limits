@@ -60,6 +60,9 @@ export const ProviderPage = GObject.registerClass(
       });
 
       this.add(this._buildSettingsGroup());
+      if (provider === "opencode") {
+        this.add(this._buildOpenCodeLimitsGroup());
+      }
       this.add(this._buildFieldsGroup("status-fields", _("Status bar fields")));
       this.add(this._buildFieldsGroup("panel-fields", _("Panel fields")));
     }
@@ -113,6 +116,57 @@ export const ProviderPage = GObject.registerClass(
       );
       group.add(cliRow);
       return group;
+    }
+
+    private _buildOpenCodeLimitsGroup(): Adw.PreferencesGroup {
+      const group = new Adw.PreferencesGroup({
+        title: _("OpenCode Go observed spend limits"),
+        description: _("USD ceilings used to calculate local observed spend windows."),
+      });
+
+      group.add(
+        this._createDoubleSpinRow(
+          "opencode-limit-rolling-5h-usd",
+          _("Rolling 5-hour ceiling"),
+          _("Default: 12 USD."),
+        ),
+      );
+      group.add(
+        this._createDoubleSpinRow(
+          "opencode-limit-weekly-usd",
+          _("Weekly ceiling"),
+          _("Default: 30 USD."),
+        ),
+      );
+      group.add(
+        this._createDoubleSpinRow(
+          "opencode-limit-monthly-usd",
+          _("Monthly ceiling"),
+          _("Default: 60 USD."),
+        ),
+      );
+
+      return group;
+    }
+
+    private _createDoubleSpinRow(key: string, title: string, subtitle: string): Adw.SpinRow {
+      const adjustment = new Gtk.Adjustment({
+        lower: 0.01,
+        upper: 10000,
+        step_increment: 1,
+        value: this._settings.get_double(key),
+      });
+
+      const row = new Adw.SpinRow({
+        title,
+        subtitle,
+        adjustment,
+        climb_rate: 1,
+        digits: 2,
+      });
+
+      this._settings.bind(key, row, "value", Gio.SettingsBindFlags.DEFAULT);
+      return row;
     }
 
     private _buildFieldsGroup(suffix: string, title: string): Adw.PreferencesGroup {

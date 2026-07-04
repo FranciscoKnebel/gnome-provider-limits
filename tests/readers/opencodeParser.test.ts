@@ -1,9 +1,6 @@
 import {
+  buildOpenCodeObservedSpendLimits,
   normalizeOpenCodeDbRow,
-  normalizeOpenCodeOauthPayload,
-  parseOpenCodeAccessToken,
-  parseOpenCodeAuthText,
-  parseOpenCodeTokenExpiry,
 } from "../../src/readers/opencodeParser.js";
 
 describe("opencodeParser", () => {
@@ -28,82 +25,52 @@ describe("opencodeParser", () => {
     });
   });
 
-  describe("parseOpenCodeTokenExpiry", () => {
-    it("treats millisecond timestamps as ms and converts to seconds", () => {
-      expect(parseOpenCodeTokenExpiry(1782526648069)).toBe(1782526648);
-    });
+  describe("buildOpenCodeObservedSpendLimits", () => {
+    it("calculates spend limits from local OpenCode Go session costs", () => {
+      const nowMs = 1_800_000_000_000;
+      const limits = buildOpenCodeObservedSpendLimits(
+        [
+          { cost: 3, time_created: nowMs - 2 * 60 * 60 * 1000 },
+          { cost: 4, time_created: nowMs - 6 * 60 * 60 * 1000 },
+          { cost: 100, time_created: nowMs - 40 * 24 * 60 * 60 * 1000 },
+        ],
+        [
+          { id: "rolling", durationMs: 5 * 60 * 60 * 1000, limitUsd: 12 },
+          { id: "weekly", durationMs: 7 * 24 * 60 * 60 * 1000, limitUsd: 30 },
+        ],
+        nowMs,
+      );
 
-    it("treats second timestamps as seconds directly", () => {
-      expect(parseOpenCodeTokenExpiry(1782526648)).toBe(1782526648);
-    });
-
-    it("accepts a numeric string", () => {
-      expect(parseOpenCodeTokenExpiry("1782526648069")).toBe(1782526648);
-    });
-
-    it("rejects non-positive, NaN, and non-numeric inputs", () => {
-      expect(parseOpenCodeTokenExpiry(0)).toBeNull();
-      expect(parseOpenCodeTokenExpiry(-1)).toBeNull();
-      expect(parseOpenCodeTokenExpiry(Number.NaN)).toBeNull();
-      expect(parseOpenCodeTokenExpiry(null)).toBeNull();
-      expect(parseOpenCodeTokenExpiry("not a number")).toBeNull();
-      expect(parseOpenCodeTokenExpiry({})).toBeNull();
-    });
-  });
-
-  describe("parseOpenCodeAuthText", () => {
-    it("extracts openai.expires from a real auth.json shape", () => {
-      const text = JSON.stringify({
-        openai: { expires: 1782526648069, type: "oauth" },
-        "opencode-go": { type: "key" },
-      });
-      expect(parseOpenCodeAuthText(text)).toBe(1782526648);
-    });
-
-    it("returns null when openai is missing", () => {
-      expect(parseOpenCodeAuthText(JSON.stringify({ "opencode-go": { type: "key" } }))).toBeNull();
-    });
-
-    it("returns null for non-JSON text", () => {
-      expect(parseOpenCodeAuthText("<not json>")).toBeNull();
-    });
-  });
-
-  describe("parseOpenCodeAccessToken", () => {
-    it("extracts openai.access from auth.json", () => {
-      const text = JSON.stringify({ openai: { access: "token-value", type: "oauth" } });
-      expect(parseOpenCodeAccessToken(text)).toBe("token-value");
-    });
-
-    it("returns null when the access token is missing or invalid", () => {
-      expect(parseOpenCodeAccessToken(JSON.stringify({ openai: { access: "" } }))).toBeNull();
-      expect(parseOpenCodeAccessToken(JSON.stringify({ openai: { access: 123 } }))).toBeNull();
-      expect(parseOpenCodeAccessToken("<not json>")).toBeNull();
-    });
-  });
-
-  describe("normalizeOpenCodeOauthPayload", () => {
-    it("maps the OpenAI usage payload windows to OpenCode rolling and weekly limits", () => {
-      const payload = normalizeOpenCodeOauthPayload({
-        rate_limit: {
-          allowed: true,
-          limit_reached: false,
-          primary_window: { used_percent: 12, reset_at: 1782150837 },
-          secondary_window: { used_percent: 34, reset_at: 1782398328 },
+      expect(limits).toEqual([
+        {
+          id: "rolling",
+          usedUsd: 3,
+          remainingUsd: 9,
+          usedPercent: 25,
+          remainingPercent: 75,
+          resetAt: Math.floor((nowMs - 2 * 60 * 60 * 1000 + 5 * 60 * 60 * 1000) / 1000),
         },
-      });
-
-      expect(payload).not.toBeNull();
-      expect(payload?.rate_limits?.allowed).toBe(true);
-      expect(payload?.rate_limits?.limit_reached).toBe(false);
-      expect(payload?.rate_limits?.rolling?.used_percent).toBe(12);
-      expect(payload?.rate_limits?.rolling?.reset_at).toBe(1782150837);
-      expect(payload?.rate_limits?.weekly?.used_percent).toBe(34);
-      expect(payload?.rate_limits?.weekly?.reset_at).toBe(1782398328);
+        {
+          id: "weekly",
+          usedUsd: 7,
+          remainingUsd: 23,
+          usedPercent: 23.333333333333332,
+          remainingPercent: 76.66666666666667,
+          resetAt: Math.floor((nowMs - 6 * 60 * 60 * 1000 + 7 * 24 * 60 * 60 * 1000) / 1000),
+        },
+      ]);
     });
 
-    it("returns null when rate_limit is missing", () => {
-      expect(normalizeOpenCodeOauthPayload({})).toBeNull();
+    it("clamps remaining values when observed spend exceeds the ceiling", () => {
+      const [limit] = buildOpenCodeObservedSpendLimits(
+        [{ cost: 15, time_created: 1_800_000_000_000 }],
+        [{ id: "rolling", durationMs: 5 * 60 * 60 * 1000, limitUsd: 12 }],
+        1_800_000_000_001,
+      );
+
+      expect(limit?.usedUsd).toBe(15);
+      expect(limit?.remainingUsd).toBe(0);
+      expect(limit?.remainingPercent).toBe(0);
     });
   });
 });
