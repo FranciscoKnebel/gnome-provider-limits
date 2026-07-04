@@ -153,6 +153,7 @@ const ProviderLimitsIndicator = GObject.registerClass(
     }
 
     private _onProviderEnabledChanged(name: ProviderName): void {
+      this._refreshGeneration++;
       const enabled = this._settings.get_boolean(`${name}-enabled`);
 
       if (enabled) {
@@ -189,7 +190,6 @@ const ProviderLimitsIndicator = GObject.registerClass(
       const generation = ++this._refreshGeneration;
       const order = normalizeProvidersOrder(this._settings.get_strv("providers-order"));
       const previousResults = this._results;
-      const nextResults = new Map(previousResults);
 
       const entries = order
         .map((name) => ({ name, reader: this._readers.get(name) }))
@@ -198,6 +198,7 @@ const ProviderLimitsIndicator = GObject.registerClass(
       const settled = await Promise.allSettled(entries.map((e) => e.reader.read()));
 
       let anyChanged = false;
+      const nextResults = new Map<ProviderName, ReaderResult>();
 
       for (const [i, result] of settled.entries()) {
         const name = entries[i].name;
@@ -218,6 +219,11 @@ const ProviderLimitsIndicator = GObject.registerClass(
       }
 
       if (generation !== this._refreshGeneration || this._destroyed) return;
+
+      for (const [name, result] of previousResults) {
+        if (!this._readers.has(name) || nextResults.has(name)) continue;
+        nextResults.set(name, result);
+      }
 
       this._results = nextResults;
 

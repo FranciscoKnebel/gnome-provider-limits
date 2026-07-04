@@ -69,9 +69,10 @@ export abstract class BaseReader {
     status: FieldStatus,
   ): [FieldResult, FieldResult] {
     const hasUsedPct = typeof usedPct === "number" && Number.isFinite(usedPct);
+    const fieldStatus = hasUsedPct ? status : FieldStatus.UNAVAILABLE;
     return [
-      this._makeField(`used_percent_${key}`, hasUsedPct ? usedPct : null, status),
-      this._makeField(`remaining_percent_${key}`, hasUsedPct ? 100 - usedPct : null, status),
+      this._makeField(`used_percent_${key}`, hasUsedPct ? usedPct : null, fieldStatus),
+      this._makeField(`remaining_percent_${key}`, hasUsedPct ? 100 - usedPct : null, fieldStatus),
     ];
   }
 

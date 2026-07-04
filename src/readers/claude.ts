@@ -6,7 +6,11 @@ import { logWarn } from "../helpers/log.js";
 import { runSubprocess } from "../helpers/subprocess.js";
 import type { FieldDef, FieldResult, ReaderResult } from "./base.js";
 import { BaseReader, FieldStatus } from "./base.js";
-import { type ClaudeUsagePayload, parseClaudeCliOutput } from "./claudeParser.js";
+import {
+  type ClaudeUsagePayload,
+  normalizeClaudeUsagePayload,
+  parseClaudeCliOutput,
+} from "./claudeParser.js";
 
 const CLAUDE_CREDENTIALS_PATH = `${GLib.get_home_dir()}/.claude/.credentials.json`;
 const CLAUDE_USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
@@ -165,12 +169,13 @@ export class ClaudeReader extends BaseReader {
   private async _fetchUsage(token: string): Promise<ClaudeUsagePayload | null> {
     if (!this._http) this._http = new HttpClient();
     try {
-      return (await this._http.getJson(CLAUDE_USAGE_URL, {
+      const payload = await this._http.getJson(CLAUDE_USAGE_URL, {
         headers: {
           Authorization: `Bearer ${token}`,
           "anthropic-beta": "oauth-2025-04-20",
         },
-      })) as ClaudeUsagePayload;
+      });
+      return normalizeClaudeUsagePayload(payload);
     } catch (error) {
       if (error instanceof TokenError) {
         logWarn("claude oauth token rejected", error);

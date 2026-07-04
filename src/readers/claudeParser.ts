@@ -11,6 +11,43 @@ export interface ClaudeUsagePayload {
   extra_usage?: { enabled?: boolean; disabled_reason?: string } | null;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
+function normalizeWindow(value: unknown): ClaudeUsageWindow | null {
+  if (!isRecord(value)) return null;
+  return {
+    used_percent:
+      typeof value.used_percent === "number" && Number.isFinite(value.used_percent)
+        ? value.used_percent
+        : undefined,
+    reset_at:
+      typeof value.reset_at === "number" && Number.isFinite(value.reset_at)
+        ? value.reset_at
+        : undefined,
+  };
+}
+
+export function normalizeClaudeUsagePayload(raw: unknown): ClaudeUsagePayload | null {
+  if (!isRecord(raw)) return null;
+  const extraUsage = isRecord(raw.extra_usage) ? raw.extra_usage : null;
+
+  return {
+    five_hour: normalizeWindow(raw.five_hour),
+    seven_day: normalizeWindow(raw.seven_day),
+    seven_day_sonnet: normalizeWindow(raw.seven_day_sonnet),
+    seven_day_opus: normalizeWindow(raw.seven_day_opus),
+    extra_usage: extraUsage
+      ? {
+          enabled: typeof extraUsage.enabled === "boolean" ? extraUsage.enabled : undefined,
+          disabled_reason:
+            typeof extraUsage.disabled_reason === "string" ? extraUsage.disabled_reason : undefined,
+        }
+      : null,
+  };
+}
+
 export function stripAnsi(text: string): string {
   // Built via RegExp constructor so the ESC byte stays out of the source literal
   // (oxlint's no-control-regex flags literal control-char escapes).

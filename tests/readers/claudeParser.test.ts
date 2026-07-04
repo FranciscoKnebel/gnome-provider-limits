@@ -1,4 +1,9 @@
-import { findPercent, parseClaudeCliOutput, stripAnsi } from "../../src/readers/claudeParser.js";
+import {
+  findPercent,
+  normalizeClaudeUsagePayload,
+  parseClaudeCliOutput,
+  stripAnsi,
+} from "../../src/readers/claudeParser.js";
 
 describe("claudeParser", () => {
   describe("stripAnsi", () => {
@@ -59,6 +64,38 @@ describe("claudeParser", () => {
 
     it("returns null when no recognizable header is present", () => {
       expect(parseClaudeCliOutput("totally unrelated output")).toBeNull();
+    });
+  });
+
+  describe("normalizeClaudeUsagePayload", () => {
+    it("normalizes known OAuth payload fields", () => {
+      const payload = normalizeClaudeUsagePayload({
+        five_hour: { used_percent: 42, reset_at: 1700000000 },
+        seven_day_sonnet: { used_percent: 15 },
+        extra_usage: { enabled: true, disabled_reason: "" },
+      });
+
+      expect(payload?.five_hour?.used_percent).toBe(42);
+      expect(payload?.five_hour?.reset_at).toBe(1700000000);
+      expect(payload?.seven_day_sonnet?.used_percent).toBe(15);
+      expect(payload?.extra_usage?.enabled).toBe(true);
+    });
+
+    it("drops invalid field values without trusting the payload shape", () => {
+      const payload = normalizeClaudeUsagePayload({
+        five_hour: { used_percent: "42", reset_at: Number.NaN },
+        extra_usage: { enabled: "yes", disabled_reason: 123 },
+      });
+
+      expect(payload?.five_hour?.used_percent).toBeUndefined();
+      expect(payload?.five_hour?.reset_at).toBeUndefined();
+      expect(payload?.extra_usage?.enabled).toBeUndefined();
+      expect(payload?.extra_usage?.disabled_reason).toBeUndefined();
+    });
+
+    it("rejects non-object payloads", () => {
+      expect(normalizeClaudeUsagePayload(null)).toBeNull();
+      expect(normalizeClaudeUsagePayload("invalid")).toBeNull();
     });
   });
 });

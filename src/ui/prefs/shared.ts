@@ -38,7 +38,6 @@ export function buildReorderableList(
     const values = normalizeValues ? [...normalizeValues(currentValues)] : currentValues;
     if (normalizeValues && !stringArraysEqual(currentValues, values)) {
       settings.set_strv(key, values);
-      return;
     }
     for (const value of values) {
       const row = buildRow(value);
