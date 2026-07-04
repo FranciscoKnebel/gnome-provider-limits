@@ -2,7 +2,7 @@ import Adw from "gi://Adw";
 import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 import GObject from "gi://GObject";
-import Gtk from "gi://Gtk";
+import Gtk from "gi://Gtk?version=4.0";
 import { gettext as _ } from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
 
 import { formatField } from "../../formatters.js";
@@ -127,43 +127,27 @@ export const ProviderPage = GObject.registerClass(
       group.set_header_suffix(addButton);
 
       addButton.connect("clicked", () => {
-        const popover = new Gtk.Popover();
-        const listBox = new Gtk.ListBox({
-          selection_mode: Gtk.SelectionMode.NONE,
-          show_separators: false,
-        });
-        listBox.add_css_class("boxed-list");
-
         const used = new Set(this._settings.get_strv(key));
+
+        const dialog = new Adw.MessageDialog({
+          body: _("Select a field to add:"),
+          close_response: "cancel",
+        });
+
+        dialog.add_response("cancel", _("Cancel"));
+        dialog.set_default_response("cancel");
+
         for (const def of available) {
           if (used.has(def.name)) continue;
-
-          const row = new Adw.ActionRow({
-            title: _(def.label),
-            subtitle: this._preview(def, zone, locale),
-          });
-          row.connect("activated", () => {
-            const values = this._settings.get_strv(key);
-            this._settings.set_strv(key, [...values, def.name]);
-            popover.popdown();
-          });
-          listBox.append(row);
+          dialog.add_response(def.name, _(def.label));
         }
 
         if (used.size >= available.length) {
-          listBox.append(
-            new Adw.ActionRow({
-              title: _("No more fields available"),
-              activatable: false,
-            }),
-          );
+          dialog.add_response("none", _("No more fields available"));
+          dialog.set_response_enabled("none", false);
         }
 
-        popover.set_child(listBox);
-        popover.set_position(Gtk.PositionType.BOTTOM);
-        popover.set_parent(addButton);
-        popover.popup();
-        popover.connect("closed", () => popover.unparent());
+        dialog.present();
       });
 
       const { listBox } = buildReorderableList(this._settings, key, (name) => {
