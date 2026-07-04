@@ -81,3 +81,54 @@ Display language of the extension. Default follows the system locale (`LANG` /
 `LC_MESSAGES`); manual override via GSettings `language` (s, default `''` =
 system). Initially `en` and `pt_BR`, expandable via `.po` files.
 _Avoid_: Locale, translation (when referring to the mechanism).
+
+**Refresh**:
+A read cycle of all enabled readers, manual or scheduled. Started by
+`refresh()` in `extension.ts`, runs all readers in parallel (`Promise.allSettled`).
+Has a generation counter (`_refreshGeneration`) to discard stale cycles.
+_Avoid_: Update, sync, poll.
+
+**Force Refresh**:
+A manual `Refresh` triggered by the "Force refresh" button in the panel.
+Semantically identical to any other Refresh; only the trigger differs.
+_Avoid_: Manual update, re-fetch.
+
+**Last Refresh At**:
+Timestamp of when the most recent `Refresh` cycle completed, global across all
+providers. Shown in the panel footer next to the "Force refresh" button. One
+per extension instance, not per provider. Captured in `refresh()` after the
+generation guard, only by the winning run.
+_Avoid_: Last update, refresh time (ambiguous with per-provider).
+
+**Last Updated**:
+Per-provider timestamp of when that provider's state was actually read,
+already carried by `ReaderResult.lastUpdated`. Shown inside each provider
+section in the panel. Can differ from `Last Refresh At` only if a stale
+result is carried over from a previous cycle (see `Refresh` generation).
+_Avoid_: Last update, refresh time (ambiguous with global).
+
+**Running Refresh**:
+State in which at least one `Refresh` cycle is in progress. Tracked by a
+counter of concurrent cycles (`_pendingRefreshes`) on the extension; the
+`Running Refresh Indicator` is on while the counter is greater than zero.
+The "Force refresh" button is blocked while a `Running Refresh` is in
+progress, but scheduled refreshes can still overlap with a manual one.
+Only the winning run (the one whose generation matches `_refreshGeneration`
+at completion) updates `Last Refresh At`; discarded runs still decrement
+the counter.
+_Avoid_: Busy, loading, in-flight.
+
+**Running Refresh Indicator**:
+Visual cue for `Running Refresh` in the panel footer: an `St.Spinner` shown
+while at least one `Refresh` is in progress. Toggled by `setRunning()` on the
+`PanelWidget`; independent of `render()` so it does not trigger a full panel
+rebuild. Does not appear in the status bar.
+_Avoid_: Spinner (when referring to the concept), loading icon, busy cursor.
+
+**Panel Footer**:
+Bottom region of the `Panel` containing the "Force refresh" button, the
+`Running Refresh Indicator`, and the `Last Refresh At` label. Rendered by
+`_addRefreshRow()` in `panel.ts`; updated by `setRunning()` without a full
+rebuild. The "Force refresh" button is blocked while a `Running Refresh` is
+in progress.
+_Avoid_: Status row, action bar.
