@@ -24,17 +24,8 @@ jobs:
 
       - run: npm ci
 
-      - run: npm run build
-
-      - name: Compile schemas
-        run: glib-compile-schemas src/schemas
-
-      - name: Pack extension
-        run: |
-          gnome-extensions pack dist/ -o dist/ \
-            --schema src/schemas/org.gnome.shell.extensions.gnome-provider-limits.gschema.xml \
-            --podir src/po \
-            --gettext-domain gnome-provider-limits
+      - name: Build and pack extension
+        run: npm run pack
 
       - name: Upload release artifact
         uses: softprops/action-gh-release@v3
