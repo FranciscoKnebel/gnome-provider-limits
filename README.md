@@ -2,46 +2,46 @@
 
 [![CI](https://img.shields.io/github/actions/workflow/status/FranciscoKnebel/gnome-provider-limits/ci.yml?branch=main&label=CI&logo=github)](https://github.com/FranciscoKnebel/gnome-provider-limits/actions/workflows/ci.yml)
 [![Coverage](https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/FranciscoKnebel/gnome-provider-limits/gh-pages/coverage.json)](https://github.com/FranciscoKnebel/gnome-provider-limits/actions/workflows/ci.yml)
-[![GNOME Shell](https://img.shields.io/badge/GNOME_Shell-45–50-4a86cf)](https://extensions.gnome.org)
+[![GNOME Shell](https://img.shields.io/badge/GNOME_Shell-45-50-4a86cf)](https://extensions.gnome.org)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
 
-A GNOME Shell extension that monitors session limits for **Codex**, **Claude**, and **OpenCode** directly from the top bar — no extra CLI commands, no dashboards, no breaking flow.
+GNOME Shell extension that displays session limits for Codex, Claude, and OpenCode in your top bar. It reads local status files directly, so you do not need to run CLI commands or open browser dashboards.
 
-> Heads-up: the extension is in active development but usable day-to-day. If you rely on it, test a new version before updating.
+> Note: The extension is in active development. If you rely on it daily, test new versions before updating.
 
 ---
 
 ## Motivation
 
-AI coding CLIs enforce session-based and weekly rate limits that reset at unpredictable times. Checking your current usage means running a CLI command or opening a provider dashboard — both break your concentration.
+AI coding CLIs enforce session and weekly rate limits that reset at unpredictable times. Checking your usage usually requires running a CLI command or opening a provider dashboard, which interrupts your work.
 
-This extension reads the local state each provider already persists on disk (auth tokens, SQLite databases, credentials files) and shows it in a compact status bar indicator, with an expanded panel on click. No extra auth flow, no token forwarding to third parties — it only reads what is already on your machine.
+This extension reads the local files and SQLite databases that providers already save on your machine, such as authentication tokens or credentials files. It shows this data in a compact top-bar indicator and an expandable dropdown panel. The extension does not perform external authentication or send tokens to third parties. It only reads what is already stored locally.
 
 ## Features
 
-- **Multi-provider**: Codex, Claude, and OpenCode in a single indicator
-- **Two display zones**: compact status bar for at-a-glance fields; expanded panel on click for full detail
-- **Per-provider field configuration**: choose which fields appear in each zone and in what order, independently per provider
-- **Adaptive polling**: refreshes every 10 seconds while readings change, slows to 120 seconds once stable (configurable thresholds)
-- **Resilient readers**: each provider reader tries the best available source first (OAuth API), falls back to disk or CLI, and returns partial data rather than failing silently
-- **No persistent tokens**: tokens and cookies are read fresh on every refresh and discarded immediately — nothing is stored beyond the `read()` call scope
-- **Internationalization**: English and Brazilian Portuguese included; community translations via `.po` files
+- Monitor Codex, Claude, and OpenCode in a single status bar indicator.
+- Use the compact top bar indicator for quick updates, or click to open the dropdown panel for full details.
+- Choose which fields appear in each zone and arrange their order, customized per provider.
+- Save resources with adaptive polling: updates run every 10 seconds during active usage and slow to 120 seconds once readings stabilize.
+- Rely on fallback chains: readers try the best source first (like OAuth APIs) and fall back to local disk files or CLIs.
+- Protect credentials: the extension reads tokens and cookies fresh on each update and discards them immediately.
+- Translate easily: the interface supports multiple languages.
 
 ## Provider support
 
-| Provider     | Limit fields                                                                   | Telemetry fields                         | Data source                                                                |
-| ------------ | ------------------------------------------------------------------------------ | ---------------------------------------- | -------------------------------------------------------------------------- |
-| **Codex**    | Used % (5h), Used % (weekly), Reset at, Limit reached                          | Plan type                                | OAuth API (`chatgpt.com`), SQLite disk fallback (`~/.codex/logs_2.sqlite`) |
-| **Claude**   | Used % (session 5h), Used % (weekly), Used % (Sonnet), Used % (Opus), Reset at | Extra usage status                       | OAuth API (`api.anthropic.com`), CLI PTY fallback                          |
-| **OpenCode** | _(coming in v1.x via web cookies)_                                             | Total cost, Sessions count, Token expiry | SQLite disk (`~/.local/share/opencode/opencode.db`)                        |
+| Provider | Limit fields                                                                   | Telemetry fields                         | Data source                                                                |
+| -------- | ------------------------------------------------------------------------------ | ---------------------------------------- | -------------------------------------------------------------------------- |
+| Codex    | Used % (5h), Used % (weekly), Reset at, Limit reached                          | Plan type                                | OAuth API (`chatgpt.com`), SQLite disk fallback (`~/.codex/logs_2.sqlite`) |
+| Claude   | Used % (session 5h), Used % (weekly), Used % (Sonnet), Used % (Opus), Reset at | Extra usage status                       | OAuth API (`api.anthropic.com`), CLI PTY fallback                          |
+| OpenCode | _(coming in v1.x via web cookies)_                                             | Total cost, Sessions count, Token expiry | SQLite disk (`~/.local/share/opencode/opencode.db`)                        |
 
 ## Requirements
 
-- **GNOME Shell** 45–50
-- **Node.js** 22+ (build only)
-- **glib-compile-schemas** (`libglib2.0-dev-bin` or equivalent)
-- **gnome-extensions** CLI (bundled with GNOME Shell)
-- **Python 3** at runtime (stdlib only, no extra packages) — used by the SQLite helper
+- GNOME Shell versions 45 to 50
+- Node.js 22 or newer (required only for building)
+- glib-compile-schemas (from libglib2.0-dev-bin or equivalent package)
+- gnome-extensions CLI (included with GNOME Shell)
+- Python 3 at runtime (uses the standard library to execute the SQLite helper)
 
 ## Installation
 
@@ -57,7 +57,7 @@ npm run install:local
 gnome-extensions enable gnome-provider-limits@franciscoknebel.com
 ```
 
-Restart the shell (`Alt+F2`, `r`, Enter) or log out and back in. Open preferences through the Extensions app or:
+After installing, restart your GNOME Shell (press `Alt+F2`, type `r`, and hit Enter) or log out and log back in. Configure the settings using the Extensions app or by running:
 
 ```bash
 gnome-extensions prefs gnome-provider-limits@franciscoknebel.com
@@ -65,7 +65,7 @@ gnome-extensions prefs gnome-provider-limits@franciscoknebel.com
 
 ### From a release
 
-Download the `.shell-extension.zip` from the [releases page](https://github.com/FranciscoKnebel/gnome-provider-limits/releases) and install:
+Download the `.shell-extension.zip` file from the [releases page](https://github.com/FranciscoKnebel/gnome-provider-limits/releases), then install and enable it:
 
 ```bash
 gnome-extensions install --force gnome-provider-limits@franciscoknebel.com.shell-extension.zip
@@ -74,7 +74,7 @@ gnome-extensions enable gnome-provider-limits@franciscoknebel.com
 
 ## Configuration
 
-Open the extension preferences through the Extensions app or via CLI:
+Open the extension preferences using the Extensions app or the command line:
 
 ```bash
 gnome-extensions prefs gnome-provider-limits@franciscoknebel.com
@@ -82,12 +82,12 @@ gnome-extensions prefs gnome-provider-limits@franciscoknebel.com
 
 From there you can:
 
-- **Enable/disable** each provider independently
-- **Reorder providers** in the indicator
-- **Select fields** for the status bar and the panel per provider
-- **Configure the CLI path** per provider
-- **Override display names** (full and short labels)
-- **Change the display language** (defaults to system locale)
+- Toggle each provider on or off.
+- Reorder the providers as they appear in the top bar.
+- Choose which fields show up in the status bar and the dropdown panel.
+- Set the path to the CLI executable for each provider.
+- Customize the display names and short labels.
+- Set the interface language (defaults to your system locale).
 
 ## Development
 
@@ -96,38 +96,54 @@ npm run typecheck     # tsc --noEmit
 npm run lint          # oxlint
 npm run test          # jasmine (GJS)
 npm run check         # typecheck + lint + format:check + test
-npm run build         # tsc → dist/
-npm run pack          # build + schema compile + gnome-extensions pack
+npm run build         # compile typescript to dist/
+npm run pack          # compile, compile schemas, and pack the extension
 ```
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for detailed development workflow and best practices.
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow and guidelines.
+
+### Landing page
+
+The GitHub Pages site lives in `pages/` and is deployed by the `gh-pages` job
+in `.github/workflows/ci.yml`. Preview it locally:
+
+```bash
+cd pages
+bundle install              # first run only
+./bin/serve                # http://127.0.0.1:4000
+```
+
+`bin/serve` preloads `ruby_compat.rb`, a no-op shim that lets jekyll 3.9
+(`github-pages`) render on Ruby 3.2+ (production runs Ruby 3.1, where it is a
+no-op).
 
 ## Project structure
 
 ```
 src/
-├── extension.ts         # Entry point: PanelMenu.Button + refresh loop
-├── prefs.ts             # Adw preferences window
-├── constants.ts         # Defaults, provider names, schema ID
-├── formatters.ts        # Field formatting by type
-├── readers/             # One reader per provider (BaseReader interface)
+├── extension.ts         # Entry point: PanelMenu.Button and the refresh loop
+├── prefs.ts             # Preferences window (libadwaita)
+├── constants.ts         # Defaults, provider names, and the GSettings schema ID
+├── formatters.ts        # Helper functions to format limit fields
+├── readers/             # Provider-specific readers implementing BaseReader
 │   ├── base.ts
 │   ├── codex.ts
 │   ├── claude.ts
 │   └── opencode.ts
-├── helpers/             # http.ts, subprocess.ts, sqlite.ts, log.ts
-├── ui/                  # statusBar.ts, panel.ts, prefs/
-├── schemas/             # GSettings schema XML
-├── po/                  # i18n (POTFILES.in, .pot, en.po, pt_BR.po)
-├── icons/               # Symbolic SVG
-└── stylesheet.css       # St styling + usage-color thresholds
-tests/                   # Jasmine tests + fixtures (mock all I/O)
+├── helpers/             # Subprocess wrappers, SQLite helpers, and HTTP requests
+├── ui/                  # Status bar indicator and dropdown panel components
+├── schemas/             # GSettings XML schemas
+├── po/                  # Translation files (POTFILES.in, en.po, pt_BR.po)
+├── icons/               # Symbolic icons
+└── stylesheet.css       # Custom styles and status coloring
+tests/                   # Jasmine tests and mock fixtures
+pages/                   # GitHub Pages website files
 ```
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) before proposing changes.
+Please read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting pull requests.
 
 ## License
 
-GPL-3.0. See [LICENSE](LICENSE).
+This project is licensed under the GPL-3.0 license. See [LICENSE](LICENSE) for the full text.
