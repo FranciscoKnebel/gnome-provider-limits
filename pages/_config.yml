@@ -8,3 +8,15 @@ remote_theme: mmistakes/minimal-mistakes@4.28.0
 plugins:
   - jekyll-remote-theme
   - jekyll-include-cache
+exclude:
+  - Gemfile
+  - Gemfile.lock
+  - Gemfile.bak
+  - ruby_compat.rb
+  - bin/
+  - .ruby-version
+  - README.md
+atom_feed:
+  hide: true
+lunr:
+  search_within_pages: true

@@ -43,6 +43,22 @@ npm run pack              # build + compile schemas + gnome-extensions pack
 npm run install:local     # pack + gnome-extensions install --force
 ```
 
+### Landing page (GitHub Pages)
+
+The site lives in `pages/` and is deployed by the `gh-pages` job in
+`.github/workflows/ci.yml`. Preview locally:
+
+```bash
+cd pages
+bundle install              # first run only
+./bin/serve                # jekyll serve (preloads ruby_compat.rb)
+```
+
+`ruby_compat.rb` re-adds the no-op `Object#tainted?` that jekyll 3.9
+(`github-pages`, liquid 4.0.3) calls at render time, removed in Ruby 3.2+.
+Production runs Ruby 3.1 on GitHub Pages (where it is still a no-op), so the
+shim is local-only and guarded.
+
 ### Code style
 
 - **TypeScript** with `strict: true`. No `any` without justification.
@@ -82,6 +98,14 @@ src/
 ├── po/                    # i18n (POTFILES.in, .pot, en.po, pt_BR.po)
 ├── icons/                 # symbolic SVG
 └── stylesheet.css         # St styling + usage color thresholds
+pages/                     # GitHub Pages site (kept separate from app code)
+├── index.md               # splash landing page
+├── _config.yml            # Jekyll config (minimal-mistakes theme)
+├── Gemfile                # github-pages gem + Ruby 4.0 stdlib shims
+├── ruby_compat.rb         # re-adds Object#tainted? no-op for jekyll 3.9 on Ruby 3.2+
+├── bin/                   # serve, build wrappers (preload ruby_compat.rb)
+├── CNAME                  # custom domain
+└── assets/images/         # demo screenshots / placeholders
 ```
 
 ## Adding a new provider

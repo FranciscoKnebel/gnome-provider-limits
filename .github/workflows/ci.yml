@@ -52,11 +52,11 @@ jobs:
         with:
           name: coverage
 
-      - name: Generate badge JSON
+      - name: Generate coverage badge
         run: |
+          mkdir -p public
           LINE_PCT=$(awk -F'[, ]+' '/^DA:/ { total++; if ($2 > 0) covered++ } END { if (total > 0) printf "%.0f", covered/total*100 }' lcov.info)
           COLOR=$([ "$LINE_PCT" -ge 90 ] && echo "brightgreen" || [ "$LINE_PCT" -ge 80 ] && echo "green" || [ "$LINE_PCT" -ge 70 ] && echo "yellowgreen" || [ "$LINE_PCT" -ge 60 ] && echo "yellow" || echo "red")
-          mkdir -p public
           cat > public/coverage.json << EOF
           {
             "schemaVersion": 1,
@@ -66,9 +66,10 @@ jobs:
           }
           EOF
 
-      - name: Copy site files
+      - name: Assemble site
         run: |
-          cp README.md index.md _config.yml Gemfile CNAME public/
+          cp -r pages/. public/
+          cp README.md public/
 
       - name: Deploy to gh-pages
         uses: JamesIves/github-pages-deploy-action@v4
