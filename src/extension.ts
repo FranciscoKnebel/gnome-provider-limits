@@ -356,6 +356,7 @@ export default class ProviderLimitsExtension extends Extension {
   private _indicator: InstanceType<typeof ProviderLimitsIndicator> | null = null;
 
   enable(): void {
+    this._selfHealLanguage();
     this._indicator = new ProviderLimitsIndicator(this);
     Main.panel.addToStatusArea(
       PROVIDER_LIMITS_UUID,
@@ -365,6 +366,26 @@ export default class ProviderLimitsExtension extends Extension {
       0,
       "right",
     );
+  }
+
+  private _selfHealLanguage(): void {
+    const settings = this.getSettings();
+    const lang = settings.get_string("language");
+    if (!lang || !lang.trim()) return;
+    const moPath = GLib.build_filenamev([
+      this.path,
+      "locale",
+      lang.trim(),
+      "LC_MESSAGES",
+      `${GETTEXT_DOMAIN}.mo`,
+    ]);
+    if (GLib.file_test(moPath, GLib.FileTest.EXISTS)) return;
+    log(
+      `gnome-provider-limits: configured language "${lang}" has no compiled catalogue in the bundle; falling back to system locale.`,
+    );
+    settings.set_string("language", "");
+    GLib.unsetenv("LANGUAGE");
+    GLib.get_language_names();
   }
 
   disable(): void {

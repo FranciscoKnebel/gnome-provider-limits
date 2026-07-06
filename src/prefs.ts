@@ -8,8 +8,28 @@ import {
 } from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
 
 import { PROVIDER_NAMES, type ProviderName } from "./constants.js";
-import { ProviderLimitsPreferencesPage } from "./ui/prefs/main-page.js";
+import { ProviderLimitsPreferencesPage, type LanguageEntry } from "./ui/prefs/main-page.js";
 import { ProviderPage } from "./ui/prefs/provider-page.js";
+
+function loadLanguages(extensionPath: string): LanguageEntry[] {
+  try {
+    const path = GLib.build_filenamev([extensionPath, "locale", "languages.json"]);
+    const [, contents] = GLib.file_get_contents(path);
+    const text = new TextDecoder().decode(contents);
+    const parsed = JSON.parse(text);
+    if (!Array.isArray(parsed)) return [];
+    return parsed.filter(
+      (e: unknown): e is LanguageEntry =>
+        typeof e === "object" &&
+        e !== null &&
+        typeof (e as LanguageEntry).code === "string" &&
+        typeof (e as LanguageEntry).name === "string",
+    );
+  } catch {
+    log("gnome-provider-limits: failed to load languages.json; language dropdown will be empty");
+    return [];
+  }
+}
 
 export default class ProviderLimitsPreferences extends ExtensionPreferences {
   private _languageChangedId = 0;
@@ -53,7 +73,7 @@ export default class ProviderLimitsPreferences extends ExtensionPreferences {
     Gettext.bindtextdomain("gnome-provider-limits", localeDir);
     Gettext.textdomain("gnome-provider-limits");
 
-    const mainPage = new ProviderLimitsPreferencesPage(settings);
+    const mainPage = new ProviderLimitsPreferencesPage(settings, loadLanguages(this.path));
     window.add(mainPage);
     this._pages.push(mainPage);
 

@@ -13,19 +13,26 @@ import {
 } from "../../helpers/provider-settings.js";
 import { buildReorderableList, setupDragSource, setupDropTarget } from "./shared.js";
 
+export interface LanguageEntry {
+  code: string;
+  name: string;
+}
+
 export const ProviderLimitsPreferencesPage = GObject.registerClass(
   class ProviderLimitsPreferencesPage extends Adw.PreferencesPage {
     declare _settings: Gio.Settings;
+    declare _languages: LanguageEntry[];
     declare _settingsChangedIds: number[];
     declare _destroyCallbacks: (() => void)[];
 
-    _init(settings: Gio.Settings) {
+    _init(settings: Gio.Settings, languages: LanguageEntry[]) {
       super._init({
         title: _("General"),
         icon_name: "preferences-system-symbolic",
       });
 
       this._settings = settings;
+      this._languages = languages;
       this._settingsChangedIds = [];
       this._destroyCallbacks = [];
       this.connect("destroy", () => this.cleanup());
@@ -89,7 +96,11 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
         description: _("Display language for the extension."),
       });
 
-      const model = Gtk.StringList.new([_("System"), _("English"), _("Português (Brasil)")]);
+      const sorted = this._languages.toSorted((a: LanguageEntry, b: LanguageEntry) =>
+        a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
+      );
+      const labels = [_("System"), ...sorted.map((l) => l.name)];
+      const model = Gtk.StringList.new(labels);
       const row = new Adw.ComboRow({
         title: _("Display language"),
         subtitle: _("Override the system locale, or follow it."),
@@ -97,11 +108,11 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
       });
 
       const current = this._settings.get_string("language");
-      row.selected = current === "en" ? 1 : current === "pt_BR" ? 2 : 0;
+      const matchIdx = sorted.findIndex((l) => l.code === current);
+      row.selected = matchIdx >= 0 ? matchIdx + 1 : 0;
 
       row.connect("notify::selected", (combo: Adw.ComboRow) => {
-        const values = ["", "en", "pt_BR"];
-        const lang = values[combo.selected] ?? "";
+        const lang = combo.selected === 0 ? "" : sorted[combo.selected - 1].code;
         this._settings.set_string("language", lang);
         if (lang && lang.trim()) {
           GLib.setenv("LANGUAGE", lang.trim(), true);
