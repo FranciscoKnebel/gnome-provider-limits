@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+set -euo pipefail
+cd "$(dirname "$0")/.."
+export RUBYOPT="-r$PWD/ruby_compat.rb${RUBYOPT:+ $RUBYOPT}"
+# --no-watch avoids an upstream pathutil/Ruby 3.0+ breakage in the regenerator.
+# Pass --watch to opt in (may fail on Ruby >= 3.1 due to pathutil kwargs).
+exec bundle exec jekyll serve --no-watch "$@"
