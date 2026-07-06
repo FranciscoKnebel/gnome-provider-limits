@@ -15,147 +15,147 @@ msgstr ""
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Provider Limits"
-msgstr ""
+msgstr "Limites des fournisseurs"
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "General"
-msgstr ""
+msgstr "Général"
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Refresh"
-msgstr ""
+msgstr "Actualiser"
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Control how often the extension refreshes provider data."
-msgstr ""
+msgstr "Contrôle la fréquence à laquelle l'extension actualise les données des fournisseurs."
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Short interval"
-msgstr ""
+msgstr "Intervalle court"
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Seconds between refreshes when data is changing."
-msgstr ""
+msgstr "Secondes entre les actualisations lorsque les données changent."
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Long interval"
-msgstr ""
+msgstr "Intervalle long"
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Seconds between refreshes when data is stable."
-msgstr ""
+msgstr "Secondes entre les actualisations lorsque les données sont stables."
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Stable reads threshold"
-msgstr ""
+msgstr "Seuil de lectures stables"
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Number of unchanged reads before degrading to the long interval."
-msgstr ""
+msgstr "Nombre de lectures sans changement avant de passer à l'intervalle long."
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Language"
-msgstr ""
+msgstr "Langue"
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Display language for the extension."
-msgstr ""
+msgstr "Langue d'affichage de l'extension."
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "System"
-msgstr ""
+msgstr "Système"
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Display language"
-msgstr ""
+msgstr "Langue d'affichage"
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Override the system locale, or follow it."
-msgstr ""
+msgstr "Remplacer la locale système ou la suivre."
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Providers"
-msgstr ""
+msgstr "Fournisseurs"
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Enable and reorder providers by dragging the rows."
-msgstr ""
+msgstr "Activez et réordonnez les fournisseurs en faisant glisser les lignes."
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Remove"
-msgstr ""
+msgstr "Retirer"
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Status bar fields"
-msgstr ""
+msgstr "Champs de la barre d'état"
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Panel fields"
-msgstr ""
+msgstr "Champs du panneau"
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Settings"
-msgstr ""
+msgstr "Paramètres"
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "CLI path"
-msgstr ""
+msgstr "Chemin du CLI"
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Drag rows to reorder. Use \"+\" to add fields."
-msgstr ""
+msgstr "Faites glisser les lignes pour réordonner. Utilisez « + » pour ajouter des champs."
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Add field"
-msgstr ""
+msgstr "Ajouter un champ"
 
 #: src/ui/prefs/provider-page.ts
 msgid "Select a field to add:"
-msgstr ""
+msgstr "Sélectionnez un champ à ajouter :"
 
 #: src/ui/prefs/provider-page.ts
 msgid "Cancel"
-msgstr ""
+msgstr "Annuler"
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "No more fields available"
-msgstr ""
+msgstr "Plus aucun champ disponible"
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Error"
-msgstr ""
+msgstr "Erreur"
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Force refresh"
-msgstr ""
+msgstr "Forcer l'actualisation"
 
 #: src/ui/panel.ts
 msgid "Refreshing…"
-msgstr ""
+msgstr "Actualisation…"
 
 #: src/ui/panel.ts
 msgid "Last refresh:"
-msgstr ""
+msgstr "Dernière actualisation :"
 
 #: src/ui/panel.ts
 msgid "Last updated:"
-msgstr ""
+msgstr "Dernière mise à jour :"
 
 #: src/ui/panel.ts
 msgid "(partial)"
-msgstr ""
+msgstr "(partiel)"
 
 #: src/ui/panel.ts
 msgid "(error)"
-msgstr ""
+msgstr "(erreur)"
 
 #: src/ui/panel.ts
 msgid "(unavailable)"
-msgstr ""
+msgstr "(non disponible)"
 
 #: src/ui/prefs/main-page.ts
 msgid "LANGUAGE_NAME"
@@ -163,216 +163,216 @@ msgstr "Français"
 
 #: src/ui/prefs/provider-page.ts
 msgid "Display name"
-msgstr ""
+msgstr "Nom d'affichage"
 
 #: src/ui/prefs/provider-page.ts
 msgid "Short display name"
-msgstr ""
+msgstr "Nom d'affichage court"
 
 #: src/readers/codex.ts
 msgid "Used % (5h window)"
-msgstr ""
+msgstr "% utilisé (fenêtre 5h)"
 
 #: src/readers/codex.ts
 msgid "Remaining % (5h window)"
-msgstr ""
+msgstr "% restant (fenêtre 5h)"
 
 #: src/readers/codex.ts
 msgid "Reset at (5h window)"
-msgstr ""
+msgstr "Réinitialisation à (fenêtre 5h)"
 
 #: src/readers/codex.ts
 msgid "Used % (weekly)"
-msgstr ""
+msgstr "% utilisé (hebdomadaire)"
 
 #: src/readers/codex.ts
 msgid "Remaining % (weekly)"
-msgstr ""
+msgstr "% restant (hebdomadaire)"
 
 #: src/readers/codex.ts
 msgid "Reset at (weekly)"
-msgstr ""
+msgstr "Réinitialisation à (hebdomadaire)"
 
 #: src/readers/codex.ts
 msgid "Window (5h)"
-msgstr ""
+msgstr "Fenêtre (5h)"
 
 #: src/readers/codex.ts
 msgid "Window (weekly)"
-msgstr ""
+msgstr "Fenêtre (hebdomadaire)"
 
 #: src/readers/codex.ts
 msgid "Limit reached"
-msgstr ""
+msgstr "Limite atteinte"
 
 #: src/readers/codex.ts
 msgid "Plan type"
-msgstr ""
+msgstr "Type de plan"
 
 #: src/readers/claude.ts
 msgid "Used % (session 5h)"
-msgstr ""
+msgstr "% utilisé (session 5h)"
 
 #: src/readers/claude.ts
 msgid "Remaining % (session 5h)"
-msgstr ""
+msgstr "% restant (session 5h)"
 
 #: src/readers/claude.ts
 msgid "Reset at (session)"
-msgstr ""
+msgstr "Réinitialisation à (session)"
 
 #: src/readers/claude.ts
 msgid "Used % (weekly)"
-msgstr ""
+msgstr "% utilisé (hebdomadaire)"
 
 #: src/readers/claude.ts
 msgid "Remaining % (weekly)"
-msgstr ""
+msgstr "% restant (hebdomadaire)"
 
 #: src/readers/claude.ts
 msgid "Reset at (weekly)"
-msgstr ""
+msgstr "Réinitialisation à (hebdomadaire)"
 
 #: src/readers/claude.ts
 msgid "Used % (Sonnet weekly)"
-msgstr ""
+msgstr "% utilisé Sonnet (hebdomadaire)"
 
 #: src/readers/claude.ts
 msgid "Remaining % (Sonnet weekly)"
-msgstr ""
+msgstr "% restant Sonnet (hebdomadaire)"
 
 #: src/readers/claude.ts
 msgid "Used % (Opus weekly)"
-msgstr ""
+msgstr "% utilisé Opus (hebdomadaire)"
 
 #: src/readers/claude.ts
 msgid "Remaining % (Opus weekly)"
-msgstr ""
+msgstr "% restant Opus (hebdomadaire)"
 
 #: src/readers/claude.ts
 msgid "Extra usage enabled"
-msgstr ""
+msgstr "Utilisation supplémentaire activée"
 
 #: src/readers/claude.ts
 msgid "Extra usage disabled reason"
-msgstr ""
+msgstr "Raison de la désactivation de l'utilisation supplémentaire"
 
 #: src/readers/opencode.ts
 msgid "Used % (rolling 5h)"
-msgstr ""
+msgstr "% utilisé (glissant 5h)"
 
 #: src/readers/opencode.ts
 msgid "Remaining % (rolling 5h)"
-msgstr ""
+msgstr "% restant (glissant 5h)"
 
 #: src/readers/opencode.ts
 msgid "Reset at (rolling)"
-msgstr ""
+msgstr "Réinitialisation à (glissant)"
 
 #: src/readers/opencode.ts
 msgid "Used % (weekly)"
-msgstr ""
+msgstr "% utilisé (hebdomadaire)"
 
 #: src/readers/opencode.ts
 msgid "Remaining % (weekly)"
-msgstr ""
+msgstr "% restant (hebdomadaire)"
 
 #: src/readers/opencode.ts
 msgid "Reset at (weekly)"
-msgstr ""
+msgstr "Réinitialisation à (hebdomadaire)"
 
 #: src/readers/opencode.ts
 msgid "Used % (monthly)"
-msgstr ""
+msgstr "% utilisé (mensuel)"
 
 #: src/readers/opencode.ts
 msgid "Remaining % (monthly)"
-msgstr ""
+msgstr "% restant (mensuel)"
 
 #: src/readers/opencode.ts
 msgid "Reset at (monthly)"
-msgstr ""
+msgstr "Réinitialisation à (mensuel)"
 
 #: src/readers/opencode.ts
 msgid "Used cost (rolling 5h)"
-msgstr ""
+msgstr "Coût utilisé (glissant 5h)"
 
 #: src/readers/opencode.ts
 msgid "Remaining cost (rolling 5h)"
-msgstr ""
+msgstr "Coût restant (glissant 5h)"
 
 #: src/readers/opencode.ts
 msgid "Used cost (weekly)"
-msgstr ""
+msgstr "Coût utilisé (hebdomadaire)"
 
 #: src/readers/opencode.ts
 msgid "Remaining cost (weekly)"
-msgstr ""
+msgstr "Coût restant (hebdomadaire)"
 
 #: src/readers/opencode.ts
 msgid "Used cost (monthly)"
-msgstr ""
+msgstr "Coût utilisé (mensuel)"
 
 #: src/readers/opencode.ts
 msgid "Remaining cost (monthly)"
-msgstr ""
+msgstr "Coût restant (mensuel)"
 
 #: src/readers/opencode.ts
 msgid "Total cost"
-msgstr ""
+msgstr "Coût total"
 
 #: src/readers/opencode.ts
 msgid "Sessions count"
-msgstr ""
+msgstr "Nombre de sessions"
 
 #: src/readers/opencode.ts
 msgid "Token expires in"
-msgstr ""
+msgstr "Le jeton expire dans"
 
 #: src/readers/opencode.ts
 msgid "Usage source"
-msgstr ""
+msgstr "Source d'utilisation"
 
 #: src/ui/prefs/provider-page.ts
 msgid "OpenCode Go observed spend limits"
-msgstr ""
+msgstr "Limites de dépenses observées d'OpenCode Go"
 
 #: src/ui/prefs/provider-page.ts
 msgid "USD ceilings used to calculate local observed spend windows."
-msgstr ""
+msgstr "Plafonds en USD utilisés pour calculer les fenêtres de dépenses observées locales."
 
 #: src/ui/prefs/provider-page.ts
 msgid "Rolling 5-hour ceiling"
-msgstr ""
+msgstr "Plafond glissant de 5 heures"
 
 #: src/ui/prefs/provider-page.ts
 msgid "Default: 12 USD."
-msgstr ""
+msgstr "Par défaut : 12 USD."
 
 #: src/ui/prefs/provider-page.ts
 msgid "Weekly ceiling"
-msgstr ""
+msgstr "Plafond hebdomadaire"
 
 #: src/ui/prefs/provider-page.ts
 msgid "Default: 30 USD."
-msgstr ""
+msgstr "Par défaut : 30 USD."
 
 #: src/ui/prefs/provider-page.ts
 msgid "Monthly ceiling"
-msgstr ""
+msgstr "Plafond mensuel"
 
 #: src/ui/prefs/provider-page.ts
 msgid "Default: 60 USD."
-msgstr ""
+msgstr "Par défaut : 60 USD."
 
 #: src/formatters.ts
 msgid "now"
-msgstr ""
+msgstr "maintenant"
 
 #: src/formatters.ts
 msgid "yes"
-msgstr ""
+msgstr "oui"
 
 #: src/formatters.ts
 msgid "no"
-msgstr ""
+msgstr "non"
