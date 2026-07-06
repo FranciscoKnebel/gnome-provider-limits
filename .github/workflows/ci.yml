@@ -56,8 +56,13 @@ jobs:
         run: |
           mkdir -p public
           LINE_PCT=$(awk -F'[, ]+' '/^DA:/ { total++; if ($2 > 0) covered++ } END { if (total > 0) printf "%.0f", covered/total*100 }' lcov.info)
-          COLOR=$([ "$LINE_PCT" -ge 90 ] && echo "brightgreen" || [ "$LINE_PCT" -ge 80 ] && echo "green" || [ "$LINE_PCT" -ge 70 ] && echo "yellowgreen" || [ "$LINE_PCT" -ge 60 ] && echo "yellow" || echo "red")
-          cat > public/coverage.json << EOF
+          if   [ "$LINE_PCT" -ge 90 ]; then COLOR="brightgreen"
+          elif [ "$LINE_PCT" -ge 80 ]; then COLOR="green"
+          elif [ "$LINE_PCT" -ge 70 ]; then COLOR="yellowgreen"
+          elif [ "$LINE_PCT" -ge 60 ]; then COLOR="yellow"
+          else COLOR="red"
+          fi
+          cat > public/coverage.json <<EOF
           {
             "schemaVersion": 1,
             "label": "coverage",
