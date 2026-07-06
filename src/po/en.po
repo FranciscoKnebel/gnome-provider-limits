@@ -158,12 +158,8 @@ msgid "(unavailable)"
 msgstr "(unavailable)"
 
 #: src/ui/prefs/main-page.ts
-msgid "English"
+msgid "LANGUAGE_NAME"
 msgstr "English"
-
-#: src/ui/prefs/main-page.ts
-msgid "Portugu\u00eas (Brasil)"
-msgstr "Portugu\u00eas (Brasil)"
 
 #: src/ui/prefs/provider-page.ts
 msgid "Display name"
