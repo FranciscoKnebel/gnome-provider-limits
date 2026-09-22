@@ -84,18 +84,23 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     const displayName = this._getProviderDisplayName(name);
     const headerText = this._buildHeaderText(displayName, result.status);
     const header = new PopupMenu.PopupMenuItem(headerText, {
-      reactive: false,
+      reactive: true,
       can_focus: false,
+      activate: false,
+      hover: false,
     });
     header.add_style_class_name("provider-limits-panel-header");
+    header.add_style_class_name("provider-limits-static-row");
     this.addMenuItem(header);
 
     if (result.status === ReaderStatus.ERROR) {
       const errorRow = new PopupMenu.PopupMenuItem(result.lastError ?? _("Error"), {
-        reactive: false,
+        reactive: true,
         can_focus: false,
+        activate: false,
+        hover: false,
       });
-      errorRow.add_style_class_name("provider-limits-dim");
+      errorRow.add_style_class_name("provider-limits-static-row");
       this.addMenuItem(errorRow);
       return;
     }
@@ -106,9 +111,12 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
 
     for (const rowData of rows) {
       const row = new PopupMenu.PopupBaseMenuItem({
-        reactive: false,
+        reactive: true,
         can_focus: false,
+        activate: false,
+        hover: false,
       });
+      row.add_style_class_name("provider-limits-static-row");
 
       const labelLabel = new St.Label({
         text: _(rowData.label),

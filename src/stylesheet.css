@@ -49,6 +49,15 @@
   color: inherit;
 }
 
+/* Informational rows keep the theme's primary text color and never show the
+   menu-item hover/press background (they are not interactive). */
+.popup-menu-item.provider-limits-static-row:hover,
+.popup-menu-item.provider-limits-static-row:active,
+.popup-menu-item.provider-limits-static-row:checked {
+  background-color: transparent;
+  box-shadow: none;
+}
+
 /* Panel footer */
 .provider-limits-refresh-spinner {
   width: 14px;
