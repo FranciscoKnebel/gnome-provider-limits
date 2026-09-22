@@ -2,7 +2,7 @@
   "name": "gnome-provider-limits",
   "version": "0.1.1",
   "private": true,
-  "description": "GNOME Shell extension that shows session limits of multiple AI coding providers (Codex, Claude, OpenCode) in the top bar.",
+  "description": "GNOME Shell extension that shows session limits of multiple AI coding providers (Codex, Claude, OpenCode Go) in the top bar.",
   "homepage": "https://github.com/FranciscoKnebel/gnome-provider-limits",
   "license": "GPL-3.0",
   "repository": {

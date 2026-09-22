@@ -5,7 +5,7 @@ Guidelines for agents (and humans) contributing to this repository.
 ## Project
 
 GNOME Shell extension that shows session limits of multiple AI coding
-providers (Codex, Claude, OpenCode) in the top bar. Written in TypeScript,
+providers (Codex, Claude, OpenCode Go) in the top bar. Written in TypeScript,
 transpiled to ESM JavaScript, runs in GJS (GNOME JavaScript).
 
 ## Language

@@ -18,7 +18,7 @@ _Avoid_: Parser, scraper, client.
 
 **SQLite Helper**:
 `python3` invocation via `Gio.Subprocess` with `sqlite3` from the stdlib, used
-by readers that need to read provider SQLite databases (Codex, OpenCode).
+by readers that need to read provider SQLite databases (Codex, OpenCode Go).
 Returns JSON on stdout. Not a daemon; spawned per refresh.
 _Avoid_: Driver, connector, ORM.
 
@@ -47,8 +47,8 @@ _Avoid_: Profile, preset.
 A field that expresses an active provider restriction on usage, e.g.
 `used_percent`, `remaining_percent`, `reset_at`, `limit_reached`. Codex and
 Claude expose limits via provider APIs using disk tokens/cookies; Codex also via
-disk (`logs_2.sqlite`). OpenCode must not reuse Codex-compatible account limits
-as OpenCode limits.
+disk (`logs_2.sqlite`). OpenCode Go must not reuse Codex-compatible account limits
+as OpenCode Go limits.
 _Avoid_: Quota (when referring to telemetry).
 
 **Reset Credit**:
@@ -61,17 +61,17 @@ only reports Reset Credits; it never redeems one.
 _Avoid_: Reset token, voucher.
 
 **OpenCode Go State**:
-Local usage state written by OpenCode Go. In this project, OpenCode fields must
+Local usage state written by OpenCode Go. In this project, OpenCode Go fields must
 come from OpenCode Go state, not from Codex-compatible OpenAI account limits,
-even when OpenCode uses an OpenAI account under the hood.
+even when OpenCode Go uses an OpenAI account under the hood.
 _Avoid_: Codex limits, OpenAI usage limits.
 
-**OpenCode Observed Spend Limit**:
+**OpenCode Go Observed Spend Limit**:
 Limit field calculated from OpenCode Go local spend observed in
 `opencode.db`, using fixed OpenCode Go windows and USD ceilings. It is not an
-official provider-reported account limit, and it does not include OpenCode usage
+official provider-reported account limit, and it does not include OpenCode Go usage
 outside the local OpenCode Go state.
-_Avoid_: Official OpenCode limit, OpenAI limit, Codex limit.
+_Avoid_: Official OpenCode Go limit, OpenAI limit, Codex limit.
 
 **Telemetry Field**:
 A field that expresses usage already performed, with no reference to a ceiling
