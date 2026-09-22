@@ -5,7 +5,7 @@
 [![GNOME Shell](https://img.shields.io/badge/GNOME_Shell-45-50-4a86cf)](https://extensions.gnome.org)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
 
-GNOME Shell extension that displays session limits for Codex, Claude, and OpenCode in your top bar. It reads local status files directly, so you do not need to run CLI commands or open browser dashboards.
+GNOME Shell extension that displays session limits for Codex, Claude, and OpenCode Go in your top bar. It reads local status files directly, so you do not need to run CLI commands or open browser dashboards.
 
 > Note: The extension is in active development. If you rely on it daily, test new versions before updating.
 
@@ -19,7 +19,7 @@ This extension reads the local files and SQLite databases that providers already
 
 ## Features
 
-- Monitor Codex, Claude, and OpenCode in a single status bar indicator.
+- Monitor Codex, Claude, and OpenCode Go in a single status bar indicator.
 - Use the compact top bar indicator for quick updates, or click to open the dropdown panel for full details.
 - Choose which fields appear in each zone and arrange their order, customized per provider.
 - Save resources with adaptive polling: updates run every 10 seconds during active usage and slow to 120 seconds once readings stabilize.
@@ -29,11 +29,11 @@ This extension reads the local files and SQLite databases that providers already
 
 ## Provider support
 
-| Provider | Limit fields                                                                   | Telemetry fields                         | Data source                                                                |
-| -------- | ------------------------------------------------------------------------------ | ---------------------------------------- | -------------------------------------------------------------------------- |
-| Codex    | Used % (5h), Used % (weekly), Reset at, Limit reached                          | Plan type                                | OAuth API (`chatgpt.com`), SQLite disk fallback (`~/.codex/logs_2.sqlite`) |
-| Claude   | Used % (session 5h), Used % (weekly), Used % (Sonnet), Used % (Opus), Reset at | Extra usage status                       | OAuth API (`api.anthropic.com`), CLI PTY fallback                          |
-| OpenCode | _(coming in v1.x via web cookies)_                                             | Total cost, Sessions count, Token expiry | SQLite disk (`~/.local/share/opencode/opencode.db`)                        |
+| Provider    | Limit fields                                                                   | Telemetry fields                         | Data source                                                                |
+| ----------- | ------------------------------------------------------------------------------ | ---------------------------------------- | -------------------------------------------------------------------------- |
+| Codex       | Used % (5h), Used % (weekly), Reset at, Limit reached                          | Plan type                                | OAuth API (`chatgpt.com`), SQLite disk fallback (`~/.codex/logs_2.sqlite`) |
+| Claude      | Used % (session 5h), Used % (weekly), Used % (Sonnet), Used % (Opus), Reset at | Extra usage status                       | OAuth API (`api.anthropic.com`), CLI PTY fallback                          |
+| OpenCode Go | _(coming in v1.x via web cookies)_                                             | Total cost, Sessions count, Token expiry | SQLite disk (`~/.local/share/opencode/opencode.db`)                        |
 
 ## Requirements
 
