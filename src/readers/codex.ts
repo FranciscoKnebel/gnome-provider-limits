@@ -10,13 +10,17 @@ import {
   codexWindowMinutes,
   type CodexLogRow,
   type CodexRateLimitsPayload,
+  type CodexResetCredits,
   normalizeCodexOauthPayload,
+  normalizeCodexResetCredits,
   parseCodexLogBody,
+  summarizeCodexResetCredits,
 } from "./codexParser.js";
 
 const CODEX_AUTH_PATH = `${GLib.get_home_dir()}/.codex/auth.json`;
 const CODEX_LOGS_DB = `${GLib.get_home_dir()}/.codex/logs_2.sqlite`;
 const CODEX_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
+const CODEX_RESET_CREDITS_URL = "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits";
 
 export const CODEX_FIELDS: readonly FieldDef[] = [
   {
@@ -89,6 +93,20 @@ export const CODEX_FIELDS: readonly FieldDef[] = [
     description: "Current plan type (e.g. plus, pro).",
     defaultZone: "panel",
   },
+  {
+    name: "reset_credits_available",
+    label: "Resets available",
+    type: "count",
+    description: "Banked rate-limit reset credits available to redeem.",
+    defaultZone: "panel",
+  },
+  {
+    name: "reset_credits_expire_at",
+    label: "Resets expire at",
+    type: "timestamp",
+    description: "When the earliest banked rate-limit reset credit expires.",
+    defaultZone: "panel",
+  },
 ];
 
 Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish");
@@ -106,10 +124,12 @@ export class CodexReader extends BaseReader {
     // Path 1: OAuth API
     try {
       pathsTried.push("oauth-api");
-      const token = await this._readAuthToken();
-      if (token) {
-        const payload = await this._fetchUsage(token);
+      const auth = await this._readAuth();
+      if (auth) {
+        const payload = await this._fetchUsage(auth.token);
         if (payload) {
+          const details = await this._fetchResetCredits(auth.token, auth.accountId);
+          if (details) payload.reset_credits = { ...payload.reset_credits, ...details };
           return this._parsePayload(payload, pathsTried);
         }
       }
@@ -137,7 +157,7 @@ export class CodexReader extends BaseReader {
     super.destroy();
   }
 
-  private async _readAuthToken(): Promise<string | null> {
+  private async _readAuth(): Promise<{ token: string; accountId: string | null } | null> {
     const file = Gio.File.new_for_path(CODEX_AUTH_PATH);
     const [contents] = await file.load_contents_async(null);
     const text = new TextDecoder().decode(contents);
@@ -145,8 +165,14 @@ export class CodexReader extends BaseReader {
     if (!auth || typeof auth !== "object" || !("tokens" in auth)) return null;
     const tokens = auth.tokens;
     if (!tokens || typeof tokens !== "object" || !("access_token" in tokens)) return null;
-    const token = tokens.access_token;
-    return typeof token === "string" && token.trim() ? token : null;
+    const tokensRecord = tokens as Record<string, unknown>;
+    const token = tokensRecord.access_token;
+    if (typeof token !== "string" || !token.trim()) return null;
+    const accountId = tokensRecord.account_id;
+    return {
+      token,
+      accountId: typeof accountId === "string" && accountId.trim() ? accountId : null,
+    };
   }
 
   private async _fetchUsage(token: string): Promise<CodexRateLimitsPayload | null> {
@@ -164,6 +190,29 @@ export class CodexReader extends BaseReader {
       }
       if (error instanceof HttpError) {
         logWarn(`codex oauth http ${error.statusCode}`, error);
+        return null;
+      }
+      throw error;
+    }
+  }
+
+  private async _fetchResetCredits(
+    token: string,
+    accountId: string | null,
+  ): Promise<CodexResetCredits | null> {
+    if (!this._http) this._http = new HttpClient();
+    try {
+      const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
+      if (accountId) headers["ChatGPT-Account-ID"] = accountId;
+      const payload = await this._http.getJson(CODEX_RESET_CREDITS_URL, { headers });
+      return normalizeCodexResetCredits(payload);
+    } catch (error) {
+      if (error instanceof TokenError) {
+        logWarn("codex reset-credits token rejected", error);
+        return null;
+      }
+      if (error instanceof HttpError) {
+        logWarn(`codex reset-credits http ${error.statusCode}`, error);
         return null;
       }
       throw error;
@@ -228,7 +277,29 @@ export class CodexReader extends BaseReader {
         payload.plan_type ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
       ),
     );
+    fields.push(...this._makeResetCreditFields(payload.reset_credits));
 
     return this._classifyResult(fields, pathsTried, "Codex");
+  }
+
+  private _makeResetCreditFields(
+    resetCredits: CodexResetCredits | null | undefined,
+  ): FieldResult[] {
+    const summary = summarizeCodexResetCredits(resetCredits);
+    const fields: FieldResult[] = [
+      this._makeField(
+        "reset_credits_available",
+        summary.available,
+        summary.available !== null ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
+      ),
+    ];
+
+    if (summary.expiresAt !== null) {
+      fields.push(this._makeField("reset_credits_expire_at", summary.expiresAt, FieldStatus.OK));
+    } else if (summary.available !== null && summary.available > 0) {
+      fields.push(this._makeField("reset_credits_expire_at", null, FieldStatus.UNAVAILABLE));
+    }
+
+    return fields;
   }
 }

@@ -5,7 +5,9 @@ import { fileURLToPath } from "node:url";
 import {
   codexWindowMinutes,
   normalizeCodexOauthPayload,
+  normalizeCodexResetCredits,
   parseCodexLogBody,
+  summarizeCodexResetCredits,
 } from "../../src/readers/codexParser.js";
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -29,6 +31,8 @@ describe("codexParser", () => {
       expect(payload?.rate_limits?.primary?.limit_window_seconds).toBe(18000);
       expect(payload?.rate_limits?.secondary?.used_percent).toBe(75);
       expect(payload?.rate_limits?.secondary?.reset_at).toBe(1782398328);
+      expect(payload?.reset_credits?.available_count).toBe(0);
+      expect(payload?.reset_credits?.credits).toBeUndefined();
     });
 
     it("returns null when rate_limit is missing", () => {
@@ -75,6 +79,89 @@ describe("codexParser", () => {
     it("returns null when neither is present", () => {
       expect(codexWindowMinutes({})).toBeNull();
       expect(codexWindowMinutes(null)).toBeNull();
+    });
+  });
+
+  describe("normalizeCodexResetCredits", () => {
+    it("normalizes the rate-limit-reset-credits details payload", () => {
+      const raw = JSON.parse(fixture("codex-reset-credits.json"));
+      const resetCredits = normalizeCodexResetCredits(raw);
+
+      expect(resetCredits).not.toBeNull();
+      expect(resetCredits?.available_count).toBe(2);
+      expect(resetCredits?.credits?.length).toBe(2);
+      expect(resetCredits?.credits?.[0]?.status).toBe("available");
+      expect(resetCredits?.credits?.[0]?.expires_at).toBe("2026-10-04T00:46:13Z");
+    });
+
+    it("normalizes the usage summary block", () => {
+      const resetCredits = normalizeCodexResetCredits({
+        available_count: 2,
+        applicable_available_count: 0,
+      });
+
+      expect(resetCredits?.available_count).toBe(2);
+      expect(resetCredits?.applicable_available_count).toBe(0);
+      expect(resetCredits?.credits).toBeUndefined();
+    });
+
+    it("returns null for non-object input", () => {
+      expect(normalizeCodexResetCredits(null)).toBeNull();
+      expect(normalizeCodexResetCredits("nope")).toBeNull();
+    });
+  });
+
+  describe("summarizeCodexResetCredits", () => {
+    it("returns null summary when reset credits are absent", () => {
+      expect(summarizeCodexResetCredits(null)).toEqual({ available: null, expiresAt: null });
+      expect(summarizeCodexResetCredits(undefined)).toEqual({
+        available: null,
+        expiresAt: null,
+      });
+    });
+
+    it("prefers available_count and picks the earliest expiration", () => {
+      const raw = JSON.parse(fixture("codex-reset-credits.json"));
+      const summary = summarizeCodexResetCredits(normalizeCodexResetCredits(raw));
+
+      expect(summary.available).toBe(2);
+      expect(summary.expiresAt).toBe(Math.floor(Date.parse("2026-10-04T00:46:13Z") / 1000));
+    });
+
+    it("ignores expiration of credits not available", () => {
+      const summary = summarizeCodexResetCredits({
+        available_count: 1,
+        credits: [
+          { status: "redeemed", expires_at: "2026-01-01T00:00:00Z" },
+          { status: "available", expires_at: "2026-11-30T12:00:00Z" },
+        ],
+      });
+
+      expect(summary.available).toBe(1);
+      expect(summary.expiresAt).toBe(Math.floor(Date.parse("2026-11-30T12:00:00Z") / 1000));
+    });
+
+    it("falls back to counting credits when available_count is missing", () => {
+      const summary = summarizeCodexResetCredits({
+        credits: [
+          { status: "available", expires_at: "2026-12-01T00:00:00Z" },
+          { status: "available", expires_at: null },
+          { status: "redeemed", expires_at: "2026-12-02T00:00:00Z" },
+        ],
+      });
+
+      expect(summary.available).toBe(2);
+      expect(summary.expiresAt).toBe(Math.floor(Date.parse("2026-12-01T00:00:00Z") / 1000));
+    });
+
+    it("returns null expiration when no credit carries a valid expires_at", () => {
+      const summary = summarizeCodexResetCredits({
+        available_count: 2,
+        credits: [{ status: "available", expires_at: null }],
+      });
+
+      expect(summary.available).toBe(2);
+      expect(summary.expiresAt).toBeNull();
     });
   });
 });

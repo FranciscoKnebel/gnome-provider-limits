@@ -51,6 +51,15 @@ disk (`logs_2.sqlite`). OpenCode must not reuse Codex-compatible account limits
 as OpenCode limits.
 _Avoid_: Quota (when referring to telemetry).
 
+**Reset Credit**:
+A banked rate-limit reset granted by OpenAI for Codex, redeemable to reset the
+weekly and 5-hour rate-limit windows. Reported by the Codex usage API as
+`rate_limit_reset_credits` (summary) and the rate-limit-reset-credits endpoint
+(details with per-credit `status` and `expires_at`), and exposed as the
+`reset_credits_available` and `reset_credits_expire_at` fields. The extension
+only reports Reset Credits; it never redeems one.
+_Avoid_: Reset token, voucher.
+
 **OpenCode Go State**:
 Local usage state written by OpenCode Go. In this project, OpenCode fields must
 come from OpenCode Go state, not from Codex-compatible OpenAI account limits,

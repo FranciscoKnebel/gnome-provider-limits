@@ -61,7 +61,7 @@
       <description>Fields shown for Codex in the status bar, in display order.</description>
     </key>
     <key name="codex-panel-fields" type="as">
-      <default>['used_percent_secondary','reset_at_secondary','window_minutes_primary','window_minutes_secondary','limit_reached','plan_type']</default>
+      <default>['used_percent_secondary','reset_at_secondary','window_minutes_primary','window_minutes_secondary','limit_reached','plan_type','reset_credits_available','reset_credits_expire_at']</default>
       <summary>Codex panel fields</summary>
       <description>Fields shown for Codex in the panel, in display order.</description>
     </key>

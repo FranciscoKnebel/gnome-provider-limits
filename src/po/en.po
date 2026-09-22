@@ -209,6 +209,14 @@ msgstr "Limit reached"
 msgid "Plan type"
 msgstr "Plan type"
 
+#: src/readers/codex.ts
+msgid "Resets available"
+msgstr "Resets available"
+
+#: src/readers/codex.ts
+msgid "Resets expire at"
+msgstr "Resets expire at"
+
 #: src/readers/claude.ts
 msgid "Used % (session 5h)"
 msgstr "Used % (session 5h)"
