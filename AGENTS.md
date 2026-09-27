@@ -85,7 +85,7 @@ src/
 │   ├── base.ts            # BaseReader, ReaderResult, FieldDef interfaces
 │   ├── codex.ts           # OAuth API + disk fallback
 │   ├── claude.ts          # OAuth API + CLI PTY fallback
-│   └── opencode.ts        # v1: disk only; v1.x: web cookies
+│   └── opencode.ts        # usage API + disk telemetry
 ├── helpers/
 │   ├── http.ts            # Soup.Session wrapper (promisified)
 │   ├── subprocess.ts      # Gio.Subprocess wrapper (timeout, pipes)

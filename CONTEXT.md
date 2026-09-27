@@ -61,17 +61,22 @@ only reports Reset Credits; it never redeems one.
 _Avoid_: Reset token, voucher.
 
 **OpenCode Go State**:
-Local usage state written by OpenCode Go. In this project, OpenCode Go fields must
-come from OpenCode Go state, not from Codex-compatible OpenAI account limits,
-even when OpenCode Go uses an OpenAI account under the hood.
+Local usage state written by OpenCode Go. In this project, OpenCode Go limit
+fields must come from the OpenCode Go Usage API, and telemetry fields from the
+local OpenCode Go state (`opencode.db`); never from Codex-compatible OpenAI
+account limits, even when OpenCode Go uses an OpenAI account under the hood.
 _Avoid_: Codex limits, OpenAI usage limits.
 
-**OpenCode Go Observed Spend Limit**:
-Limit field calculated from OpenCode Go local spend observed in
-`opencode.db`, using fixed OpenCode Go windows and USD ceilings. It is not an
-official provider-reported account limit, and it does not include OpenCode Go usage
-outside the local OpenCode Go state.
-_Avoid_: Official OpenCode Go limit, OpenAI limit, Codex limit.
+**OpenCode Go Usage API**:
+The provider-reported usage endpoint at
+`https://opencode.ai/zen/go/v1/usage`, authenticated with the `opencode-go` API
+key stored in `~/.local/share/opencode/auth.json` (fallback: the
+`OPENCODE_API_KEY` environment variable). Returns `rolling`, `weekly`, and
+`monthly` windows with `status` (`ok` or `rate-limited`), `percent`, and
+`resetsAt`. It is the authoritative source for OpenCode Go Limit Fields; local
+spend observed in `opencode.db` is telemetry only and must not be presented as
+usage against a limit.
+_Avoid_: Console scraping, Codex usage API, local spend estimate.
 
 **Telemetry Field**:
 A field that expresses usage already performed, with no reference to a ceiling

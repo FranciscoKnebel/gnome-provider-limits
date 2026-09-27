@@ -212,29 +212,47 @@ export async function run() {
     });
   }
 
-  // ---------- OpenCodeReader._parseDiskResult ----------
+  // ---------- OpenCodeReader._parseResult ----------
   try {
     const settings = new ReaderMockSettings();
     const oc = new OpenCodeReader(settings, "opencode");
-    const diskStats = {
-      totalCost: 12.5,
-      sessionsCount: 42,
-      lastUsedAt: Date.now() / 1000 - 3600,
-      tokenExpiresAt: Date.now() / 1000 + 86400,
+    const nowSec = Math.floor(Date.now() / 1000);
+    const usage = {
+      rolling: { status: "ok", percent: 0, reset_at: nowSec + 3600 },
+      weekly: { status: "ok", percent: 11, reset_at: nowSec + 86400 },
+      monthly: { status: "rate-limited", percent: 100, reset_at: nowSec + 2592000 },
     };
-    const result = oc._parseDiskResult(diskStats, ["test-path"]);
+    const result = oc._parseResult(usage, { totalCost: 12.5, sessionsCount: 42 }, ["test-path"]);
     assertEqual(result.provider, "opencode", "provider set");
-    // Always returns PARTIAL because limit fields are unavailable in v1
-    assertEqual(result.status, ReaderStatus.PARTIAL, "valid stats returns PARTIAL");
-    assert(result.fields.length >= 3, "has expected fields");
-    assertEqual(result.fields[6].name, "total_cost", "field 6 is total_cost");
-    assertEqual(result.fields[6].value, 12.5, "total_cost value");
-    results.push({ name: "OpenCodeReader._parseDiskResult with full data", passed: true });
+    assertEqual(result.status, ReaderStatus.OK, "valid usage returns OK");
+    assert(result.fields.length >= 12, "has expected fields");
+    const totalCost = result.fields.find((f) => f.name === "total_cost");
+    assertEqual(totalCost.value, 12.5, "total_cost value");
+    const limitReached = result.fields.find((f) => f.name === "limit_reached");
+    assertEqual(limitReached.value, true, "limit_reached value");
+    results.push({ name: "OpenCodeReader._parseResult with full data", passed: true });
   } catch (e) {
     results.push({
-      name: "OpenCodeReader._parseDiskResult with full data",
+      name: "OpenCodeReader._parseResult with full data",
       passed: false,
-      error: String(e),
+      error: String(e) + "\n" + e.stack,
+    });
+  }
+
+  // ---------- OpenCodeReader._parseResult without API data ----------
+  try {
+    const settings = new ReaderMockSettings();
+    const oc = new OpenCodeReader(settings, "opencode");
+    const result = oc._parseResult(null, { totalCost: 1.5, sessionsCount: 3 }, ["disk"]);
+    assertEqual(result.status, ReaderStatus.PARTIAL, "missing usage returns PARTIAL");
+    const used = result.fields.find((f) => f.name === "used_percent_rolling");
+    assertEqual(used.status, FieldStatus.UNAVAILABLE, "limit field unavailable");
+    results.push({ name: "OpenCodeReader._parseResult without usage API", passed: true });
+  } catch (e) {
+    results.push({
+      name: "OpenCodeReader._parseResult without usage API",
+      passed: false,
+      error: String(e) + "\n" + e.stack,
     });
   }
 

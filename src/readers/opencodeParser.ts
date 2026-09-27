@@ -1,48 +1,43 @@
-export interface OpenCodeDiskStats {
-  totalCost: number;
-  sessionsCount: number;
-  limits: OpenCodeObservedSpendLimit[];
-}
-
-export interface OpenCodeLimitWindow {
-  used_percent?: number;
-  reset_at?: number;
-}
-
 export interface OpenCodeDbRow {
   total_cost: number | null;
   sessions_count: number | null;
 }
 
-export interface OpenCodeCostEntryRow {
-  cost: number | null;
-  time_created: number | string | null;
+export interface OpenCodeUsageWindow {
+  status: string | null;
+  percent: number | null;
+  reset_at: number | null;
 }
 
-export interface OpenCodeObservedSpendWindow {
-  id: "rolling" | "weekly" | "monthly";
-  durationMs: number;
-  limitUsd: number;
+export interface OpenCodeUsage {
+  rolling: OpenCodeUsageWindow | null;
+  weekly: OpenCodeUsageWindow | null;
+  monthly: OpenCodeUsageWindow | null;
 }
 
-export interface OpenCodeObservedSpendLimit {
-  id: OpenCodeObservedSpendWindow["id"];
-  usedUsd: number;
-  remainingUsd: number;
-  usedPercent: number;
-  remainingPercent: number;
-  resetAt: number | null;
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
-function finiteNumber(value: unknown, fallback: number): number {
-  const numeric = Number(value ?? fallback);
-  return Number.isFinite(numeric) ? numeric : fallback;
-}
-
-function timestampMs(value: unknown): number | null {
+function finiteNumber(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
   const numeric = Number(value);
-  if (!Number.isFinite(numeric) || numeric <= 0) return null;
-  return numeric < 1e12 ? numeric * 1000 : numeric;
+  return Number.isFinite(numeric) ? numeric : null;
+}
+
+function timestampSeconds(value: unknown): number | null {
+  let ms: number;
+  if (typeof value === "number") {
+    ms = value < 1e12 ? value * 1000 : value;
+  } else if (typeof value === "string" && value.trim() !== "") {
+    const numeric = Number(value);
+    ms = Number.isFinite(numeric) ? (numeric < 1e12 ? numeric * 1000 : numeric) : Date.parse(value);
+  } else {
+    return null;
+  }
+
+  if (!Number.isFinite(ms) || ms <= 0) return null;
+  return Math.floor(ms / 1000);
 }
 
 export function normalizeOpenCodeDbRow(row: OpenCodeDbRow | null | undefined): {
@@ -51,42 +46,48 @@ export function normalizeOpenCodeDbRow(row: OpenCodeDbRow | null | undefined): {
 } {
   if (!row) return { totalCost: 0, sessionsCount: 0 };
   return {
-    totalCost: finiteNumber(row.total_cost, 0),
-    sessionsCount: finiteNumber(row.sessions_count, 0),
+    totalCost: finiteNumber(row.total_cost) ?? 0,
+    sessionsCount: finiteNumber(row.sessions_count) ?? 0,
   };
 }
 
-export function buildOpenCodeObservedSpendLimits(
-  rows: readonly OpenCodeCostEntryRow[],
-  windows: readonly OpenCodeObservedSpendWindow[],
-  nowMs: number,
-): OpenCodeObservedSpendLimit[] {
-  return windows.map((window) => {
-    const sinceMs = nowMs - window.durationMs;
-    let usedUsd = 0;
-    let firstRecordedAt: number | null = null;
+export function parseOpenCodeAuthKey(text: string): string | null {
+  let auth: unknown;
+  try {
+    auth = JSON.parse(text) as unknown;
+  } catch {
+    return null;
+  }
 
-    for (const row of rows) {
-      const recordedAt = timestampMs(row.time_created);
-      if (recordedAt === null || recordedAt < sinceMs) continue;
+  if (!isRecord(auth) || !isRecord(auth["opencode-go"])) return null;
 
-      usedUsd += finiteNumber(row.cost, 0);
-      if (firstRecordedAt === null || recordedAt < firstRecordedAt) firstRecordedAt = recordedAt;
-    }
+  const provider = auth["opencode-go"];
+  const key = provider.key ?? provider.access;
+  return typeof key === "string" && key.trim() ? key.trim() : null;
+}
 
-    const used = Number(usedUsd.toFixed(6));
-    const usedPercent = window.limitUsd > 0 ? (used / window.limitUsd) * 100 : 0;
+function normalizeWindow(value: unknown): OpenCodeUsageWindow | null {
+  if (!isRecord(value)) return null;
 
-    return {
-      id: window.id,
-      usedUsd: used,
-      remainingUsd: Math.max(0, window.limitUsd - used),
-      usedPercent,
-      remainingPercent: Math.max(0, 100 - usedPercent),
-      resetAt:
-        firstRecordedAt === null
-          ? Math.floor(nowMs / 1000)
-          : Math.floor((firstRecordedAt + window.durationMs) / 1000),
-    };
-  });
+  const status =
+    typeof value.status === "string" && value.status.trim() ? value.status.trim() : null;
+  const percent = finiteNumber(value.percent);
+  const resetAt = timestampSeconds(value.resetsAt);
+
+  if (status === null && percent === null && resetAt === null) return null;
+
+  return { status, percent, reset_at: resetAt };
+}
+
+export function normalizeOpenCodeUsagePayload(raw: unknown): OpenCodeUsage | null {
+  if (!isRecord(raw)) return null;
+
+  const usage = isRecord(raw.usage) ? raw.usage : raw;
+  const rolling = normalizeWindow(usage.rolling);
+  const weekly = normalizeWindow(usage.weekly);
+  const monthly = normalizeWindow(usage.monthly);
+
+  if (!rolling && !weekly && !monthly) return null;
+
+  return { rolling, weekly, monthly };
 }

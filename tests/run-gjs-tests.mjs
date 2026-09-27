@@ -57,8 +57,8 @@ async function runTestFile(filePath) {
       }
     }
   } catch (_e) {
-    log(`FAIL: ${filePath}\n  ${String(e)}`);
-    log(`${e.stack}`);
+    log(`FAIL: ${filePath}\n  ${String(_e)}`);
+    log(`${_e.stack}`);
     failed++;
   }
 }

@@ -29,11 +29,11 @@ This extension reads the local files and SQLite databases that providers already
 
 ## Provider support
 
-| Provider    | Limit fields                                                                   | Telemetry fields                         | Data source                                                                |
-| ----------- | ------------------------------------------------------------------------------ | ---------------------------------------- | -------------------------------------------------------------------------- |
-| Codex       | Used % (5h), Used % (weekly), Reset at, Limit reached                          | Plan type                                | OAuth API (`chatgpt.com`), SQLite disk fallback (`~/.codex/logs_2.sqlite`) |
-| Claude      | Used % (session 5h), Used % (weekly), Used % (Sonnet), Used % (Opus), Reset at | Extra usage status                       | OAuth API (`api.anthropic.com`), CLI PTY fallback                          |
-| OpenCode Go | _(coming in v1.x via web cookies)_                                             | Total cost, Sessions count, Token expiry | SQLite disk (`~/.local/share/opencode/opencode.db`)                        |
+| Provider    | Limit fields                                                                    | Telemetry fields           | Data source                                                                                         |
+| ----------- | ------------------------------------------------------------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------- |
+| Codex       | Used % (5h), Used % (weekly), Reset at, Limit reached                           | Plan type                  | OAuth API (`chatgpt.com`), SQLite disk fallback (`~/.codex/logs_2.sqlite`)                          |
+| Claude      | Used % (session 5h), Used % (weekly), Used % (Sonnet), Used % (Opus), Reset at  | Extra usage status         | OAuth API (`api.anthropic.com`), CLI PTY fallback                                                   |
+| OpenCode Go | Used % (rolling 5h), Used % (weekly), Used % (monthly), Reset at, Limit reached | Total cost, Sessions count | Usage API (`opencode.ai/zen/go/v1/usage`), SQLite telemetry (`~/.local/share/opencode/opencode.db`) |
 
 ## Requirements
 

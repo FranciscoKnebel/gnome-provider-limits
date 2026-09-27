@@ -1,6 +1,7 @@
 import {
-  buildOpenCodeObservedSpendLimits,
   normalizeOpenCodeDbRow,
+  normalizeOpenCodeUsagePayload,
+  parseOpenCodeAuthKey,
 } from "../../src/readers/opencodeParser.js";
 
 describe("opencodeParser", () => {
@@ -25,70 +26,93 @@ describe("opencodeParser", () => {
     });
   });
 
-  describe("buildOpenCodeObservedSpendLimits", () => {
-    it("calculates spend limits from local OpenCode Go session costs", () => {
-      const nowMs = 1_800_000_000_000;
-      const limits = buildOpenCodeObservedSpendLimits(
-        [
-          { cost: 3, time_created: nowMs - 2 * 60 * 60 * 1000 },
-          { cost: 4, time_created: nowMs - 6 * 60 * 60 * 1000 },
-          { cost: 100, time_created: nowMs - 40 * 24 * 60 * 60 * 1000 },
-        ],
-        [
-          { id: "rolling", durationMs: 5 * 60 * 60 * 1000, limitUsd: 12 },
-          { id: "weekly", durationMs: 7 * 24 * 60 * 60 * 1000, limitUsd: 30 },
-        ],
-        nowMs,
-      );
-
-      expect(limits).toEqual([
-        {
-          id: "rolling",
-          usedUsd: 3,
-          remainingUsd: 9,
-          usedPercent: 25,
-          remainingPercent: 75,
-          resetAt: Math.floor((nowMs - 2 * 60 * 60 * 1000 + 5 * 60 * 60 * 1000) / 1000),
-        },
-        {
-          id: "weekly",
-          usedUsd: 7,
-          remainingUsd: 23,
-          usedPercent: 23.333333333333332,
-          remainingPercent: 76.66666666666667,
-          resetAt: Math.floor((nowMs - 6 * 60 * 60 * 1000 + 7 * 24 * 60 * 60 * 1000) / 1000),
-        },
-      ]);
+  describe("parseOpenCodeAuthKey", () => {
+    it("reads the opencode-go API key from auth.json", () => {
+      expect(
+        parseOpenCodeAuthKey(
+          JSON.stringify({ "opencode-go": { type: "api", key: "sk-opencode-abc123" } }),
+        ),
+      ).toBe("sk-opencode-abc123");
     });
 
-    it("clamps remaining values when observed spend exceeds the ceiling", () => {
-      const [limit] = buildOpenCodeObservedSpendLimits(
-        [{ cost: 15, time_created: 1_800_000_000_000 }],
-        [{ id: "rolling", durationMs: 5 * 60 * 60 * 1000, limitUsd: 12 }],
-        1_800_000_000_001,
+    it("accepts an access token stored for the opencode-go integration", () => {
+      expect(parseOpenCodeAuthKey(JSON.stringify({ "opencode-go": { access: "token-123" } }))).toBe(
+        "token-123",
       );
-
-      expect(limit?.usedUsd).toBe(15);
-      expect(limit?.remainingUsd).toBe(0);
-      expect(limit?.remainingPercent).toBe(0);
     });
 
-    it("marks an empty observed spend window as resetting now", () => {
-      const nowMs = 1_800_000_000_000;
-      const [limit] = buildOpenCodeObservedSpendLimits(
-        [{ cost: 5, time_created: nowMs - 6 * 60 * 60 * 1000 }],
-        [{ id: "rolling", durationMs: 5 * 60 * 60 * 1000, limitUsd: 12 }],
-        nowMs,
-      );
+    it("ignores credentials for other providers", () => {
+      expect(
+        parseOpenCodeAuthKey(JSON.stringify({ openai: { access: "codex-token" } })),
+      ).toBeNull();
+    });
 
-      expect(limit).toEqual({
-        id: "rolling",
-        usedUsd: 0,
-        remainingUsd: 12,
-        usedPercent: 0,
-        remainingPercent: 100,
-        resetAt: Math.floor(nowMs / 1000),
+    it("returns null on malformed input", () => {
+      expect(parseOpenCodeAuthKey("not json")).toBeNull();
+      expect(parseOpenCodeAuthKey("{}")).toBeNull();
+      expect(parseOpenCodeAuthKey(JSON.stringify({ "opencode-go": null }))).toBeNull();
+      expect(parseOpenCodeAuthKey(JSON.stringify({ "opencode-go": { key: "   " } }))).toBeNull();
+    });
+  });
+
+  describe("normalizeOpenCodeUsagePayload", () => {
+    it("normalizes provider percent and ISO reset timestamps to epoch seconds", () => {
+      const usage = normalizeOpenCodeUsagePayload({
+        usage: {
+          rolling: { status: "ok", percent: 0, resetsAt: "2026-09-27T20:35:00.105Z" },
+          weekly: { status: "ok", percent: 11, resetsAt: "2026-09-28T00:00:00.000Z" },
+          monthly: { status: "rate-limited", percent: 100, resetsAt: "2026-10-22T00:17:24.000Z" },
+        },
       });
+
+      expect(usage).toEqual({
+        rolling: {
+          status: "ok",
+          percent: 0,
+          reset_at: Math.floor(Date.parse("2026-09-27T20:35:00.105Z") / 1000),
+        },
+        weekly: {
+          status: "ok",
+          percent: 11,
+          reset_at: Math.floor(Date.parse("2026-09-28T00:00:00.000Z") / 1000),
+        },
+        monthly: {
+          status: "rate-limited",
+          percent: 100,
+          reset_at: Math.floor(Date.parse("2026-10-22T00:17:24.000Z") / 1000),
+        },
+      });
+    });
+
+    it("accepts a bare usage object without the wrapper", () => {
+      const usage = normalizeOpenCodeUsagePayload({
+        rolling: { status: "ok", percent: 42, resetsAt: "2026-09-27T20:35:00.000Z" },
+      });
+
+      expect(usage?.rolling?.percent).toBe(42);
+      expect(usage?.weekly).toBeNull();
+      expect(usage?.monthly).toBeNull();
+    });
+
+    it("keeps status-only windows and drops empty ones", () => {
+      const usage = normalizeOpenCodeUsagePayload({
+        usage: {
+          rolling: { status: "ok", percent: null, resetsAt: null },
+          weekly: {},
+          monthly: { percent: "12", resetsAt: 1790523298 },
+        },
+      });
+
+      expect(usage?.rolling).toEqual({ status: "ok", percent: null, reset_at: null });
+      expect(usage?.weekly).toBeNull();
+      expect(usage?.monthly).toEqual({ status: null, percent: 12, reset_at: 1790523298 });
+    });
+
+    it("returns null when no usage window is present", () => {
+      expect(normalizeOpenCodeUsagePayload(null)).toBeNull();
+      expect(normalizeOpenCodeUsagePayload("nope")).toBeNull();
+      expect(normalizeOpenCodeUsagePayload({ usage: {} })).toBeNull();
+      expect(normalizeOpenCodeUsagePayload({ usage: { rolling: {} } })).toBeNull();
     });
   });
 });
