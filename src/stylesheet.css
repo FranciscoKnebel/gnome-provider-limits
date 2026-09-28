@@ -13,6 +13,10 @@
   color: inherit;
 }
 
+.provider-limits-error {
+  color: #e01b24;
+}
+
 /* Status bar */
 .provider-limits-status-bar {
   spacing: 6px;
