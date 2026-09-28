@@ -1,5 +1,5 @@
 import { readFileSync, readdirSync } from "node:fs";
-import { join } from "node:path";
+import { join, relative } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import { PROVIDER_NAMES, SCHEMA_ID } from "../src/constants.js";
@@ -52,13 +52,25 @@ function readSchema(): { xml: string; keys: Set<string> } {
 function literalKeysUsedInSource(): Set<string> {
   const keys = new Set<string>();
   const accessor = /\b(?:get|set)_(?:string|boolean|int|strv)\(\s*"([^"]+)"\s*\)/g;
-  const changed = /changed::([a-z0-9-]+)"/g;
+  const changed = /changed::([a-z0-9-]+)["'`]/g;
   for (const file of walkTsFiles(SRC_DIR)) {
     const code = readFileSync(file, "utf-8");
     for (const match of code.matchAll(accessor)) keys.add(match[1]);
     for (const match of code.matchAll(changed)) keys.add(match[1]);
   }
   return keys;
+}
+
+function templateKeySuffixesUsedInSource(): { suffix: string; file: string }[] {
+  const found: { suffix: string; file: string }[] = [];
+  const template = /\$\{[^}]*\}-([a-z0-9][a-z0-9-]*)/g;
+  for (const file of walkTsFiles(SRC_DIR)) {
+    const code = readFileSync(file, "utf-8");
+    for (const match of code.matchAll(template)) {
+      found.push({ suffix: match[1], file: relative(SRC_DIR, file) });
+    }
+  }
+  return found;
 }
 
 describe("GSettings schema keys", () => {
@@ -85,6 +97,15 @@ describe("GSettings schema keys", () => {
       .toSorted();
     expect(undeclared)
       .withContext(`keys used in src/ but missing from the schema: ${undeclared.join(", ")}`)
+      .toEqual([]);
+  });
+
+  it("uses only known provider key suffixes in template literals", () => {
+    const known = new Set<string>(PROVIDER_KEY_SUFFIXES);
+    const unknown = templateKeySuffixesUsedInSource().filter(({ suffix }) => !known.has(suffix));
+    const named = unknown.map(({ suffix, file }) => `${suffix} (${file})`);
+    expect(named)
+      .withContext(`template keys with unknown suffixes: ${named.join(", ")}`)
       .toEqual([]);
   });
 
