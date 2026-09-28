@@ -1,4 +1,5 @@
 import { resolveLocale } from "../../src/helpers/locale.js";
+import { currentRefreshInterval, shouldRender } from "../../src/helpers/refresh.js";
 import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
 import type { BaseReader, ReaderResult } from "../../src/readers/base.js";
 import type { FieldType } from "../../src/readers/base.js";
@@ -232,6 +233,35 @@ describe("formatters", () => {
     it("builds accessible text with a dash for missing fields", () => {
       const rows = getFieldRows(mockReader, sampleResult, ["plan_type"], "status", "en");
       expect(rows[0].accessibleText).toBe("Plan: plus");
+    });
+  });
+
+  describe("currentRefreshInterval", () => {
+    it("uses the short interval below the stable reads threshold", () => {
+      expect(currentRefreshInterval(2, 3, 10, 120)).toBe(10);
+    });
+
+    it("uses the long interval at the threshold", () => {
+      expect(currentRefreshInterval(3, 3, 10, 120)).toBe(120);
+    });
+
+    it("uses the long interval above the threshold", () => {
+      expect(currentRefreshInterval(4, 3, 10, 120)).toBe(120);
+    });
+  });
+
+  describe("shouldRender", () => {
+    it("renders on the first cycle even without changes", () => {
+      expect(shouldRender(false, false)).toBe(true);
+    });
+
+    it("skips the render when nothing changed after the first render", () => {
+      expect(shouldRender(true, false)).toBe(false);
+    });
+
+    it("renders when results changed", () => {
+      expect(shouldRender(true, true)).toBe(true);
+      expect(shouldRender(false, true)).toBe(true);
     });
   });
 

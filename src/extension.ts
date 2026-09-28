@@ -18,6 +18,7 @@ import {
 import { logError } from "./helpers/log.js";
 import { normalizeProvidersOrder } from "./helpers/provider-settings.js";
 import { readerResultsEqual } from "./helpers/reader.js";
+import { currentRefreshInterval, shouldRender } from "./helpers/refresh.js";
 import { type BaseReader, type ReaderResult, ReaderStatus } from "./readers/base.js";
 import { ClaudeReader } from "./readers/claude.js";
 import { CodexReader } from "./readers/codex.js";
@@ -285,7 +286,7 @@ const ProviderLimitsIndicator = GObject.registerClass(
           this._stableReads++;
         }
 
-        if (anyChanged || !this._hasRendered) {
+        if (shouldRender(this._hasRendered, anyChanged)) {
           this._render();
         }
       } finally {
@@ -339,11 +340,12 @@ const ProviderLimitsIndicator = GObject.registerClass(
     }
 
     private _getCurrentInterval(): number {
-      const threshold = this._settings.get_int("refresh-stable-reads-threshold");
-      const shortInterval = this._settings.get_int("refresh-short-interval-seconds");
-      const longInterval = this._settings.get_int("refresh-long-interval-seconds");
-
-      return this._stableReads >= threshold ? longInterval : shortInterval;
+      return currentRefreshInterval(
+        this._stableReads,
+        this._settings.get_int("refresh-stable-reads-threshold"),
+        this._settings.get_int("refresh-short-interval-seconds"),
+        this._settings.get_int("refresh-long-interval-seconds"),
+      );
     }
 
     private _restartRefreshTimer(): void {

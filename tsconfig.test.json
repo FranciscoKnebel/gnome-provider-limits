@@ -16,6 +16,7 @@
     "src/formatters.ts",
     "src/helpers/locale.ts",
     "src/helpers/reader.ts",
+    "src/helpers/refresh.ts",
     "src/helpers/provider-settings.ts",
     "src/readers/base.ts",
     "src/ui/panel.ts",
