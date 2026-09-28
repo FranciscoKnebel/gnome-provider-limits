@@ -13,6 +13,8 @@
     "src/globals.d.ts",
     "src/constants.ts",
     "src/helpers/log.ts",
+    "src/helpers/retry.ts",
+    "src/helpers/paths.ts",
     "src/formatters.ts",
     "src/helpers/locale.ts",
     "src/helpers/reader.ts",
