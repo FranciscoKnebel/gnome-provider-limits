@@ -192,3 +192,12 @@ export function formatAbsoluteTimestamp(ms: number, locale: string): string {
     return `${date.toISOString().slice(0, 10)} ${hh}:${mm}`;
   }
 }
+
+export function formatTimestampTemplate(
+  template: string,
+  timestamp: number | null,
+  locale: string,
+): string {
+  if (timestamp === null || !Number.isFinite(timestamp)) return "";
+  return template.replace("%s", formatAbsoluteTimestamp(timestamp, locale));
+}

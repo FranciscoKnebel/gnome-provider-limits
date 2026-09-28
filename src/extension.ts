@@ -18,6 +18,7 @@ import {
 import { logError } from "./helpers/log.js";
 import { normalizeProvidersOrder } from "./helpers/provider-settings.js";
 import { readerResultsEqual } from "./helpers/reader.js";
+import { currentRefreshInterval, shouldRender } from "./helpers/refresh.js";
 import { type BaseReader, type ReaderResult, ReaderStatus } from "./readers/base.js";
 import { ClaudeReader } from "./readers/claude.js";
 import { CodexReader } from "./readers/codex.js";
@@ -27,6 +28,7 @@ import { StatusBarWidget } from "./ui/statusBar.js";
 
 const PROVIDER_LIMITS_UUID = "gnome-provider-limits@franciscoknebel.com";
 const MIN_REFRESH_INDICATOR_MS = 2000;
+const RENDER_DEBOUNCE_MS = 150;
 
 const ProviderLimitsIndicator = GObject.registerClass(
   class ProviderLimitsIndicator extends PanelMenu.Button {
@@ -45,6 +47,10 @@ const ProviderLimitsIndicator = GObject.registerClass(
     declare _pendingRefreshes: number;
     declare _lastRefreshAt: number | null;
     declare _destroyed: boolean;
+    declare _hasRendered: boolean;
+    declare _renderPending: boolean;
+    declare _renderDebounceId: number | null;
+    declare _menuStateChangedId: number;
 
     // @ts-expect-error GJS registerClass allows custom _init signatures at runtime;
     //    TypeScript cannot model the union of inherited base overloads with an
@@ -69,6 +75,10 @@ const ProviderLimitsIndicator = GObject.registerClass(
       this._pendingRefreshes = 0;
       this._lastRefreshAt = null;
       this._destroyed = false;
+      this._hasRendered = false;
+      this._renderPending = false;
+      this._renderDebounceId = null;
+      this._menuStateChangedId = 0;
 
       const box = new St.BoxLayout({
         style_class: "provider-limits-status-bar",
@@ -101,7 +111,15 @@ const ProviderLimitsIndicator = GObject.registerClass(
       // PanelMenu.Button always creates a real PopupMenu (only PopupDummyMenu when
       // dontCreateMenu=true, which we never pass). The type is a union though, so
       // narrow to PopupMenu.PopupMenu before using addMenuItem.
-      (this.menu as PopupMenu.PopupMenu).addMenuItem(this._panel);
+      const menu = this.menu as PopupMenu.PopupMenu;
+      menu.addMenuItem(this._panel);
+      this._menuStateChangedId = menu.connect("open-state-changed", (_menu, open: boolean) => {
+        if (!open && this._renderPending) {
+          this._renderPending = false;
+          this._renderNow();
+        }
+        return false;
+      });
 
       this._initReaders();
       this._connectSettingsSignals();
@@ -121,7 +139,7 @@ const ProviderLimitsIndicator = GObject.registerClass(
     }
 
     private _connectSettingsSignals(): void {
-      const onRender = () => this._render();
+      const onRender = () => this._scheduleRender();
 
       for (const name of PROVIDER_NAMES) {
         this._settingsChangedIds.push(
@@ -135,13 +153,19 @@ const ProviderLimitsIndicator = GObject.registerClass(
         this._settingsChangedIds.push(
           this._settings.connect(`changed::${name}-display-name-short`, onRender),
         );
+        this._settingsChangedIds.push(
+          this._settings.connect(`changed::${name}-status-fields`, onRender),
+        );
+        this._settingsChangedIds.push(
+          this._settings.connect(`changed::${name}-panel-fields`, onRender),
+        );
       }
 
       this._settingsChangedIds.push(this._settings.connect(`changed::providers-order`, onRender));
       this._settingsChangedIds.push(
         this._settings.connect(`changed::language`, () => {
           this._applyLanguageOverride();
-          this._render();
+          onRender();
         }),
       );
     }
@@ -262,7 +286,11 @@ const ProviderLimitsIndicator = GObject.registerClass(
           this._stableReads++;
         }
 
-        this._render();
+        if (shouldRender(this._hasRendered, anyChanged)) {
+          this._render();
+        } else {
+          this._panel.setLastRefreshAt(this._lastRefreshAt);
+        }
       } finally {
         this._pendingRefreshes--;
         if (this._pendingRefreshes <= 0) {
@@ -286,18 +314,40 @@ const ProviderLimitsIndicator = GObject.registerClass(
       });
     }
 
+    private _scheduleRender(): void {
+      if (this._renderDebounceId !== null) {
+        GLib.Source.remove(this._renderDebounceId);
+      }
+      this._renderDebounceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, RENDER_DEBOUNCE_MS, () => {
+        this._renderDebounceId = null;
+        this._render();
+        return GLib.SOURCE_REMOVE;
+      });
+    }
+
     private _render(): void {
       if (this._destroyed) return;
+      if ((this.menu as PopupMenu.PopupMenu).isOpen) {
+        this._renderPending = true;
+        return;
+      }
+      this._renderNow();
+    }
+
+    private _renderNow(): void {
+      if (this._destroyed) return;
+      this._hasRendered = true;
       this._statusBar.render(this._results);
       this._panel.render(this._results, this._lastRefreshAt);
     }
 
     private _getCurrentInterval(): number {
-      const threshold = this._settings.get_int("refresh-stable-reads-threshold");
-      const shortInterval = this._settings.get_int("refresh-short-interval-seconds");
-      const longInterval = this._settings.get_int("refresh-long-interval-seconds");
-
-      return this._stableReads >= threshold ? longInterval : shortInterval;
+      return currentRefreshInterval(
+        this._stableReads,
+        this._settings.get_int("refresh-stable-reads-threshold"),
+        this._settings.get_int("refresh-short-interval-seconds"),
+        this._settings.get_int("refresh-long-interval-seconds"),
+      );
     }
 
     private _restartRefreshTimer(): void {
@@ -339,6 +389,16 @@ const ProviderLimitsIndicator = GObject.registerClass(
       if (this._refreshStopSourceId !== null) {
         GLib.Source.remove(this._refreshStopSourceId);
         this._refreshStopSourceId = null;
+      }
+
+      if (this._renderDebounceId !== null) {
+        GLib.Source.remove(this._renderDebounceId);
+        this._renderDebounceId = null;
+      }
+
+      if (this._menuStateChangedId) {
+        (this.menu as PopupMenu.PopupMenu).disconnect(this._menuStateChangedId);
+        this._menuStateChangedId = 0;
       }
 
       for (const reader of this._readers.values()) {

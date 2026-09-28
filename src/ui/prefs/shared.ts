@@ -4,6 +4,39 @@ import Gio from "gi://Gio";
 import GObject from "gi://GObject";
 import Gtk from "gi://Gtk";
 
+export interface DisposablePage {
+  cleanup(): void;
+}
+
+export interface SettingsBinding {
+  target: GObject.Object;
+  property: string;
+}
+
+export function isDisposablePage(
+  page: Adw.PreferencesPage,
+): page is Adw.PreferencesPage & DisposablePage {
+  return "cleanup" in page && typeof (page as Partial<DisposablePage>).cleanup === "function";
+}
+
+export function bindSetting(
+  settings: Gio.Settings,
+  key: string,
+  target: GObject.Object,
+  property: string,
+  bindings: SettingsBinding[],
+): void {
+  settings.bind(key, target, property, Gio.SettingsBindFlags.DEFAULT);
+  bindings.push({ target, property });
+}
+
+export function unbindSettings(bindings: SettingsBinding[]): void {
+  for (const { target, property } of bindings) {
+    Gio.Settings.unbind(target, property);
+  }
+  bindings.length = 0;
+}
+
 export function clearListBox(listBox: Gtk.ListBox): void {
   let currentChild = listBox.get_first_child();
   while (currentChild) {
@@ -24,6 +57,7 @@ export function buildReorderableList(
   key: string,
   buildRow: (value: string) => Adw.ActionRow | null,
   normalizeValues?: (values: readonly string[]) => readonly string[],
+  beforeRender?: () => void,
 ): { listBox: Gtk.ListBox; render: () => void; destroy: () => void } {
   const listBox = new Gtk.ListBox({
     selection_mode: Gtk.SelectionMode.SINGLE,
@@ -38,6 +72,7 @@ export function buildReorderableList(
     if (isRendering) return;
     isRendering = true;
     try {
+      beforeRender?.();
       clearListBox(listBox);
       const currentValues = settings.get_strv(key);
       const values = normalizeValues ? [...normalizeValues(currentValues)] : currentValues;
