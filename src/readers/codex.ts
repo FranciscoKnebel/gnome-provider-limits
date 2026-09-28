@@ -19,6 +19,7 @@ import {
   summarizeCodexResetCredits,
 } from "./codexParser.js";
 
+const CODEX_ALL_PATHS_FAILED = "Codex: all paths failed. Run `codex login`.";
 const CODEX_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
 const CODEX_RESET_CREDITS_URL = "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits";
 
@@ -136,7 +137,11 @@ export class CodexReader extends BaseReader {
           this._fetchResetCredits(auth.token, auth.accountId, cancellable),
         ]);
         if (payload) {
-          return this._parsePayload(mergeResetCredits(payload, details), pathsTried);
+          return this._finalizeResult(
+            this._parsePayload(mergeResetCredits(payload, details), pathsTried),
+            pathsTried,
+            CODEX_ALL_PATHS_FAILED,
+          );
         }
       }
     } catch (error) {
@@ -152,13 +157,17 @@ export class CodexReader extends BaseReader {
       pathsTried.push("disk");
       const payload = await this._readFromDisk();
       if (payload) {
-        return this._parsePayload(payload, pathsTried);
+        return this._finalizeResult(
+          this._parsePayload(payload, pathsTried),
+          pathsTried,
+          CODEX_ALL_PATHS_FAILED,
+        );
       }
     } catch (error) {
       logWarn("codex disk fallback failed", error);
     }
 
-    return this._errorResult("Codex: all paths failed. Run `codex login`.", pathsTried);
+    return this._lastGoodOrError(CODEX_ALL_PATHS_FAILED, pathsTried);
   }
 
   override destroy(): void {

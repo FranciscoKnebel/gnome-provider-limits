@@ -1,5 +1,7 @@
 import type Gio from "gi://Gio";
 
+export const LAST_GOOD_MAX_AGE_MS = 30 * 60 * 1000;
+
 export enum ReaderStatus {
   OK = "ok",
   PARTIAL = "partial",
@@ -47,6 +49,8 @@ export interface ReadOptions {
 }
 
 export abstract class BaseReader {
+  protected _lastGood: ReaderResult | null = null;
+
   constructor(
     protected readonly settings: Gio.Settings,
     protected readonly providerName: string,
@@ -134,6 +138,40 @@ export abstract class BaseReader {
       lastUpdated: Date.now(),
       lastError: message,
       pathsTried,
+    };
+  }
+
+  protected _rememberResult(result: ReaderResult): ReaderResult {
+    if (result.status === ReaderStatus.OK || result.status === ReaderStatus.PARTIAL) {
+      this._lastGood = result;
+    }
+    return result;
+  }
+
+  protected _finalizeResult(
+    result: ReaderResult,
+    pathsTried: readonly string[],
+    fallbackMessage: string,
+  ): ReaderResult {
+    if (result.status === ReaderStatus.ERROR) {
+      return this._lastGoodOrError(result.lastError ?? fallbackMessage, pathsTried);
+    }
+    return this._rememberResult(result);
+  }
+
+  protected _lastGoodOrError(message: string, pathsTried: readonly string[]): ReaderResult {
+    const lastGood = this._lastGood;
+    if (!lastGood || Date.now() - lastGood.lastUpdated > LAST_GOOD_MAX_AGE_MS) {
+      return this._errorResult(message, pathsTried);
+    }
+
+    return {
+      provider: this.providerName,
+      status: ReaderStatus.PARTIAL,
+      fields: lastGood.fields,
+      lastUpdated: lastGood.lastUpdated,
+      lastError: message,
+      pathsTried: [...pathsTried, "last-known-good"],
     };
   }
 

@@ -17,6 +17,8 @@ import {
   parseOpenCodeAuthKey,
 } from "./opencodeParser.js";
 
+const OPENCODE_ALL_PATHS_FAILED =
+  "OpenCode: no usage data. Run `opencode auth login` and start OpenCode Go.";
 const OPENCODE_USAGE_URL = "https://opencode.ai/zen/go/v1/usage";
 
 interface OpenCodeDiskTelemetry {
@@ -172,14 +174,15 @@ export class OpenCodeReader extends BaseReader {
     }
 
     if (!usage && !telemetry) {
-      return this._errorResult(
-        "OpenCode: no usage data. Run `opencode auth login` and start OpenCode Go.",
-        pathsTried,
-      );
+      return this._lastGoodOrError(OPENCODE_ALL_PATHS_FAILED, pathsTried);
     }
 
     const lastError = openCodePartialError(usage !== null, telemetry !== null, failures);
-    return this._parseResult(usage, telemetry, pathsTried, lastError ?? undefined);
+    return this._finalizeResult(
+      this._parseResult(usage, telemetry, pathsTried, lastError ?? undefined),
+      pathsTried,
+      OPENCODE_ALL_PATHS_FAILED,
+    );
   }
 
   private _getHttp(): HttpClient | null {

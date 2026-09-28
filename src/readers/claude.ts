@@ -14,6 +14,7 @@ import {
 } from "./claudeParser.js";
 import { credentialExpiresAt, isCredentialExpired, shouldProbeCli } from "./claudeProbe.js";
 
+const CLAUDE_ALL_PATHS_FAILED = "Claude: all paths failed. Run `claude` to refresh credentials.";
 const CLAUDE_USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
 const CLI_PROBE_TIMEOUT_SECONDS = 15;
 
@@ -143,7 +144,11 @@ export class ClaudeReader extends BaseReader {
       if (auth && !isCredentialExpired(auth.expiresAtMs, Date.now())) {
         const payload = await this._fetchUsage(auth.token, cancellable);
         if (payload) {
-          return this._parsePayload(payload, pathsTried);
+          return this._finalizeResult(
+            this._parsePayload(payload, pathsTried),
+            pathsTried,
+            CLAUDE_ALL_PATHS_FAILED,
+          );
         }
       }
     } catch (error) {
@@ -167,7 +172,11 @@ export class ClaudeReader extends BaseReader {
         pathsTried.push("cli-pty");
         const payload = await this._readFromCli(cancellable);
         if (payload) {
-          return this._parsePayload(payload, pathsTried);
+          return this._finalizeResult(
+            this._parsePayload(payload, pathsTried),
+            pathsTried,
+            CLAUDE_ALL_PATHS_FAILED,
+          );
         }
         this._lastCliFailureAt = Date.now();
       } catch (error) {
@@ -176,10 +185,7 @@ export class ClaudeReader extends BaseReader {
       }
     }
 
-    return this._errorResult(
-      "Claude: all paths failed. Run `claude` to refresh credentials.",
-      pathsTried,
-    );
+    return this._lastGoodOrError(CLAUDE_ALL_PATHS_FAILED, pathsTried);
   }
 
   private _credentialsPath(): string {

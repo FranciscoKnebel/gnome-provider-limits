@@ -1,3 +1,14 @@
+import type Gio from "gi://Gio";
+
+import {
+  BaseReader,
+  FieldStatus,
+  LAST_GOOD_MAX_AGE_MS,
+  ReaderStatus,
+  type FieldDef,
+  type FieldResult,
+  type ReaderResult,
+} from "../../src/readers/base.js";
 import {
   CLI_PROBE_BACKOFF_MS,
   credentialExpiresAt,
@@ -10,6 +21,122 @@ import {
   normalizeCodexResetCredits,
 } from "../../src/readers/codexParser.js";
 import { openCodePartialError } from "../../src/readers/opencodeParser.js";
+
+class LastGoodTestReader extends BaseReader {
+  get FIELDS(): readonly FieldDef[] {
+    return [];
+  }
+
+  async read(): Promise<ReaderResult> {
+    return this._errorResult("nope", []);
+  }
+
+  setLastGood(result: ReaderResult): void {
+    this._lastGood = result;
+  }
+
+  lastGoodOrError(message: string, pathsTried: readonly string[]): ReaderResult {
+    return this._lastGoodOrError(message, pathsTried);
+  }
+
+  finalize(
+    result: ReaderResult,
+    pathsTried: readonly string[],
+    fallbackMessage: string,
+  ): ReaderResult {
+    return this._finalizeResult(result, pathsTried, fallbackMessage);
+  }
+}
+
+describe("last-known-good", () => {
+  const settings = {} as Gio.Settings;
+  const field: FieldResult = {
+    name: "used_percent_primary",
+    value: 42,
+    status: FieldStatus.OK,
+  };
+  const good: ReaderResult = {
+    provider: "test-provider",
+    status: ReaderStatus.OK,
+    fields: [field],
+    lastUpdated: Date.now(),
+    pathsTried: ["oauth-api"],
+  };
+
+  it("returns an error when nothing was ever read", () => {
+    const reader = new LastGoodTestReader(settings, "test-provider");
+    const result = reader.lastGoodOrError("all paths failed", ["disk"]);
+
+    expect(result.status).toBe(ReaderStatus.ERROR);
+    expect(result.lastError).toBe("all paths failed");
+    expect(result.fields).toEqual([]);
+  });
+
+  it("carries a recent result over as PARTIAL", () => {
+    const reader = new LastGoodTestReader(settings, "test-provider");
+    reader.setLastGood(good);
+
+    const result = reader.lastGoodOrError("all paths failed", ["disk"]);
+
+    expect(result.status).toBe(ReaderStatus.PARTIAL);
+    expect(result.provider).toBe("test-provider");
+    expect(result.fields).toBe(good.fields);
+    expect(result.lastUpdated).toBe(good.lastUpdated);
+    expect(result.lastError).toBe("all paths failed");
+    expect(result.pathsTried).toEqual(["disk", "last-known-good"]);
+  });
+
+  it("rejects results older than the max age", () => {
+    const reader = new LastGoodTestReader(settings, "test-provider");
+    reader.setLastGood({ ...good, lastUpdated: Date.now() - LAST_GOOD_MAX_AGE_MS - 5_000 });
+
+    expect(reader.lastGoodOrError("all paths failed", []).status).toBe(ReaderStatus.ERROR);
+  });
+
+  it("accepts results just inside the max age", () => {
+    const reader = new LastGoodTestReader(settings, "test-provider");
+    reader.setLastGood({ ...good, lastUpdated: Date.now() - LAST_GOOD_MAX_AGE_MS + 5_000 });
+
+    expect(reader.lastGoodOrError("all paths failed", []).status).toBe(ReaderStatus.PARTIAL);
+  });
+
+  it("_finalizeResult remembers usable results", () => {
+    const reader = new LastGoodTestReader(settings, "test-provider");
+    const partial: ReaderResult = { ...good, status: ReaderStatus.PARTIAL };
+
+    expect(reader.finalize(partial, ["disk"], "fallback")).toBe(partial);
+
+    const error: ReaderResult = {
+      provider: "test-provider",
+      status: ReaderStatus.ERROR,
+      fields: [],
+      lastUpdated: Date.now(),
+      lastError: "inner failure",
+    };
+    const result = reader.finalize(error, ["disk"], "fallback");
+
+    expect(result.status).toBe(ReaderStatus.PARTIAL);
+    expect(result.lastError).toBe("inner failure");
+    expect(result.fields).toBe(partial.fields);
+  });
+
+  it("_finalizeResult does not remember error results", () => {
+    const reader = new LastGoodTestReader(settings, "test-provider");
+    const error: ReaderResult = {
+      provider: "test-provider",
+      status: ReaderStatus.ERROR,
+      fields: [],
+      lastUpdated: Date.now(),
+      lastError: "inner failure",
+    };
+
+    const result = reader.finalize(error, ["disk"], "fallback");
+    expect(result.status).toBe(ReaderStatus.ERROR);
+    expect(result.lastError).toBe("inner failure");
+    expect(result.pathsTried).toEqual(["disk"]);
+    expect(reader.lastGoodOrError("later failure", []).status).toBe(ReaderStatus.ERROR);
+  });
+});
 
 describe("shouldProbeCli", () => {
   const now = 1_000_000;
