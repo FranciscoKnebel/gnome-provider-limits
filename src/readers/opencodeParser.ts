@@ -3,6 +3,11 @@ export interface OpenCodeDbRow {
   sessions_count: number | null;
 }
 
+export interface OpenCodeDiskTelemetry {
+  totalCost: number;
+  sessionsCount: number;
+}
+
 export interface OpenCodeUsageWindow {
   status: string | null;
   percent: number | null;
@@ -40,10 +45,9 @@ function timestampSeconds(value: unknown): number | null {
   return Math.floor(ms / 1000);
 }
 
-export function normalizeOpenCodeDbRow(row: OpenCodeDbRow | null | undefined): {
-  totalCost: number;
-  sessionsCount: number;
-} {
+export function normalizeOpenCodeDbRow(
+  row: OpenCodeDbRow | null | undefined,
+): OpenCodeDiskTelemetry {
   if (!row) return { totalCost: 0, sessionsCount: 0 };
   return {
     totalCost: finiteNumber(row.total_cost) ?? 0,

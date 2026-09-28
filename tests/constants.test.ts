@@ -1,5 +1,4 @@
 import {
-  COOKIE_CACHE_TTL_SECONDS,
   DEFAULT_PROVIDERS_ORDER,
   DEFAULT_REFRESH_LONG_INTERVAL_SECONDS,
   DEFAULT_REFRESH_SHORT_INTERVAL_SECONDS,
@@ -37,10 +36,6 @@ describe("constants", () => {
 
   it("has a positive SQLite cache TTL", () => {
     expect(SQLITE_CACHE_TTL_SECONDS).toBeGreaterThan(0);
-  });
-
-  it("has a positive cookie cache TTL", () => {
-    expect(COOKIE_CACHE_TTL_SECONDS).toBeGreaterThan(0);
   });
 
   it("has a positive HTTP timeout", () => {

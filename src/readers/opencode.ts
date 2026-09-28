@@ -8,6 +8,7 @@ import type { FieldDef, FieldResult, ReaderResult } from "./base.js";
 import { BaseReader, FieldStatus } from "./base.js";
 import {
   type OpenCodeDbRow,
+  type OpenCodeDiskTelemetry,
   type OpenCodeUsage,
   normalizeOpenCodeDbRow,
   normalizeOpenCodeUsagePayload,
@@ -17,11 +18,6 @@ import {
 const OPENCODE_DB_PATH = `${GLib.get_home_dir()}/.local/share/opencode/opencode.db`;
 const OPENCODE_AUTH_PATH = `${GLib.get_home_dir()}/.local/share/opencode/auth.json`;
 const OPENCODE_USAGE_URL = "https://opencode.ai/zen/go/v1/usage";
-
-interface OpenCodeDiskTelemetry {
-  totalCost: number;
-  sessionsCount: number;
-}
 
 Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish");
 
