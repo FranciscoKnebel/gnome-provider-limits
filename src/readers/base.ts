@@ -147,7 +147,11 @@ export abstract class BaseReader {
       (f) => f.status === FieldStatus.UNAVAILABLE || f.status === FieldStatus.ERROR,
     );
     return hasUnavailable
-      ? this._partialResult(fields, pathsTried)
+      ? this._partialResult(
+          fields,
+          pathsTried,
+          `${prefix ?? this.providerName}: some fields unavailable.`,
+        )
       : this._okResult(fields, pathsTried);
   }
 }

@@ -297,14 +297,16 @@ describe("BaseReader", () => {
       expect(result.lastError).toBeUndefined();
     });
 
-    it("returns PARTIAL when some fields are UNAVAILABLE", () => {
+    it("returns PARTIAL with lastError when some fields are UNAVAILABLE", () => {
       const result = reader.testClassifyResult([okField("a"), unavailableField("b")], ["p1"]);
       expect(result.status).toBe(ReaderStatus.PARTIAL);
+      expect(result.lastError).toBe("test-provider: some fields unavailable.");
     });
 
-    it("returns PARTIAL when some fields are ERROR", () => {
+    it("returns PARTIAL with lastError when some fields are ERROR", () => {
       const result = reader.testClassifyResult([okField("a"), errorField("b")], ["p1"]);
       expect(result.status).toBe(ReaderStatus.PARTIAL);
+      expect(result.lastError).toBe("test-provider: some fields unavailable.");
     });
 
     it("returns PARTIAL when some fields are UNAVAILABLE and some ERROR", () => {
@@ -313,6 +315,16 @@ describe("BaseReader", () => {
         ["p1"],
       );
       expect(result.status).toBe(ReaderStatus.PARTIAL);
+      expect(result.lastError).toBe("test-provider: some fields unavailable.");
+    });
+
+    it("uses prefix in PARTIAL lastError", () => {
+      const result = reader.testClassifyResult(
+        [okField("a"), errorField("b")],
+        ["p1"],
+        "CustomPrefix",
+      );
+      expect(result.lastError).toBe("CustomPrefix: some fields unavailable.");
     });
 
     it("returns ERROR when all fields are UNAVAILABLE", () => {
