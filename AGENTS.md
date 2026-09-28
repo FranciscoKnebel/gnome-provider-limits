@@ -135,13 +135,25 @@ pages/                     # GitHub Pages site (kept separate from app code)
 
 ## Testing
 
-- **jasmine** running in GJS (via `jasmine-gjs` or `gjs-console` runner).
+The suite is split between two runners:
+
+- **Node + Jasmine** (`npm run test`): pure modules (parsers, formatters,
+  helpers, UI logic extraction). IO is mocked and no GNOME stack is required.
+  `npm run check` runs this suite and is Node-only.
+- **GJS** (`npm run test:gjs`): builds `dist/` and runs
+  `tests/run-gjs-tests.mjs` against the specs in `tests/helpers`,
+  `tests/readers`, and `tests/ui`. Covers gi-dependent modules; CI runs it
+  with `gjs` and `gi://Soup`. The prefs UI test reports SKIP when the
+  Gtk/Adw typelibs or a display are unavailable.
+
 - One `*.test.ts` per module, in `tests/`.
-- Mock `Soup.Session`, `Gio.Subprocess`, `Gio.File`, so tests don't hit
-  network/disk/CLI.
+- Gio/Soup mocks live in the GJS tests (`tests/mocks/`); pure modules are
+  tested in Node. No test makes live provider network calls.
 - Use real payload fixtures (JSON/SQLite) captured from provider disk for
   parser tests. Put fixtures in `tests/fixtures/`.
-- UI is tested manually (install + enable + verify shell doesn't crash).
+- Shell-level rendering (panel, status bar, prefs window) still needs manual
+  checking: install, enable, and verify the shell doesn't crash. The GJS
+  prefs suite only constructs pages when a display is available.
 
 ## Security checklist for contributions
 
