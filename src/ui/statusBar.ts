@@ -159,9 +159,9 @@ export const StatusBarWidget = GObject.registerClass(
       applyToneClass(label, row.tone);
     }
 
-    private _addStatusSuffix(status: ReaderStatus): St.Label | null {
+    private _addStatusSuffix(status: ReaderStatus): void {
       const text = this._statusSuffix(status);
-      if (!text) return null;
+      if (!text) return;
 
       const suffix = new St.Label({
         text,
@@ -170,7 +170,6 @@ export const StatusBarWidget = GObject.registerClass(
       });
       suffix.accessible_name = text;
       this.add_child(suffix);
-      return suffix;
     }
 
     private _statusSuffix(status: ReaderStatus): string {
