@@ -11,8 +11,18 @@ if (GJS_PROBE.error || GJS_PROBE.status !== 0) {
 
 const NPM = process.platform === "win32" ? "npm.cmd" : "npm";
 
-const build = spawnSync(NPM, ["run", "build"], { stdio: "inherit" });
-if (build.status !== 0) exit(build.status ?? 1);
+function run(command, args) {
+  const result = spawnSync(command, args, { stdio: "inherit" });
+  if (result.error) {
+    console.error(`failed to run ${command}: ${result.error.message}`);
+    exit(1);
+  }
+  if (result.signal) {
+    console.error(`${command} terminated by signal ${result.signal}`);
+    exit(1);
+  }
+  if (result.status !== 0) exit(result.status ?? 1);
+}
 
-const tests = spawnSync("gjs", ["-m", "tests/run-gjs-tests.mjs"], { stdio: "inherit" });
-exit(tests.status ?? 1);
+run(NPM, ["run", "build"]);
+run("gjs", ["-m", "tests/run-gjs-tests.mjs"]);
