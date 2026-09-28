@@ -95,8 +95,9 @@ From there you can:
 npm run typecheck     # tsc --noEmit
 npm run lint          # oxlint
 npm test              # Node jasmine suite (builds tests first, runs c8 coverage)
-npm run test:gjs      # GJS suite (builds dist/ first; needs gjs and Soup)
+npm run test:gjs      # GJS suite (builds dist/ first; skips when gjs is missing)
 npm run check         # typecheck + lint + format:check + check:i18n + npm test
+npm run check:all     # npm run check + npm run test:gjs
 npm run build         # compile typescript to dist/
 npm run pack          # compile, compile schemas, and pack the extension
 ```
@@ -104,7 +105,9 @@ npm run pack          # compile, compile schemas, and pack the extension
 `c8` instruments only modules that Node can load (the pure helpers and
 parsers). The GJS suite covers the rest: the readers always run, while the
 prefs UI checks run when a display and the Gtk/Adw typelibs are available
-and report SKIP otherwise (CI is headless).
+and report SKIP otherwise (CI is headless). `npm run check:all` adds the GJS
+suite to `npm run check`; `npm run test:gjs` skips gracefully with a warning
+when `gjs` is not installed.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow and guidelines.
 

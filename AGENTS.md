@@ -144,7 +144,9 @@ The suite is split between two runners:
   `tests/run-gjs-tests.mjs` against the specs in `tests/helpers`,
   `tests/readers`, and `tests/ui`. Covers gi-dependent modules; CI runs it
   with `gjs` and `gi://Soup`. The prefs UI test reports SKIP when the
-  Gtk/Adw typelibs or a display are unavailable.
+  Gtk/Adw typelibs or a display are unavailable. `npm run check:all` runs
+  `npm run check` followed by this suite, and `npm run test:gjs` skips
+  gracefully when `gjs` is not installed.
 
 - One `*.test.ts` per module, in `tests/`.
 - Gio/Soup mocks live in the GJS tests (`tests/mocks/`); pure modules are
