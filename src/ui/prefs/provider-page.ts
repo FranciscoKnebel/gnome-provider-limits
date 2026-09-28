@@ -15,15 +15,19 @@ import { CODEX_FIELDS } from "../../readers/codex.js";
 import { OPENCODE_FIELDS } from "../../readers/opencode.js";
 import { buildReorderableList, setupDragSource, setupDropTarget } from "./shared.js";
 
-const SAMPLE_VALUES: Record<FieldType, unknown> = {
+const SAMPLE_VALUES: Record<Exclude<FieldType, "timestamp">, unknown> = {
   percent: 42,
   count: 109,
   tokens: 2500000,
   cost: 3.71,
-  timestamp: Date.now() + 5400 * 1000,
   bool: true,
   text: "plus",
 };
+
+function sampleValue(type: FieldType): unknown {
+  if (type === "timestamp") return Date.now() + 5400 * 1000;
+  return SAMPLE_VALUES[type];
+}
 
 const READER_FIELDS: Record<ProviderName, readonly FieldDef[]> = {
   codex: CODEX_FIELDS,
@@ -205,7 +209,7 @@ export const ProviderPage = GObject.registerClass(
     private _preview(def: FieldDef, zone: "status" | "panel", locale: string): string {
       return formatField({
         type: def.type,
-        value: SAMPLE_VALUES[def.type],
+        value: sampleValue(def.type),
         zone,
         locale,
         t: _,
