@@ -1,62 +1,16 @@
-import GObject from "gi://GObject";
+import GLib from "gi://GLib";
 
 import { assert, assertEqual, assertNotNull } from "../helpers/assert.js";
-
-const ReaderMockSettings = GObject.registerClass(
-  class ReaderMockSettings extends GObject.Object {
-    _init(props = {}) {
-      super._init();
-      this._values = {};
-      this._bindings = {};
-      this._handlers = {};
-      for (const [k, v] of Object.entries(props)) this._values[k] = v;
-    }
-    connect(signal, callback) {
-      if (!this._handlers[signal]) this._handlers[signal] = [];
-      this._handlers[signal].push(callback);
-    }
-    _emitChange(key) {
-      (this._handlers[`changed::${key}`] || []).forEach((h) => h(this));
-    }
-    get_strv(key) {
-      return [...(this._values[key] ?? [])];
-    }
-    get_string(key) {
-      return this._values[key] ?? "";
-    }
-    get_boolean(key) {
-      return this._values[key] ?? false;
-    }
-    get_int(key) {
-      return this._values[key] ?? 0;
-    }
-    set_strv(key, val) {
-      this._values[key] = [...val];
-      this._emitChange(key);
-    }
-    set_string(key, val) {
-      this._values[key] = val;
-      this._emitChange(key);
-    }
-    set_int(key, val) {
-      this._values[key] = val;
-      this._emitChange(key);
-    }
-    set_boolean(key, val) {
-      this._values[key] = val;
-      this._emitChange(key);
-    }
-    bind(srcKey, target, prop) {
-      this._bindings[srcKey] = { target, prop };
-      target[prop] = this._values[srcKey] ?? "";
-    }
-  },
-);
+import { MockSettings } from "../mocks/mock-settings.js";
 
 export async function run() {
   const results = [];
 
-  const readersDir = "file:///home/francisco/gnome-provider-limits/dist/readers";
+  const readersDir = GLib.Uri.resolve_relative(
+    import.meta.url,
+    "../../dist/readers",
+    GLib.UriFlags.NONE,
+  );
   const { BaseReader, ReaderStatus, FieldStatus } = await import(`${readersDir}/base.js`);
   const { CodexReader } = await import(`${readersDir}/codex.js`);
   const { ClaudeReader } = await import(`${readersDir}/claude.js`);
@@ -65,7 +19,7 @@ export async function run() {
   // ---------- BaseReader ----------
   // Test via a concrete anonymous subclass
   try {
-    const settings = new ReaderMockSettings();
+    const settings = new MockSettings();
     const ConcreteReader = class extends BaseReader {
       get FIELDS() {
         return [];
@@ -107,7 +61,7 @@ export async function run() {
 
   // ---------- FIELDS definitions ----------
   try {
-    const settings = new ReaderMockSettings({ "codex-cli-path": "" });
+    const settings = new MockSettings({ "codex-cli-path": "" });
     const codex = new CodexReader(settings, "codex");
     assert(codex.FIELDS.length > 5, "CodexReader has fields");
     results.push({ name: "CodexReader.FIELDS defined", passed: true });
@@ -116,7 +70,7 @@ export async function run() {
   }
 
   try {
-    const settings = new ReaderMockSettings({ "claude-cli-path": "" });
+    const settings = new MockSettings({ "claude-cli-path": "" });
     const claude = new ClaudeReader(settings, "claude");
     assert(claude.FIELDS.length > 5, "ClaudeReader has fields");
     results.push({ name: "ClaudeReader.FIELDS defined", passed: true });
@@ -125,7 +79,7 @@ export async function run() {
   }
 
   try {
-    const settings = new ReaderMockSettings();
+    const settings = new MockSettings();
     const oc = new OpenCodeReader(settings, "opencode");
     assert(oc.FIELDS.length > 5, "OpenCodeReader has fields");
     results.push({ name: "OpenCodeReader.FIELDS defined", passed: true });
@@ -135,14 +89,24 @@ export async function run() {
 
   // ---------- CodexReader._parsePayload ----------
   try {
-    const settings = new ReaderMockSettings({ "codex-cli-path": "" });
+    const settings = new MockSettings({ "codex-cli-path": "" });
     const codex = new CodexReader(settings, "codex");
     const validPayload = {
       rate_limits: {
-        primary: { used_percent: 30, reset_at: Date.now() / 1000 + 3600 },
-        secondary: { used_percent: 50, reset_at: Date.now() / 1000 + 86400 },
+        limit_reached: false,
+        primary: {
+          used_percent: 30,
+          reset_at: Date.now() / 1000 + 3600,
+          window_minutes: 300,
+        },
+        secondary: {
+          used_percent: 50,
+          reset_at: Date.now() / 1000 + 86400,
+          window_minutes: 10080,
+        },
       },
       plan_type: "plus",
+      reset_credits: { available_count: 0 },
     };
     const okResult = codex._parsePayload(validPayload, ["test-path"]);
     assertEqual(okResult.provider, "codex", "provider set");
@@ -158,12 +122,12 @@ export async function run() {
   }
 
   try {
-    const settings = new ReaderMockSettings({ "codex-cli-path": "" });
+    const settings = new MockSettings({ "codex-cli-path": "" });
     const codex = new CodexReader(settings, "codex");
     const emptyPayload = { rate_limits: {} };
     const result = codex._parsePayload(emptyPayload, ["test"]);
-    // limit_reached field always gets FieldStatus.OK, so result is PARTIAL
-    assertEqual(result.status, ReaderStatus.PARTIAL, "empty rate_limits returns PARTIAL");
+    // Every field is UNAVAILABLE without window data, so the result is ERROR.
+    assertEqual(result.status, ReaderStatus.ERROR, "empty rate_limits returns ERROR");
     results.push({ name: "CodexReader._parsePayload with empty data", passed: true });
   } catch (e) {
     results.push({
@@ -175,7 +139,7 @@ export async function run() {
 
   // ---------- ClaudeReader._parsePayload ----------
   try {
-    const settings = new ReaderMockSettings({ "claude-cli-path": "" });
+    const settings = new MockSettings({ "claude-cli-path": "" });
     const claude = new ClaudeReader(settings, "claude");
     const validPayload = {
       five_hour: { used_percent: 25, reset_at: Date.now() / 1000 + 3600 },
@@ -198,7 +162,7 @@ export async function run() {
   }
 
   try {
-    const settings = new ReaderMockSettings({ "claude-cli-path": "" });
+    const settings = new MockSettings({ "claude-cli-path": "" });
     const claude = new ClaudeReader(settings, "claude");
     const emptyPayload = {};
     const errResult = claude._parsePayload(emptyPayload, ["test"]);
@@ -214,7 +178,7 @@ export async function run() {
 
   // ---------- OpenCodeReader._parseResult ----------
   try {
-    const settings = new ReaderMockSettings();
+    const settings = new MockSettings();
     const oc = new OpenCodeReader(settings, "opencode");
     const nowSec = Math.floor(Date.now() / 1000);
     const usage = {
@@ -241,7 +205,7 @@ export async function run() {
 
   // ---------- OpenCodeReader._parseResult without API data ----------
   try {
-    const settings = new ReaderMockSettings();
+    const settings = new MockSettings();
     const oc = new OpenCodeReader(settings, "opencode");
     const result = oc._parseResult(null, { totalCost: 1.5, sessionsCount: 3 }, ["disk"]);
     assertEqual(result.status, ReaderStatus.PARTIAL, "missing usage returns PARTIAL");
@@ -280,7 +244,7 @@ export async function run() {
 
   // ---------- BaseReader destroy() is callable ----------
   try {
-    const settings = new ReaderMockSettings();
+    const settings = new MockSettings();
     const r = new (class extends BaseReader {
       get FIELDS() {
         return [];
