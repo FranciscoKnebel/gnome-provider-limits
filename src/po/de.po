@@ -384,3 +384,19 @@ msgstr "ja"
 #: src/formatters.ts
 msgid "no"
 msgstr "nein"
+
+#: src/formatters.ts
+msgid "h"
+msgstr "Std"
+
+#: src/formatters.ts
+msgid "m"
+msgstr "Min"
+
+#: src/formatters.ts
+msgid "d"
+msgstr "Tg"
+
+#: src/formatters.ts
+msgid "w"
+msgstr "Wo"

@@ -38,6 +38,19 @@ describe("formatters", () => {
         "4h59m",
       );
     });
+
+    it("localizes relative-time suffixes when a translator is provided", () => {
+      const future = Date.now() + (4 * 3600 + 59 * 60) * 1000;
+      expect(
+        formatField({
+          type: "timestamp",
+          value: future,
+          zone: "status",
+          locale: "en",
+          t: (s) => (s === "m" ? "min" : s),
+        }),
+      ).toBe("4h59min");
+    });
   });
 
   describe("tokens", () => {
@@ -99,6 +112,18 @@ describe("formatters", () => {
       expect(
         formatField({ type: "text", value: "org_level_disabled", zone: "panel", locale: "en" }),
       ).toBe("org_level_disabled");
+    });
+
+    it("keeps short astral text untruncated in status bar", () => {
+      const value = "😀".repeat(6);
+      expect(formatField({ type: "text", value, zone: "status", locale: "en" })).toBe(value);
+    });
+
+    it("truncates long astral text by code points", () => {
+      const value = "😀".repeat(12);
+      expect(formatField({ type: "text", value, zone: "status", locale: "en" })).toBe(
+        `${"😀".repeat(8)}…`,
+      );
     });
   });
 
