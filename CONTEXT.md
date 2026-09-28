@@ -13,7 +13,8 @@ _Avoid_: Service, API, vendor.
 Component of the extension that knows where and how to read a specific
 provider's local state, and normalize it to the common shape displayed in the
 UI. Tries disk first; if the field doesn't exist, invokes the provider's CLI
-(configurable path) to obtain it.
+(configurable path) to obtain it. When every path fails but a recent
+Last-Known-Good exists, returns it instead of an empty error.
 _Avoid_: Parser, scraper, client.
 
 **SQLite Helper**:
@@ -194,9 +195,20 @@ _Avoid_: Last update, refresh time (ambiguous with per-provider).
 **Last Updated**:
 Per-provider timestamp of when that provider's state was actually read,
 already carried by `ReaderResult.lastUpdated`. Shown inside each provider
-section in the panel. Can differ from `Last Refresh At` only if a stale
-result is carried over from a previous cycle (see `Refresh` generation).
+section in the panel. Can differ from `Last Refresh At` if a stale result is
+carried over from a previous cycle (see `Refresh` generation) or when a
+failed cycle returns the Last-Known-Good.
 _Avoid_: Last update, refresh time (ambiguous with global).
+
+**Last-Known-Good**:
+The most recent `ReaderResult` that contained at least one usable field,
+kept in memory per `Reader` (never persisted). When every path of a
+`Refresh` fails and the Last-Known-Good is younger than 30 minutes, the
+reader returns it as a `PARTIAL` result with the original `lastUpdated` and
+the failure in `lastError`, so a transient outage shows stale-but-usable
+data instead of emptying the provider. Older results are discarded and the
+read reports `ERROR`.
+_Avoid_: Cache, snapshot, stale copy.
 
 **Running Refresh**:
 State in which at least one `Refresh` cycle is in progress. Tracked by a

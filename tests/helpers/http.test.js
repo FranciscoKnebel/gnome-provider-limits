@@ -1,34 +1,98 @@
+import Gio from "gi://Gio";
+import GLib from "gi://GLib";
+import Soup from "gi://Soup";
+
 import { assert, assertEqual } from "./assert.js";
 
-const { HttpClient, TokenError, RateLimitError, ServerError, HttpError } =
-  await import("../../dist/helpers/http.js");
+const {
+  HttpClient,
+  TokenError,
+  RateLimitError,
+  ServerError,
+  HttpError,
+  NetworkError,
+  ProtocolError,
+} = await import("../../dist/helpers/http.js");
 
 class MockHttpClient extends HttpClient {
   constructor(responseMap) {
     super();
     this._responseMap = responseMap;
+    this._attempts = 0;
+    this._delays = [];
   }
 
-  async _sendAndParse(message, _options) {
+  async _delay(delayMs) {
+    this._delays.push(delayMs);
+  }
+
+  async _sendAndParse(message, _cancellable) {
+    this._attempts++;
     const url = message.get_uri().to_string();
-    for (const [pattern, resp] of this._responseMap) {
-      if (url.includes(pattern)) {
-        if (resp.status < 200 || resp.status >= 300) {
-          throw this._errorForStatus(resp.status, resp.payload ?? null, resp.body);
-        }
-        let payload = null;
-        if (resp.body && resp.body.trim()) {
+    for (const [pattern, responses] of this._responseMap) {
+      if (!url.includes(pattern)) continue;
+      const list = Array.isArray(responses) ? responses : [responses];
+      const resp = list[Math.min(this._attempts - 1, list.length - 1)];
+      if (resp.error) throw resp.error;
+      if (resp.status < 200 || resp.status >= 300) {
+        let payload = resp.payload ?? null;
+        if (payload === null && resp.body && resp.body.trim()) {
           try {
             payload = JSON.parse(resp.body);
           } catch {
-            // non-JSON body, payload stays null
+            payload = null;
           }
         }
-        return payload;
+        throw this._errorForStatus(resp.status, payload, resp.retryAfterSeconds ?? null);
+      }
+      if (!resp.body || !resp.body.trim()) return null;
+      try {
+        return JSON.parse(resp.body);
+      } catch {
+        throw new ProtocolError("non-JSON body", resp.status);
       }
     }
     throw new HttpError("not found", 404);
   }
+}
+
+function makeRawMessage(status, headers = {}) {
+  const message = Soup.Message.new("GET", "https://example.com/api/raw");
+  return new Proxy(message, {
+    get(target, prop) {
+      if (prop === "get_status") return () => status;
+      if (prop === "get_response_headers") {
+        return () => ({ get_one: (name) => headers[name] ?? null });
+      }
+      const value = Reflect.get(target, prop);
+      return typeof value === "function" ? value.bind(target) : value;
+    },
+  });
+}
+function makeSession(body) {
+  return {
+    send_and_read_async: async () => new GLib.Bytes(new TextEncoder().encode(body ?? "")),
+    abort: () => {},
+  };
+}
+
+function makeSleepingSession() {
+  return {
+    send_and_read_async: (_message, _priority, cancellable) =>
+      new Promise((resolve, reject) => {
+        const sourceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 5000, () => {
+          resolve(new GLib.Bytes(new TextEncoder().encode("{}")));
+          return GLib.SOURCE_REMOVE;
+        });
+        if (cancellable) {
+          cancellable.connect(() => {
+            GLib.Source.remove(sourceId);
+            reject(new Error("cancelled"));
+          });
+        }
+      }),
+    abort: () => {},
+  };
 }
 
 export async function run() {
@@ -41,23 +105,17 @@ export async function run() {
     ]);
     const result = await client.getJson("https://example.com/api/test");
     assertEqual(result.message, "ok", "should parse JSON response");
+    assertEqual(client._attempts, 1, "should not retry a success");
     results.push({ name: "getJson returns parsed JSON", passed: true });
     client.destroy();
   } catch (e) {
     results.push({ name: "getJson returns parsed JSON", passed: false, error: String(e) });
   }
 
-  // Test 2: getJson throws TokenError on 401
+  // Test 2: getJson throws TokenError on 401 without retrying
   try {
     const client = new MockHttpClient([
-      [
-        "/api/unauth",
-        {
-          status: 401,
-          body: "Unauthorized",
-          payload: { error: "unauthorized" },
-        },
-      ],
+      ["/api/unauth", { status: 401, body: "Unauthorized", payload: { error: "unauthorized" } }],
     ]);
     try {
       await client.getJson("https://example.com/api/unauth");
@@ -69,6 +127,7 @@ export async function run() {
     } catch (e) {
       assert(e instanceof TokenError, "should be TokenError");
       assertEqual(e.statusCode, 401, "status code should be 401");
+      assertEqual(client._attempts, 1, "should not retry 401");
       results.push({ name: "getJson throws TokenError on 401", passed: true });
     }
     client.destroy();
@@ -76,60 +135,274 @@ export async function run() {
     results.push({ name: "getJson throws TokenError on 401", passed: false, error: String(e) });
   }
 
-  // Test 3: getJson throws RateLimitError on 429
+  // Test 3: getJson retries 429 honoring Retry-After, then succeeds
   try {
-    const client = new MockHttpClient([["/api/ratelimit", { status: 429, body: "{}" }]]);
-    try {
-      await client.getJson("https://example.com/api/ratelimit");
-      results.push({
-        name: "getJson throws RateLimitError on 429",
-        passed: false,
-        error: "should have thrown",
-      });
-    } catch (e) {
-      assert(e instanceof RateLimitError, "should be RateLimitError");
-      assertEqual(e.statusCode, 429, "status code should be 429");
-      results.push({ name: "getJson throws RateLimitError on 429", passed: true });
-    }
+    const client = new MockHttpClient([
+      [
+        "/api/ratelimit",
+        [
+          { status: 429, body: "{}", retryAfterSeconds: 2 },
+          { status: 200, body: JSON.stringify({ retried: true }) },
+        ],
+      ],
+    ]);
+    const result = await client.getJson("https://example.com/api/ratelimit");
+    assertEqual(result.retried, true, "should succeed after retry");
+    assertEqual(client._attempts, 2, "should retry once");
+    assertEqual(client._delays.length, 1, "should delay once");
+    assert(client._delays[0] >= 2000, "should honor Retry-After");
+    results.push({ name: "getJson retries 429 with Retry-After", passed: true });
     client.destroy();
   } catch (e) {
-    results.push({ name: "getJson throws RateLimitError on 429", passed: false, error: String(e) });
+    results.push({ name: "getJson retries 429 with Retry-After", passed: false, error: String(e) });
   }
 
-  // Test 4: getJson throws ServerError on 500
+  // Test 4: getJson retries 5xx up to maxAttempts then gives up
   try {
-    const client = new MockHttpClient([["/api/servererror", { status: 500, body: "{}" }]]);
+    const client = new MockHttpClient([
+      [
+        "/api/servererror",
+        [
+          { status: 500, body: "{}" },
+          { status: 500, body: "{}" },
+          { status: 500, body: "{}" },
+        ],
+      ],
+    ]);
     try {
       await client.getJson("https://example.com/api/servererror");
       results.push({
-        name: "getJson throws ServerError on 500",
+        name: "getJson gives up after max retries",
         passed: false,
         error: "should have thrown",
       });
     } catch (e) {
       assert(e instanceof ServerError, "should be ServerError");
       assertEqual(e.statusCode, 500, "status code should be 500");
-      results.push({ name: "getJson throws ServerError on 500", passed: true });
+      assertEqual(client._attempts, 3, "should attempt three times");
+      results.push({ name: "getJson gives up after max retries", passed: true });
     }
     client.destroy();
   } catch (e) {
-    results.push({ name: "getJson throws ServerError on 500", passed: false, error: String(e) });
+    results.push({ name: "getJson gives up after max retries", passed: false, error: String(e) });
   }
 
-  // Test 5: postJson sends POST with body
+  // Test 5: getJson recovers when a 500 is transient
+  try {
+    const client = new MockHttpClient([
+      [
+        "/api/flaky",
+        [
+          { status: 500, body: "{}" },
+          { status: 200, body: JSON.stringify({ ok: true }) },
+        ],
+      ],
+    ]);
+    const result = await client.getJson("https://example.com/api/flaky");
+    assertEqual(result.ok, true, "should recover after a 500");
+    assertEqual(client._attempts, 2, "should retry once");
+    results.push({ name: "getJson recovers from transient 5xx", passed: true });
+    client.destroy();
+  } catch (e) {
+    results.push({ name: "getJson recovers from transient 5xx", passed: false, error: String(e) });
+  }
+
+  // Test 6: getJson does not retry 4xx
+  try {
+    const client = new MockHttpClient([["/api/badrequest", { status: 400, body: "{}" }]]);
+    try {
+      await client.getJson("https://example.com/api/badrequest");
+      results.push({
+        name: "getJson does not retry 4xx",
+        passed: false,
+        error: "should have thrown",
+      });
+    } catch (e) {
+      assert(e instanceof HttpError, "should be HttpError");
+      assertEqual(e.statusCode, 400, "status code should be 400");
+      assertEqual(client._attempts, 1, "should not retry 400");
+      results.push({ name: "getJson does not retry 4xx", passed: true });
+    }
+    client.destroy();
+  } catch (e) {
+    results.push({ name: "getJson does not retry 4xx", passed: false, error: String(e) });
+  }
+
+  // Test 7: getJson retries network errors
+  try {
+    const client = new MockHttpClient([
+      [
+        "/api/network",
+        [
+          { error: new NetworkError("connection reset") },
+          { status: 200, body: JSON.stringify({ ok: true }) },
+        ],
+      ],
+    ]);
+    const result = await client.getJson("https://example.com/api/network");
+    assertEqual(result.ok, true, "should recover from a network error");
+    assertEqual(client._attempts, 2, "should retry a network error");
+    results.push({ name: "getJson retries network errors", passed: true });
+    client.destroy();
+  } catch (e) {
+    results.push({ name: "getJson retries network errors", passed: false, error: String(e) });
+  }
+
+  // Test 8: getJson does not retry protocol errors
+  try {
+    const client = new MockHttpClient([["/api/html", { status: 200, body: "<html>login</html>" }]]);
+    try {
+      await client.getJson("https://example.com/api/html");
+      results.push({
+        name: "getJson does not retry protocol errors",
+        passed: false,
+        error: "should have thrown",
+      });
+    } catch (e) {
+      assert(e instanceof ProtocolError, "should be ProtocolError");
+      assertEqual(client._attempts, 1, "should not retry a protocol error");
+      results.push({ name: "getJson does not retry protocol errors", passed: true });
+    }
+    client.destroy();
+  } catch (e) {
+    results.push({
+      name: "getJson does not retry protocol errors",
+      passed: false,
+      error: String(e),
+    });
+  }
+
+  // Test 9: retries option disables retrying
+  try {
+    const client = new MockHttpClient([
+      [
+        "/api/noretry",
+        [
+          { status: 500, body: "{}" },
+          { status: 200, body: JSON.stringify({ ok: true }) },
+        ],
+      ],
+    ]);
+    try {
+      await client.getJson("https://example.com/api/noretry", { retries: 0 });
+      results.push({
+        name: "getJson respects retries: 0",
+        passed: false,
+        error: "should have thrown",
+      });
+    } catch (e) {
+      assert(e instanceof ServerError, "should be ServerError");
+      assertEqual(client._attempts, 1, "should not retry");
+      results.push({ name: "getJson respects retries: 0", passed: true });
+    }
+    client.destroy();
+  } catch (e) {
+    results.push({ name: "getJson respects retries: 0", passed: false, error: String(e) });
+  }
+
+  // Test 10: protocol error on non-JSON 2xx body (real _sendAndParse)
+  try {
+    const client = new HttpClient(makeSession("<html>login page</html>"));
+    try {
+      await client._sendAndParse(makeRawMessage(200), null);
+      results.push({
+        name: "non-JSON 2xx body raises ProtocolError",
+        passed: false,
+        error: "should have thrown",
+      });
+    } catch (e) {
+      assert(e instanceof ProtocolError, "should be ProtocolError");
+      assertEqual(e.statusCode, 200, "should carry the status code");
+      results.push({ name: "non-JSON 2xx body raises ProtocolError", passed: true });
+    }
+    client.destroy();
+  } catch (e) {
+    results.push({
+      name: "non-JSON 2xx body raises ProtocolError",
+      passed: false,
+      error: String(e),
+    });
+  }
+
+  // Test 11: empty 2xx body still returns null
+  try {
+    const client = new HttpClient(makeSession(""));
+    const result = await client._sendAndParse(makeRawMessage(200), null);
+    assertEqual(result, null, "should return null for empty body");
+    results.push({ name: "empty 2xx body returns null", passed: true });
+    client.destroy();
+  } catch (e) {
+    results.push({ name: "empty 2xx body returns null", passed: false, error: String(e) });
+  }
+
+  // Test 12: session failures are wrapped in NetworkError
+  try {
+    const client = new HttpClient({
+      send_and_read_async: async () => {
+        throw new Error("socket closed");
+      },
+      abort: () => {},
+    });
+    try {
+      await client._sendAndParse(makeRawMessage(200), null);
+      results.push({
+        name: "session failures wrap in NetworkError",
+        passed: false,
+        error: "should have thrown",
+      });
+    } catch (e) {
+      assert(e instanceof NetworkError, "should be NetworkError");
+      results.push({ name: "session failures wrap in NetworkError", passed: true });
+    }
+    client.destroy();
+  } catch (e) {
+    results.push({
+      name: "session failures wrap in NetworkError",
+      passed: false,
+      error: String(e),
+    });
+  }
+
+  // Test 13: nested error.message is extracted
+  try {
+    const client = new HttpClient(makeSession(""));
+    const error = client._errorForStatus(500, { error: { message: "upstream down" } });
+    assertEqual(error.message, "upstream down", "should recurse into error.message");
+    results.push({ name: "nested error.message is extracted", passed: true });
+    client.destroy();
+  } catch (e) {
+    results.push({ name: "nested error.message is extracted", passed: false, error: String(e) });
+  }
+
+  // Test 14: RateLimitError carries Retry-After seconds
+  try {
+    const client = new HttpClient(makeSession(""));
+    const retryAfter = client._parseRetryAfterSeconds(makeRawMessage(429, { "Retry-After": "3" }));
+    assertEqual(retryAfter, 3, "should parse Retry-After seconds");
+    const error = client._errorForStatus(429, {}, retryAfter);
+    assert(error instanceof RateLimitError, "should be RateLimitError");
+    assertEqual(error.retryAfterSeconds, 3, "should expose retryAfterSeconds");
+    results.push({ name: "RateLimitError carries Retry-After", passed: true });
+    client.destroy();
+  } catch (e) {
+    results.push({ name: "RateLimitError carries Retry-After", passed: false, error: String(e) });
+  }
+
+  // Test 15: postJson sends POST with body and does not retry
   try {
     const client = new MockHttpClient([
       ["/api/post", { status: 200, body: JSON.stringify({ received: true }) }],
     ]);
     const result = await client.postJson("https://example.com/api/post", { key: "value" });
     assertEqual(result.received, true, "should receive response");
+    assertEqual(client._attempts, 1, "postJson should stay single-shot");
     results.push({ name: "postJson sends and receives", passed: true });
     client.destroy();
   } catch (e) {
     results.push({ name: "postJson sends and receives", passed: false, error: String(e) });
   }
 
-  // Test 6: error message extraction from payload
+  // Test 16: error message extraction from payload
   try {
     const client = new MockHttpClient([
       ["/api/errmsg", { status: 400, body: JSON.stringify({ message: "bad request" }) }],
@@ -144,6 +417,7 @@ export async function run() {
     } catch (e) {
       assert(e instanceof HttpError, "should be HttpError");
       assertEqual(e.statusCode, 400, "status code should be 400");
+      assertEqual(e.message, "bad request", "should extract message");
       results.push({ name: "extracts error message from 400", passed: true });
     }
     client.destroy();
@@ -151,15 +425,82 @@ export async function run() {
     results.push({ name: "extracts error message from 400", passed: false, error: String(e) });
   }
 
-  // Test 7: handles empty response body
+  // Test 17: the per-attempt deadline cancels a slow request
   try {
-    const client = new MockHttpClient([["/api/empty", { status: 200, body: "" }]]);
-    const result = await client.getJson("https://example.com/api/empty");
-    assertEqual(result, null, "should return null for empty body");
-    results.push({ name: "handles empty response body", passed: true });
+    const client = new HttpClient(makeSleepingSession());
+    const startedAt = Date.now();
+    let aborted = false;
+    try {
+      await client.getJson("https://example.com/api/slow", { deadlineMs: 300, retries: 0 });
+    } catch (e) {
+      aborted = true;
+      assert(e instanceof NetworkError, `should be NetworkError, got ${e.name}`);
+    }
+    assert(aborted, "slow request should fail at the deadline");
+    assert(
+      Date.now() - startedAt < 3000,
+      "should abort near the deadline, not the session timeout",
+    );
+    results.push({ name: "per-attempt deadline cancels slow request", passed: true });
     client.destroy();
   } catch (e) {
-    results.push({ name: "handles empty response body", passed: false, error: String(e) });
+    results.push({
+      name: "per-attempt deadline cancels slow request",
+      passed: false,
+      error: String(e),
+    });
+  }
+
+  // Test 18: retries cannot push past the deadline
+  try {
+    const client = new HttpClient(makeSleepingSession());
+    const startedAt = Date.now();
+    let aborted = false;
+    try {
+      await client.getJson("https://example.com/api/slow", { deadlineMs: 300 });
+    } catch (e) {
+      aborted = true;
+      assert(e instanceof NetworkError, `should be NetworkError, got ${e.name}`);
+    }
+    assert(aborted, "slow request should fail at the deadline");
+    assert(Date.now() - startedAt < 3000, "should not retry a request that hit the deadline");
+    results.push({ name: "deadline bounds the retry loop", passed: true });
+    client.destroy();
+  } catch (e) {
+    results.push({ name: "deadline bounds the retry loop", passed: false, error: String(e) });
+  }
+
+  // Test 19: outer cancellation aborts the in-flight attempt promptly
+  try {
+    const client = new HttpClient(makeSleepingSession());
+    const outer = new Gio.Cancellable();
+    const promise = client.getJson("https://example.com/api/slow", {
+      cancellable: outer,
+      deadlineMs: 10_000,
+      retries: 0,
+    });
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+      outer.cancel();
+      return GLib.SOURCE_REMOVE;
+    });
+
+    const startedAt = Date.now();
+    let aborted = false;
+    try {
+      await promise;
+    } catch {
+      aborted = true;
+    }
+    assert(aborted, "cancelled request should fail");
+    assert(Date.now() - startedAt < 3000, "should abort promptly on cancellation");
+    results.push({ name: "outer cancellation aborts in-flight attempt", passed: true });
+    client.destroy();
+  } catch (e) {
+    results.push({
+      name: "outer cancellation aborts in-flight attempt",
+      passed: false,
+      error: String(e),
+    });
   }
 
   return results;
