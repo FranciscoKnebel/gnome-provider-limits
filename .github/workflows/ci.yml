@@ -6,13 +6,26 @@ on:
   pull_request:
     branches: ["*"]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   check:
     uses: ./.github/workflows/checks.yml
+    permissions:
+      contents: read
 
   coverage:
     needs: check
     runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
     steps:
       - uses: actions/download-artifact@v8
         with:
@@ -45,6 +58,7 @@ jobs:
     runs-on: ubuntu-26.04
     permissions:
       contents: write
+      actions: read
     steps:
       - uses: actions/checkout@v7
 
