@@ -13,33 +13,37 @@ function skipResult(reason) {
   return [{ name: "prefs pages are constructable and bind settings", skipped: true, reason }];
 }
 
-export async function run() {
-  let ProviderLimitsPreferencesPage;
-  let ProviderPage;
+function messageOf(e) {
+  return e instanceof Error ? (e.message ?? String(e)) : String(e);
+}
 
+export async function run() {
+  let Gtk;
+  let Adw;
   try {
-    const Gtk = (await import("gi://Gtk?version=4.0")).default;
-    const Adw = (await import("gi://Adw?version=1")).default;
-    if (!Gtk.init_check()) {
-      throw new Error("Gtk.init_check() failed (no display available)");
-    }
-    Adw.init();
-    const mainPageUrl = GLib.Uri.resolve_relative(
-      import.meta.url,
-      "../../dist/ui/prefs/main-page.js",
-      GLib.UriFlags.NONE,
-    );
-    const providerPageUrl = GLib.Uri.resolve_relative(
-      import.meta.url,
-      "../../dist/ui/prefs/provider-page.js",
-      GLib.UriFlags.NONE,
-    );
-    ({ ProviderLimitsPreferencesPage } = await import(mainPageUrl));
-    ({ ProviderPage } = await import(providerPageUrl));
+    Gtk = (await import("gi://Gtk?version=4.0")).default;
+    Adw = (await import("gi://Adw?version=1")).default;
   } catch (e) {
-    const message = e instanceof Error ? (e.message ?? String(e)) : String(e);
-    return skipResult(`prefs modules unavailable: ${message}`);
+    return skipResult(`Gtk/Adw typelibs unavailable: ${messageOf(e)}`);
   }
+
+  if (!Gtk.init_check()) {
+    return skipResult("Gtk.init_check() failed (no display available)");
+  }
+  Adw.init();
+
+  const mainPageUrl = GLib.Uri.resolve_relative(
+    import.meta.url,
+    "../../dist/ui/prefs/main-page.js",
+    GLib.UriFlags.NONE,
+  );
+  const providerPageUrl = GLib.Uri.resolve_relative(
+    import.meta.url,
+    "../../dist/ui/prefs/provider-page.js",
+    GLib.UriFlags.NONE,
+  );
+  const { ProviderLimitsPreferencesPage } = await import(mainPageUrl);
+  const { ProviderPage } = await import(providerPageUrl);
 
   const results = [];
 
