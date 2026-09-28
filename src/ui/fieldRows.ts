@@ -19,6 +19,13 @@ export function percentTone(value: unknown): FieldTone | undefined {
   return "ok";
 }
 
+export function fieldTone(fieldName: string, value: unknown): FieldTone | undefined {
+  if (fieldName.startsWith("remaining_") && typeof value === "number" && Number.isFinite(value)) {
+    return percentTone(100 - value);
+  }
+  return percentTone(value);
+}
+
 export function getFieldRows(
   reader: BaseReader | undefined,
   result: ReaderResult,
@@ -35,7 +42,7 @@ export function getFieldRows(
 
     const field = result.fields.find((f) => f.name === fieldName);
     const translatedLabel = t ? t(fieldDef.label) : fieldDef.label;
-    const tone = fieldDef.type === "percent" ? percentTone(field?.value) : undefined;
+    const tone = fieldDef.type === "percent" ? fieldTone(fieldName, field?.value) : undefined;
 
     if (!field || field.status !== FieldStatus.OK) {
       const row: FieldRow = {

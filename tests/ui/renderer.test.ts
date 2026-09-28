@@ -3,11 +3,18 @@ import { currentRefreshInterval, shouldRender } from "../../src/helpers/refresh.
 import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
 import type { BaseReader, ReaderResult } from "../../src/readers/base.js";
 import type { FieldType } from "../../src/readers/base.js";
-import { getFieldRows, percentTone } from "../../src/ui/fieldRows.js";
+import { fieldTone, getFieldRows, percentTone } from "../../src/ui/fieldRows.js";
 import type { FieldRow } from "../../src/ui/fieldRows.js";
-import { sectionKey } from "../../src/ui/renderStructure.js";
+import { sectionKey, structureKey } from "../../src/ui/renderStructure.js";
 
 const bracketT = (s: string) => `[${s}]`;
+
+const percentResult = (name: string, value: number): ReaderResult => ({
+  provider: "codex",
+  status: ReaderStatus.OK,
+  lastUpdated: 0,
+  fields: [{ name, value, status: FieldStatus.OK }],
+});
 
 describe("formatters", () => {
   describe("resolveLocale", () => {
@@ -234,6 +241,66 @@ describe("formatters", () => {
       const rows = getFieldRows(mockReader, sampleResult, ["plan_type"], "status", "en");
       expect(rows[0].accessibleText).toBe("Plan: plus");
     });
+
+    it("applies used-percent tones to used fields", () => {
+      const atThreshold: ReaderResult = {
+        provider: "codex",
+        status: ReaderStatus.OK,
+        lastUpdated: 0,
+        fields: [{ name: "used_percent", value: 80, status: FieldStatus.OK }],
+      };
+      const rows = getFieldRows(mockReader, atThreshold, ["used_percent"], "panel", "en");
+      expect(rows[0].tone).toBe("critical");
+    });
+
+    it("inverts remaining-percent tones", () => {
+      const readerWithRemaining = {
+        FIELDS: [{ name: "remaining_percent", label: "Remaining %", type: "percent" as FieldType }],
+      } as unknown as BaseReader;
+      const high = getFieldRows(
+        readerWithRemaining,
+        percentResult("remaining_percent", 90),
+        ["remaining_percent"],
+        "panel",
+        "en",
+      );
+      expect(high[0].valueText).toBe("90%");
+      expect(high[0].tone).toBe("ok");
+
+      const low = getFieldRows(
+        readerWithRemaining,
+        percentResult("remaining_percent", 20),
+        ["remaining_percent"],
+        "panel",
+        "en",
+      );
+      expect(low[0].valueText).toBe("20%");
+      expect(low[0].tone).toBe("critical");
+    });
+  });
+
+  describe("fieldTone", () => {
+    it("applies used-percent boundaries to used fields", () => {
+      expect(fieldTone("used_percent_primary", 49)).toBe("ok");
+      expect(fieldTone("used_percent_primary", 50)).toBe("warning");
+      expect(fieldTone("used_percent_primary", 79)).toBe("warning");
+      expect(fieldTone("used_percent_primary", 80)).toBe("critical");
+    });
+
+    it("inverts remaining fields before applying thresholds", () => {
+      expect(fieldTone("remaining_percent_primary", 51)).toBe("ok");
+      expect(fieldTone("remaining_percent_primary", 50)).toBe("warning");
+      expect(fieldTone("remaining_percent_primary", 21)).toBe("warning");
+      expect(fieldTone("remaining_percent_primary", 20)).toBe("critical");
+      expect(fieldTone("remaining_percent_primary", 10)).toBe("critical");
+      expect(fieldTone("remaining_percent_primary", 90)).toBe("ok");
+    });
+
+    it("returns undefined for missing values", () => {
+      expect(fieldTone("used_percent_primary", null)).toBeUndefined();
+      expect(fieldTone("remaining_percent_primary", null)).toBeUndefined();
+      expect(fieldTone("remaining_percent_primary", Number.NaN)).toBeUndefined();
+    });
   });
 
   describe("currentRefreshInterval", () => {
@@ -350,6 +417,22 @@ describe("formatters", () => {
       expect(sectionKey({ ...base, hasDetail: true })).not.toBe(sectionKey(base));
       expect(sectionKey({ ...base, hasError: true })).not.toBe(sectionKey(base));
       expect(sectionKey({ ...base, hasTimestamp: false })).not.toBe(sectionKey(base));
+    });
+
+    it("does not collide when parts contain control characters", () => {
+      const first = sectionKey({ ...base, provider: "codex\u0003x", displayName: "y" });
+      const second = sectionKey({ ...base, provider: "codex", displayName: "x\u0003y" });
+      expect(first).not.toBe(second);
+    });
+  });
+
+  describe("structureKey", () => {
+    it("keeps adjacent parts distinct when they contain separators", () => {
+      expect(structureKey(["a\u0004b", "c"])).not.toBe(structureKey(["a", "b\u0004c"]));
+    });
+
+    it("is stable for identical parts", () => {
+      expect(structureKey(["en", "1", "key"])).toBe(structureKey(["en", "1", "key"]));
     });
   });
 });

@@ -7,14 +7,14 @@ import { Spinner } from "resource:///org/gnome/shell/ui/animation.js";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
 import type { ProviderName } from "../constants.js";
-import { formatAbsoluteTimestamp } from "../formatters.js";
+import { formatAbsoluteTimestamp, formatTimestampTemplate } from "../formatters.js";
 import { resolveLocale } from "../helpers/locale.js";
 import { normalizeProvidersOrder, providerDisplayName } from "../helpers/provider-settings.js";
 import type { BaseReader, ReaderResult } from "../readers/base.js";
 import { ReaderStatus } from "../readers/base.js";
 import { getFieldRows } from "./fieldRows.js";
 import type { FieldRow } from "./fieldRows.js";
-import { sectionKey } from "./renderStructure.js";
+import { sectionKey, structureKey } from "./renderStructure.js";
 import { applyToneClass } from "./tone.js";
 
 interface FieldRowWidgets {
@@ -38,8 +38,6 @@ interface SectionPlan {
   lastUpdatedText: string | null;
   key: string;
 }
-
-const STRUCTURE_SEPARATOR = "\u0004";
 
 export class PanelWidget extends PopupMenu.PopupMenuSection {
   private _settings: Gio.Settings;
@@ -84,19 +82,33 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     }
 
     const hasLastRefresh = lastRefreshAt !== null && Number.isFinite(lastRefreshAt);
-    const structureKey = [
+    const nextStructureKey = structureKey([
       locale,
       hasLastRefresh ? "1" : "0",
       ...plans.map((plan) => plan.key),
-    ].join(STRUCTURE_SEPARATOR);
+    ]);
 
-    if (structureKey !== this._structureKey) {
+    if (nextStructureKey !== this._structureKey) {
       this._rebuild(plans, lastRefreshAt, locale);
-      this._structureKey = structureKey;
+      this._structureKey = nextStructureKey;
       return;
     }
 
-    this._update(plans, lastRefreshAt, locale);
+    this._update(plans, lastRefreshAt);
+  }
+
+  setLastRefreshAt(lastRefreshAt: number | null): void {
+    if (!this._lastRefreshLabel) return;
+    const locale = resolveLocale(
+      this._settings.get_string("language"),
+      GLib.getenv("LC_MESSAGES"),
+      GLib.getenv("LANG"),
+    );
+    this._lastRefreshLabel.text = formatTimestampTemplate(
+      _("Last refresh: %s"),
+      lastRefreshAt,
+      locale,
+    );
   }
 
   setRunning(running: boolean): void {
@@ -175,7 +187,7 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     this.addMenuItem(settingsItem);
   }
 
-  private _update(plans: SectionPlan[], lastRefreshAt: number | null, locale: string): void {
+  private _update(plans: SectionPlan[], lastRefreshAt: number | null): void {
     plans.forEach((plan, index) => {
       const section = this._sections[index];
       if (!section) return;
@@ -207,15 +219,11 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
 
       if (section.lastUpdatedLabel && plan.lastUpdatedText) {
         section.lastUpdatedLabel.text = _("Last updated: %s").replace("%s", plan.lastUpdatedText);
+        section.lastUpdatedLabel.accessible_name = section.lastUpdatedLabel.text;
       }
     });
 
-    if (this._lastRefreshLabel) {
-      this._lastRefreshLabel.text =
-        lastRefreshAt !== null && Number.isFinite(lastRefreshAt)
-          ? _("Last refresh: %s").replace("%s", formatAbsoluteTimestamp(lastRefreshAt, locale))
-          : "";
-    }
+    this.setLastRefreshAt(lastRefreshAt);
   }
 
   private _addSection(plan: SectionPlan): PanelSection {
@@ -309,12 +317,14 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
 
   private _addLastUpdatedRow(lastUpdatedText: string): St.Label {
     const row = this._addStaticRow();
+    const text = _("Last updated: %s").replace("%s", lastUpdatedText);
     const label = new St.Label({
-      text: _("Last updated: %s").replace("%s", lastUpdatedText),
+      text,
       style_class: "provider-limits-dim",
       x_expand: true,
       x_align: Clutter.ActorAlign.START,
     });
+    label.accessible_name = text;
     row.add_child(label);
     this.addMenuItem(row);
     return label;
@@ -332,7 +342,11 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
   }
 
   private _addRefreshRow(lastRefreshAt: number | null, locale: string): void {
-    const row = new PopupMenu.PopupBaseMenuItem({ reactive: true, can_focus: true });
+    const row = new PopupMenu.PopupBaseMenuItem({
+      reactive: true,
+      can_focus: true,
+      activate: false,
+    });
     row.reactive = !this._running;
     row.accessible_name = _("Force refresh");
 
@@ -347,7 +361,7 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     let lastRefreshLabel: St.Label | null = null;
     if (lastRefreshAt !== null && Number.isFinite(lastRefreshAt)) {
       lastRefreshLabel = new St.Label({
-        text: _("Last refresh: %s").replace("%s", formatAbsoluteTimestamp(lastRefreshAt, locale)),
+        text: formatTimestampTemplate(_("Last refresh: %s"), lastRefreshAt, locale),
         style_class: "provider-limits-dim",
         x_align: Clutter.ActorAlign.END,
       });
@@ -360,8 +374,17 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     if (this._running) spinner.play();
     row.add_child(spinner);
 
-    row.connect("activate", () => {
-      if (!this._running) this._onRefresh?.();
+    row.connect("key-press-event", (_actor: Clutter.Actor, event: Clutter.Event) => {
+      const symbol = event.get_key_symbol();
+      if (
+        symbol === Clutter.KEY_Return ||
+        symbol === Clutter.KEY_KP_Enter ||
+        symbol === Clutter.KEY_space
+      ) {
+        if (!this._running) this._onRefresh?.();
+        return Clutter.EVENT_STOP;
+      }
+      return Clutter.EVENT_PROPAGATE;
     });
     row.connect("button-release-event", () => {
       if (!this._running) this._onRefresh?.();

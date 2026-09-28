@@ -12,7 +12,7 @@ import type { BaseReader, ReaderResult } from "../readers/base.js";
 import { ReaderStatus } from "../readers/base.js";
 import { getFieldRows } from "./fieldRows.js";
 import type { FieldRow } from "./fieldRows.js";
-import { sectionKey } from "./renderStructure.js";
+import { sectionKey, structureKey } from "./renderStructure.js";
 import { applyToneClass } from "./tone.js";
 
 interface SegmentPlan {
@@ -21,8 +21,6 @@ interface SegmentPlan {
   rows: FieldRow[];
   key: string;
 }
-
-const STRUCTURE_SEPARATOR = "\u0004";
 
 export const StatusBarWidget = GObject.registerClass(
   class StatusBarWidget extends St.BoxLayout {
@@ -86,10 +84,10 @@ export const StatusBarWidget = GObject.registerClass(
         });
       }
 
-      const structureKey = [locale, ...plans.map((plan) => plan.key)].join(STRUCTURE_SEPARATOR);
-      if (structureKey !== this._structureKey) {
+      const nextStructureKey = structureKey([locale, ...plans.map((plan) => plan.key)]);
+      if (nextStructureKey !== this._structureKey) {
         this._rebuild(plans);
-        this._structureKey = structureKey;
+        this._structureKey = nextStructureKey;
         return;
       }
 

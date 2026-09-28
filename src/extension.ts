@@ -288,6 +288,8 @@ const ProviderLimitsIndicator = GObject.registerClass(
 
         if (shouldRender(this._hasRendered, anyChanged)) {
           this._render();
+        } else {
+          this._panel.setLastRefreshAt(this._lastRefreshAt);
         }
       } finally {
         this._pendingRefreshes--;
