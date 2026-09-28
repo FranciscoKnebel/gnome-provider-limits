@@ -2,7 +2,7 @@ import Adw from "gi://Adw";
 import Gdk from "gi://Gdk";
 import Gio from "gi://Gio";
 import GObject from "gi://GObject";
-import Gtk from "gi://Gtk";
+import Gtk from "gi://Gtk?version=4.0";
 
 export function clearListBox(listBox: Gtk.ListBox): void {
   let currentChild = listBox.get_first_child();

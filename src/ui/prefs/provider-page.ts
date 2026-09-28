@@ -3,7 +3,6 @@ import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 import GObject from "gi://GObject";
 import Gtk from "gi://Gtk?version=4.0";
-import { gettext as _ } from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
 
 import type { ProviderName } from "../../constants.js";
 import { formatField } from "../../formatters.js";
@@ -13,6 +12,7 @@ import type { FieldDef, FieldType } from "../../readers/base.js";
 import { CLAUDE_FIELDS } from "../../readers/claude.js";
 import { CODEX_FIELDS } from "../../readers/codex.js";
 import { OPENCODE_FIELDS } from "../../readers/opencode.js";
+import { gettext as _ } from "./gettext.js";
 import { buildReorderableList, setupDragSource, setupDropTarget } from "./shared.js";
 
 const SAMPLE_VALUES: Record<Exclude<FieldType, "timestamp">, unknown> = {
