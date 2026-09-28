@@ -1,8 +1,9 @@
 /* eslint-disable no-unused-vars */
 import Gio from "gi://Gio";
+import GLib from "gi://GLib";
 import System from "system";
 
-const TEST_DIR = import.meta.url.replace(/^file:\/\//, "").replace(/\/[^/]+$/, "");
+const TEST_DIR = GLib.path_get_dirname(GLib.filename_from_uri(import.meta.url)[0]);
 
 const PASSED = 0;
 const FAILED = 1;
@@ -45,6 +46,7 @@ async function runTestFile(filePath) {
     const mod = await import(fullPath);
     if (typeof mod.run !== "function") {
       log(`SKIP: ${filePath} (no run() export)`);
+      skipped++;
       return;
     }
     const results = await mod.run();
@@ -76,7 +78,7 @@ async function main() {
 
   if (files.length === 0) {
     log("No test files found");
-    return;
+    System.exit(FAILED);
   }
 
   log(`Found ${files.length} test file(s)`);
