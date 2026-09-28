@@ -102,8 +102,9 @@ npm run pack          # compile, compile schemas, and pack the extension
 ```
 
 `c8` instruments only modules that Node can load (the pure helpers and
-parsers); GJS-only modules, such as the readers and the UI, are covered by
-`npm run test:gjs`.
+parsers). The GJS suite covers the rest: the readers always run, while the
+prefs UI checks run when a display and the Gtk/Adw typelibs are available
+and report SKIP otherwise (CI is headless).
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow and guidelines.
 
