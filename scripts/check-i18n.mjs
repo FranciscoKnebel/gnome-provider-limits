@@ -16,7 +16,7 @@ const VERBOSE = argv.slice(2).includes("-v") || argv.slice(2).includes("--verbos
 const MSGFMT_AVAILABLE = spawnSync("msgfmt", ["--version"], { encoding: "utf-8" }).status === 0;
 
 function msgfmtErrors(file) {
-  const result = spawnSync("msgfmt", ["--check", "--check-format", "-o", "/dev/null", file], {
+  const result = spawnSync("msgfmt", ["--check", "--check-format", "-o", "/dev/null", "--", file], {
     encoding: "utf-8",
   });
   if (result.status === 0) return null;
