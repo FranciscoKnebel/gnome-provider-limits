@@ -8,7 +8,6 @@ export const DEFAULT_REFRESH_STABLE_READS_THRESHOLD = 3;
 export const DEFAULT_PROVIDERS_ORDER: readonly ProviderName[] = PROVIDER_NAMES;
 
 export const SQLITE_CACHE_TTL_SECONDS = 5;
-export const COOKIE_CACHE_TTL_SECONDS = 300;
 
 export const HTTP_TIMEOUT_SECONDS = 30;
 export const SUBPROCESS_TIMEOUT_SECONDS = 10;

@@ -379,3 +379,19 @@ msgstr ""
 #: src/formatters.ts
 msgid "no"
 msgstr ""
+
+#: src/formatters.ts
+msgid "h"
+msgstr ""
+
+#: src/formatters.ts
+msgid "m"
+msgstr ""
+
+#: src/formatters.ts
+msgid "d"
+msgstr ""
+
+#: src/formatters.ts
+msgid "w"
+msgstr ""

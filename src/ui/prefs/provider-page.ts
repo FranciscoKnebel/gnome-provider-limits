@@ -3,7 +3,6 @@ import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 import GObject from "gi://GObject";
 import Gtk from "gi://Gtk?version=4.0";
-import { gettext as _ } from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
 
 import type { ProviderName } from "../../constants.js";
 import { formatField } from "../../formatters.js";
@@ -13,17 +12,22 @@ import type { FieldDef, FieldType } from "../../readers/base.js";
 import { CLAUDE_FIELDS } from "../../readers/claude.js";
 import { CODEX_FIELDS } from "../../readers/codex.js";
 import { OPENCODE_FIELDS } from "../../readers/opencode.js";
+import { gettext as _ } from "./gettext.js";
 import { buildReorderableList, setupDragSource, setupDropTarget } from "./shared.js";
 
-const SAMPLE_VALUES: Record<FieldType, unknown> = {
+const SAMPLE_VALUES: Record<Exclude<FieldType, "timestamp">, unknown> = {
   percent: 42,
   count: 109,
   tokens: 2500000,
   cost: 3.71,
-  timestamp: Date.now() + 5400 * 1000,
   bool: true,
   text: "plus",
 };
+
+function sampleValue(type: FieldType): unknown {
+  if (type === "timestamp") return Date.now() + 5400 * 1000;
+  return SAMPLE_VALUES[type];
+}
 
 const READER_FIELDS: Record<ProviderName, readonly FieldDef[]> = {
   codex: CODEX_FIELDS,
@@ -205,7 +209,7 @@ export const ProviderPage = GObject.registerClass(
     private _preview(def: FieldDef, zone: "status" | "panel", locale: string): string {
       return formatField({
         type: def.type,
-        value: SAMPLE_VALUES[def.type],
+        value: sampleValue(def.type),
         zone,
         locale,
         t: _,

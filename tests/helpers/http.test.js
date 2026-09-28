@@ -116,20 +116,7 @@ export async function run() {
     results.push({ name: "getJson throws ServerError on 500", passed: false, error: String(e) });
   }
 
-  // Test 5: postJson sends POST with body
-  try {
-    const client = new MockHttpClient([
-      ["/api/post", { status: 200, body: JSON.stringify({ received: true }) }],
-    ]);
-    const result = await client.postJson("https://example.com/api/post", { key: "value" });
-    assertEqual(result.received, true, "should receive response");
-    results.push({ name: "postJson sends and receives", passed: true });
-    client.destroy();
-  } catch (e) {
-    results.push({ name: "postJson sends and receives", passed: false, error: String(e) });
-  }
-
-  // Test 6: error message extraction from payload
+  // Test 5: error message extraction from payload
   try {
     const client = new MockHttpClient([
       ["/api/errmsg", { status: 400, body: JSON.stringify({ message: "bad request" }) }],
@@ -151,7 +138,7 @@ export async function run() {
     results.push({ name: "extracts error message from 400", passed: false, error: String(e) });
   }
 
-  // Test 7: handles empty response body
+  // Test 6: handles empty response body
   try {
     const client = new MockHttpClient([["/api/empty", { status: 200, body: "" }]]);
     const result = await client.getJson("https://example.com/api/empty");

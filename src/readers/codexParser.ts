@@ -1,7 +1,3 @@
-import type { FieldDef } from "./base.js";
-
-export const CODEX_PARSER_FIELDS: readonly FieldDef[] = [];
-
 export interface CodexRateLimitWindow {
   used_percent?: number;
   window_minutes?: number;
@@ -38,17 +34,6 @@ export interface CodexRateLimitsPayload {
   plan_type?: string;
   credits?: { balance?: string; has_credits?: boolean; unlimited?: boolean } | null;
   reset_credits?: CodexResetCredits | null;
-}
-
-export interface CodexOauthUsagePayload {
-  plan_type?: string;
-  rate_limit?: {
-    allowed?: boolean;
-    limit_reached?: boolean;
-    primary_window?: CodexRateLimitWindow | null;
-    secondary_window?: CodexRateLimitWindow | null;
-  };
-  credits?: { balance?: string; has_credits?: boolean; unlimited?: boolean } | null;
 }
 
 export interface CodexLogRow {

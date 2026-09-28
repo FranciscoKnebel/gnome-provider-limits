@@ -67,19 +67,6 @@ export class HttpClient {
     return this._sendAndParse(message);
   }
 
-  async postJson(url: string, body: unknown, options?: HttpRequestOptions): Promise<unknown> {
-    const message = Soup.Message.new("POST", url);
-    this._applyHeaders(message, options?.headers);
-
-    const jsonBody = JSON.stringify(body);
-    message.set_request_body_from_bytes(
-      "application/json",
-      new GLib.Bytes(new TextEncoder().encode(jsonBody)),
-    );
-
-    return this._sendAndParse(message);
-  }
-
   private _applyHeaders(message: Soup.Message, headers?: Record<string, string>): void {
     if (!headers) return;
     const requestHeaders = message.get_request_headers();

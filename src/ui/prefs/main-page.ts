@@ -2,8 +2,7 @@ import Adw from "gi://Adw";
 import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 import GObject from "gi://GObject";
-import Gtk from "gi://Gtk";
-import { gettext as _ } from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
+import Gtk from "gi://Gtk?version=4.0";
 
 import { PROVIDER_NAMES, type ProviderName } from "../../constants.js";
 import {
@@ -11,6 +10,7 @@ import {
   normalizeProvidersOrder,
   providerDisplayName,
 } from "../../helpers/provider-settings.js";
+import { gettext as _ } from "./gettext.js";
 import { buildReorderableList, setupDragSource, setupDropTarget } from "./shared.js";
 
 export interface LanguageEntry {

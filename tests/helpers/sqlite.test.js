@@ -4,6 +4,10 @@ import GLib from "gi://GLib";
 
 import { assert, assertEqual, assertNotNull } from "./assert.js";
 
+function errorText(e) {
+  return e instanceof Error ? (e.stack ?? e.message) : String(e);
+}
+
 export async function run() {
   const results = [];
 
@@ -12,8 +16,8 @@ export async function run() {
     const { querySqlite } = await import("../../dist/helpers/sqlite.js");
     assert(typeof querySqlite === "function", "querySqlite should be a function");
     results.push({ name: "querySqlite is exported", passed: true });
-  } catch (_e) {
-    results.push({ name: "querySqlite is exported", passed: false, error: String(e) });
+  } catch (e) {
+    results.push({ name: "querySqlite is exported", passed: false, error: errorText(e) });
   }
 
   // Test 2: clearSqliteCache is exported
@@ -21,8 +25,8 @@ export async function run() {
     const { clearSqliteCache } = await import("../../dist/helpers/sqlite.js");
     assert(typeof clearSqliteCache === "function", "clearSqliteCache should be a function");
     results.push({ name: "clearSqliteCache is exported", passed: true });
-  } catch (_e) {
-    results.push({ name: "clearSqliteCache is exported", passed: false, error: String(e) });
+  } catch (e) {
+    results.push({ name: "clearSqliteCache is exported", passed: false, error: errorText(e) });
   }
 
   // Test 3: Integration with real sqlite database via python3
@@ -62,8 +66,8 @@ print("ok")
 
     clearSqliteCache();
     results.push({ name: "querySqlite with real database", passed: true });
-  } catch (_e) {
-    results.push({ name: "querySqlite with real database", passed: false, error: String(e) });
+  } catch (e) {
+    results.push({ name: "querySqlite with real database", passed: false, error: errorText(e) });
   }
 
   // Test 4: querySqlite caches results
@@ -103,8 +107,8 @@ print("ok")
     }
 
     results.push({ name: "querySqlite caching works", passed: true });
-  } catch (_e) {
-    results.push({ name: "querySqlite caching works", passed: false, error: String(e) });
+  } catch (e) {
+    results.push({ name: "querySqlite caching works", passed: false, error: errorText(e) });
   }
 
   return results;
