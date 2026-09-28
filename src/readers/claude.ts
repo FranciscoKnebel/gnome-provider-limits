@@ -3,6 +3,7 @@ import GLib from "gi://GLib";
 
 import { HttpClient, HttpError, TokenError } from "../helpers/http.js";
 import { logWarn } from "../helpers/log.js";
+import { resolveClaudeConfigDir } from "../helpers/paths.js";
 import { runSubprocess } from "../helpers/subprocess.js";
 import type { FieldDef, FieldResult, ReaderResult } from "./base.js";
 import { BaseReader, FieldStatus } from "./base.js";
@@ -12,7 +13,6 @@ import {
   parseClaudeCliOutput,
 } from "./claudeParser.js";
 
-const CLAUDE_CREDENTIALS_PATH = `${GLib.get_home_dir()}/.claude/.credentials.json`;
 const CLAUDE_USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
 
 export const CLAUDE_FIELDS: readonly FieldDef[] = [
@@ -151,8 +151,18 @@ export class ClaudeReader extends BaseReader {
     );
   }
 
+  private _credentialsPath(): string {
+    return GLib.build_filenamev([
+      resolveClaudeConfigDir(
+        { CLAUDE_CONFIG_DIR: GLib.getenv("CLAUDE_CONFIG_DIR") },
+        GLib.get_home_dir(),
+      ),
+      ".credentials.json",
+    ]);
+  }
+
   private async _readAuthToken(): Promise<string | null> {
-    const file = Gio.File.new_for_path(CLAUDE_CREDENTIALS_PATH);
+    const file = Gio.File.new_for_path(this._credentialsPath());
     const [contents] = await file.load_contents_async(null);
     const text = new TextDecoder().decode(contents);
     const creds = JSON.parse(text) as unknown;

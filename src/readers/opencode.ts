@@ -3,6 +3,7 @@ import GLib from "gi://GLib";
 
 import { HttpClient, HttpError, TokenError } from "../helpers/http.js";
 import { logWarn } from "../helpers/log.js";
+import { resolveOpenCodeDataDir } from "../helpers/paths.js";
 import { querySqlite } from "../helpers/sqlite.js";
 import type { FieldDef, FieldResult, ReaderResult } from "./base.js";
 import { BaseReader, FieldStatus } from "./base.js";
@@ -14,8 +15,6 @@ import {
   parseOpenCodeAuthKey,
 } from "./opencodeParser.js";
 
-const OPENCODE_DB_PATH = `${GLib.get_home_dir()}/.local/share/opencode/opencode.db`;
-const OPENCODE_AUTH_PATH = `${GLib.get_home_dir()}/.local/share/opencode/auth.json`;
 const OPENCODE_USAGE_URL = "https://opencode.ai/zen/go/v1/usage";
 
 interface OpenCodeDiskTelemetry {
@@ -162,10 +161,17 @@ export class OpenCodeReader extends BaseReader {
     return this._parseResult(usage, telemetry, pathsTried);
   }
 
+  private _dataDir(): string {
+    return resolveOpenCodeDataDir(
+      { XDG_DATA_HOME: GLib.getenv("XDG_DATA_HOME") },
+      GLib.get_home_dir(),
+    );
+  }
+
   private async _readApiKey(): Promise<string | null> {
     let key: string | null = null;
     try {
-      const file = Gio.File.new_for_path(OPENCODE_AUTH_PATH);
+      const file = Gio.File.new_for_path(GLib.build_filenamev([this._dataDir(), "auth.json"]));
       const [contents] = await file.load_contents_async(null);
       key = parseOpenCodeAuthKey(new TextDecoder().decode(contents));
     } catch {
@@ -200,7 +206,7 @@ export class OpenCodeReader extends BaseReader {
 
   private async _readDiskTelemetry(): Promise<OpenCodeDiskTelemetry | null> {
     const rows = await querySqlite(
-      OPENCODE_DB_PATH,
+      GLib.build_filenamev([this._dataDir(), "opencode.db"]),
       "SELECT CAST(SUM(cost) AS REAL) AS total_cost, COUNT(*) AS sessions_count FROM session",
       { timeoutSeconds: 5 },
     );

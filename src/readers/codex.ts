@@ -3,6 +3,7 @@ import GLib from "gi://GLib";
 
 import { HttpClient, HttpError, TokenError } from "../helpers/http.js";
 import { logWarn } from "../helpers/log.js";
+import { resolveCodexHome } from "../helpers/paths.js";
 import { querySqlite } from "../helpers/sqlite.js";
 import type { FieldDef, FieldResult, ReaderResult } from "./base.js";
 import { BaseReader, FieldStatus } from "./base.js";
@@ -17,8 +18,6 @@ import {
   summarizeCodexResetCredits,
 } from "./codexParser.js";
 
-const CODEX_AUTH_PATH = `${GLib.get_home_dir()}/.codex/auth.json`;
-const CODEX_LOGS_DB = `${GLib.get_home_dir()}/.codex/logs_2.sqlite`;
 const CODEX_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
 const CODEX_RESET_CREDITS_URL = "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits";
 
@@ -157,8 +156,12 @@ export class CodexReader extends BaseReader {
     super.destroy();
   }
 
+  private _codexHome(): string {
+    return resolveCodexHome({ CODEX_HOME: GLib.getenv("CODEX_HOME") }, GLib.get_home_dir());
+  }
+
   private async _readAuth(): Promise<{ token: string; accountId: string | null } | null> {
-    const file = Gio.File.new_for_path(CODEX_AUTH_PATH);
+    const file = Gio.File.new_for_path(GLib.build_filenamev([this._codexHome(), "auth.json"]));
     const [contents] = await file.load_contents_async(null);
     const text = new TextDecoder().decode(contents);
     const auth = JSON.parse(text) as unknown;
@@ -221,7 +224,7 @@ export class CodexReader extends BaseReader {
 
   private async _readFromDisk(): Promise<CodexRateLimitsPayload | null> {
     const rows = await querySqlite(
-      CODEX_LOGS_DB,
+      GLib.build_filenamev([this._codexHome(), "logs_2.sqlite"]),
       "SELECT feedback_log_body FROM logs WHERE feedback_log_body LIKE '%codex.rate_limits%' ORDER BY ts DESC LIMIT 1",
       { timeoutSeconds: 5 },
     );
