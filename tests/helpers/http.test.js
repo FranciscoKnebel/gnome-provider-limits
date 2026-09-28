@@ -76,6 +76,35 @@ export async function run() {
     results.push({ name: "getJson throws TokenError on 401", passed: false, error: String(e) });
   }
 
+  // Test 2b: getJson throws TokenError on 403 with the real status code
+  try {
+    const client = new MockHttpClient([
+      [
+        "/api/forbidden",
+        {
+          status: 403,
+          body: "Forbidden",
+          payload: { error: "forbidden" },
+        },
+      ],
+    ]);
+    try {
+      await client.getJson("https://example.com/api/forbidden");
+      results.push({
+        name: "getJson throws TokenError on 403",
+        passed: false,
+        error: "should have thrown",
+      });
+    } catch (e) {
+      assert(e instanceof TokenError, "should be TokenError");
+      assertEqual(e.statusCode, 403, "status code should be 403");
+      results.push({ name: "getJson throws TokenError on 403", passed: true });
+    }
+    client.destroy();
+  } catch (e) {
+    results.push({ name: "getJson throws TokenError on 403", passed: false, error: String(e) });
+  }
+
   // Test 3: getJson throws RateLimitError on 429
   try {
     const client = new MockHttpClient([["/api/ratelimit", { status: 429, body: "{}" }]]);
