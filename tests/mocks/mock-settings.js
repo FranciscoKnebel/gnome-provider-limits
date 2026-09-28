@@ -1,5 +1,19 @@
 import GObject from "gi://GObject";
 
+function valuesEqual(a, b) {
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((value, index) => value === b[index]);
+  }
+  return a === b;
+}
+
+function defaultValueFor(key) {
+  if (key.endsWith("-enabled")) return false;
+  if (key.endsWith("-fields") || key === "providers-order") return [];
+  if (key.endsWith("-seconds") || key.endsWith("-threshold")) return 0;
+  return "";
+}
+
 export const MockSettings = GObject.registerClass(
   class MockSettings extends GObject.Object {
     _init(props = {}) {
@@ -8,6 +22,7 @@ export const MockSettings = GObject.registerClass(
       this._handlers = new Map();
       this._bindings = new Map();
       this._nextHandlerId = 1;
+      this._pushing = false;
     }
 
     connect(signal, callback) {
@@ -69,18 +84,55 @@ export const MockSettings = GObject.registerClass(
     }
 
     bind(srcKey, target, prop, flags) {
+      if (this._values[srcKey] === undefined) {
+        this._values[srcKey] = defaultValueFor(srcKey);
+      }
+      const binding = { target, prop, flags, notifyId: 0 };
+      if (typeof target.connect === "function") {
+        binding.notifyId = target.connect(`notify::${prop}`, () => {
+          if (this._pushing) return;
+          const value = target[prop];
+          if (valuesEqual(this._values[srcKey], value)) return;
+          this._values[srcKey] = value;
+          this.emit(`changed::${srcKey}`);
+        });
+      }
       const bindings = this._bindings.get(srcKey) ?? [];
-      bindings.push({ target, prop, flags });
+      bindings.push(binding);
       this._bindings.set(srcKey, bindings);
-      target[prop] = this._values[srcKey] ?? "";
+      this._pushToTargets(srcKey);
     }
 
-    unbind(_target, _prop) {}
+    unbind(target, prop) {
+      for (const [key, bindings] of this._bindings) {
+        const removed = bindings.filter((b) => b.target === target && b.prop === prop);
+        for (const binding of removed) {
+          if (binding.notifyId && typeof target.disconnect === "function") {
+            target.disconnect(binding.notifyId);
+          }
+        }
+        const remaining = bindings.filter((b) => b.target !== target || b.prop !== prop);
+        if (remaining.length > 0) {
+          this._bindings.set(key, remaining);
+        } else {
+          this._bindings.delete(key);
+        }
+      }
+    }
 
     _emitChange(key) {
       this.emit(`changed::${key}`);
-      for (const { target, prop } of this._bindings.get(key) ?? []) {
-        target[prop] = this._values[key];
+      this._pushToTargets(key);
+    }
+
+    _pushToTargets(key) {
+      this._pushing = true;
+      try {
+        for (const { target, prop } of this._bindings.get(key) ?? []) {
+          target[prop] = this._values[key];
+        }
+      } finally {
+        this._pushing = false;
       }
     }
   },
