@@ -1,4 +1,7 @@
-import { redactForLog } from "../../src/helpers/log.js";
+import { logError, logWarn, maskSecrets, redactForLog } from "../../src/helpers/log.js";
+
+const JWT =
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
 
 describe("redactForLog", () => {
   it("passes null and undefined through", () => {
@@ -6,8 +9,8 @@ describe("redactForLog", () => {
     expect(redactForLog(undefined)).toBeUndefined();
   });
 
-  it("redacts strings entirely", () => {
-    expect(redactForLog("my-secret-token")).toBe("<redacted>");
+  it("preserves ordinary strings", () => {
+    expect(redactForLog("plain message")).toBe("plain message");
   });
 
   it("passes non-object primitives through unchanged", () => {
@@ -15,11 +18,16 @@ describe("redactForLog", () => {
     expect(redactForLog(true)).toBe(true);
   });
 
-  it("redacts all string values in objects (conservative)", () => {
+  it("preserves ordinary string values in objects", () => {
+    const input = { name: "user", count: 5, nested: { status: "ok" } };
+    expect(redactForLog(input)).toEqual(input);
+  });
+
+  it("redacts values under sensitive keys but keeps other values", () => {
     const input = { token: "abc", name: "user", nested: { access_token: "def", count: 5 } };
     const output = redactForLog(input) as Record<string, unknown>;
     expect(output.token).toBe("<redacted>");
-    expect(output.name).toBe("<redacted>");
+    expect(output.name).toBe("user");
     expect((output.nested as Record<string, unknown>).access_token).toBe("<redacted>");
     expect((output.nested as Record<string, unknown>).count).toBe(5);
   });
@@ -31,11 +39,56 @@ describe("redactForLog", () => {
     expect(output.api_key_primary).toBe("<redacted>");
   });
 
+  it("masks JWT-looking strings", () => {
+    expect(redactForLog(`session ${JWT}`)).toBe("session <redacted>");
+    expect(redactForLog({ value: JWT })).toEqual({ value: "<redacted>" });
+  });
+
+  it("masks Bearer credentials", () => {
+    expect(redactForLog("Authorization: Bearer abc.def.ghi")).toBe("Authorization: <redacted>");
+  });
+
+  it("masks long hex and base64 blobs", () => {
+    const hex = "a1b2c3d4".repeat(8);
+    expect(redactForLog(`id=${hex}`)).toBe("id=<redacted>");
+
+    const base64 = "QWxsIHlvdXIgYmFzZTY0IGFyZSBiZWxvbmcgdG8gdXM=";
+    expect(redactForLog(`blob=${base64}`)).toBe("blob=<redacted>");
+  });
+
+  it("renders Errors as name, message and stack", () => {
+    const output = redactForLog(new Error("boom")) as Record<string, unknown>;
+    expect(output.name).toBe("Error");
+    expect(output.message).toBe("boom");
+    expect(String(output.stack)).toContain("boom");
+  });
+
+  it("masks secrets inside Error messages and stacks", () => {
+    const output = redactForLog(new Error(`Bearer ${JWT}`)) as Record<string, unknown>;
+    expect(String(output.message)).not.toContain(JWT);
+    expect(String(output.stack)).not.toContain(JWT);
+  });
+
+  it("renders nested Errors", () => {
+    const output = redactForLog({ cause: new Error("boom") }) as Record<string, unknown>;
+    const cause = output.cause as Record<string, unknown>;
+    expect(cause.name).toBe("Error");
+    expect(cause.message).toBe("boom");
+  });
+
   it("redacts items in arrays recursively", () => {
-    const input = [{ token: "abc" }, { token: "def" }];
+    const input = [{ token: "abc" }, { name: "kept" }];
     const output = redactForLog(input) as Array<Record<string, unknown>>;
     expect(output[0].token).toBe("<redacted>");
-    expect(output[1].token).toBe("<redacted>");
+    expect(output[1].name).toBe("kept");
+  });
+
+  it("handles circular references", () => {
+    const input: Record<string, unknown> = { name: "kept" };
+    input.self = input;
+    const output = redactForLog(input) as Record<string, unknown>;
+    expect(output.name).toBe("kept");
+    expect(output.self).toBe("[Circular]");
   });
 
   it("handles empty objects", () => {
@@ -51,5 +104,48 @@ describe("redactForLog", () => {
     const output = redactForLog(input) as Record<string, unknown>;
     expect(output.used_percent).toBe(42);
     expect(output.allowed).toBe(true);
+  });
+});
+
+describe("maskSecrets", () => {
+  it("keeps ordinary text unchanged", () => {
+    expect(maskSecrets("no such table: session")).toBe("no such table: session");
+  });
+
+  it("masks a JWT", () => {
+    expect(maskSecrets(`token=${JWT}`)).toBe("token=<redacted>");
+  });
+
+  it("masks a Bearer header", () => {
+    expect(maskSecrets("Authorization: Bearer sk-live-123456")).toBe("Authorization: <redacted>");
+  });
+});
+
+describe("logError", () => {
+  it("logs the error message and stack", () => {
+    const spy = spyOn(console, "error");
+    logError("reader failed", new Error("boom"));
+
+    const args = spy.calls.mostRecent().args;
+    expect(String(args[0])).toContain("boom");
+    const redacted = args[1] as Record<string, unknown>;
+    expect(String(redacted.stack)).toContain("boom");
+  });
+
+  it("masks secrets in the logged message", () => {
+    const spy = spyOn(console, "error");
+    logError("reader failed", new Error(`Bearer ${JWT}`));
+    expect(String(spy.calls.mostRecent().args[0])).not.toContain(JWT);
+  });
+});
+
+describe("logWarn", () => {
+  it("renders Errors with their message and stack", () => {
+    const spy = spyOn(console, "warn");
+    logWarn("reader failed", new Error("boom"));
+
+    const redacted = spy.calls.mostRecent().args[1] as Record<string, unknown>;
+    expect(redacted.message).toBe("boom");
+    expect(String(redacted.stack)).toContain("boom");
   });
 });
