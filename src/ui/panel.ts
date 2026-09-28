@@ -23,7 +23,6 @@ interface FieldRowWidgets {
 }
 
 interface PanelSection {
-  header: PopupMenu.PopupMenuItem;
   detailLabel: St.Label | null;
   errorLabel: St.Label | null;
   fields: FieldRowWidgets[];
@@ -31,7 +30,6 @@ interface PanelSection {
 }
 
 interface SectionPlan {
-  name: ProviderName;
   displayName: string;
   status: ReaderStatus;
   rows: FieldRow[];
@@ -136,7 +134,6 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
         : null;
 
     return {
-      name,
       displayName,
       status: result.status,
       rows,
@@ -239,14 +236,14 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
 
     if (plan.errorText !== null) {
       const errorLabel = this._addTextRow(plan.errorText, "provider-limits-error");
-      return { header, detailLabel, errorLabel, fields: [], lastUpdatedLabel: null };
+      return { detailLabel, errorLabel, fields: [], lastUpdatedLabel: null };
     }
 
     const fields = plan.rows.map((rowData) => this._addFieldRow(rowData));
     const lastUpdatedLabel =
       plan.lastUpdatedText !== null ? this._addLastUpdatedRow(plan.lastUpdatedText) : null;
 
-    return { header, detailLabel, errorLabel: null, fields, lastUpdatedLabel };
+    return { detailLabel, errorLabel: null, fields, lastUpdatedLabel };
   }
 
   private _addTextRow(text: string | null, styleClass: string): St.Label | null {

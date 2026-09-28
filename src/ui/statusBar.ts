@@ -15,14 +15,7 @@ import type { FieldRow } from "./fieldRows.js";
 import { sectionKey } from "./renderStructure.js";
 import { applyToneClass } from "./tone.js";
 
-interface StatusSegment {
-  label: St.Label;
-  suffix: St.Label | null;
-  values: St.Label[];
-}
-
 interface SegmentPlan {
-  name: ProviderName;
   displayName: string;
   status: ReaderStatus;
   rows: FieldRow[];
@@ -35,7 +28,7 @@ export const StatusBarWidget = GObject.registerClass(
   class StatusBarWidget extends St.BoxLayout {
     declare _settings: Gio.Settings;
     declare _readers: Map<ProviderName, BaseReader>;
-    declare _segments: StatusSegment[];
+    declare _segments: St.Label[][];
     declare _structureKey: string | null;
 
     _init(settings: Gio.Settings, readers: Map<ProviderName, BaseReader>) {
@@ -76,7 +69,6 @@ export const StatusBarWidget = GObject.registerClass(
         );
 
         plans.push({
-          name,
           displayName,
           status: result.status,
           rows,
@@ -132,7 +124,8 @@ export const StatusBarWidget = GObject.registerClass(
         label.accessible_name = plan.displayName;
         this.add_child(label);
 
-        const suffix = this._addStatusSuffix(plan.status);
+        this._addStatusSuffix(plan.status);
+
         const values = plan.rows.map((row) => {
           const valueLabel = new St.Label({
             text: row.valueText,
@@ -143,17 +136,17 @@ export const StatusBarWidget = GObject.registerClass(
           return valueLabel;
         });
 
-        this._segments.push({ label, suffix, values });
+        this._segments.push(values);
       });
     }
 
     private _update(plans: SegmentPlan[]): void {
       plans.forEach((plan, index) => {
-        const segment = this._segments[index];
-        if (!segment) return;
+        const values = this._segments[index];
+        if (!values) return;
 
         plan.rows.forEach((row, rowIndex) => {
-          const valueLabel = segment.values[rowIndex];
+          const valueLabel = values[rowIndex];
           if (!valueLabel) return;
           valueLabel.text = row.valueText;
           this._applyRow(valueLabel, row);
