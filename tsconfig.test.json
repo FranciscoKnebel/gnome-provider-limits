@@ -28,6 +28,7 @@
     "src/ui/prefs/provider-page.ts",
     "src/readers/codexParser.ts",
     "src/readers/claudeParser.ts",
+    "src/readers/claudeProbe.ts",
     "src/readers/opencodeParser.ts",
     "tests/**/*.ts"
   ],

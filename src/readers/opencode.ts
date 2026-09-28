@@ -1,17 +1,19 @@
 import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 
-import { HttpClient, HttpError, TokenError } from "../helpers/http.js";
+import { HttpClient } from "../helpers/http.js";
 import { logWarn } from "../helpers/log.js";
 import { resolveOpenCodeDataDir } from "../helpers/paths.js";
 import { querySqlite } from "../helpers/sqlite.js";
-import type { FieldDef, FieldResult, ReaderResult } from "./base.js";
+import type { FieldDef, FieldResult, ReadOptions, ReaderResult } from "./base.js";
 import { BaseReader, FieldStatus } from "./base.js";
 import {
   type OpenCodeDbRow,
+  type OpenCodeSourceFailure,
   type OpenCodeUsage,
   normalizeOpenCodeDbRow,
   normalizeOpenCodeUsagePayload,
+  openCodePartialError,
   parseOpenCodeAuthKey,
 } from "./opencodeParser.js";
 
@@ -120,35 +122,53 @@ export const OPENCODE_FIELDS: readonly FieldDef[] = [
 
 export class OpenCodeReader extends BaseReader {
   private _http: HttpClient | null = null;
+  private _cancellable: Gio.Cancellable | null = null;
+  private _destroyed = false;
 
   get FIELDS(): readonly FieldDef[] {
     return OPENCODE_FIELDS;
   }
 
   override destroy(): void {
+    this._destroyed = true;
+    this._cancellable?.cancel();
+    this._cancellable = null;
     this._http?.destroy();
     this._http = null;
     super.destroy();
   }
 
-  async read(): Promise<ReaderResult> {
-    const pathsTried: string[] = [];
+  async read(_options?: ReadOptions): Promise<ReaderResult> {
+    this._cancellable?.cancel();
+    const cancellable = new Gio.Cancellable();
+    this._cancellable = cancellable;
+    const pathsTried = ["usage-api", "disk"];
 
-    let usage: OpenCodeUsage | null = null;
-    try {
-      pathsTried.push("usage-api");
-      const key = await this._readApiKey();
-      if (key) usage = await this._fetchUsage(key);
-    } catch (error) {
-      logWarn("opencode usage-api failed", error);
+    const [usageOutcome, telemetryOutcome] = await Promise.allSettled([
+      this._readUsage(cancellable),
+      this._readDiskTelemetry(),
+    ]);
+
+    if (cancellable.is_cancelled()) {
+      return this._errorResult("OpenCode: read cancelled.", pathsTried);
     }
 
+    const failures: OpenCodeSourceFailure[] = [];
+    let usage: OpenCodeUsage | null = null;
     let telemetry: OpenCodeDiskTelemetry | null = null;
-    try {
-      pathsTried.push("disk");
-      telemetry = await this._readDiskTelemetry();
-    } catch (error) {
-      logWarn("opencode disk read failed", error);
+
+    if (usageOutcome.status === "fulfilled") {
+      usage = usageOutcome.value;
+    } else {
+      failures.push({ source: "usage-api", reason: usageOutcome.reason });
+      logWarn("opencode usage-api failed", usageOutcome.reason);
+    }
+
+    if (telemetryOutcome.status === "fulfilled") {
+      telemetry = telemetryOutcome.value;
+    } else {
+      failures.push({ source: "disk", reason: telemetryOutcome.reason });
+      logWarn("opencode disk read failed", telemetryOutcome.reason);
     }
 
     if (!usage && !telemetry) {
@@ -158,7 +178,14 @@ export class OpenCodeReader extends BaseReader {
       );
     }
 
-    return this._parseResult(usage, telemetry, pathsTried);
+    const lastError = openCodePartialError(usage !== null, telemetry !== null, failures);
+    return this._parseResult(usage, telemetry, pathsTried, lastError ?? undefined);
+  }
+
+  private _getHttp(): HttpClient | null {
+    if (this._destroyed) return null;
+    if (!this._http) this._http = new HttpClient();
+    return this._http;
   }
 
   private _dataDir(): string {
@@ -168,11 +195,11 @@ export class OpenCodeReader extends BaseReader {
     );
   }
 
-  private async _readApiKey(): Promise<string | null> {
+  private async _readApiKey(cancellable: Gio.Cancellable | null): Promise<string | null> {
     let key: string | null = null;
     try {
       const file = Gio.File.new_for_path(GLib.build_filenamev([this._dataDir(), "auth.json"]));
-      const [contents] = await file.load_contents_async(null);
+      const [contents] = await file.load_contents_async(cancellable);
       key = parseOpenCodeAuthKey(new TextDecoder().decode(contents));
     } catch {
       key = null;
@@ -184,24 +211,24 @@ export class OpenCodeReader extends BaseReader {
     return envKey && envKey.trim() ? envKey.trim() : null;
   }
 
-  private async _fetchUsage(key: string): Promise<OpenCodeUsage | null> {
-    if (!this._http) this._http = new HttpClient();
-    try {
-      const payload = await this._http.getJson(OPENCODE_USAGE_URL, {
-        headers: { Authorization: `Bearer ${key}` },
-      });
-      return normalizeOpenCodeUsagePayload(payload);
-    } catch (error) {
-      if (error instanceof TokenError) {
-        logWarn("opencode api key rejected", error);
-        return null;
-      }
-      if (error instanceof HttpError) {
-        logWarn(`opencode usage http ${error.statusCode}`, error);
-        return null;
-      }
-      throw error;
-    }
+  private async _readUsage(cancellable: Gio.Cancellable | null): Promise<OpenCodeUsage | null> {
+    const key = await this._readApiKey(cancellable);
+    if (!key) return null;
+    return this._fetchUsage(key, cancellable);
+  }
+
+  private async _fetchUsage(
+    key: string,
+    cancellable: Gio.Cancellable | null,
+  ): Promise<OpenCodeUsage | null> {
+    const http = this._getHttp();
+    if (!http) return null;
+
+    const payload = await http.getJson(OPENCODE_USAGE_URL, {
+      headers: { Authorization: `Bearer ${key}` },
+      cancellable: cancellable ?? undefined,
+    });
+    return normalizeOpenCodeUsagePayload(payload);
   }
 
   private async _readDiskTelemetry(): Promise<OpenCodeDiskTelemetry | null> {
@@ -219,6 +246,7 @@ export class OpenCodeReader extends BaseReader {
     usage: OpenCodeUsage | null,
     telemetry: OpenCodeDiskTelemetry | null,
     pathsTried: readonly string[],
+    lastError?: string,
   ): ReaderResult {
     const fields: FieldResult[] = [];
 
@@ -268,6 +296,6 @@ export class OpenCodeReader extends BaseReader {
       ),
     );
 
-    return this._classifyResult(fields, pathsTried, "OpenCode");
+    return this._classifyResult(fields, pathsTried, "OpenCode", lastError);
   }
 }

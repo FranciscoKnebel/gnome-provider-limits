@@ -5,13 +5,14 @@ import { HttpClient, HttpError, TokenError } from "../helpers/http.js";
 import { logWarn } from "../helpers/log.js";
 import { resolveCodexHome } from "../helpers/paths.js";
 import { querySqlite } from "../helpers/sqlite.js";
-import type { FieldDef, FieldResult, ReaderResult } from "./base.js";
+import type { FieldDef, FieldResult, ReadOptions, ReaderResult } from "./base.js";
 import { BaseReader, FieldStatus } from "./base.js";
 import {
   codexWindowMinutes,
   type CodexLogRow,
   type CodexRateLimitsPayload,
   type CodexResetCredits,
+  mergeResetCredits,
   normalizeCodexOauthPayload,
   normalizeCodexResetCredits,
   parseCodexLogBody,
@@ -112,28 +113,38 @@ Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish"
 
 export class CodexReader extends BaseReader {
   private _http: HttpClient | null = null;
+  private _cancellable: Gio.Cancellable | null = null;
+  private _destroyed = false;
 
   get FIELDS(): readonly FieldDef[] {
     return CODEX_FIELDS;
   }
 
-  async read(): Promise<ReaderResult> {
+  async read(_options?: ReadOptions): Promise<ReaderResult> {
+    this._cancellable?.cancel();
+    const cancellable = new Gio.Cancellable();
+    this._cancellable = cancellable;
     const pathsTried: string[] = [];
 
     // Path 1: OAuth API
     try {
       pathsTried.push("oauth-api");
-      const auth = await this._readAuth();
+      const auth = await this._readAuth(cancellable);
       if (auth) {
-        const payload = await this._fetchUsage(auth.token);
+        const [payload, details] = await Promise.all([
+          this._fetchUsage(auth.token, cancellable),
+          this._fetchResetCredits(auth.token, auth.accountId, cancellable),
+        ]);
         if (payload) {
-          const details = await this._fetchResetCredits(auth.token, auth.accountId);
-          if (details) payload.reset_credits = { ...payload.reset_credits, ...details };
-          return this._parsePayload(payload, pathsTried);
+          return this._parsePayload(mergeResetCredits(payload, details), pathsTried);
         }
       }
     } catch (error) {
       logWarn("codex oauth-api failed", error);
+    }
+
+    if (cancellable.is_cancelled()) {
+      return this._errorResult("Codex: read cancelled.", pathsTried);
     }
 
     // Path 2: disk fallback
@@ -151,18 +162,29 @@ export class CodexReader extends BaseReader {
   }
 
   override destroy(): void {
+    this._destroyed = true;
+    this._cancellable?.cancel();
+    this._cancellable = null;
     this._http?.destroy();
     this._http = null;
     super.destroy();
+  }
+
+  private _getHttp(): HttpClient | null {
+    if (this._destroyed) return null;
+    if (!this._http) this._http = new HttpClient();
+    return this._http;
   }
 
   private _codexHome(): string {
     return resolveCodexHome({ CODEX_HOME: GLib.getenv("CODEX_HOME") }, GLib.get_home_dir());
   }
 
-  private async _readAuth(): Promise<{ token: string; accountId: string | null } | null> {
+  private async _readAuth(
+    cancellable: Gio.Cancellable | null,
+  ): Promise<{ token: string; accountId: string | null } | null> {
     const file = Gio.File.new_for_path(GLib.build_filenamev([this._codexHome(), "auth.json"]));
-    const [contents] = await file.load_contents_async(null);
+    const [contents] = await file.load_contents_async(cancellable);
     const text = new TextDecoder().decode(contents);
     const auth = JSON.parse(text) as unknown;
     if (!auth || typeof auth !== "object" || !("tokens" in auth)) return null;
@@ -178,11 +200,17 @@ export class CodexReader extends BaseReader {
     };
   }
 
-  private async _fetchUsage(token: string): Promise<CodexRateLimitsPayload | null> {
-    if (!this._http) this._http = new HttpClient();
+  private async _fetchUsage(
+    token: string,
+    cancellable: Gio.Cancellable | null,
+  ): Promise<CodexRateLimitsPayload | null> {
+    const http = this._getHttp();
+    if (!http) return null;
+
     try {
-      const payload = await this._http.getJson(CODEX_USAGE_URL, {
+      const payload = await http.getJson(CODEX_USAGE_URL, {
         headers: { Authorization: `Bearer ${token}` },
+        cancellable: cancellable ?? undefined,
       });
       return normalizeCodexOauthPayload(payload);
     } catch (error) {
@@ -202,23 +230,22 @@ export class CodexReader extends BaseReader {
   private async _fetchResetCredits(
     token: string,
     accountId: string | null,
+    cancellable: Gio.Cancellable | null,
   ): Promise<CodexResetCredits | null> {
-    if (!this._http) this._http = new HttpClient();
+    const http = this._getHttp();
+    if (!http) return null;
+
     try {
       const headers: Record<string, string> = { Authorization: `Bearer ${token}` };
       if (accountId) headers["ChatGPT-Account-ID"] = accountId;
-      const payload = await this._http.getJson(CODEX_RESET_CREDITS_URL, { headers });
+      const payload = await http.getJson(CODEX_RESET_CREDITS_URL, {
+        headers,
+        cancellable: cancellable ?? undefined,
+      });
       return normalizeCodexResetCredits(payload);
     } catch (error) {
-      if (error instanceof TokenError) {
-        logWarn("codex reset-credits token rejected", error);
-        return null;
-      }
-      if (error instanceof HttpError) {
-        logWarn(`codex reset-credits http ${error.statusCode}`, error);
-        return null;
-      }
-      throw error;
+      logWarn("codex reset-credits failed", error);
+      return null;
     }
   }
 

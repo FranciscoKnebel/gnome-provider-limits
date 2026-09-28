@@ -42,6 +42,10 @@ export interface ReaderResult {
   readonly pathsTried?: readonly string[];
 }
 
+export interface ReadOptions {
+  force?: boolean;
+}
+
 export abstract class BaseReader {
   constructor(
     protected readonly settings: Gio.Settings,
@@ -50,7 +54,7 @@ export abstract class BaseReader {
 
   abstract get FIELDS(): readonly FieldDef[];
 
-  abstract read(): Promise<ReaderResult>;
+  abstract read(options?: ReadOptions): Promise<ReaderResult>;
 
   destroy(): void {}
 
@@ -137,6 +141,7 @@ export abstract class BaseReader {
     fields: FieldResult[],
     pathsTried: readonly string[],
     prefix?: string,
+    partialError?: string,
   ): ReaderResult {
     const hasAny = fields.some((f) => f.status === FieldStatus.OK);
     if (!hasAny) {
@@ -147,7 +152,7 @@ export abstract class BaseReader {
       (f) => f.status === FieldStatus.UNAVAILABLE || f.status === FieldStatus.ERROR,
     );
     return hasUnavailable
-      ? this._partialResult(fields, pathsTried)
+      ? this._partialResult(fields, pathsTried, partialError)
       : this._okResult(fields, pathsTried);
   }
 }

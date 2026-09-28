@@ -5,15 +5,22 @@ import { HttpClient, HttpError, TokenError } from "../helpers/http.js";
 import { logWarn } from "../helpers/log.js";
 import { resolveClaudeConfigDir } from "../helpers/paths.js";
 import { runSubprocess } from "../helpers/subprocess.js";
-import type { FieldDef, FieldResult, ReaderResult } from "./base.js";
+import type { FieldDef, FieldResult, ReadOptions, ReaderResult } from "./base.js";
 import { BaseReader, FieldStatus } from "./base.js";
 import {
   type ClaudeUsagePayload,
   normalizeClaudeUsagePayload,
   parseClaudeCliOutput,
 } from "./claudeParser.js";
+import { credentialExpiresAt, isCredentialExpired, shouldProbeCli } from "./claudeProbe.js";
 
 const CLAUDE_USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
+const CLI_PROBE_TIMEOUT_SECONDS = 15;
+
+interface ClaudeAuth {
+  token: string;
+  expiresAtMs: number | null;
+}
 
 export const CLAUDE_FIELDS: readonly FieldDef[] = [
   {
@@ -106,26 +113,35 @@ Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish"
 
 export class ClaudeReader extends BaseReader {
   private _http: HttpClient | null = null;
+  private _cancellable: Gio.Cancellable | null = null;
+  private _destroyed = false;
+  private _lastCliFailureAt: number | null = null;
 
   get FIELDS(): readonly FieldDef[] {
     return CLAUDE_FIELDS;
   }
 
   override destroy(): void {
+    this._destroyed = true;
+    this._cancellable?.cancel();
+    this._cancellable = null;
     this._http?.destroy();
     this._http = null;
     super.destroy();
   }
 
-  async read(): Promise<ReaderResult> {
+  async read(options?: ReadOptions): Promise<ReaderResult> {
+    this._cancellable?.cancel();
+    const cancellable = new Gio.Cancellable();
+    this._cancellable = cancellable;
     const pathsTried: string[] = [];
 
     // Path 1: OAuth API
     try {
       pathsTried.push("oauth-api");
-      const token = await this._readAuthToken();
-      if (token) {
-        const payload = await this._fetchUsage(token);
+      const auth = await this._readAuthToken(cancellable);
+      if (auth && !isCredentialExpired(auth.expiresAtMs, Date.now())) {
+        const payload = await this._fetchUsage(auth.token, cancellable);
         if (payload) {
           return this._parsePayload(payload, pathsTried);
         }
@@ -134,15 +150,30 @@ export class ClaudeReader extends BaseReader {
       logWarn("claude oauth-api failed", error);
     }
 
+    if (cancellable.is_cancelled()) {
+      return this._errorResult("Claude: read cancelled.", pathsTried);
+    }
+
     // Path 2: CLI PTY fallback
-    try {
-      pathsTried.push("cli-pty");
-      const payload = await this._readFromCli();
-      if (payload) {
-        return this._parsePayload(payload, pathsTried);
+    const force = options?.force ?? false;
+    if (
+      shouldProbeCli({
+        now: Date.now(),
+        lastFailureAt: this._lastCliFailureAt,
+        force,
+      })
+    ) {
+      try {
+        pathsTried.push("cli-pty");
+        const payload = await this._readFromCli(cancellable);
+        if (payload) {
+          return this._parsePayload(payload, pathsTried);
+        }
+        this._lastCliFailureAt = Date.now();
+      } catch (error) {
+        this._lastCliFailureAt = Date.now();
+        logWarn("claude cli-pty fallback failed", error);
       }
-    } catch (error) {
-      logWarn("claude cli-pty fallback failed", error);
     }
 
     return this._errorResult(
@@ -161,9 +192,15 @@ export class ClaudeReader extends BaseReader {
     ]);
   }
 
-  private async _readAuthToken(): Promise<string | null> {
+  private _getHttp(): HttpClient | null {
+    if (this._destroyed) return null;
+    if (!this._http) this._http = new HttpClient();
+    return this._http;
+  }
+
+  private async _readAuthToken(cancellable: Gio.Cancellable | null): Promise<ClaudeAuth | null> {
     const file = Gio.File.new_for_path(this._credentialsPath());
-    const [contents] = await file.load_contents_async(null);
+    const [contents] = await file.load_contents_async(cancellable);
     const text = new TextDecoder().decode(contents);
     const creds = JSON.parse(text) as unknown;
     if (!creds || typeof creds !== "object") return null;
@@ -173,17 +210,24 @@ export class ClaudeReader extends BaseReader {
         : "token" in creds && typeof creds.token === "string"
           ? creds.token
           : null;
-    return token && token.trim() ? token : null;
+    if (!token || !token.trim()) return null;
+    return { token, expiresAtMs: credentialExpiresAt(creds) };
   }
 
-  private async _fetchUsage(token: string): Promise<ClaudeUsagePayload | null> {
-    if (!this._http) this._http = new HttpClient();
+  private async _fetchUsage(
+    token: string,
+    cancellable: Gio.Cancellable | null,
+  ): Promise<ClaudeUsagePayload | null> {
+    const http = this._getHttp();
+    if (!http) return null;
+
     try {
-      const payload = await this._http.getJson(CLAUDE_USAGE_URL, {
+      const payload = await http.getJson(CLAUDE_USAGE_URL, {
         headers: {
           Authorization: `Bearer ${token}`,
           "anthropic-beta": "oauth-2025-04-20",
         },
+        cancellable: cancellable ?? undefined,
       });
       return normalizeClaudeUsagePayload(payload);
     } catch (error) {
@@ -199,27 +243,59 @@ export class ClaudeReader extends BaseReader {
     }
   }
 
-  private async _readFromCli(): Promise<ClaudeUsagePayload | null> {
+  private async _readFromCli(
+    cancellable: Gio.Cancellable | null,
+  ): Promise<ClaudeUsagePayload | null> {
     const cliPath = this.settings.get_string("claude-cli-path")?.trim() || "claude";
-    const probeDir = GLib.build_filenamev([GLib.get_tmp_dir(), "provider-limits-claude-probe"]);
-    GLib.mkdir_with_parents(probeDir, 0o700);
+
+    let probeDir: string | null;
+    try {
+      probeDir = GLib.Dir.make_tmp("provider-limits-claude-XXXXXX");
+    } catch (error) {
+      logWarn("claude cli probe temp dir failed", error);
+      return null;
+    }
+    if (!probeDir) return null;
 
     // Drive the bare TUI: start with no tools, send /usage, then /exit.
     const inputLines = ["/usage", "/exit", ""].join("\n") + "\n";
 
-    let result;
     try {
-      result = await runSubprocess([cliPath, "--allowed-tools", ""], {
+      const result = await runSubprocess([cliPath, "--allowed-tools", ""], {
         input: inputLines,
-        timeoutSeconds: 15,
+        timeoutSeconds: CLI_PROBE_TIMEOUT_SECONDS,
         cwd: probeDir,
+        env: { LC_ALL: "C" },
+        cancellable: cancellable ?? undefined,
       });
-    } catch (error) {
-      logWarn("claude cli probe failed", error);
-      return null;
+      return parseClaudeCliOutput(result.stdout);
+    } finally {
+      this._removeProbeDir(probeDir);
     }
+  }
 
-    return parseClaudeCliOutput(result.stdout);
+  private _removeProbeDir(path: string): void {
+    try {
+      const dir = Gio.File.new_for_path(path);
+      const enumerator = dir.enumerate_children(
+        "standard::name,standard::type",
+        Gio.FileQueryInfoFlags.NOFOLLOW_SYMLINKS,
+        null,
+      );
+      let info: Gio.FileInfo | null;
+      while ((info = enumerator.next_file(null)) !== null) {
+        const child = dir.get_child(info.get_name());
+        if (info.get_file_type() === Gio.FileType.DIRECTORY) {
+          this._removeProbeDir(child.get_path() ?? path);
+        } else {
+          child.delete(null);
+        }
+      }
+      enumerator.close(null);
+      GLib.rmdir(path);
+    } catch (error) {
+      logWarn("claude cli probe cleanup failed", error);
+    }
   }
 
   private _parsePayload(payload: ClaudeUsagePayload, pathsTried: readonly string[]): ReaderResult {
