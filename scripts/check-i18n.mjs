@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { spawnSync } from "child_process";
 import { readFileSync, readdirSync, statSync, existsSync } from "fs";
 import { join, relative } from "path";
 import { argv, exit } from "process";
@@ -11,6 +12,16 @@ const POT_PATH = join(PO_DIR, "gnome-provider-limits.pot");
 const LANGUAGE_SENTINEL = "LANGUAGE_NAME";
 
 const VERBOSE = argv.slice(2).includes("-v") || argv.slice(2).includes("--verbose");
+
+const MSGFMT_AVAILABLE = spawnSync("msgfmt", ["--version"], { encoding: "utf-8" }).status === 0;
+
+function msgfmtErrors(file) {
+  const result = spawnSync("msgfmt", ["--check", "--check-format", "-o", "/dev/null", "--", file], {
+    encoding: "utf-8",
+  });
+  if (result.status === 0) return null;
+  return (result.stderr || "").trim() || `msgfmt exited with status ${result.status}`;
+}
 
 function walk(dir) {
   const entries = [];
@@ -225,6 +236,40 @@ for (const f of drafts) {
     let line = `⚠ ${f} (draft): ${missing.length} missing, ${empty.length} empty`;
     if (sentinelMissing) line += ", Language Sentinel missing";
     warnings.push(line);
+  }
+}
+
+if (!MSGFMT_AVAILABLE) {
+  console.warn("⚠ msgfmt not found; skipping catalog syntax/format validation (install gettext).");
+} else {
+  if (existsSync(POT_PATH)) {
+    const errors = msgfmtErrors(POT_PATH);
+    if (errors) {
+      console.error("❌ gnome-provider-limits.pot: msgfmt rejected the catalog:");
+      console.error(errors);
+      exitCode = 1;
+    } else if (VERBOSE) {
+      console.log("✓ gnome-provider-limits.pot: msgfmt syntax/format check passed");
+    }
+  }
+  for (const code of linguas) {
+    const name = `${code}.po`;
+    const errors = msgfmtErrors(join(PO_DIR, name));
+    if (errors) {
+      console.error(`❌ ${name}: msgfmt rejected the catalog:`);
+      console.error(errors);
+      exitCode = 1;
+    } else if (VERBOSE) {
+      console.log(`✓ ${name}: msgfmt syntax/format check passed`);
+    }
+  }
+  for (const f of drafts) {
+    const errors = msgfmtErrors(join(PO_DIR, f));
+    if (errors) {
+      warnings.push(`⚠ ${f} (draft): msgfmt reported errors (non-blocking):\n${errors}`);
+    } else if (VERBOSE) {
+      console.log(`✓ ${f} (draft): msgfmt syntax/format check passed`);
+    }
   }
 }
 

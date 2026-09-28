@@ -181,15 +181,15 @@ msgstr "% restante (janela 5h)"
 msgid "Reset at (5h window)"
 msgstr "Reset em (janela 5h)"
 
-#: src/readers/codex.ts
+#: src/readers/codex.ts src/readers/claude.ts src/readers/opencode.ts
 msgid "Used % (weekly)"
 msgstr "% usado (semanal)"
 
-#: src/readers/codex.ts
+#: src/readers/codex.ts src/readers/claude.ts src/readers/opencode.ts
 msgid "Remaining % (weekly)"
 msgstr "% restante (semanal)"
 
-#: src/readers/codex.ts
+#: src/readers/codex.ts src/readers/claude.ts src/readers/opencode.ts
 msgid "Reset at (weekly)"
 msgstr "Reset em (semanal)"
 
@@ -219,27 +219,15 @@ msgstr "Resets expiram em"
 
 #: src/readers/claude.ts
 msgid "Used % (session 5h)"
-msgstr "% usado (sess\u00e3o 5h)"
+msgstr "% usado (sessão 5h)"
 
 #: src/readers/claude.ts
 msgid "Remaining % (session 5h)"
-msgstr "% restante (sess\u00e3o 5h)"
+msgstr "% restante (sessão 5h)"
 
 #: src/readers/claude.ts
 msgid "Reset at (session)"
-msgstr "Reset em (sess\u00e3o)"
-
-#: src/readers/claude.ts
-msgid "Used % (weekly)"
-msgstr "% usado (semanal)"
-
-#: src/readers/claude.ts
-msgid "Remaining % (weekly)"
-msgstr "% restante (semanal)"
-
-#: src/readers/claude.ts
-msgid "Reset at (weekly)"
-msgstr "Reset em (semanal)"
+msgstr "Reset em (sessão)"
 
 #: src/readers/claude.ts
 msgid "Used % (Sonnet weekly)"
@@ -267,27 +255,15 @@ msgstr "Motivo do uso extra desativado"
 
 #: src/readers/opencode.ts
 msgid "Used % (rolling 5h)"
-msgstr "% usado (cont\u00ednuo 5h)"
+msgstr "% usado (contínuo 5h)"
 
 #: src/readers/opencode.ts
 msgid "Remaining % (rolling 5h)"
-msgstr "% restante (cont\u00ednuo 5h)"
+msgstr "% restante (contínuo 5h)"
 
 #: src/readers/opencode.ts
 msgid "Reset at (rolling)"
-msgstr "Reset em (cont\u00ednuo)"
-
-#: src/readers/opencode.ts
-msgid "Used % (weekly)"
-msgstr "% usado (semanal)"
-
-#: src/readers/opencode.ts
-msgid "Remaining % (weekly)"
-msgstr "% restante (semanal)"
-
-#: src/readers/opencode.ts
-msgid "Reset at (weekly)"
-msgstr "Reset em (semanal)"
+msgstr "Reset em (contínuo)"
 
 #: src/readers/opencode.ts
 msgid "Used % (monthly)"
@@ -331,7 +307,7 @@ msgstr "Custo total"
 
 #: src/readers/opencode.ts
 msgid "Sessions count"
-msgstr "N\u00ba de sess\u00f5es"
+msgstr "Nº de sessões"
 
 #: src/readers/opencode.ts
 msgid "Token expires in"
@@ -383,7 +359,7 @@ msgstr "sim"
 
 #: src/formatters.ts
 msgid "no"
-msgstr "n\u00e3o"
+msgstr "não"
 
 #: src/formatters.ts
 msgid "h"

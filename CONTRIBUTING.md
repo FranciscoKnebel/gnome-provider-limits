@@ -33,14 +33,15 @@ npm ci
 
 See [`package.json`](package.json) under `scripts` for the full list. Key ones:
 
-| Command             | Description                            |
-| ------------------- | -------------------------------------- |
-| `npm run typecheck` | `tsc --noEmit`                         |
-| `npm run lint`      | oxlint                                 |
-| `npm run check`     | typecheck + lint + format:check + test |
-| `npm run test`      | Build test bundle and run jasmine      |
+| Command             | Description                                         |
+| ------------------- | --------------------------------------------------- |
+| `npm run typecheck` | `tsc --noEmit`                                      |
+| `npm run lint`      | oxlint                                              |
+| `npm run check`     | typecheck + lint + format:check + check:i18n + test |
+| `npm run check:all` | `npm run check` + GJS suite (skips without gjs)     |
+| `npm run test`      | Build test bundle and run jasmine                   |
 
-Run `npm run check` before pushing to catch type errors, lint violations, and formatting issues in one step.
+Run `npm run check` before pushing to catch type errors, lint violations, and formatting issues in one step. `npm run check:all` also runs the GJS suite, which skips gracefully when `gjs` is not installed.
 
 ### 3. Install and enable locally
 
