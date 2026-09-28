@@ -1,18 +1,5 @@
 /* Provider Limits stylesheet */
 
-/* Usage color thresholds */
-.usage-critical {
-  color: #e01b24;
-}
-
-.usage-warning {
-  color: #e5a50a;
-}
-
-.usage-ok {
-  color: inherit;
-}
-
 .provider-limits-error {
   color: #e01b24;
 }
@@ -67,4 +54,18 @@
   width: 14px;
   height: 14px;
   -st-icon-style: symbolic;
+}
+
+/* Usage color thresholds. Keep these last so they win the cascade over the
+   component color rules above (same specificity). */
+.usage-critical {
+  color: #e01b24;
+}
+
+.usage-warning {
+  color: #e5a50a;
+}
+
+.usage-ok {
+  color: inherit;
 }
