@@ -1,110 +1,267 @@
-/* eslint-disable no-unused-vars */
 import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 
-import { assert, assertEqual, assertNotNull } from "./assert.js";
+import { assert, assertDeepEqual, assertEqual, assertNotNull } from "./assert.js";
+
+const CREATE_DB_SCRIPT = `
+import sqlite3, sys
+db, count = sys.argv[1], int(sys.argv[2])
+conn = sqlite3.connect(db)
+conn.execute("CREATE TABLE test (id INTEGER, value TEXT)")
+for i in range(count):
+    conn.execute("INSERT INTO test VALUES (?, ?)", (i + 1, "value-%d" % (i + 1)))
+conn.commit()
+conn.close()
+`;
+
+const WAL_CLEAN_SCRIPT = `
+import sqlite3, sys
+db = sys.argv[1]
+conn = sqlite3.connect(db)
+conn.execute("PRAGMA journal_mode=WAL")
+conn.execute("CREATE TABLE test (id INTEGER, value TEXT)")
+conn.execute("INSERT INTO test VALUES (1, 'main')")
+conn.commit()
+conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+conn.close()
+`;
+
+const WAL_HOT_SCRIPT = `
+import os, sqlite3, sys
+db = sys.argv[1]
+conn = sqlite3.connect(db)
+conn.execute("PRAGMA journal_mode=WAL")
+conn.execute("CREATE TABLE test (id INTEGER, value TEXT)")
+conn.execute("INSERT INTO test VALUES (1, 'main')")
+conn.commit()
+conn.execute("PRAGMA wal_checkpoint(TRUNCATE)")
+conn.execute("INSERT INTO test VALUES (2, 'in-wal')")
+conn.commit()
+os._exit(0)
+`;
+
+const WRITE_TEXT_SCRIPT = `
+import sys
+with open(sys.argv[1], "w") as handle:
+    handle.write("not a sqlite database")
+`;
+
+function tempDbPath(tag) {
+  const unique = `${Date.now()}-${Math.floor(Math.random() * 1000000)}`;
+  return `${GLib.get_tmp_dir()}/provider-limits-${tag}-${unique}.db`;
+}
+
+function fileExists(path) {
+  return GLib.file_test(path, GLib.FileTest.EXISTS);
+}
+
+function sidecarPaths(dbPath) {
+  return [`${dbPath}-wal`, `${dbPath}-shm`, `${dbPath}-journal`];
+}
+
+function removeFiles(paths) {
+  for (const path of paths) {
+    try {
+      Gio.File.new_for_path(path).delete(null);
+    } catch {
+      // ignore cleanup errors
+    }
+  }
+}
+
+async function runPython(script, args) {
+  const { runSubprocess } = await import("../../dist/helpers/subprocess.js");
+  return runSubprocess(["python3", "-c", script, ...args], { timeoutSeconds: 10 });
+}
 
 export async function run() {
   const results = [];
-
-  // Test 1: querySqlite is exported and is a function
-  try {
-    const { querySqlite } = await import("../../dist/helpers/sqlite.js");
-    assert(typeof querySqlite === "function", "querySqlite should be a function");
-    results.push({ name: "querySqlite is exported", passed: true });
-  } catch (_e) {
-    results.push({ name: "querySqlite is exported", passed: false, error: String(e) });
+  const { querySqlite, clearSqliteCache } = await import("../../dist/helpers/sqlite.js");
+  const exportChecks = [
+    [
+      "querySqlite is exported",
+      () => assert(typeof querySqlite === "function", "querySqlite should be a function"),
+    ],
+    [
+      "clearSqliteCache is exported",
+      () => assert(typeof clearSqliteCache === "function", "clearSqliteCache should be a function"),
+    ],
+  ];
+  for (const [name, check] of exportChecks) {
+    try {
+      check();
+      results.push({ name, passed: true });
+    } catch (e) {
+      results.push({ name, passed: false, error: String(e) });
+    }
   }
 
-  // Test 2: clearSqliteCache is exported
+  // Test: integration with a real sqlite database via python3
   try {
-    const { clearSqliteCache } = await import("../../dist/helpers/sqlite.js");
-    assert(typeof clearSqliteCache === "function", "clearSqliteCache should be a function");
-    results.push({ name: "clearSqliteCache is exported", passed: true });
-  } catch (_e) {
-    results.push({ name: "clearSqliteCache is exported", passed: false, error: String(e) });
-  }
+    const tmpDb = tempDbPath("query");
+    await runPython(CREATE_DB_SCRIPT, [tmpDb, "2"]);
 
-  // Test 3: Integration with real sqlite database via python3
-  try {
-    const { querySqlite, clearSqliteCache } = await import("../../dist/helpers/sqlite.js");
-
-    // Create a temporary SQLite database using python3
-    const tmpDb = `${GLib.get_tmp_dir()}/provider-limits-test-${Date.now()}.db`;
-    const setupScript = `
-import sqlite3
-conn = sqlite3.connect("${tmpDb}")
-conn.execute("CREATE TABLE test (id INTEGER, value TEXT)")
-conn.execute("INSERT INTO test VALUES (1, 'hello')")
-conn.execute("INSERT INTO test VALUES (2, 'world')")
-conn.commit()
-conn.close()
-print("ok")
-`;
-    const { runSubprocess } = await import("../../dist/helpers/subprocess.js");
-    await runSubprocess(["python3", "-c", setupScript], { timeoutSeconds: 10 });
-
-    // Now query it using our helper
+    clearSqliteCache();
     const rows = await querySqlite(tmpDb, "SELECT * FROM test ORDER BY id");
     assertNotNull(rows, "should return rows");
     assertEqual(rows.length, 2, "should have 2 rows");
     assertEqual(rows[0].id, 1, "first row id should be 1");
-    assertEqual(rows[0].value, "hello", "first row value should be hello");
+    assertEqual(rows[0].value, "value-1", "first row value should be value-1");
     assertEqual(rows[1].id, 2, "second row id should be 2");
-    assertEqual(rows[1].value, "world", "second row value should be world");
+    assertEqual(rows[1].value, "value-2", "second row value should be value-2");
 
-    // Clean up
-    try {
-      Gio.File.new_for_path(tmpDb).delete(null);
-    } catch (_e) {
-      // ignore cleanup errors
-    }
-
-    clearSqliteCache();
+    removeFiles([tmpDb, ...sidecarPaths(tmpDb)]);
     results.push({ name: "querySqlite with real database", passed: true });
-  } catch (_e) {
+  } catch (e) {
     results.push({ name: "querySqlite with real database", passed: false, error: String(e) });
   }
 
-  // Test 4: querySqlite caches results
+  // Test: querySqlite caches results
   try {
-    const { querySqlite, clearSqliteCache } = await import("../../dist/helpers/sqlite.js");
+    const tmpDb = tempDbPath("cache");
+    await runPython(CREATE_DB_SCRIPT, [tmpDb, "1"]);
 
-    // Create another temp database
-    const tmpDb = `${GLib.get_tmp_dir()}/provider-limits-test-cache-${Date.now()}.db`;
-    const setupScript = `
-import sqlite3
-conn = sqlite3.connect("${tmpDb}")
-conn.execute("CREATE TABLE test (id INTEGER)")
-conn.execute("INSERT INTO test VALUES (1)")
-conn.commit()
-conn.close()
-print("ok")
-`;
-    const { runSubprocess } = await import("../../dist/helpers/subprocess.js");
-    await runSubprocess(["python3", "-c", setupScript], { timeoutSeconds: 10 });
-
-    // First call should query the db
+    clearSqliteCache();
     const firstResult = await querySqlite(tmpDb, "SELECT * FROM test");
     assertEqual(firstResult.length, 1, "first call should return 1 row");
 
-    // Clear cache
     clearSqliteCache();
 
-    // Second call should still work
     const secondResult = await querySqlite(tmpDb, "SELECT * FROM test");
     assertEqual(secondResult.length, 1, "second call should return 1 row");
 
-    // Clean up
-    try {
-      Gio.File.new_for_path(tmpDb).delete(null);
-    } catch (_e) {
-      // ignore
+    removeFiles([tmpDb, ...sidecarPaths(tmpDb)]);
+    results.push({ name: "querySqlite caching works", passed: true });
+  } catch (e) {
+    results.push({ name: "querySqlite caching works", passed: false, error: String(e) });
+  }
+
+  // Test: a missing database file is not created
+  try {
+    const tmpDb = tempDbPath("missing");
+    assert(!fileExists(tmpDb), "precondition: database file must not exist");
+
+    const rows = await querySqlite(tmpDb, "SELECT * FROM test");
+    assertDeepEqual(rows, [], "missing database should return no rows");
+    assert(!fileExists(tmpDb), "querySqlite must not create the database file");
+    for (const path of sidecarPaths(tmpDb)) {
+      assert(!fileExists(path), `querySqlite must not create ${path}`);
     }
 
-    results.push({ name: "querySqlite caching works", passed: true });
-  } catch (_e) {
-    results.push({ name: "querySqlite caching works", passed: false, error: String(e) });
+    results.push({ name: "missing database is not created", passed: true });
+  } catch (e) {
+    results.push({ name: "missing database is not created", passed: false, error: String(e) });
+  }
+
+  // Test: writes are rejected on the read-only connection
+  try {
+    const tmpDb = tempDbPath("readonly");
+    await runPython(CREATE_DB_SCRIPT, [tmpDb, "1"]);
+
+    clearSqliteCache();
+    await querySqlite(tmpDb, "INSERT INTO test (id, value) VALUES (2, 'write')");
+
+    clearSqliteCache();
+    const rows = await querySqlite(tmpDb, "SELECT id FROM test ORDER BY id");
+    assertEqual(rows.length, 1, "the INSERT must not be applied");
+    assertEqual(rows[0].id, 1, "only the pre-existing row should remain");
+
+    removeFiles([tmpDb, ...sidecarPaths(tmpDb)]);
+    results.push({ name: "writes fail on a read-only connection", passed: true });
+  } catch (e) {
+    results.push({
+      name: "writes fail on a read-only connection",
+      passed: false,
+      error: String(e),
+    });
+  }
+
+  // Test: concurrent identical queries share one in-flight result
+  try {
+    const tmpDb = tempDbPath("single-flight");
+    await runPython(CREATE_DB_SCRIPT, [tmpDb, "2"]);
+
+    clearSqliteCache();
+    const query = "SELECT * FROM test ORDER BY id";
+    const [first, second] = await Promise.all([
+      querySqlite(tmpDb, query),
+      querySqlite(tmpDb, query),
+    ]);
+    assert(first === second, "concurrent identical queries should share one result object");
+    assertEqual(first.length, 2, "shared result should contain the rows");
+
+    removeFiles([tmpDb, ...sidecarPaths(tmpDb)]);
+    results.push({ name: "concurrent identical queries are single-flight", passed: true });
+  } catch (e) {
+    results.push({
+      name: "concurrent identical queries are single-flight",
+      passed: false,
+      error: String(e),
+    });
+  }
+
+  // Test: a checkpointed WAL database is read without creating -wal/-shm
+  try {
+    const tmpDb = tempDbPath("wal-clean");
+    await runPython(WAL_CLEAN_SCRIPT, [tmpDb]);
+    assert(!fileExists(`${tmpDb}-wal`), "precondition: -wal must not exist");
+    assert(!fileExists(`${tmpDb}-shm`), "precondition: -shm must not exist");
+
+    clearSqliteCache();
+    const rows = await querySqlite(tmpDb, "SELECT * FROM test");
+    assertEqual(rows.length, 1, "should read the main file");
+    assertEqual(rows[0].value, "main", "should read the checkpointed value");
+    assert(!fileExists(`${tmpDb}-wal`), "reading must not create -wal");
+    assert(!fileExists(`${tmpDb}-shm`), "reading must not create -shm");
+
+    removeFiles([tmpDb, ...sidecarPaths(tmpDb)]);
+    results.push({ name: "clean WAL database creates no sidecars", passed: true });
+  } catch (e) {
+    results.push({
+      name: "clean WAL database creates no sidecars",
+      passed: false,
+      error: String(e),
+    });
+  }
+
+  // Test: WAL fallback reads the main file when mode=ro cannot open the WAL
+  try {
+    const tmpDb = tempDbPath("wal-fallback");
+    await runPython(WAL_HOT_SCRIPT, [tmpDb]);
+    assert(fileExists(`${tmpDb}-wal`), "precondition: hot -wal must exist");
+
+    const walPath = `${tmpDb}-wal`;
+    removeFiles([walPath]);
+    await runPython("import os, sys\nos.mkdir(sys.argv[1])\n", [walPath]);
+
+    clearSqliteCache();
+    const rows = await querySqlite(tmpDb, "SELECT * FROM test ORDER BY id");
+    assertEqual(rows.length, 1, "fallback should read the main file after mode=ro fails");
+    assertEqual(rows[0].value, "main", "fallback should read the checkpointed value");
+    assert(fileExists(walPath), "fallback must not remove the -wal entry");
+
+    removeFiles([tmpDb, ...sidecarPaths(tmpDb)]);
+    results.push({ name: "WAL fallback reads the main file", passed: true });
+  } catch (e) {
+    results.push({ name: "WAL fallback reads the main file", passed: false, error: String(e) });
+  }
+
+  // Test: an unreadable database degrades to an empty result
+  try {
+    const tmpDb = tempDbPath("invalid");
+    await runPython(WRITE_TEXT_SCRIPT, [tmpDb]);
+
+    clearSqliteCache();
+    const rows = await querySqlite(tmpDb, "SELECT 1");
+    assertDeepEqual(rows, [], "invalid database should return no rows");
+    for (const path of sidecarPaths(tmpDb)) {
+      assert(!fileExists(path), `invalid database must not create ${path}`);
+    }
+
+    removeFiles([tmpDb]);
+    results.push({ name: "invalid database returns no rows", passed: true });
+  } catch (e) {
+    results.push({ name: "invalid database returns no rows", passed: false, error: String(e) });
   }
 
   return results;
