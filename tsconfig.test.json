@@ -21,6 +21,8 @@
     "src/ui/panel.ts",
     "src/ui/statusBar.ts",
     "src/ui/fieldRows.ts",
+    "src/ui/renderStructure.ts",
+    "src/ui/tone.ts",
     "src/ui/prefs/shared.ts",
     "src/ui/prefs/main-page.ts",
     "src/ui/prefs/provider-page.ts",
