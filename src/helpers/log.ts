@@ -18,7 +18,7 @@ const SECRET_PATTERNS: readonly RegExp[] = [
   /\beyJ[A-Za-z0-9_-]*\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*/g,
   /\bBearer\s+[A-Za-z0-9._~+/=-]+/gi,
   /\b[A-Fa-f0-9]{32,}\b/g,
-  /[A-Za-z0-9+/]{40,}={0,2}/g,
+  /[A-Za-z0-9+/_-]{40,}={0,2}/g,
 ];
 
 function isSensitiveKey(key: string): boolean {
@@ -34,22 +34,30 @@ export function maskSecrets(text: string): string {
   return masked;
 }
 
-function redactError(error: Error): Record<string, unknown> {
-  return {
+function redactError(error: Error, seen: WeakSet<object>): Record<string, unknown> {
+  const result: Record<string, unknown> = {
     name: maskSecrets(error.name),
     message: maskSecrets(error.message),
     stack: maskSecrets(error.stack ?? ""),
   };
+
+  for (const [key, value] of Object.entries(error)) {
+    if (key === "name" || key === "message" || key === "stack") continue;
+    result[key] = isSensitiveKey(key) ? "<redacted>" : redactForLog(value, seen);
+  }
+
+  return result;
 }
 
 export function redactForLog(value: unknown, seen = new WeakSet<object>()): unknown {
   if (value === null || value === undefined) return value;
-  if (value instanceof Error) return redactError(value);
   if (typeof value === "string") return maskSecrets(value);
   if (typeof value !== "object") return value;
 
   if (seen.has(value)) return "[Circular]";
   seen.add(value);
+
+  if (value instanceof Error) return redactError(value, seen);
 
   if (Array.isArray(value)) {
     return value.map((item) => redactForLog(item, seen));

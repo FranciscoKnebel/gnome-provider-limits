@@ -3,6 +3,18 @@ import { logError, logWarn, maskSecrets, redactForLog } from "../../src/helpers/
 const JWT =
   "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.SflKxwRJSMeKKF2QT4fwpMeJf36POk6yJV_adQssw5c";
 
+class CustomError extends Error {
+  stderr: string;
+  exitCode: number;
+
+  constructor(message: string, stderr: string, exitCode: number) {
+    super(message);
+    this.name = "CustomError";
+    this.stderr = stderr;
+    this.exitCode = exitCode;
+  }
+}
+
 describe("redactForLog", () => {
   it("passes null and undefined through", () => {
     expect(redactForLog(null)).toBeNull();
@@ -56,6 +68,14 @@ describe("redactForLog", () => {
     expect(redactForLog(`blob=${base64}`)).toBe("blob=<redacted>");
   });
 
+  it("masks base64url blobs", () => {
+    const withUnderscore = `${"G".repeat(45)}_${"H".repeat(45)}`;
+    expect(redactForLog(`blob=${withUnderscore}`)).toBe("blob=<redacted>");
+
+    const withHyphen = `${"J".repeat(45)}-${"K".repeat(45)}`;
+    expect(redactForLog(`blob=${withHyphen}`)).toBe("blob=<redacted>");
+  });
+
   it("renders Errors as name, message and stack", () => {
     const output = redactForLog(new Error("boom")) as Record<string, unknown>;
     expect(output.name).toBe("Error");
@@ -74,6 +94,41 @@ describe("redactForLog", () => {
     const cause = output.cause as Record<string, unknown>;
     expect(cause.name).toBe("Error");
     expect(cause.message).toBe("boom");
+  });
+
+  it("includes own enumerable properties on Errors", () => {
+    const output = redactForLog(new CustomError("subprocess failed", "cli stderr", 3)) as Record<
+      string,
+      unknown
+    >;
+    expect(output.name).toBe("CustomError");
+    expect(output.message).toBe("subprocess failed");
+    expect(String(output.stack)).toContain("subprocess failed");
+    expect(output.stderr).toBe("cli stderr");
+    expect(output.exitCode).toBe(3);
+  });
+
+  it("masks secrets and sensitive keys in Error properties", () => {
+    const withSecret = redactForLog(new CustomError("failed", `Bearer ${JWT}`, 1)) as Record<
+      string,
+      unknown
+    >;
+    expect(String(withSecret.stderr)).not.toContain(JWT);
+
+    const error = new Error("boom") as Error & Record<string, unknown>;
+    error.access_token = "secret";
+    error.payload = { token: "abc", name: "user" };
+    const output = redactForLog(error) as Record<string, unknown>;
+    expect(output.access_token).toBe("<redacted>");
+    expect((output.payload as Record<string, unknown>).token).toBe("<redacted>");
+    expect((output.payload as Record<string, unknown>).name).toBe("user");
+  });
+
+  it("handles circular references on Errors", () => {
+    const error = new CustomError("boom", "stderr", 1) as CustomError & { self?: unknown };
+    error.self = error;
+    const output = redactForLog(error) as Record<string, unknown>;
+    expect(output.self).toBe("[Circular]");
   });
 
   it("redacts items in arrays recursively", () => {
