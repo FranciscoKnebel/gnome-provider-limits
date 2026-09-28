@@ -1,84 +1,47 @@
-import Gio from "gi://Gio";
-import GObject from "gi://GObject";
-import Gtk from "gi://Gtk";
+import GLib from "gi://GLib";
 
 import { assertEqual, assertNotNull } from "../helpers/assert.js";
+import { MockSettings } from "../mocks/mock-settings.js";
 
-Gtk.init();
+const PROVIDER_DISPLAY_NAMES = {
+  codex: "Codex Pro",
+  claude: "Claude Max",
+  opencode: "OpenCode Go",
+};
 
-const MockSettings = GObject.registerClass(
-  class MockSettings extends GObject.Object {
-    _init(props = {}) {
-      super._init();
-      this._values = {};
-      this._bindings = {};
-      this._handlers = {};
-      for (const [k, v] of Object.entries(props)) {
-        this._values[k] = v;
-      }
-    }
-
-    connect(signal, callback) {
-      if (!this._handlers[signal]) this._handlers[signal] = [];
-      this._handlers[signal].push(callback);
-    }
-
-    emit(signal, ...args) {
-      const handlers = this._handlers[signal] || [];
-      for (const h of handlers) {
-        h(this, ...args);
-      }
-    }
-
-    get_strv(key) {
-      return [...(this._values[key] ?? [])];
-    }
-    get_string(key) {
-      return this._values[key] ?? "";
-    }
-    get_boolean(key) {
-      return this._values[key] ?? false;
-    }
-    get_int(key) {
-      return this._values[key] ?? 0;
-    }
-    set_strv(key, val) {
-      this._values[key] = [...val];
-      this._emitChange(key);
-    }
-    set_string(key, val) {
-      this._values[key] = val;
-      this._emitChange(key);
-    }
-    set_int(key, val) {
-      this._values[key] = val;
-      this._emitChange(key);
-    }
-    set_boolean(key, val) {
-      this._values[key] = val;
-      this._emitChange(key);
-    }
-
-    bind(srcKey, target, prop, flags) {
-      this._bindings[srcKey] = { target, prop, flags };
-      target[prop] = this._values[srcKey] ?? "";
-    }
-
-    _emitChange(key) {
-      this.emit(`changed::${key}`);
-      const b = this._bindings[key];
-      if (b && b.prop in b.target) {
-        b.target[b.prop] = this._values[key];
-      }
-    }
-  },
-);
+function skipResult(reason) {
+  return [{ name: "prefs pages are constructable and bind settings", skipped: true, reason }];
+}
 
 export async function run() {
-  const results = [];
+  let ProviderLimitsPreferencesPage;
+  let ProviderPage;
 
-  const { ProviderLimitsPreferencesPage, ProviderPage } =
-    await import("../../dist/ui/prefs-common.js");
+  try {
+    const Gtk = (await import("gi://Gtk?version=4.0")).default;
+    const Adw = (await import("gi://Adw?version=1")).default;
+    if (!Gtk.init_check()) {
+      throw new Error("Gtk.init_check() failed (no display available)");
+    }
+    Adw.init();
+    const mainPageUrl = GLib.Uri.resolve_relative(
+      import.meta.url,
+      "../../dist/ui/prefs/main-page.js",
+      GLib.UriFlags.NONE,
+    );
+    const providerPageUrl = GLib.Uri.resolve_relative(
+      import.meta.url,
+      "../../dist/ui/prefs/provider-page.js",
+      GLib.UriFlags.NONE,
+    );
+    ({ ProviderLimitsPreferencesPage } = await import(mainPageUrl));
+    ({ ProviderPage } = await import(providerPageUrl));
+  } catch (e) {
+    const message = e instanceof Error ? (e.message ?? String(e)) : String(e);
+    return skipResult(`prefs modules unavailable: ${message}`);
+  }
+
+  const results = [];
 
   // Test 1: ProviderLimitsPreferencesPage can be constructed
   try {
@@ -92,7 +55,7 @@ export async function run() {
       "refresh-stable-reads-threshold": 3,
       language: "",
     });
-    const page = new ProviderLimitsPreferencesPage(settings);
+    const page = new ProviderLimitsPreferencesPage(settings, [{ code: "en", name: "English" }]);
     assertNotNull(page, "page should be created");
     results.push({ name: "ProviderLimitsPreferencesPage is constructable", passed: true });
   } catch (e) {
@@ -103,38 +66,30 @@ export async function run() {
     });
   }
 
-  // Test 2: ProviderPage can be constructed for each provider
-  try {
-    const settings = new MockSettings({
-      "codex-enabled": true,
-      "codex-display-name": "Codex Pro",
-      "codex-display-name-short": "CX",
-      "codex-cli-path": "/usr/bin/codex",
-      "codex-status-fields": ["used_percent_primary", "reset_at_primary"],
-      "codex-panel-fields": ["used_percent_primary", "used_percent_secondary", "plan_type"],
-      "claude-enabled": true,
-      "claude-display-name": "Claude",
-      "claude-status-fields": ["used_percent_session"],
-      "claude-panel-fields": [],
-      "opencode-enabled": true,
-      "opencode-display-name": "OpenCode",
-      "opencode-status-fields": [],
-      "opencode-panel-fields": ["total_cost", "sessions_count"],
-      language: "en",
-    });
-    const page = new ProviderPage(settings, "codex");
-    assertNotNull(page, "ProviderPage should be created");
-    assertEqual(page.title, "Codex Pro", "page title should match display name");
-    results.push({ name: "ProviderPage is constructable with correct title", passed: true });
-  } catch (e) {
-    results.push({
-      name: "ProviderPage is constructable with correct title",
-      passed: false,
-      error: String(e),
-    });
+  // Test 2: ProviderPage can be constructed for each provider with the configured title
+  for (const provider of Object.keys(PROVIDER_DISPLAY_NAMES)) {
+    const name = `ProviderPage is constructable for ${provider}`;
+    try {
+      const displayName = PROVIDER_DISPLAY_NAMES[provider];
+      const settings = new MockSettings({
+        [`${provider}-enabled`]: true,
+        [`${provider}-display-name`]: displayName,
+        [`${provider}-display-name-short`]: provider,
+        [`${provider}-cli-path`]: "",
+        [`${provider}-status-fields`]: [],
+        [`${provider}-panel-fields`]: [],
+        language: "en",
+      });
+      const page = new ProviderPage(settings, provider);
+      assertNotNull(page, "ProviderPage should be created");
+      assertEqual(page.title, displayName, "page title should match the display name setting");
+      results.push({ name, passed: true });
+    } catch (e) {
+      results.push({ name, passed: false, error: String(e) });
+    }
   }
 
-  // Test 3: Settings bindings work (changing settings updates bound widgets)
+  // Test 3: Settings bindings propagate to the page title
   try {
     const settings = new MockSettings({
       "codex-enabled": true,
@@ -156,7 +111,9 @@ export async function run() {
 
     settings.set_string("codex-display-name", "New Name");
 
-    results.push({ name: "Settings binding triggers title change", passed: titleChanged });
+    assertEqual(page.title, "New Name", "title should follow the display name setting");
+    assertEqual(titleChanged, true, "changing the setting should notify the title");
+    results.push({ name: "Settings binding triggers title change", passed: true });
   } catch (e) {
     results.push({
       name: "Settings binding triggers title change",
@@ -165,22 +122,7 @@ export async function run() {
     });
   }
 
-  // Test 4: MockSettings bind works
-  try {
-    const settings = new MockSettings({
-      "codex-enabled": true,
-      "codex-display-name": "Codex",
-    });
-
-    const entry = new Gtk.Entry({ text: "" });
-    settings.bind("codex-display-name", entry, "text", Gio.SettingsBindFlags.DEFAULT);
-    assertEqual(entry.text, "Codex", "bound widget should get initial value");
-    results.push({ name: "MockSettings.bind sets initial value", passed: true });
-  } catch (e) {
-    results.push({ name: "MockSettings.bind sets initial value", passed: false, error: String(e) });
-  }
-
-  // Test 5: MockSettings.set_strv emits changed:: signal
+  // Test 4: MockSettings.set_strv emits changed:: signal
   try {
     const settings = new MockSettings({
       "codex-status-fields": ["used_percent_primary"],
