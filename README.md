@@ -94,11 +94,16 @@ From there you can:
 ```bash
 npm run typecheck     # tsc --noEmit
 npm run lint          # oxlint
-npm run test          # jasmine (GJS)
-npm run check         # typecheck + lint + format:check + test
+npm test              # Node jasmine suite (builds tests first, runs c8 coverage)
+npm run test:gjs      # GJS suite (builds dist/ first; needs gjs and Soup)
+npm run check         # typecheck + lint + format:check + check:i18n + npm test
 npm run build         # compile typescript to dist/
 npm run pack          # compile, compile schemas, and pack the extension
 ```
+
+`c8` instruments only modules that Node can load (the pure helpers and
+parsers); GJS-only modules, such as the readers and the UI, are covered by
+`npm run test:gjs`.
 
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow and guidelines.
 
