@@ -84,13 +84,17 @@ async function runQueryWithFallback(
   timeoutSeconds: number,
 ): Promise<unknown> {
   const preferred = pickPrimaryMode(dbPath);
-  const fallback = preferred === "mode=ro" ? "immutable=1" : "mode=ro";
 
   try {
     return await runQuery(dbPath, query, preferred, timeoutSeconds);
-  } catch {
+  } catch (preferredError) {
+    if (preferred !== "mode=ro" || !canFallbackToImmutable(dbPath)) {
+      logWarn(`sqlite query failed for ${dbPath}`, describeError(preferredError));
+      return [];
+    }
+
     try {
-      return await runQuery(dbPath, query, fallback, timeoutSeconds);
+      return await runQuery(dbPath, query, "immutable=1", timeoutSeconds);
     } catch (error) {
       logWarn(`sqlite query failed for ${dbPath}`, describeError(error));
       return [];
@@ -107,6 +111,14 @@ function pickPrimaryMode(dbPath: string): string {
     GLib.file_test(`${dbPath}${suffix}`, GLib.FileTest.EXISTS),
   );
   return hasSidecar ? "mode=ro" : "immutable=1";
+}
+
+// A hot rollback journal must be replayed before the main file is consistent.
+// immutable=1 skips that recovery, so it is only a fallback when no -journal
+// sidecar exists; otherwise the main file may be read while the journal is
+// pending and yield torn data.
+function canFallbackToImmutable(dbPath: string): boolean {
+  return !GLib.file_test(`${dbPath}-journal`, GLib.FileTest.EXISTS);
 }
 
 function describeError(error: unknown): unknown {

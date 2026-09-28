@@ -40,6 +40,21 @@ conn.commit()
 os._exit(0)
 `;
 
+const HOT_JOURNAL_SCRIPT = `
+import os, sqlite3, sys
+db = sys.argv[1]
+conn = sqlite3.connect(db)
+conn.execute("PRAGMA journal_mode=DELETE")
+conn.execute("CREATE TABLE test (id INTEGER, value TEXT)")
+conn.execute("INSERT INTO test VALUES (1, 'main')")
+conn.commit()
+conn.execute("PRAGMA cache_size = 1")
+conn.execute("BEGIN IMMEDIATE")
+for i in range(2, 502):
+    conn.execute("INSERT INTO test VALUES (?, ?)", (i, "pending-%d" % i))
+os._exit(0)
+`;
+
 const WRITE_TEXT_SCRIPT = `
 import sys
 with open(sys.argv[1], "w") as handle:
@@ -244,6 +259,38 @@ export async function run() {
     results.push({ name: "WAL fallback reads the main file", passed: true });
   } catch (e) {
     results.push({ name: "WAL fallback reads the main file", passed: false, error: String(e) });
+  }
+
+  // Test: a pending rollback journal blocks the immutable fallback
+  try {
+    const tmpDb = tempDbPath("hot-journal");
+    await runPython(HOT_JOURNAL_SCRIPT, [tmpDb]);
+    assert(fileExists(`${tmpDb}-journal`), "precondition: hot -journal must exist");
+
+    const probe = await runPython(
+      [
+        "import sqlite3, sys",
+        "uri = 'file:' + sys.argv[1] + '?immutable=1'",
+        "conn = sqlite3.connect(uri, uri=True)",
+        "print(conn.execute('SELECT COUNT(*) FROM test').fetchone()[0])",
+      ].join("\n"),
+      [tmpDb],
+    );
+    assertEqual(probe.stdout.trim(), "1", "precondition: immutable would read the committed row");
+
+    clearSqliteCache();
+    const rows = await querySqlite(tmpDb, "SELECT * FROM test");
+    assertDeepEqual(rows, [], "must not read the main file while the journal is pending");
+    assert(fileExists(`${tmpDb}-journal`), "must not remove the journal");
+
+    removeFiles([tmpDb, ...sidecarPaths(tmpDb)]);
+    results.push({ name: "hot journal blocks the immutable fallback", passed: true });
+  } catch (e) {
+    results.push({
+      name: "hot journal blocks the immutable fallback",
+      passed: false,
+      error: String(e),
+    });
   }
 
   // Test: an unreadable database degrades to an empty result
