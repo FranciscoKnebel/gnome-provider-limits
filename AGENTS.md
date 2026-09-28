@@ -35,8 +35,9 @@ npm run lint              # oxlint
 npm run lint:fix          # oxlint --fix
 npm run format            # oxfmt --write .
 npm run format:check      # oxfmt --check .
-npm run test              # jasmine
-npm run check             # typecheck + lint + format:check + test
+npm run test              # Node jasmine suite
+npm run check             # typecheck + lint + format:check + check:i18n + test
+npm run check:all         # check + GJS suite (skips without gjs)
 npm run build             # tsc → dist/
 npm run schema:compile    # glib-compile-schemas src/schemas
 npm run pack              # build + compile schemas + gnome-extensions pack
