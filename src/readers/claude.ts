@@ -12,7 +12,12 @@ import {
   normalizeClaudeUsagePayload,
   parseClaudeCliOutput,
 } from "./claudeParser.js";
-import { credentialExpiresAt, isCredentialExpired, shouldProbeCli } from "./claudeProbe.js";
+import {
+  credentialExpiresAt,
+  isCredentialExpired,
+  nextCliFailureAt,
+  shouldProbeCli,
+} from "./claudeProbe.js";
 
 const CLAUDE_ALL_PATHS_FAILED = "Claude: all paths failed. Run `claude` to refresh credentials.";
 const CLAUDE_USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
@@ -171,6 +176,12 @@ export class ClaudeReader extends BaseReader {
       try {
         pathsTried.push("cli-pty");
         const payload = await this._readFromCli(cancellable);
+        this._lastCliFailureAt = nextCliFailureAt({
+          payload,
+          cancelled: cancellable.is_cancelled(),
+          now: Date.now(),
+          previous: this._lastCliFailureAt,
+        });
         if (payload) {
           return this._finalizeResult(
             this._parsePayload(payload, pathsTried),
@@ -178,11 +189,19 @@ export class ClaudeReader extends BaseReader {
             CLAUDE_ALL_PATHS_FAILED,
           );
         }
-        this._lastCliFailureAt = Date.now();
       } catch (error) {
-        this._lastCliFailureAt = Date.now();
+        this._lastCliFailureAt = nextCliFailureAt({
+          payload: null,
+          cancelled: cancellable.is_cancelled(),
+          now: Date.now(),
+          previous: this._lastCliFailureAt,
+        });
         logWarn("claude cli-pty fallback failed", error);
       }
+    }
+
+    if (cancellable.is_cancelled()) {
+      return this._errorResult("Claude: read cancelled.", pathsTried);
     }
 
     return this._lastGoodOrError(CLAUDE_ALL_PATHS_FAILED, pathsTried);

@@ -14,6 +14,19 @@ export function shouldProbeCli(options: ProbeDecisionOptions): boolean {
   return options.now - options.lastFailureAt >= backoffMs;
 }
 
+export interface CliFailureUpdateOptions {
+  payload: unknown;
+  cancelled: boolean;
+  now: number;
+  previous: number | null;
+}
+
+export function nextCliFailureAt(options: CliFailureUpdateOptions): number | null {
+  if (options.payload !== null && options.payload !== undefined) return null;
+  if (options.cancelled) return options.previous;
+  return options.now;
+}
+
 export function normalizeExpiresAt(value: unknown): number | null {
   if (typeof value === "number" && Number.isFinite(value) && value > 0) {
     return value < 1e12 ? value * 1000 : value;

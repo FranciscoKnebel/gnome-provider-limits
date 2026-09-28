@@ -85,15 +85,19 @@ export class HttpClient {
     const maxAttempts = 1 + (options?.retries ?? RETRY_MAX_ATTEMPTS - 1);
     const deadlineMs = options?.deadlineMs ?? RETRY_DEADLINE_MS;
     const cancellable = options?.cancellable ?? null;
-    const startedAt = GLib.get_monotonic_time() / 1000;
+    const startedAt = this._monotonicMs();
     let attempt = 0;
 
     for (;;) {
       attempt++;
+      const message = Soup.Message.new("GET", url);
+      this._applyHeaders(message, options?.headers);
+      const remainingMs = deadlineMs - (this._monotonicMs() - startedAt);
+
       try {
-        const message = Soup.Message.new("GET", url);
-        this._applyHeaders(message, options?.headers);
-        return await this._sendAndParse(message, cancellable);
+        return await this._runWithDeadline(remainingMs, cancellable, (attemptCancellable) =>
+          this._sendAndParse(message, attemptCancellable),
+        );
       } catch (error) {
         if (!(error instanceof HttpError) && !(error instanceof NetworkError)) throw error;
 
@@ -102,7 +106,7 @@ export class HttpClient {
           maxAttempts,
           statusCode: error instanceof HttpError ? error.statusCode : null,
           retryAfterSeconds: error instanceof RateLimitError ? error.retryAfterSeconds : null,
-          elapsedMs: GLib.get_monotonic_time() / 1000 - startedAt,
+          elapsedMs: this._monotonicMs() - startedAt,
           deadlineMs,
         });
         if (decision.delayMs === null) throw error;
@@ -122,6 +126,36 @@ export class HttpClient {
     );
 
     return this._sendAndParse(message, options?.cancellable ?? null);
+  }
+
+  private _monotonicMs(): number {
+    return GLib.get_monotonic_time() / 1000;
+  }
+
+  private async _runWithDeadline<T>(
+    remainingMs: number,
+    outer: Gio.Cancellable | null,
+    run: (cancellable: Gio.Cancellable) => Promise<T>,
+  ): Promise<T> {
+    const attemptCancellable = new Gio.Cancellable();
+    const connectId = outer?.connect(() => attemptCancellable.cancel()) ?? null;
+    let sourceActive = true;
+    const sourceId = GLib.timeout_add(
+      GLib.PRIORITY_DEFAULT,
+      Math.max(1, Math.ceil(remainingMs)),
+      () => {
+        sourceActive = false;
+        attemptCancellable.cancel();
+        return GLib.SOURCE_REMOVE;
+      },
+    );
+
+    try {
+      return await run(attemptCancellable);
+    } finally {
+      if (sourceActive) GLib.Source.remove(sourceId);
+      if (connectId !== null) outer?.disconnect(connectId);
+    }
   }
 
   private _applyHeaders(message: Soup.Message, headers?: Record<string, string>): void {

@@ -13,6 +13,7 @@ import {
   CLI_PROBE_BACKOFF_MS,
   credentialExpiresAt,
   isCredentialExpired,
+  nextCliFailureAt,
   shouldProbeCli,
 } from "../../src/readers/claudeProbe.js";
 import {
@@ -167,6 +168,54 @@ describe("shouldProbeCli", () => {
     expect(
       shouldProbeCli({ now, lastFailureAt: now - 1000, force: false, backoffMs: 500 }),
     ).toBeTrue();
+  });
+});
+
+describe("nextCliFailureAt", () => {
+  const now = 1_000_000;
+
+  it("records the failure timestamp when the probe returns nothing", () => {
+    expect(nextCliFailureAt({ payload: null, cancelled: false, now, previous: 500 })).toBe(now);
+  });
+
+  it("clears the backoff when the probe succeeds", () => {
+    expect(
+      nextCliFailureAt({ payload: { five_hour: {} }, cancelled: false, now, previous: 500 }),
+    ).toBeNull();
+  });
+
+  it("does not poison the backoff when the read was cancelled", () => {
+    expect(nextCliFailureAt({ payload: null, cancelled: true, now, previous: 500 })).toBe(500);
+    expect(nextCliFailureAt({ payload: null, cancelled: true, now, previous: null })).toBeNull();
+  });
+
+  it("a success after a failure makes the next scheduled probe run again", () => {
+    const failureAt = nextCliFailureAt({ payload: null, cancelled: false, now, previous: null });
+    expect(shouldProbeCli({ now: now + 1000, lastFailureAt: failureAt, force: false })).toBeFalse();
+
+    const cleared = nextCliFailureAt({
+      payload: { five_hour: {} },
+      cancelled: false,
+      now: now + 1000,
+      previous: failureAt,
+    });
+    expect(cleared).toBeNull();
+    expect(shouldProbeCli({ now: now + 2000, lastFailureAt: cleared, force: false })).toBeTrue();
+  });
+
+  it("a cancelled probe leaves the previous backoff decision intact", () => {
+    const failureAt = nextCliFailureAt({ payload: null, cancelled: false, now, previous: null });
+    const afterCancel = nextCliFailureAt({
+      payload: null,
+      cancelled: true,
+      now: now + 1000,
+      previous: failureAt,
+    });
+
+    expect(afterCancel).toBe(failureAt);
+    expect(
+      shouldProbeCli({ now: now + 2000, lastFailureAt: afterCancel, force: false }),
+    ).toBeFalse();
   });
 });
 

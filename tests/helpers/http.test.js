@@ -1,3 +1,4 @@
+import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 import Soup from "gi://Soup";
 
@@ -68,10 +69,28 @@ function makeRawMessage(status, headers = {}) {
     },
   });
 }
-
 function makeSession(body) {
   return {
     send_and_read_async: async () => new GLib.Bytes(new TextEncoder().encode(body ?? "")),
+    abort: () => {},
+  };
+}
+
+function makeSleepingSession() {
+  return {
+    send_and_read_async: (_message, _priority, cancellable) =>
+      new Promise((resolve, reject) => {
+        const sourceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, 5000, () => {
+          resolve(new GLib.Bytes(new TextEncoder().encode("{}")));
+          return GLib.SOURCE_REMOVE;
+        });
+        if (cancellable) {
+          cancellable.connect(() => {
+            GLib.Source.remove(sourceId);
+            reject(new Error("cancelled"));
+          });
+        }
+      }),
     abort: () => {},
   };
 }
@@ -404,6 +423,84 @@ export async function run() {
     client.destroy();
   } catch (e) {
     results.push({ name: "extracts error message from 400", passed: false, error: String(e) });
+  }
+
+  // Test 17: the per-attempt deadline cancels a slow request
+  try {
+    const client = new HttpClient(makeSleepingSession());
+    const startedAt = Date.now();
+    let aborted = false;
+    try {
+      await client.getJson("https://example.com/api/slow", { deadlineMs: 300, retries: 0 });
+    } catch (e) {
+      aborted = true;
+      assert(e instanceof NetworkError, `should be NetworkError, got ${e.name}`);
+    }
+    assert(aborted, "slow request should fail at the deadline");
+    assert(
+      Date.now() - startedAt < 3000,
+      "should abort near the deadline, not the session timeout",
+    );
+    results.push({ name: "per-attempt deadline cancels slow request", passed: true });
+    client.destroy();
+  } catch (e) {
+    results.push({
+      name: "per-attempt deadline cancels slow request",
+      passed: false,
+      error: String(e),
+    });
+  }
+
+  // Test 18: retries cannot push past the deadline
+  try {
+    const client = new HttpClient(makeSleepingSession());
+    const startedAt = Date.now();
+    let aborted = false;
+    try {
+      await client.getJson("https://example.com/api/slow", { deadlineMs: 300 });
+    } catch (e) {
+      aborted = true;
+      assert(e instanceof NetworkError, `should be NetworkError, got ${e.name}`);
+    }
+    assert(aborted, "slow request should fail at the deadline");
+    assert(Date.now() - startedAt < 3000, "should not retry a request that hit the deadline");
+    results.push({ name: "deadline bounds the retry loop", passed: true });
+    client.destroy();
+  } catch (e) {
+    results.push({ name: "deadline bounds the retry loop", passed: false, error: String(e) });
+  }
+
+  // Test 19: outer cancellation aborts the in-flight attempt promptly
+  try {
+    const client = new HttpClient(makeSleepingSession());
+    const outer = new Gio.Cancellable();
+    const promise = client.getJson("https://example.com/api/slow", {
+      cancellable: outer,
+      deadlineMs: 10_000,
+      retries: 0,
+    });
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, 100, () => {
+      outer.cancel();
+      return GLib.SOURCE_REMOVE;
+    });
+
+    const startedAt = Date.now();
+    let aborted = false;
+    try {
+      await promise;
+    } catch {
+      aborted = true;
+    }
+    assert(aborted, "cancelled request should fail");
+    assert(Date.now() - startedAt < 3000, "should abort promptly on cancellation");
+    results.push({ name: "outer cancellation aborts in-flight attempt", passed: true });
+    client.destroy();
+  } catch (e) {
+    results.push({
+      name: "outer cancellation aborts in-flight attempt",
+      passed: false,
+      error: String(e),
+    });
   }
 
   return results;

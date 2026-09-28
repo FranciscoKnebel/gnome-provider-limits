@@ -76,12 +76,14 @@ export async function runSubprocess(
   const timeoutId = GLib.timeout_add_seconds(GLib.PRIORITY_DEFAULT, timeout, () => {
     timedOut = true;
     timeoutActive = false;
-    subprocess.send_signal(SIGTERM);
-    killSourceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, SUBPROCESS_KILL_GRACE_MS, () => {
-      killSourceId = null;
-      subprocess.force_exit();
-      return GLib.SOURCE_REMOVE;
-    });
+    if (subprocess.get_identifier() !== null) {
+      subprocess.send_signal(SIGTERM);
+      killSourceId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, SUBPROCESS_KILL_GRACE_MS, () => {
+        killSourceId = null;
+        subprocess.force_exit();
+        return GLib.SOURCE_REMOVE;
+      });
+    }
     return GLib.SOURCE_REMOVE;
   });
 
@@ -107,6 +109,8 @@ export async function runSubprocess(
     return { stdout: stdoutText, stderr: stderrText, exitCode };
   } catch (error) {
     if (timedOut && !(error instanceof SubprocessTimeoutError)) {
+      // communicate_utf8_async owns the pipes and discards buffered output when it
+      // rejects, so partial stdout/stderr cannot be recovered on this path.
       throw new SubprocessTimeoutError(`Subprocess timed out after ${timeout}s`);
     }
     throw error;
