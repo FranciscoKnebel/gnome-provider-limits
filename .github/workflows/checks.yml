@@ -19,6 +19,12 @@ jobs:
       - name: Run checks
         run: npm run check
 
+      - name: Install GJS test dependencies
+        run: sudo apt-get update && sudo apt-get install -y gjs gir1.2-soup-3.0
+
+      - name: Run GJS tests
+        run: npm run test:gjs
+
       - uses: actions/upload-artifact@v7
         if: always()
         with:
