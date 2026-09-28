@@ -176,15 +176,15 @@ msgstr ""
 msgid "Reset at (5h window)"
 msgstr ""
 
-#: src/readers/codex.ts
+#: src/readers/codex.ts src/readers/claude.ts src/readers/opencode.ts
 msgid "Used % (weekly)"
 msgstr ""
 
-#: src/readers/codex.ts
+#: src/readers/codex.ts src/readers/claude.ts src/readers/opencode.ts
 msgid "Remaining % (weekly)"
 msgstr ""
 
-#: src/readers/codex.ts
+#: src/readers/codex.ts src/readers/claude.ts src/readers/opencode.ts
 msgid "Reset at (weekly)"
 msgstr ""
 
@@ -225,18 +225,6 @@ msgid "Reset at (session)"
 msgstr ""
 
 #: src/readers/claude.ts
-msgid "Used % (weekly)"
-msgstr ""
-
-#: src/readers/claude.ts
-msgid "Remaining % (weekly)"
-msgstr ""
-
-#: src/readers/claude.ts
-msgid "Reset at (weekly)"
-msgstr ""
-
-#: src/readers/claude.ts
 msgid "Used % (Sonnet weekly)"
 msgstr ""
 
@@ -270,18 +258,6 @@ msgstr ""
 
 #: src/readers/opencode.ts
 msgid "Reset at (rolling)"
-msgstr ""
-
-#: src/readers/opencode.ts
-msgid "Used % (weekly)"
-msgstr ""
-
-#: src/readers/opencode.ts
-msgid "Remaining % (weekly)"
-msgstr ""
-
-#: src/readers/opencode.ts
-msgid "Reset at (weekly)"
 msgstr ""
 
 #: src/readers/opencode.ts
