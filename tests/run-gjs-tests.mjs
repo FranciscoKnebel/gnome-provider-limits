@@ -9,6 +9,7 @@ const FAILED = 1;
 
 let passed = 0;
 let failed = 0;
+let skipped = 0;
 
 async function discoverTests() {
   const files = [];
@@ -48,7 +49,10 @@ async function runTestFile(filePath) {
     }
     const results = await mod.run();
     for (const r of results) {
-      if (r.passed) {
+      if (r.skipped) {
+        log(`SKIP: ${filePath} › ${r.name}${r.reason ? ` (${r.reason})` : ""}`);
+        skipped++;
+      } else if (r.passed) {
         log(`PASS: ${filePath} › ${r.name}`);
         passed++;
       } else {
@@ -82,9 +86,9 @@ async function main() {
     await runTestFile(file);
   }
 
-  const total = passed + failed;
+  const total = passed + failed + skipped;
   log("");
-  log(`Results: ${passed} passed, ${failed} failed (${total} total)`);
+  log(`Results: ${passed} passed, ${failed} failed, ${skipped} skipped (${total} total)`);
 
   System.exit(failed > 0 ? FAILED : PASSED);
 }
