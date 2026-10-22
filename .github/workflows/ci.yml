@@ -6,13 +6,26 @@ on:
   pull_request:
     branches: ["*"]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
+
 jobs:
   check:
     uses: ./.github/workflows/checks.yml
+    permissions:
+      contents: read
 
   coverage:
     needs: check
     runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+      actions: read
+      pull-requests: write
     steps:
       - uses: actions/download-artifact@v8
         with:
@@ -35,6 +48,7 @@ jobs:
 
       - name: Post coverage to PR
         if: github.event_name == 'pull_request'
+        continue-on-error: true
         uses: marocchino/sticky-pull-request-comment@v2
         with:
           path: code-coverage-results.md
@@ -45,6 +59,7 @@ jobs:
     runs-on: ubuntu-26.04
     permissions:
       contents: write
+      actions: read
     steps:
       - uses: actions/checkout@v7
 
