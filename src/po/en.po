@@ -384,3 +384,19 @@ msgstr "yes"
 #: src/formatters.ts
 msgid "no"
 msgstr "no"
+
+#: src/formatters.ts
+msgid "h"
+msgstr "h"
+
+#: src/formatters.ts
+msgid "m"
+msgstr "m"
+
+#: src/formatters.ts
+msgid "d"
+msgstr "d"
+
+#: src/formatters.ts
+msgid "w"
+msgstr "w"

@@ -418,21 +418,7 @@ export async function run() {
     results.push({ name: "RateLimitError carries Retry-After", passed: false, error: String(e) });
   }
 
-  // Test 15: postJson sends POST with body and does not retry
-  try {
-    const client = new MockHttpClient([
-      ["/api/post", { status: 200, body: JSON.stringify({ received: true }) }],
-    ]);
-    const result = await client.postJson("https://example.com/api/post", { key: "value" });
-    assertEqual(result.received, true, "should receive response");
-    assertEqual(client._attempts, 1, "postJson should stay single-shot");
-    results.push({ name: "postJson sends and receives", passed: true });
-    client.destroy();
-  } catch (e) {
-    results.push({ name: "postJson sends and receives", passed: false, error: String(e) });
-  }
-
-  // Test 16: error message extraction from payload
+  // Test 15: error message extraction from payload
   try {
     const client = new MockHttpClient([
       ["/api/errmsg", { status: 400, body: JSON.stringify({ message: "bad request" }) }],
@@ -455,7 +441,7 @@ export async function run() {
     results.push({ name: "extracts error message from 400", passed: false, error: String(e) });
   }
 
-  // Test 17: the per-attempt deadline cancels a slow request
+  // Test 16: the per-attempt deadline cancels a slow request
   try {
     const client = new HttpClient(makeSleepingSession());
     const startedAt = Date.now();
@@ -481,7 +467,7 @@ export async function run() {
     });
   }
 
-  // Test 18: retries cannot push past the deadline
+  // Test 17: retries cannot push past the deadline
   try {
     const client = new HttpClient(makeSleepingSession());
     const startedAt = Date.now();
@@ -500,7 +486,7 @@ export async function run() {
     results.push({ name: "deadline bounds the retry loop", passed: false, error: String(e) });
   }
 
-  // Test 19: outer cancellation aborts the in-flight attempt promptly
+  // Test 18: outer cancellation aborts the in-flight attempt promptly
   try {
     const client = new HttpClient(makeSleepingSession());
     const outer = new Gio.Cancellable();

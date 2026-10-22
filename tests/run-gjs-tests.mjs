@@ -1,14 +1,16 @@
 /* eslint-disable no-unused-vars */
 import Gio from "gi://Gio";
+import GLib from "gi://GLib";
 import System from "system";
 
-const TEST_DIR = import.meta.url.replace(/^file:\/\//, "").replace(/\/[^/]+$/, "");
+const TEST_DIR = GLib.path_get_dirname(GLib.filename_from_uri(import.meta.url)[0]);
 
 const PASSED = 0;
 const FAILED = 1;
 
 let passed = 0;
 let failed = 0;
+let skipped = 0;
 
 async function discoverTests() {
   const files = [];
@@ -44,11 +46,15 @@ async function runTestFile(filePath) {
     const mod = await import(fullPath);
     if (typeof mod.run !== "function") {
       log(`SKIP: ${filePath} (no run() export)`);
+      skipped++;
       return;
     }
     const results = await mod.run();
     for (const r of results) {
-      if (r.passed) {
+      if (r.skipped) {
+        log(`SKIP: ${filePath} › ${r.name}${r.reason ? ` (${r.reason})` : ""}`);
+        skipped++;
+      } else if (r.passed) {
         log(`PASS: ${filePath} › ${r.name}`);
         passed++;
       } else {
@@ -72,7 +78,7 @@ async function main() {
 
   if (files.length === 0) {
     log("No test files found");
-    return;
+    System.exit(FAILED);
   }
 
   log(`Found ${files.length} test file(s)`);
@@ -82,9 +88,9 @@ async function main() {
     await runTestFile(file);
   }
 
-  const total = passed + failed;
+  const total = passed + failed + skipped;
   log("");
-  log(`Results: ${passed} passed, ${failed} failed (${total} total)`);
+  log(`Results: ${passed} passed, ${failed} failed, ${skipped} skipped (${total} total)`);
 
   System.exit(failed > 0 ? FAILED : PASSED);
 }

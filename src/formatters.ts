@@ -59,7 +59,7 @@ function formatTimestamp(
 
   if (diffSec < 60) return tr("now");
 
-  const relative = formatRelative(diffSec, zone);
+  const relative = formatRelative(diffSec, zone, tr);
   if (zone === "panel") {
     try {
       const date = new Date(num);
@@ -75,7 +75,7 @@ function formatTimestamp(
   return relative;
 }
 
-function formatRelative(seconds: number, zone: FieldZone): string {
+function formatRelative(seconds: number, zone: FieldZone, tr: (s: string) => string): string {
   // Caller handles "now" (seconds < 60). This function only runs for >= 60.
   const sep = zone === "status" ? "" : " ";
   const mins = Math.floor(seconds / 60);
@@ -83,20 +83,22 @@ function formatRelative(seconds: number, zone: FieldZone): string {
   const days = Math.floor(seconds / 86400);
   const weeks = Math.floor(seconds / 604800);
 
-  if (seconds < 3600) return `${mins}m`;
+  const hourSuffix = tr("h");
+  const minuteSuffix = tr("m");
+  const daySuffix = tr("d");
+  const weekSuffix = tr("w");
+
+  if (seconds < 3600) return `${mins}${minuteSuffix}`;
   if (seconds < 86400) {
-    const h = hours;
     const m = mins % 60;
-    return m > 0 ? `${h}h${sep}${m}m` : `${h}h`;
+    return m > 0 ? `${hours}${hourSuffix}${sep}${m}${minuteSuffix}` : `${hours}${hourSuffix}`;
   }
   if (seconds < 604800) {
-    const d = days;
     const h = hours % 24;
-    return h > 0 ? `${d}d${sep}${h}h` : `${d}d`;
+    return h > 0 ? `${days}${daySuffix}${sep}${h}${hourSuffix}` : `${days}${daySuffix}`;
   }
-  const w = weeks;
   const d = days % 7;
-  return d > 0 ? `${w}w${sep}${d}d` : `${w}w`;
+  return d > 0 ? `${weeks}${weekSuffix}${sep}${d}${daySuffix}` : `${weeks}${weekSuffix}`;
 }
 
 function formatTokens(value: unknown, zone: FieldZone, locale: string): string {
@@ -156,8 +158,9 @@ function formatBool(value: unknown, zone: FieldZone, tr: (s: string) => string):
 
 function formatText(value: unknown, zone: FieldZone): string {
   const str = String(value);
-  if (zone === "status" && str.length > 10) {
-    return `${str.slice(0, 8)}…`;
+  const chars = [...str];
+  if (zone === "status" && chars.length > 10) {
+    return `${chars.slice(0, 8).join("")}…`;
   }
   return str;
 }

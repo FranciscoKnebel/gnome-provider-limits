@@ -299,7 +299,7 @@ export async function run() {
     await runPython(WRITE_TEXT_SCRIPT, [tmpDb]);
 
     clearSqliteCache();
-    const rows = await querySqlite(tmpDb, "SELECT 1");
+    const rows = await querySqlite(tmpDb, "SELECT * FROM sqlite_master LIMIT 1");
     assertDeepEqual(rows, [], "invalid database should return no rows");
     for (const path of sidecarPaths(tmpDb)) {
       assert(!fileExists(path), `invalid database must not create ${path}`);

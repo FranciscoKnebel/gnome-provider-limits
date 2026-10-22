@@ -384,3 +384,19 @@ msgstr "oui"
 #: src/formatters.ts
 msgid "no"
 msgstr "non"
+
+#: src/formatters.ts
+msgid "h"
+msgstr "h"
+
+#: src/formatters.ts
+msgid "m"
+msgstr "min"
+
+#: src/formatters.ts
+msgid "d"
+msgstr "j"
+
+#: src/formatters.ts
+msgid "w"
+msgstr "sem"
