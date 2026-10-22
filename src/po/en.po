@@ -17,6 +17,41 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 
+#: src/readers/grok.ts
+msgid "Used % (credits)"
+msgstr "Used % (credits)"
+
+msgid "Remaining % (credits)"
+msgstr "Remaining % (credits)"
+
+msgid "Reset at (credits)"
+msgstr "Reset at (credits)"
+
+msgid "Purchased credits"
+msgstr "Purchased credits"
+
+msgid "Shared subscription credits"
+msgstr "Shared subscription credits"
+
+msgid "Grok: no valid personal login. Run `grok login` with your SuperGrok account."
+msgstr "Grok: no valid personal login. Run `grok login` with your SuperGrok account."
+
+msgid "Grok: login rejected. Run `grok login` to sign in again."
+msgstr "Grok: login rejected. Run `grok login` to sign in again."
+
+msgid "Grok: subscription credits unavailable. Try again later."
+msgstr "Grok: subscription credits unavailable. Try again later."
+
+#: src/ui/prefs/provider-page.ts
+msgid "Authentication file"
+msgstr "Authentication file"
+
+msgid "Sign in with `grok login` using your SuperGrok account."
+msgstr "Sign in with `grok login` using your SuperGrok account."
+
+msgid "Leave the authentication file empty to use $GROK_HOME/auth.json or ~/.grok/auth.json."
+msgstr "Leave the authentication file empty to use $GROK_HOME/auth.json or ~/.grok/auth.json."
+
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Provider Limits"
 msgstr "Provider Limits"

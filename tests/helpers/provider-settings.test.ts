@@ -34,6 +34,7 @@ describe("normalizeProvidersOrder", () => {
       "opencode",
       "codex",
       "claude",
+      "grok",
     ]);
   });
 
@@ -42,15 +43,21 @@ describe("normalizeProvidersOrder", () => {
       "codex",
       "claude",
       "opencode",
+      "grok",
     ]);
   });
 
   it("drops unknown values", () => {
-    expect(normalizeProvidersOrder(["gemini", "claude"])).toEqual(["claude", "codex", "opencode"]);
+    expect(normalizeProvidersOrder(["gemini", "claude"])).toEqual([
+      "claude",
+      "codex",
+      "opencode",
+      "grok",
+    ]);
   });
 
   it("appends missing defaults after the configured values", () => {
-    expect(normalizeProvidersOrder(["claude"])).toEqual(["claude", "codex", "opencode"]);
+    expect(normalizeProvidersOrder(["claude"])).toEqual(["claude", "codex", "opencode", "grok"]);
   });
 
   it("returns the default order for empty input", () => {

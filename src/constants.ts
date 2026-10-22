@@ -1,4 +1,4 @@
-export const PROVIDER_NAMES = ["codex", "claude", "opencode"] as const;
+export const PROVIDER_NAMES = ["codex", "claude", "opencode", "grok"] as const;
 export type ProviderName = (typeof PROVIDER_NAMES)[number];
 
 export const DEFAULT_REFRESH_SHORT_INTERVAL_SECONDS = 10;
