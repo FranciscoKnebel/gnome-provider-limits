@@ -11,7 +11,14 @@ import {
   normalizeProvidersOrder,
   providerDisplayName,
 } from "../../helpers/provider-settings.js";
-import { buildReorderableList, setupDragSource, setupDropTarget } from "./shared.js";
+import {
+  bindSetting,
+  buildReorderableList,
+  setupDragSource,
+  setupDropTarget,
+  unbindSettings,
+} from "./shared.js";
+import type { SettingsBinding } from "./shared.js";
 
 export interface LanguageEntry {
   code: string;
@@ -24,6 +31,7 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
     declare _languages: LanguageEntry[];
     declare _settingsChangedIds: number[];
     declare _destroyCallbacks: (() => void)[];
+    declare _bindings: SettingsBinding[];
 
     _init(settings: Gio.Settings, languages: LanguageEntry[]) {
       super._init({
@@ -35,6 +43,7 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
       this._languages = languages;
       this._settingsChangedIds = [];
       this._destroyCallbacks = [];
+      this._bindings = [];
       this.connect("destroy", () => this.cleanup());
       this.add(this._buildRefreshGroup());
       this.add(this._buildLanguageGroup());
@@ -49,6 +58,8 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
 
       for (const destroy of this._destroyCallbacks) destroy();
       this._destroyCallbacks = [];
+
+      unbindSettings(this._bindings);
     }
 
     private _buildRefreshGroup(): Adw.PreferencesGroup {
@@ -132,6 +143,7 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
         description: _("Enable and reorder providers by dragging the rows."),
       });
 
+      const toggleBindings: SettingsBinding[] = [];
       const { listBox, render, destroy } = buildReorderableList(
         this._settings,
         "providers-order",
@@ -143,12 +155,14 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
             label: providerDisplayName(this._settings, value),
           });
           const toggle = new Gtk.Switch({ valign: Gtk.Align.CENTER });
-          this._settings.bind(`${value}-enabled`, toggle, "active", Gio.SettingsBindFlags.DEFAULT);
+          bindSetting(this._settings, `${value}-enabled`, toggle, "active", toggleBindings);
           row.add_suffix(toggle);
           return row;
         },
         normalizeProvidersOrder,
+        () => unbindSettings(toggleBindings),
       );
+      this._destroyCallbacks.push(() => unbindSettings(toggleBindings));
       this._destroyCallbacks.push(destroy);
       group.add(listBox);
 
@@ -184,7 +198,7 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
         digits: 0,
       });
 
-      this._settings.bind(key, row, "value", Gio.SettingsBindFlags.DEFAULT);
+      bindSetting(this._settings, key, row, "value", this._bindings);
       return row;
     }
 

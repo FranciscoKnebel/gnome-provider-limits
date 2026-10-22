@@ -1,4 +1,8 @@
-import { formatAbsoluteTimestamp, formatField } from "../src/formatters.js";
+import {
+  formatAbsoluteTimestamp,
+  formatField,
+  formatTimestampTemplate,
+} from "../src/formatters.js";
 
 describe("formatters", () => {
   describe("percent", () => {
@@ -99,6 +103,20 @@ describe("formatters", () => {
       expect(
         formatField({ type: "text", value: "org_level_disabled", zone: "panel", locale: "en" }),
       ).toBe("org_level_disabled");
+    });
+  });
+
+  describe("formatTimestampTemplate", () => {
+    it("returns an empty string for missing or non-finite timestamps", () => {
+      expect(formatTimestampTemplate("Last refresh: %s", null, "en")).toBe("");
+      expect(formatTimestampTemplate("Last refresh: %s", Number.NaN, "en")).toBe("");
+      expect(formatTimestampTemplate("Last refresh: %s", Number.POSITIVE_INFINITY, "en")).toBe("");
+    });
+
+    it("fills the placeholder with the formatted timestamp", () => {
+      const result = formatTimestampTemplate("Last refresh: %s", Date.now() - 60_000, "en");
+      expect(result.startsWith("Last refresh: ")).toBe(true);
+      expect(result).not.toContain("%s");
     });
   });
 
