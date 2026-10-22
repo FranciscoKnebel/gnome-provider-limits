@@ -1,5 +1,7 @@
 import type Gio from "gi://Gio";
 
+export const LAST_GOOD_MAX_AGE_MS = 30 * 60 * 1000;
+
 export enum ReaderStatus {
   OK = "ok",
   PARTIAL = "partial",
@@ -42,7 +44,13 @@ export interface ReaderResult {
   readonly pathsTried?: readonly string[];
 }
 
+export interface ReadOptions {
+  force?: boolean;
+}
+
 export abstract class BaseReader {
+  protected _lastGood: ReaderResult | null = null;
+
   constructor(
     protected readonly settings: Gio.Settings,
     protected readonly providerName: string,
@@ -50,7 +58,7 @@ export abstract class BaseReader {
 
   abstract get FIELDS(): readonly FieldDef[];
 
-  abstract read(): Promise<ReaderResult>;
+  abstract read(options?: ReadOptions): Promise<ReaderResult>;
 
   destroy(): void {}
 
@@ -133,10 +141,45 @@ export abstract class BaseReader {
     };
   }
 
+  protected _rememberResult(result: ReaderResult): ReaderResult {
+    if (result.status === ReaderStatus.OK || result.status === ReaderStatus.PARTIAL) {
+      this._lastGood = result;
+    }
+    return result;
+  }
+
+  protected _finalizeResult(
+    result: ReaderResult,
+    pathsTried: readonly string[],
+    fallbackMessage: string,
+  ): ReaderResult {
+    if (result.status === ReaderStatus.ERROR) {
+      return this._lastGoodOrError(result.lastError ?? fallbackMessage, pathsTried);
+    }
+    return this._rememberResult(result);
+  }
+
+  protected _lastGoodOrError(message: string, pathsTried: readonly string[]): ReaderResult {
+    const lastGood = this._lastGood;
+    if (!lastGood || Date.now() - lastGood.lastUpdated > LAST_GOOD_MAX_AGE_MS) {
+      return this._errorResult(message, pathsTried);
+    }
+
+    return {
+      provider: this.providerName,
+      status: ReaderStatus.PARTIAL,
+      fields: lastGood.fields,
+      lastUpdated: lastGood.lastUpdated,
+      lastError: message,
+      pathsTried: [...pathsTried, "last-known-good"],
+    };
+  }
+
   protected _classifyResult(
     fields: FieldResult[],
     pathsTried: readonly string[],
     prefix?: string,
+    partialError?: string,
   ): ReaderResult {
     const hasAny = fields.some((f) => f.status === FieldStatus.OK);
     if (!hasAny) {
@@ -150,7 +193,7 @@ export abstract class BaseReader {
       ? this._partialResult(
           fields,
           pathsTried,
-          `${prefix ?? this.providerName}: some fields unavailable.`,
+          partialError ?? `${prefix ?? this.providerName}: some fields unavailable.`,
         )
       : this._okResult(fields, pathsTried);
   }

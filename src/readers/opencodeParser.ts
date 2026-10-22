@@ -51,6 +51,30 @@ export function normalizeOpenCodeDbRow(row: OpenCodeDbRow | null | undefined): {
   };
 }
 
+export interface OpenCodeSourceFailure {
+  source: string;
+  reason: unknown;
+}
+
+export function openCodePartialError(
+  hasUsage: boolean,
+  hasTelemetry: boolean,
+  failures: readonly OpenCodeSourceFailure[],
+): string | null {
+  if (hasUsage && hasTelemetry) return null;
+  if (failures.length > 0) {
+    return failures
+      .map(
+        (failure) =>
+          `${failure.source}: ${
+            failure.reason instanceof Error ? failure.reason.message : String(failure.reason)
+          }`,
+      )
+      .join("; ");
+  }
+  return hasUsage ? "disk: no data" : "usage-api: no data";
+}
+
 export function parseOpenCodeAuthKey(text: string): string | null {
   let auth: unknown;
   try {

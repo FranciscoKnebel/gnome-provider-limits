@@ -95,7 +95,7 @@ const ProviderLimitsIndicator = GObject.registerClass(
           this._extension.openPreferences();
         },
         () => {
-          void this.refresh();
+          void this.refresh({ force: true });
         },
       );
       // PanelMenu.Button always creates a real PopupMenu (only PopupDummyMenu when
@@ -193,7 +193,7 @@ const ProviderLimitsIndicator = GObject.registerClass(
       }
     }
 
-    async refresh(): Promise<void> {
+    async refresh(options?: { force?: boolean }): Promise<void> {
       const generation = ++this._refreshGeneration;
       const refreshStartedAt = Date.now();
       this._pendingRefreshes++;
@@ -211,7 +211,9 @@ const ProviderLimitsIndicator = GObject.registerClass(
           .map((name) => ({ name, reader: this._readers.get(name) }))
           .filter((e): e is { name: ProviderName; reader: BaseReader } => !!e.reader);
 
-        const settled = await Promise.allSettled(entries.map((e) => e.reader.read()));
+        const settled = await Promise.allSettled(
+          entries.map((e) => e.reader.read({ force: options?.force ?? false })),
+        );
 
         let anyChanged = false;
         const nextResults = new Map<ProviderName, ReaderResult>();

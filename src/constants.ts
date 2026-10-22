@@ -10,8 +10,9 @@ export const DEFAULT_PROVIDERS_ORDER: readonly ProviderName[] = PROVIDER_NAMES;
 export const SQLITE_CACHE_TTL_SECONDS = 5;
 export const COOKIE_CACHE_TTL_SECONDS = 300;
 
-export const HTTP_TIMEOUT_SECONDS = 30;
+export const HTTP_TIMEOUT_SECONDS = 15;
 export const SUBPROCESS_TIMEOUT_SECONDS = 10;
+export const SUBPROCESS_KILL_GRACE_MS = 500;
 
 export const SCHEMA_ID = "org.gnome.shell.extensions.gnome-provider-limits";
 export const GETTEXT_DOMAIN = "gnome-provider-limits";

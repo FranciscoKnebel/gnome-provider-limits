@@ -78,6 +78,14 @@ export function normalizeCodexResetCredits(value: unknown): CodexResetCredits | 
   };
 }
 
+export function mergeResetCredits(
+  payload: CodexRateLimitsPayload,
+  details: CodexResetCredits | null,
+): CodexRateLimitsPayload {
+  if (!details) return payload;
+  return { ...payload, reset_credits: { ...payload.reset_credits, ...details } };
+}
+
 export function summarizeCodexResetCredits(
   resetCredits: CodexResetCredits | null | undefined,
 ): CodexResetCreditsSummary {
