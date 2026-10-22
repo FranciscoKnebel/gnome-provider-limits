@@ -13,7 +13,14 @@ import { CLAUDE_FIELDS } from "../../readers/claude.js";
 import { CODEX_FIELDS } from "../../readers/codex.js";
 import { OPENCODE_FIELDS } from "../../readers/opencode.js";
 import { gettext as _ } from "./gettext.js";
-import { buildReorderableList, setupDragSource, setupDropTarget } from "./shared.js";
+import {
+  bindSetting,
+  buildReorderableList,
+  setupDragSource,
+  setupDropTarget,
+  unbindSettings,
+} from "./shared.js";
+import type { SettingsBinding } from "./shared.js";
 
 const SAMPLE_VALUES: Record<Exclude<FieldType, "timestamp">, unknown> = {
   percent: 42,
@@ -45,6 +52,7 @@ export const ProviderPage = GObject.registerClass(
     declare _provider: ProviderName;
     declare _titleChangedId: number;
     declare _destroyCallbacks: (() => void)[];
+    declare _bindings: SettingsBinding[];
 
     _init(settings: Gio.Settings, provider: ProviderName) {
       super._init({
@@ -55,6 +63,7 @@ export const ProviderPage = GObject.registerClass(
       this._settings = settings;
       this._provider = provider;
       this._destroyCallbacks = [];
+      this._bindings = [];
 
       this._titleChangedId = settings.connect(`changed::${provider}-display-name`, () => {
         this.title = providerDisplayName(settings, provider);
@@ -76,6 +85,8 @@ export const ProviderPage = GObject.registerClass(
 
       for (const destroy of this._destroyCallbacks) destroy();
       this._destroyCallbacks = [];
+
+      unbindSettings(this._bindings);
     }
 
     private _buildSettingsGroup(): Adw.PreferencesGroup {
@@ -85,11 +96,12 @@ export const ProviderPage = GObject.registerClass(
         title: _("Display name"),
         text: this._settings.get_string(`${this._provider}-display-name`) ?? "",
       });
-      this._settings.bind(
+      bindSetting(
+        this._settings,
         `${this._provider}-display-name`,
         displayNameRow,
         "text",
-        Gio.SettingsBindFlags.DEFAULT,
+        this._bindings,
       );
       group.add(displayNameRow);
 
@@ -97,11 +109,12 @@ export const ProviderPage = GObject.registerClass(
         title: _("Short display name"),
         text: this._settings.get_string(`${this._provider}-display-name-short`) ?? "",
       });
-      this._settings.bind(
+      bindSetting(
+        this._settings,
         `${this._provider}-display-name-short`,
         shortNameRow,
         "text",
-        Gio.SettingsBindFlags.DEFAULT,
+        this._bindings,
       );
       group.add(shortNameRow);
 
@@ -109,12 +122,7 @@ export const ProviderPage = GObject.registerClass(
         title: _("CLI path"),
         text: this._settings.get_string(`${this._provider}-cli-path`) ?? "",
       });
-      this._settings.bind(
-        `${this._provider}-cli-path`,
-        cliRow,
-        "text",
-        Gio.SettingsBindFlags.DEFAULT,
-      );
+      bindSetting(this._settings, `${this._provider}-cli-path`, cliRow, "text", this._bindings);
       group.add(cliRow);
       return group;
     }

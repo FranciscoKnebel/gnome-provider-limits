@@ -138,12 +138,12 @@ msgid "Refreshing…"
 msgstr "Atualizando…"
 
 #: src/ui/panel.ts
-msgid "Last refresh:"
-msgstr "Última atualização:"
+msgid "Last refresh: %s"
+msgstr "Última atualização: %s"
 
 #: src/ui/panel.ts
-msgid "Last updated:"
-msgstr "Atualizado em:"
+msgid "Last updated: %s"
+msgstr "Atualizado em: %s"
 
 #: src/ui/panel.ts
 msgid "(partial)"

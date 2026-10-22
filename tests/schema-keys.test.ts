@@ -29,6 +29,11 @@ const GLOBAL_KEYS = [
   "refresh-stable-reads-threshold",
 ] as const;
 
+// The suffix scan also matches non-key template literals, such as the SQLite
+// sidecar paths in helpers/sqlite.ts. Those spell file names, not schema keys,
+// so they are accepted here; any other suffix must be a provider key suffix.
+const NON_KEY_TEMPLATE_SUFFIXES = ["wal", "shm", "journal"] as const;
+
 function walkTsFiles(dir: string): string[] {
   const files: string[] = [];
   for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -101,7 +106,7 @@ describe("GSettings schema keys", () => {
   });
 
   it("uses only known provider key suffixes in template literals", () => {
-    const known = new Set<string>(PROVIDER_KEY_SUFFIXES);
+    const known = new Set<string>([...PROVIDER_KEY_SUFFIXES, ...NON_KEY_TEMPLATE_SUFFIXES]);
     const unknown = templateKeySuffixesUsedInSource().filter(({ suffix }) => !known.has(suffix));
     const named = unknown.map(({ suffix, file }) => `${suffix} (${file})`);
     expect(named)
