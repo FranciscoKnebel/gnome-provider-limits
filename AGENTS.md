@@ -118,12 +118,17 @@ pages/                     # GitHub Pages site (kept separate from app code)
    `src/schemas/org.gnome.shell.extensions.gnome-provider-limits.gschema.xml`:
    `<provider>-enabled` (b), `<provider>-cli-path` (s),
    `<provider>-status-fields` (as), `<provider>-panel-fields` (as).
+   Readers that never invoke a CLI should reuse that key for another
+   non-secret path instead: Grok stores an existing CLI login file
+   (auth.json) in `grok-cli-path`.
 4. Add provider name to `PROVIDER_NAMES` and `PROVIDER_LABELS` in
    `src/constants.ts`.
 5. Wire up in `extension.ts` (`_createReader` switch).
 6. Wire up in `prefs.ts` (provider page in preferences).
 7. Update `CONTEXT.md` glossary if new domain terms emerge.
-8. Write tests in `tests/readers/<provider>.test.ts` with payload fixtures.
+8. Write parser tests in `tests/readers/<provider>Parser.test.ts` with payload
+   fixtures and Reader integration tests in
+   `tests/readers/<provider>-gjs.test.js` (run by the GJS suite).
 
 ## Adding a new field to an existing reader
 
@@ -154,6 +159,9 @@ The suite is split between two runners:
   tested in Node. No test makes live provider network calls.
 - Use real payload fixtures (JSON/SQLite) captured from provider disk for
   parser tests. Put fixtures in `tests/fixtures/`.
+  If an authenticated capture is unavailable, identify contract-derived examples
+  explicitly and document that live account behavior remains unverified. Do not
+  present synthetic examples as captured payloads.
 - Shell-level rendering (panel, status bar, prefs window) still needs manual
   checking: install, enable, and verify the shell doesn't crash. The GJS
   prefs suite only constructs pages when a display is available.
