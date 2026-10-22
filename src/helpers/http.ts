@@ -18,8 +18,8 @@ export class HttpError extends Error {
 }
 
 export class TokenError extends HttpError {
-  constructor(message: string, payload?: unknown) {
-    super(message, 401, payload);
+  constructor(message: string, statusCode = 401, payload?: unknown) {
+    super(message, statusCode, payload);
     this.name = "TokenError";
   }
 }
@@ -119,7 +119,7 @@ export class HttpClient {
     const message = this._extractErrorMessage(payload) ?? `HTTP ${statusCode}`;
 
     if (statusCode === 401 || statusCode === 403) {
-      return new TokenError(message, payload);
+      return new TokenError(message, statusCode, payload);
     }
     if (statusCode === 429) {
       return new RateLimitError(message, payload);
