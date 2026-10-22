@@ -35,8 +35,9 @@ npm run lint              # oxlint
 npm run lint:fix          # oxlint --fix
 npm run format            # oxfmt --write .
 npm run format:check      # oxfmt --check .
-npm run test              # jasmine
-npm run check             # typecheck + lint + format:check + test
+npm run test              # Node jasmine suite
+npm run check             # typecheck + lint + format:check + check:i18n + test
+npm run check:all         # check + GJS suite (skips without gjs)
 npm run build             # tsc → dist/
 npm run schema:compile    # glib-compile-schemas src/schemas
 npm run pack              # build + compile schemas + gnome-extensions pack
@@ -144,7 +145,9 @@ The suite is split between two runners:
   `tests/run-gjs-tests.mjs` against the specs in `tests/helpers`,
   `tests/readers`, and `tests/ui`. Covers gi-dependent modules; CI runs it
   with `gjs` and `gi://Soup`. The prefs UI test reports SKIP when the
-  Gtk/Adw typelibs or a display are unavailable.
+  Gtk/Adw typelibs or a display are unavailable. `npm run check:all` runs
+  `npm run check` followed by this suite, and `npm run test:gjs` skips
+  gracefully when `gjs` is not installed.
 
 - One `*.test.ts` per module, in `tests/`.
 - Gio/Soup mocks live in the GJS tests (`tests/mocks/`); pure modules are

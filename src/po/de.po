@@ -181,15 +181,15 @@ msgstr "% verbleibend (5h-Fenster)"
 msgid "Reset at (5h window)"
 msgstr "Zurücksetzung um (5h-Fenster)"
 
-#: src/readers/codex.ts
+#: src/readers/codex.ts src/readers/claude.ts src/readers/opencode.ts
 msgid "Used % (weekly)"
 msgstr "% verwendet (wöchentlich)"
 
-#: src/readers/codex.ts
+#: src/readers/codex.ts src/readers/claude.ts src/readers/opencode.ts
 msgid "Remaining % (weekly)"
 msgstr "% verbleibend (wöchentlich)"
 
-#: src/readers/codex.ts
+#: src/readers/codex.ts src/readers/claude.ts src/readers/opencode.ts
 msgid "Reset at (weekly)"
 msgstr "Zurücksetzung um (wöchentlich)"
 
@@ -230,18 +230,6 @@ msgid "Reset at (session)"
 msgstr "Zurücksetzung um (Sitzung)"
 
 #: src/readers/claude.ts
-msgid "Used % (weekly)"
-msgstr "% verwendet (wöchentlich)"
-
-#: src/readers/claude.ts
-msgid "Remaining % (weekly)"
-msgstr "% verbleibend (wöchentlich)"
-
-#: src/readers/claude.ts
-msgid "Reset at (weekly)"
-msgstr "Zurücksetzung um (wöchentlich)"
-
-#: src/readers/claude.ts
 msgid "Used % (Sonnet weekly)"
 msgstr "% verwendet Sonnet (wöchentlich)"
 
@@ -276,18 +264,6 @@ msgstr "% verbleibend (rollierend 5h)"
 #: src/readers/opencode.ts
 msgid "Reset at (rolling)"
 msgstr "Zurücksetzung um (rollierend)"
-
-#: src/readers/opencode.ts
-msgid "Used % (weekly)"
-msgstr "% verwendet (wöchentlich)"
-
-#: src/readers/opencode.ts
-msgid "Remaining % (weekly)"
-msgstr "% verbleibend (wöchentlich)"
-
-#: src/readers/opencode.ts
-msgid "Reset at (weekly)"
-msgstr "Zurücksetzung um (wöchentlich)"
 
 #: src/readers/opencode.ts
 msgid "Used % (monthly)"

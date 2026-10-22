@@ -181,15 +181,15 @@ msgstr "% restante (ventana 5h)"
 msgid "Reset at (5h window)"
 msgstr "Reinicio en (ventana 5h)"
 
-#: src/readers/codex.ts
+#: src/readers/codex.ts src/readers/claude.ts src/readers/opencode.ts
 msgid "Used % (weekly)"
 msgstr "% usado (semanal)"
 
-#: src/readers/codex.ts
+#: src/readers/codex.ts src/readers/claude.ts src/readers/opencode.ts
 msgid "Remaining % (weekly)"
 msgstr "% restante (semanal)"
 
-#: src/readers/codex.ts
+#: src/readers/codex.ts src/readers/claude.ts src/readers/opencode.ts
 msgid "Reset at (weekly)"
 msgstr "Reinicio en (semanal)"
 
@@ -230,18 +230,6 @@ msgid "Reset at (session)"
 msgstr "Reinicio en (sesión)"
 
 #: src/readers/claude.ts
-msgid "Used % (weekly)"
-msgstr "% usado (semanal)"
-
-#: src/readers/claude.ts
-msgid "Remaining % (weekly)"
-msgstr "% restante (semanal)"
-
-#: src/readers/claude.ts
-msgid "Reset at (weekly)"
-msgstr "Reinicio en (semanal)"
-
-#: src/readers/claude.ts
 msgid "Used % (Sonnet weekly)"
 msgstr "% usado Sonnet (semanal)"
 
@@ -276,18 +264,6 @@ msgstr "% restante (móvil 5h)"
 #: src/readers/opencode.ts
 msgid "Reset at (rolling)"
 msgstr "Reinicio en (móvil)"
-
-#: src/readers/opencode.ts
-msgid "Used % (weekly)"
-msgstr "% usado (semanal)"
-
-#: src/readers/opencode.ts
-msgid "Remaining % (weekly)"
-msgstr "% restante (semanal)"
-
-#: src/readers/opencode.ts
-msgid "Reset at (weekly)"
-msgstr "Reinicio en (semanal)"
 
 #: src/readers/opencode.ts
 msgid "Used % (monthly)"

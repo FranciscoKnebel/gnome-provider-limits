@@ -20,7 +20,7 @@
     "format:check": "oxfmt --check .",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "npm run build:tests && c8 jasmine --config=jasmine.json",
-    "test:gjs": "npm run build && gjs -m tests/run-gjs-tests.mjs",
+    "test:gjs": "node scripts/test-gjs.mjs",
     "schema:compile": "glib-compile-schemas src/schemas",
     "compile:mo": "node scripts/prepare-languages.mjs",
     "copy:assets": "cp src/metadata.json dist/metadata.json && cp src/stylesheet.css dist/stylesheet.css && rm -rf dist/icons dist/po dist/schemas dist/src dist/tests && cp -r src/icons dist/icons && rm -f dist/icons/.gitkeep && mkdir -p dist/schemas && cp src/schemas/gschemas.compiled dist/schemas/gschemas.compiled && cp src/schemas/org.gnome.shell.extensions.gnome-provider-limits.gschema.xml dist/schemas/ && npm run compile:mo",
@@ -28,6 +28,7 @@
     "install:local": "npm run pack && gnome-extensions install --force dist/*.zip",
     "uninstall:local": "gnome-extensions uninstall gnome-provider-limits@franciscoknebel.com",
     "check": "npm run typecheck && npm run lint && npm run format:check && npm run check:i18n && npm run test",
+    "check:all": "npm run check && npm run test:gjs",
     "check:i18n": "node scripts/check-i18n.mjs",
     "release": "bash scripts/release.sh"
   },
