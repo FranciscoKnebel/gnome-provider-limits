@@ -10,6 +10,7 @@ import {
 import { PROVIDER_NAMES, type ProviderName } from "./constants.js";
 import { ProviderLimitsPreferencesPage, type LanguageEntry } from "./ui/prefs/main-page.js";
 import { ProviderPage } from "./ui/prefs/provider-page.js";
+import { isDisposablePage } from "./ui/prefs/shared.js";
 
 function loadLanguages(extensionPath: string): LanguageEntry[] {
   try {
@@ -33,8 +34,10 @@ function loadLanguages(extensionPath: string): LanguageEntry[] {
 
 export default class ProviderLimitsPreferences extends ExtensionPreferences {
   private _languageChangedId = 0;
+  private _languageRebuildId: number | null = null;
   private _enabledChangedIds: number[] = [];
   private _pages: Adw.PreferencesPage[] = [];
+  private _windowDestroyed = false;
 
   private _disconnectEnabledSignals(settings: Gio.Settings): void {
     for (const id of this._enabledChangedIds) {
@@ -45,10 +48,14 @@ export default class ProviderLimitsPreferences extends ExtensionPreferences {
 
   private _removeAllPages(window: Adw.PreferencesWindow): void {
     for (const page of this._pages) {
-      if ("cleanup" in page && typeof page.cleanup === "function") page.cleanup();
-      window.remove(page);
+      this._disposePage(window, page);
     }
     this._pages = [];
+  }
+
+  private _disposePage(window: Adw.PreferencesWindow, page: Adw.PreferencesPage): void {
+    if (isDisposablePage(page)) page.cleanup();
+    window.remove(page);
   }
 
   private _rebuildWindow(window: Adw.PreferencesWindow, settings: Gio.Settings): void {
@@ -97,8 +104,7 @@ export default class ProviderLimitsPreferences extends ExtensionPreferences {
             this._pages.push(page);
           }
         } else if (existing) {
-          if ("cleanup" in existing && typeof existing.cleanup === "function") existing.cleanup();
-          window.remove(existing);
+          this._disposePage(window, existing);
           this._pages = this._pages.filter((p) => p !== existing);
           providerPages.delete(name);
         }
@@ -109,6 +115,7 @@ export default class ProviderLimitsPreferences extends ExtensionPreferences {
 
   fillPreferencesWindow(window: Adw.PreferencesWindow): Promise<void> {
     const settings = this.getSettings();
+    this._windowDestroyed = false;
 
     this._buildWindow(window, settings);
 
@@ -116,10 +123,15 @@ export default class ProviderLimitsPreferences extends ExtensionPreferences {
       settings.disconnect(this._languageChangedId);
     }
     this._languageChangedId = settings.connect("changed::language", () => {
-      this._rebuildWindow(window, settings);
+      this._scheduleWindowRebuild(window, settings);
     });
 
     window.connect("destroy", () => {
+      this._windowDestroyed = true;
+      if (this._languageRebuildId !== null) {
+        GLib.Source.remove(this._languageRebuildId);
+        this._languageRebuildId = null;
+      }
       this._disconnectEnabledSignals(settings);
       if (this._languageChangedId) {
         settings.disconnect(this._languageChangedId);
@@ -128,6 +140,18 @@ export default class ProviderLimitsPreferences extends ExtensionPreferences {
     });
 
     return Promise.resolve();
+  }
+
+  private _scheduleWindowRebuild(window: Adw.PreferencesWindow, settings: Gio.Settings): void {
+    if (this._languageRebuildId !== null) {
+      GLib.Source.remove(this._languageRebuildId);
+    }
+    this._languageRebuildId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+      this._languageRebuildId = null;
+      if (this._windowDestroyed) return GLib.SOURCE_REMOVE;
+      this._rebuildWindow(window, settings);
+      return GLib.SOURCE_REMOVE;
+    });
   }
 
   private _buildProviderPage(settings: Gio.Settings, name: ProviderName): Adw.PreferencesPage {
