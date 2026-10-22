@@ -79,7 +79,7 @@ export class GrokReader extends BaseReader {
     }
 
     if (!auth) {
-      return this._errorResult(
+      return this._lastGoodOrError(
         _("Grok: no valid personal login. Run `grok login` with your SuperGrok account."),
         pathsTried,
       );
@@ -99,7 +99,7 @@ export class GrokReader extends BaseReader {
       payload = await this._http.getJson(`${GROK_BASE_URL}/billing?format=credits`, { headers });
     } catch (error) {
       logWarn("grok subscription credits request failed");
-      return this._errorResult(
+      return this._lastGoodOrError(
         error instanceof TokenError
           ? _("Grok: login rejected. Run `grok login` to sign in again.")
           : _("Grok: subscription credits unavailable. Try again later."),
@@ -112,7 +112,7 @@ export class GrokReader extends BaseReader {
       !usage ||
       (usage.usedPercent === null && usage.resetAt === null && usage.prepaidBalance === null)
     ) {
-      return this._errorResult(
+      return this._lastGoodOrError(
         _("Grok: subscription credits unavailable. Try again later."),
         pathsTried,
       );
@@ -142,6 +142,10 @@ export class GrokReader extends BaseReader {
       optionalField("plan_type", plan),
       this._makeField("usage_source", "cli-chat-proxy.grok.com", FieldStatus.OK),
     ];
-    return this._classifyResult(fields, pathsTried, "Grok");
+    return this._finalizeResult(
+      this._classifyResult(fields, pathsTried, "Grok"),
+      pathsTried,
+      _("Grok: subscription credits unavailable. Try again later."),
+    );
   }
 }

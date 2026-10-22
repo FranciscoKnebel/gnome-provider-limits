@@ -163,6 +163,35 @@ export async function run() {
     }
   });
 
+  await test("GrokReader serves recent last-known-good across transient billing failures", async () => {
+    mockAuth();
+    let call = 0;
+    const reader = newReader(async (url) => {
+      if (url.endsWith("/settings")) return { subscription_tier_display: "SuperGrok" };
+      call++;
+      if (call === 1) {
+        return {
+          config: {
+            creditUsagePercent: 25,
+            currentPeriod: { end: "2099-01-01T00:00:00Z" },
+            prepaidBalance: { val: 500 },
+            isUnifiedBillingUser: true,
+          },
+        };
+      }
+      throw new TokenError("private-token");
+    });
+    const ok = await reader.read();
+    assertEqual(ok.status, "ok");
+    assertEqual(ok.fields.find((field) => field.name === "used_percent_credits").value, 25);
+    const degraded = await reader.read();
+    assertEqual(degraded.status, "partial");
+    assertEqual(degraded.lastError.includes("private-token"), false);
+    assertEqual(degraded.fields.find((field) => field.name === "used_percent_credits").value, 25);
+    assertEqual(degraded.pathsTried.includes("last-known-good"), true);
+    reader.destroy();
+  });
+
   await test("GrokReader reads fresh login data each refresh and releases its HTTP client", async () => {
     const tokens = [];
     const reader = newReader(async (url, options) => {
