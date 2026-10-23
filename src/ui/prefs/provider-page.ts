@@ -11,6 +11,7 @@ import { providerDisplayName } from "../../helpers/provider-settings.js";
 import type { FieldDef, FieldType } from "../../readers/base.js";
 import { CLAUDE_FIELDS } from "../../readers/claude.js";
 import { CODEX_FIELDS } from "../../readers/codex.js";
+import { GROK_FIELDS } from "../../readers/grok.js";
 import { OPENCODE_FIELDS } from "../../readers/opencode.js";
 import { gettext as _ } from "./gettext.js";
 import {
@@ -40,6 +41,7 @@ const READER_FIELDS: Record<ProviderName, readonly FieldDef[]> = {
   codex: CODEX_FIELDS,
   claude: CLAUDE_FIELDS,
   opencode: OPENCODE_FIELDS,
+  grok: GROK_FIELDS,
 };
 
 function getReaderFields(provider: ProviderName): readonly FieldDef[] {
@@ -118,12 +120,23 @@ export const ProviderPage = GObject.registerClass(
       );
       group.add(shortNameRow);
 
+      const pathKey = `${this._provider}-cli-path`;
       const cliRow = new Adw.EntryRow({
-        title: _("CLI path"),
-        text: this._settings.get_string(`${this._provider}-cli-path`) ?? "",
+        title: this._provider === "grok" ? _("Authentication file") : _("CLI path"),
+        text: this._settings.get_string(pathKey) ?? "",
       });
-      bindSetting(this._settings, `${this._provider}-cli-path`, cliRow, "text", this._bindings);
+      bindSetting(this._settings, pathKey, cliRow, "text", this._bindings);
       group.add(cliRow);
+      if (this._provider === "grok") {
+        group.add(
+          new Adw.ActionRow({
+            title: _("Sign in with `grok login` using your SuperGrok account."),
+            subtitle: _(
+              "Leave the authentication file empty to use $GROK_HOME/auth.json or ~/.grok/auth.json.",
+            ),
+          }),
+        );
+      }
       return group;
     }
 

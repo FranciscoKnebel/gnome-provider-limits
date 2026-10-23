@@ -1,7 +1,7 @@
 # gnome-provider-limits
 
 GNOME extension that shows session limits of multiple AI coding providers,
-reading only state already persisted on disk by each provider's CLI.
+reading existing local credentials and usage state and querying provider endpoints.
 
 ## Language
 
@@ -79,6 +79,18 @@ spend observed in `opencode.db` is telemetry only and must not be presented as
 usage against a limit.
 _Avoid_: Console scraping, Codex usage API, local spend estimate.
 
+**Grok Subscription Credits**:
+The personal Grok/SuperGrok allowance reported by
+`https://cli-chat-proxy.grok.com/v1/billing?format=credits`, authenticated with
+the existing Grok Build login in `~/.grok/auth.json` (or `GROK_HOME`).
+`creditUsagePercent` and `currentPeriod.end` describe the provider's current
+weekly or monthly credit pool. `isUnifiedBillingUser` indicates whether this
+pool is shared across Grok products; otherwise it represents Grok Build credits.
+Missing usage stays unavailable, not zero. This is not xAI API billing or a
+per-model chat message limit. Purchased credits (`prepaidBalance`, USD cents)
+are a separate balance, never a subscription usage percentage.
+_Avoid_: xAI API balance, team spending limit, messages remaining.
+
 **Telemetry Field**:
 A field that expresses usage already performed, with no reference to a ceiling
 , e.g. `totalCost`, `lastTotalInputTokens`, `sessionsCount`. Cannot be
@@ -100,7 +112,7 @@ translated (every translatable string has a non-empty `msgstr`). On `enable()`,
 no corresponding compiled `.mo` in the bundle, it resets `language` to `''`,
 unsets `LANGUAGE`, and logs the fallback. This heals after a downgrade or a
 language removal without the user opening prefs. The heal persists to GSettings
-(matches the user's hidden intent — they chose the language when it was
+(matches the user's hidden intent: they chose the language when it was
 supported, not to stay on it once removed).
 _Avoid_: Locale, translation (when referring to the mechanism).
 
@@ -123,7 +135,7 @@ A `.po` file under `src/po/` not listed in `LINGUAS`. Visible to
 `check:i18n` as an advisory report (missing and empty `msgstr` entries),
 non-blocking. Promoting a draft to a supported language = append its code to
 `LINGUAS` once fully translated; the same file then flips from advisory to
-strict checking. No second manifest (e.g. a draft list) is maintained —
+strict checking. No second manifest (e.g. a draft list) is maintained:
 absence from `LINGUAS` is the draft marker.
 _Avoid_: In-progress translation, staging `.po`, pending language.
 
@@ -134,7 +146,7 @@ catalog of every translatable string extracted from source. Hand-maintained
 the de facto source of truth). `check:i18n` validates it against source-string
 extraction on every `npm run check` to catch drift. Translators copy it to
 `xx.po` to start a new language. It never contains the `Language Sentinel`
-— the sentinel is metadata about a language, not a source-extracted string.
+because the sentinel is metadata about a language, not a source-extracted string.
 Language names (`"English"`, `"Português (Brasil)"`, etc.) are not in the
 template either: they are sentinels carried per-`.po`, never wrapped in `_()`
 in source.
@@ -150,7 +162,7 @@ dropdown. `main-page.ts` never reads `LINGUAS` or `.po` files at runtime
 (those are build-time inputs, not shipped). The dropdown trusts the manifest
 and does not cross-check against compiled `.mo` files actually present in the
 bundle. `main-page.ts` sorts the array at runtime alphabetically by native
-name using plain JS `<` (UTF-16 code-unit comparison — deterministic and
+name using plain JS `<` (UTF-16 code-unit comparison, deterministic and
 locale-independent, so names sort identically regardless of the UI's current
 language), then prepends the `_("System")` affordance at index 0 (e.g.
 `[System, Deutsch, English, Español, Français, Português (Brasil)]`).
@@ -162,7 +174,7 @@ _Avoid_: Language manifest, locale list (when referring to the artifact).
 The `msgid "LANGUAGE_NAME"` entry that every `.po` listed in `LINGUAS` must
 carry. Its `msgstr` is the native name of that language
 (e.g. `Português (Brasil)` in `pt_BR.po`, `English` in `en.po`). It is metadata
-about the language, not a runtime UI string — it is never called via `_()` in
+about the language, not a runtime UI string: it is never called via `_()` in
 source, never appears in `POTFILES.in` extraction, and is never shown to users
 as a translatable label. Language names are not localized into the current UI
 language; each language is shown by its native name so users can find it

@@ -5,7 +5,7 @@
 [![GNOME Shell](https://img.shields.io/badge/GNOME_Shell-45-50-4a86cf)](https://extensions.gnome.org)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
 
-GNOME Shell extension that displays session limits for Codex, Claude, and OpenCode Go in your top bar. It reads local status files directly, so you do not need to run CLI commands or open browser dashboards.
+GNOME Shell extension that displays usage limits for Codex, Claude, OpenCode Go, and Grok/SuperGrok in your top bar. It reads existing local credentials and usage state, querying only provider endpoints, so you do not need to open browser dashboards.
 
 > Note: The extension is in active development. If you rely on it daily, test new versions before updating.
 
@@ -19,7 +19,7 @@ This extension reads the local files and SQLite databases that providers already
 
 ## Features
 
-- Monitor Codex, Claude, and OpenCode Go in a single status bar indicator.
+- Monitor Codex, Claude, OpenCode Go, and Grok/SuperGrok in a single status bar indicator.
 - Use the compact top bar indicator for quick updates, or click to open the dropdown panel for full details.
 - Choose which fields appear in each zone and arrange their order, customized per provider.
 - Save resources with adaptive polling: updates run every 10 seconds during active usage and slow to 120 seconds once readings stabilize.
@@ -29,11 +29,12 @@ This extension reads the local files and SQLite databases that providers already
 
 ## Provider support
 
-| Provider    | Limit fields                                                                    | Telemetry fields           | Data source                                                                                         |
-| ----------- | ------------------------------------------------------------------------------- | -------------------------- | --------------------------------------------------------------------------------------------------- |
-| Codex       | Used % (5h), Used % (weekly), Reset at, Limit reached                           | Plan type                  | OAuth API (`chatgpt.com`), SQLite disk fallback (`~/.codex/logs_2.sqlite`)                          |
-| Claude      | Used % (session 5h), Used % (weekly), Used % (Sonnet), Used % (Opus), Reset at  | Extra usage status         | OAuth API (`api.anthropic.com`), CLI PTY fallback                                                   |
-| OpenCode Go | Used % (rolling 5h), Used % (weekly), Used % (monthly), Reset at, Limit reached | Total cost, Sessions count | Usage API (`opencode.ai/zen/go/v1/usage`), SQLite telemetry (`~/.local/share/opencode/opencode.db`) |
+| Provider         | Limit fields                                                                    | Telemetry fields                                                | Data source                                                                                         |
+| ---------------- | ------------------------------------------------------------------------------- | --------------------------------------------------------------- | --------------------------------------------------------------------------------------------------- |
+| Codex            | Used % (5h), Used % (weekly), Reset at, Limit reached                           | Plan type                                                       | OAuth API (`chatgpt.com`), SQLite disk fallback (`~/.codex/logs_2.sqlite`)                          |
+| Claude           | Used % (session 5h), Used % (weekly), Used % (Sonnet), Used % (Opus), Reset at  | Extra usage status                                              | OAuth API (`api.anthropic.com`), CLI PTY fallback                                                   |
+| OpenCode Go      | Used % (rolling 5h), Used % (weekly), Used % (monthly), Reset at, Limit reached | Total cost, Sessions count                                      | Usage API (`opencode.ai/zen/go/v1/usage`), SQLite telemetry (`~/.local/share/opencode/opencode.db`) |
+| Grok / SuperGrok | Used % (credits), Remaining % (credits), Reset at (credits)                     | Purchased credits (USD), Shared subscription credits, Plan type | Grok subscription credits API (`cli-chat-proxy.grok.com`), login from `~/.grok/auth.json`           |
 
 ## Requirements
 
@@ -89,6 +90,40 @@ From there you can:
 - Customize the display names and short labels.
 - Set the interface language (defaults to your system locale).
 
+### Grok / SuperGrok
+
+Grok is disabled by default. Install the official [Grok Build CLI](https://x.ai/cli),
+run `grok login` with your personal SuperGrok or SuperGrok Heavy account, then enable
+Grok in the extension preferences. No xAI API key or Management API key is needed.
+The CLI is used only to sign in, not launched by the extension during refreshes.
+
+The reader loads `~/.grok/auth.json` on every refresh. It also respects `GROK_HOME`
+when set in the GNOME Shell environment. Use **Authentication file** in the Grok
+preferences to select an existing `auth.json` in another location; `~/` is supported.
+Only this path is saved in GSettings, never tokens. Expired or rejected credentials
+require signing in again with `grok login`; the extension never refreshes tokens,
+reads browser cookies, writes authentication files, or makes billable inference requests.
+Enterprise/team logins and API-key logins are not supported by this reader.
+
+Subscription usage comes from
+`https://cli-chat-proxy.grok.com/v1/billing?format=credits`, the endpoint used by
+the official CLI. The plan name is optional enrichment from `/v1/settings`.
+The current weekly or monthly reset comes from the response, not an assumed schedule.
+**Shared subscription credits** reflects `isUnifiedBillingUser`: only accounts with
+unified billing share this allowance across Grok products. Otherwise the endpoint
+reports Grok Build credits, not every Grok chat model's message allowance.
+Per-model message limits, image/video limits, xAI API billing, and reset coupons
+are not monitored. Purchased credits are a separate USD balance, never a percentage
+of subscription usage. An omitted percentage stays unavailable, even if the server
+returns a reset or purchased balance.
+
+These are first-party CLI endpoints, not a versioned public usage API, and can change.
+The implementation was researched against the official
+[billing contract](https://github.com/xai-org/grok-build/blob/2bdd1d6a6369de0e8c68132ea4539e9abd9e14a8/crates/codegen/xai-grok-shell/src/extensions/billing.rs),
+[authentication guide](https://github.com/xai-org/grok-build/blob/2bdd1d6a6369de0e8c68132ea4539e9abd9e14a8/crates/codegen/xai-grok-pager/docs/user-guide/02-authentication.md),
+and the independent [CodexBar Grok investigation](https://github.com/steipete/CodexBar/blob/main/docs/grok.md).
+No live authenticated SuperGrok account was available for verification.
+
 ## Development
 
 ```bash
@@ -138,7 +173,8 @@ src/
 │   ├── base.ts
 │   ├── codex.ts
 │   ├── claude.ts
-│   └── opencode.ts
+│   ├── opencode.ts
+│   └── grok.ts
 ├── helpers/             # Subprocess wrappers, SQLite helpers, and HTTP requests
 ├── ui/                  # Status bar indicator and dropdown panel components
 ├── schemas/             # GSettings XML schemas

@@ -12,8 +12,8 @@ import {
 } from "../src/constants.js";
 
 describe("constants", () => {
-  it("has the three expected providers", () => {
-    expect(PROVIDER_NAMES).toEqual(["codex", "claude", "opencode"]);
+  it("has the four expected providers", () => {
+    expect(PROVIDER_NAMES).toEqual(["codex", "claude", "opencode", "grok"]);
   });
 
   it("has a non-negative refresh short interval", () => {
@@ -31,7 +31,7 @@ describe("constants", () => {
   });
 
   it("has the correct providers order", () => {
-    expect(DEFAULT_PROVIDERS_ORDER).toEqual(["codex", "claude", "opencode"]);
+    expect(DEFAULT_PROVIDERS_ORDER).toEqual(["codex", "claude", "opencode", "grok"]);
   });
 
   it("has a positive SQLite cache TTL", () => {
@@ -56,6 +56,6 @@ describe("constants", () => {
 
   it("PROVIDER_NAMES is readonly", () => {
     const names: readonly string[] = PROVIDER_NAMES;
-    expect(names).toHaveSize(3);
+    expect(names).toHaveSize(4);
   });
 });

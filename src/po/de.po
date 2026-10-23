@@ -17,6 +17,41 @@ msgstr ""
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
+#: src/readers/grok.ts
+msgid "Used % (credits)"
+msgstr "Verbraucht % (Guthaben)"
+
+msgid "Remaining % (credits)"
+msgstr "Verbleibend % (Guthaben)"
+
+msgid "Reset at (credits)"
+msgstr "Zurücksetzung (Guthaben)"
+
+msgid "Purchased credits"
+msgstr "Gekauftes Guthaben"
+
+msgid "Shared subscription credits"
+msgstr "Gemeinsames Abonnementguthaben"
+
+msgid "Grok: no valid personal login. Run `grok login` with your SuperGrok account."
+msgstr "Grok: keine gültige persönliche Anmeldung. Führen Sie `grok login` mit Ihrem SuperGrok-Konto aus."
+
+msgid "Grok: login rejected. Run `grok login` to sign in again."
+msgstr "Grok: Anmeldung abgelehnt. Führen Sie `grok login` aus, um sich erneut anzumelden."
+
+msgid "Grok: subscription credits unavailable. Try again later."
+msgstr "Grok: Abonnementguthaben nicht verfügbar. Versuchen Sie es später erneut."
+
+#: src/ui/prefs/provider-page.ts
+msgid "Authentication file"
+msgstr "Authentifizierungsdatei"
+
+msgid "Sign in with `grok login` using your SuperGrok account."
+msgstr "Melden Sie sich mit `grok login` bei Ihrem SuperGrok-Konto an."
+
+msgid "Leave the authentication file empty to use $GROK_HOME/auth.json or ~/.grok/auth.json."
+msgstr "Lassen Sie die Authentifizierungsdatei leer, um $GROK_HOME/auth.json oder ~/.grok/auth.json zu verwenden."
+
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Provider Limits"
 msgstr "Provider-Limits"

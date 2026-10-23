@@ -4,6 +4,7 @@ src/formatters.ts
 src/readers/codex.ts
 src/readers/claude.ts
 src/readers/opencode.ts
+src/readers/grok.ts
 src/ui/statusBar.ts
 src/ui/panel.ts
 src/ui/prefs/main-page.ts

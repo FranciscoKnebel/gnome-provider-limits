@@ -22,6 +22,7 @@ import { currentRefreshInterval, shouldRender } from "./helpers/refresh.js";
 import { type BaseReader, type ReaderResult, ReaderStatus } from "./readers/base.js";
 import { ClaudeReader } from "./readers/claude.js";
 import { CodexReader } from "./readers/codex.js";
+import { GrokReader } from "./readers/grok.js";
 import { OpenCodeReader } from "./readers/opencode.js";
 import { PanelWidget } from "./ui/panel.js";
 import { StatusBarWidget } from "./ui/statusBar.js";
@@ -214,6 +215,8 @@ const ProviderLimitsIndicator = GObject.registerClass(
           return new ClaudeReader(this._settings, "claude");
         case "opencode":
           return new OpenCodeReader(this._settings, "opencode");
+        case "grok":
+          return new GrokReader(this._settings, "grok");
       }
     }
 

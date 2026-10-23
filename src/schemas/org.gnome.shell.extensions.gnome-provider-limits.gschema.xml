@@ -29,7 +29,7 @@
 
     <!-- Globals: provider order -->
     <key name="providers-order" type="as">
-      <default>['codex','claude','opencode']</default>
+      <default>['codex','claude','opencode','grok']</default>
       <summary>Providers display order</summary>
       <description>Order in which providers appear in the status bar and panel.</description>
     </key>
@@ -128,6 +128,38 @@
       <default>['used_percent_weekly','reset_at_weekly','used_percent_monthly','reset_at_monthly','limit_reached','total_cost','sessions_count','usage_source']</default>
       <summary>OpenCode Go panel fields</summary>
       <description>Fields shown for OpenCode Go in the panel, in display order.</description>
+    </key>
+
+    <!-- Per-provider: Grok / SuperGrok subscription -->
+    <key name="grok-enabled" type="b">
+      <default>false</default>
+      <summary>Grok enabled</summary>
+      <description>Whether Grok appears in the status bar and panel.</description>
+    </key>
+    <key name="grok-display-name" type="s">
+      <default>'Grok'</default>
+      <summary>Grok display name</summary>
+      <description>Full display name for Grok in the panel and preferences.</description>
+    </key>
+    <key name="grok-display-name-short" type="s">
+      <default>'grok'</default>
+      <summary>Grok short display name</summary>
+      <description>Compact label for Grok in the status bar.</description>
+    </key>
+    <key name="grok-cli-path" type="s">
+      <default>''</default>
+      <summary>Grok authentication file</summary>
+      <description>Path to the existing Grok Build auth.json, used instead of a CLI binary. Empty uses GROK_HOME/auth.json or ~/.grok/auth.json. Only the path is stored, never credentials.</description>
+    </key>
+    <key name="grok-status-fields" type="as">
+      <default>['used_percent_credits','reset_at_credits']</default>
+      <summary>Grok status bar fields</summary>
+      <description>Fields shown for Grok in the status bar, in display order.</description>
+    </key>
+    <key name="grok-panel-fields" type="as">
+      <default>['remaining_percent_credits','prepaid_balance','unified_billing','plan_type','usage_source']</default>
+      <summary>Grok panel fields</summary>
+      <description>Fields shown for Grok in the panel, in display order.</description>
     </key>
 
   </schema>
