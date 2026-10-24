@@ -19,25 +19,61 @@ except OSError as exc:
     sys.exit(127)
 `;
 
-function signalGroup(pid: string, signal: "TERM" | "KILL"): void {
-  GLib.spawn_sync(
-    null,
-    [
-      "python3",
-      "-c",
-      `import os, signal, sys
+async function signalGroup(pid: string, signal: "TERM" | "KILL"): Promise<void> {
+  const cancellable = new Gio.Cancellable();
+  let subprocess: Gio.Subprocess | null = null;
+  let deadline: number | null = GLib.timeout_add(
+    GLib.PRIORITY_DEFAULT,
+    SUBPROCESS_KILL_GRACE_MS,
+    () => {
+      deadline = null;
+      subprocess?.force_exit();
+      cancellable.cancel();
+      return GLib.SOURCE_REMOVE;
+    },
+  );
+  try {
+    subprocess = Gio.Subprocess.new(
+      [
+        "python3",
+        "-c",
+        `import os, signal, sys
 try:
     os.killpg(int(sys.argv[1]), getattr(signal, 'SIG' + sys.argv[2]))
 except ProcessLookupError:
     pass
 `,
-      pid,
-      signal,
-    ],
-    null,
-    GLib.SpawnFlags.SEARCH_PATH,
-    null,
-  );
+        pid,
+        signal,
+      ],
+      Gio.SubprocessFlags.STDOUT_SILENCE | Gio.SubprocessFlags.STDERR_SILENCE,
+    );
+    await subprocess.wait_async(cancellable);
+  } catch {
+    // Group signaling is best effort; local cleanup must not depend on it.
+  } finally {
+    if (deadline !== null) GLib.Source.remove(deadline);
+    subprocess?.force_exit();
+  }
+}
+
+async function terminateSubprocess(
+  subprocess: Gio.Subprocess,
+  pid: string | null,
+  ioCancellable: Gio.Cancellable,
+): Promise<void> {
+  const grace = new Promise<void>((resolve) => {
+    GLib.timeout_add(GLib.PRIORITY_DEFAULT, SUBPROCESS_KILL_GRACE_MS, () => {
+      subprocess.force_exit();
+      ioCancellable.cancel();
+      resolve();
+      return GLib.SOURCE_REMOVE;
+    });
+  });
+  const term = pid ? signalGroup(pid, "TERM") : Promise.resolve();
+  await grace;
+  if (pid) await signalGroup(pid, "KILL");
+  await term;
 }
 
 async function readPipe(
@@ -88,7 +124,7 @@ export class SubprocessTimeoutError extends Error {
 export interface SubprocessOptions {
   input?: string;
   // Timeout and cancellation terminate the owned process group. Pipe reads are
-  // cancelled after SUBPROCESS_KILL_GRACE_MS even if an escaped process holds EOF.
+  // cancelled after one kill grace period. Bounded signaling can take one more.
   timeoutSeconds?: number;
   cwd?: string;
   env?: Record<string, string>;
@@ -144,16 +180,7 @@ export async function runSubprocess(
   let termination: Promise<void> | null = null;
   const terminate = (): void => {
     if (termination) return;
-    termination = new Promise((resolve) => {
-      if (pid) signalGroup(pid, "TERM");
-      GLib.timeout_add(GLib.PRIORITY_DEFAULT, SUBPROCESS_KILL_GRACE_MS, () => {
-        if (pid) signalGroup(pid, "KILL");
-        subprocess.force_exit();
-        ioCancellable.cancel();
-        resolve();
-        return GLib.SOURCE_REMOVE;
-      });
-    });
+    termination = terminateSubprocess(subprocess, pid, ioCancellable);
   };
   let timeoutId: number | null = GLib.timeout_add(GLib.PRIORITY_DEFAULT, timeout * 1000, () => {
     timedOut = true;
