@@ -17,15 +17,16 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function normalizeWindow(value: unknown): ClaudeUsageWindow | null {
   if (!isRecord(value)) return null;
+  const resetMs = typeof value.resets_at === "string" ? Date.parse(value.resets_at) : NaN;
   return {
     used_percent:
-      typeof value.used_percent === "number" && Number.isFinite(value.used_percent)
-        ? value.used_percent
+      typeof value.utilization === "number" &&
+      Number.isFinite(value.utilization) &&
+      value.utilization >= 0 &&
+      value.utilization <= 100
+        ? value.utilization
         : undefined,
-    reset_at:
-      typeof value.reset_at === "number" && Number.isFinite(value.reset_at)
-        ? value.reset_at
-        : undefined,
+    reset_at: Number.isFinite(resetMs) && resetMs > 0 ? resetMs / 1000 : undefined,
   };
 }
 
@@ -40,7 +41,7 @@ export function normalizeClaudeUsagePayload(raw: unknown): ClaudeUsagePayload | 
     seven_day_opus: normalizeWindow(raw.seven_day_opus),
     extra_usage: extraUsage
       ? {
-          enabled: typeof extraUsage.enabled === "boolean" ? extraUsage.enabled : undefined,
+          enabled: typeof extraUsage.is_enabled === "boolean" ? extraUsage.is_enabled : undefined,
           disabled_reason:
             typeof extraUsage.disabled_reason === "string" ? extraUsage.disabled_reason : undefined,
         }
