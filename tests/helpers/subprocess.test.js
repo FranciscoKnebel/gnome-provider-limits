@@ -6,6 +6,22 @@ import { assert, assertEqual } from "./assert.js";
 const { SubprocessError, SubprocessTimeoutError, runSubprocess } =
   await import("../../dist/helpers/subprocess.js");
 
+async function assertNotRunning(pid) {
+  const path = `/proc/${pid}/stat`;
+  for (let attempt = 0; attempt < 25; attempt++) {
+    if (!GLib.file_test(path, GLib.FileTest.EXISTS)) return;
+    const stat = new TextDecoder().decode(GLib.file_get_contents(path)[1]);
+    if (stat.slice(stat.lastIndexOf(")") + 2).startsWith("Z")) return;
+    await new Promise((resolve) =>
+      GLib.timeout_add(GLib.PRIORITY_DEFAULT, 10, () => {
+        resolve();
+        return GLib.SOURCE_REMOVE;
+      }),
+    );
+  }
+  assert(false, `process ${pid} must not remain running after signal delivery`);
+}
+
 export async function run() {
   const results = [];
 
@@ -118,9 +134,12 @@ export async function run() {
 
   // Test 8: timeout is classified and keeps partial stdout
   try {
+    const startedAt = Date.now();
     let timedOut = false;
     try {
-      await runSubprocess(["sh", "-c", "printf partial; sleep 10"], { timeoutSeconds: 1 });
+      await runSubprocess(["sh", "-c", "printf partial; sleep 4; printf after"], {
+        timeoutSeconds: 1,
+      });
     } catch (e) {
       timedOut = true;
       assert(
@@ -130,6 +149,7 @@ export async function run() {
       assertEqual(e.stdout, "partial", "should keep partial stdout");
     }
     assert(timedOut, "slow process should time out");
+    assert(Date.now() - startedAt < 3000, "descendant pipes must not extend the deadline");
     results.push({ name: "runSubprocess timeout keeps partial stdout", passed: true });
   } catch (e) {
     results.push({
@@ -137,6 +157,157 @@ export async function run() {
       passed: false,
       error: String(e),
     });
+  }
+
+  const descendantScript = `import os, signal, subprocess, sys, time
+signal.signal(signal.SIGTERM, signal.SIG_IGN)
+child = subprocess.Popen([sys.executable, '-c', 'import signal,time; signal.signal(signal.SIGTERM, signal.SIG_IGN); time.sleep(10)'])
+print(str(os.getpid()) + ' ' + str(child.pid), flush=True)
+print('partial error', file=sys.stderr, flush=True)
+time.sleep(10)
+`;
+  for (const cancel of [false, true]) {
+    const name = `runSubprocess kills TERM-resistant descendants on ${cancel ? "cancellation" : "timeout"}`;
+    const originalSpawn = Gio.SubprocessLauncher.prototype.spawnv;
+    try {
+      let processId = null;
+      let childIds = [];
+      Gio.SubprocessLauncher.prototype.spawnv = function (args) {
+        const process = originalSpawn.call(this, args);
+        processId = process.get_identifier();
+        return process;
+      };
+      const cancellable = new Gio.Cancellable();
+      if (cancel)
+        GLib.timeout_add(GLib.PRIORITY_DEFAULT, 300, () => {
+          if (processId) {
+            const path = `/proc/${processId}/task/${processId}/children`;
+            childIds = new TextDecoder()
+              .decode(GLib.file_get_contents(path)[1])
+              .trim()
+              .split(/\s+/);
+          }
+          cancellable.cancel();
+          return GLib.SOURCE_REMOVE;
+        });
+      const startedAt = Date.now();
+      let failure = null;
+      try {
+        await runSubprocess(["python3", "-c", descendantScript], {
+          timeoutSeconds: cancel ? 30 : 1,
+          cancellable,
+        });
+      } catch (error) {
+        failure = error;
+      }
+      assert(failure !== null, "operation must reject");
+      assert(Date.now() - startedAt < 3000, "cleanup must finish within deadline plus grace");
+      if (!cancel) {
+        assert(failure instanceof SubprocessTimeoutError, "timeout classification");
+        assertEqual(failure.stderr.trim(), "partial error");
+        const pids = failure.stdout.trim().split(" ");
+        assertEqual(pids.length, 2, "captures both process IDs");
+        await Promise.all(pids.map(assertNotRunning));
+      } else {
+        assertEqual(childIds.length, 1, "captures the spawned descendant before cancellation");
+        await assertNotRunning(processId);
+        await Promise.all(childIds.map(assertNotRunning));
+      }
+      results.push({ name, passed: true });
+    } catch (error) {
+      results.push({ name, passed: false, error: String(error) });
+    } finally {
+      Gio.SubprocessLauncher.prototype.spawnv = originalSpawn;
+    }
+  }
+
+  try {
+    const result = await runSubprocess(
+      ["python3", "-c", "import os,sys; print(os.getcwd()); print(sys.stdin.read(), end='')"],
+      {
+        input: "Unicode: café 日本語\n".repeat(4096),
+        cwd: "/",
+        timeoutSeconds: 5,
+      },
+    );
+    assertEqual(result.stdout, "/\n" + "Unicode: café 日本語\n".repeat(4096));
+    results.push({
+      name: "runSubprocess preserves cwd, piped input and UTF-8 across chunks",
+      passed: true,
+    });
+  } catch (error) {
+    results.push({
+      name: "runSubprocess preserves cwd, piped input and UTF-8 across chunks",
+      passed: false,
+      error: String(error),
+    });
+  }
+
+  try {
+    const cancellable = new Gio.Cancellable();
+    cancellable.cancel();
+    let rejected = false;
+    try {
+      await runSubprocess(["sh", "-c", "exit 0"], { cancellable });
+    } catch {
+      rejected = true;
+    }
+    assert(rejected, "already-cancelled calls must reject before spawning");
+    results.push({ name: "runSubprocess rejects pre-cancelled calls", passed: true });
+  } catch (error) {
+    results.push({
+      name: "runSubprocess rejects pre-cancelled calls",
+      passed: false,
+      error: String(error),
+    });
+  }
+
+  let escapedPid = null;
+  try {
+    const script = `import subprocess, sys, time
+child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(4)'], start_new_session=True)
+print(child.pid, flush=True)
+time.sleep(4)
+`;
+    const startedAt = Date.now();
+    let failure = null;
+    try {
+      await runSubprocess(["python3", "-c", script], { timeoutSeconds: 1 });
+    } catch (error) {
+      failure = error;
+    }
+    assert(failure instanceof SubprocessTimeoutError, "timeout must retain its classification");
+    escapedPid = failure.stdout.trim();
+    assert(/^\d+$/.test(escapedPid), "partial output survives cancellation of pipe reads");
+    assert(
+      Date.now() - startedAt < 3000,
+      "even pipes held outside the owned group cannot block completion",
+    );
+    results.push({
+      name: "runSubprocess bounds pipe reads independently of process-group EOF",
+      passed: true,
+    });
+  } catch (error) {
+    results.push({
+      name: "runSubprocess bounds pipe reads independently of process-group EOF",
+      passed: false,
+      error: String(error),
+    });
+  } finally {
+    if (escapedPid && /^\d+$/.test(escapedPid)) {
+      GLib.spawn_sync(
+        null,
+        [
+          "python3",
+          "-c",
+          "import os,signal,sys; os.kill(int(sys.argv[1]), signal.SIGKILL)",
+          escapedPid,
+        ],
+        null,
+        GLib.SpawnFlags.SEARCH_PATH,
+        null,
+      );
+    }
   }
 
   return results;
