@@ -137,6 +137,8 @@ export interface SubprocessResult {
   exitCode: number;
 }
 
+type TerminationReason = "timeout" | "cancelled";
+
 export async function runSubprocess(
   args: readonly string[],
   options?: SubprocessOptions,
@@ -165,7 +167,6 @@ export async function runSubprocess(
     throw new SubprocessError(`Failed to spawn ${args[0] ?? "subprocess"}: ${detail}`, "", -1);
   }
 
-  let timedOut = false;
   const ioCancellable = new Gio.Cancellable();
   const pid = subprocess.get_identifier();
   const stdin = subprocess.get_stdin_pipe();
@@ -177,18 +178,22 @@ export async function runSubprocess(
   }
   const stdoutChunks: Uint8Array[] = [];
   const stderrChunks: Uint8Array[] = [];
-  let termination: Promise<void> | null = null;
-  const terminate = (): void => {
+  let termination: Promise<TerminationReason> | null = null;
+  let timeoutId: number | null = null;
+  const terminate = (reason: TerminationReason): void => {
     if (termination) return;
-    termination = terminateSubprocess(subprocess, pid, ioCancellable);
+    if (timeoutId !== null) {
+      GLib.Source.remove(timeoutId);
+      timeoutId = null;
+    }
+    termination = terminateSubprocess(subprocess, pid, ioCancellable).then(() => reason);
   };
-  let timeoutId: number | null = GLib.timeout_add(GLib.PRIORITY_DEFAULT, timeout * 1000, () => {
-    timedOut = true;
+  timeoutId = GLib.timeout_add(GLib.PRIORITY_DEFAULT, timeout * 1000, () => {
     timeoutId = null;
-    terminate();
+    terminate("timeout");
     return GLib.SOURCE_REMOVE;
   });
-  const cancelId = options?.cancellable?.connect(() => terminate());
+  const cancelId = options?.cancellable?.connect(() => terminate("cancelled"));
 
   try {
     const writeInput = async (): Promise<void> => {
@@ -210,18 +215,24 @@ export async function runSubprocess(
       writeInput(),
       subprocess.wait_async(ioCancellable),
     ]);
-    await termination;
+    const terminationReason = await termination;
     const stdoutText = decodeChunks(stdoutChunks);
     const stderrText = decodeChunks(stderrChunks);
 
-    if (timedOut) {
+    if (terminationReason === "timeout") {
       throw new SubprocessTimeoutError(
         `Subprocess timed out after ${timeout}s`,
         stdoutText,
         stderrText,
       );
     }
-    options?.cancellable?.set_error_if_cancelled();
+    if (terminationReason === "cancelled") {
+      throw GLib.Error.new_literal(
+        Gio.io_error_quark(),
+        Gio.IOErrorEnum.CANCELLED,
+        "Subprocess cancelled",
+      );
+    }
     const failure = outcomes.find((outcome) => outcome.status === "rejected");
     if (failure?.status === "rejected") throw failure.reason;
 
