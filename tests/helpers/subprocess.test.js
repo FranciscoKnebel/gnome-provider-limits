@@ -76,18 +76,72 @@ export async function run() {
     });
   }
 
-  // Test 5: immediate spawn failures are wrapped in SubprocessError
+  // Test 5: an exec failure reports the wrapper's actual exit code
   try {
-    await runSubprocess(["/nonexistent-provider-limits-binary-xyz"], { timeoutSeconds: 5 });
+    let failure = null;
+    try {
+      await runSubprocess(["/nonexistent-provider-limits-binary-xyz"], { timeoutSeconds: 5 });
+    } catch (error) {
+      failure = error;
+    }
+    assert(failure instanceof SubprocessError, "exec failure should be SubprocessError");
+    assertEqual(failure.exitCode, 127, "exec failure should retain the wrapper exit code");
+    assertEqual(failure.message, "Subprocess exited with code 127");
+    assert(failure.stderr.trim().length > 0, "exec diagnostics should be preserved");
+    results.push({ name: "runSubprocess preserves wrapper exec failure status", passed: true });
+  } catch (error) {
+    results.push({
+      name: "runSubprocess preserves wrapper exec failure status",
+      passed: false,
+      error: String(error),
+    });
+  }
+
+  const originalLauncherSpawn = Gio.SubprocessLauncher.prototype.spawnv;
+  try {
+    Gio.SubprocessLauncher.prototype.spawnv = () => {
+      throw new Error("Injected launcher failure");
+    };
+    let failure = null;
+    try {
+      await runSubprocess(["sh", "-c", "exit 0"]);
+    } catch (error) {
+      failure = error;
+    }
+    assert(failure instanceof SubprocessError, "launcher failure should be SubprocessError");
+    assertEqual(failure.exitCode, -1, "only a launcher failure should use exit code -1");
+    results.push({ name: "runSubprocess wraps spawn failures", passed: true });
+  } catch (error) {
     results.push({
       name: "runSubprocess wraps spawn failures",
       passed: false,
-      error: "should have thrown",
+      error: String(error),
     });
-  } catch (e) {
-    assert(e instanceof SubprocessError, `should be SubprocessError, got ${e.name}`);
-    assertEqual(e.exitCode, -1, "spawn failure should use exit code -1");
-    results.push({ name: "runSubprocess wraps spawn failures", passed: true });
+  } finally {
+    Gio.SubprocessLauncher.prototype.spawnv = originalLauncherSpawn;
+  }
+
+  for (const exitCode of [3, 127]) {
+    const name = `runSubprocess preserves exit ${exitCode} when stderr resembles launch diagnostics`;
+    try {
+      let failure = null;
+      try {
+        await runSubprocess([
+          "sh",
+          "-c",
+          `printf 'provider-limits-spawn: command diagnostic' >&2; exit ${exitCode}`,
+        ]);
+      } catch (error) {
+        failure = error;
+      }
+      assert(failure instanceof SubprocessError, "command failure should be SubprocessError");
+      assertEqual(failure.exitCode, exitCode, "stderr must not change the command exit code");
+      assertEqual(failure.message, `Subprocess exited with code ${exitCode}`);
+      assertEqual(failure.stderr, "provider-limits-spawn: command diagnostic");
+      results.push({ name, passed: true });
+    } catch (error) {
+      results.push({ name, passed: false, error: String(error) });
+    }
   }
 
   // Test 6: non-zero exit reports stderr and exit code

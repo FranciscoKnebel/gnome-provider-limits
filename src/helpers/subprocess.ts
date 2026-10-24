@@ -15,7 +15,7 @@ os.setsid()
 try:
     os.execvp(sys.argv[1], sys.argv[1:])
 except OSError as exc:
-    print("provider-limits-spawn: " + str(exc), file=sys.stderr)
+    print("Failed to execute subprocess: " + str(exc), file=sys.stderr)
     sys.exit(127)
 `;
 
@@ -238,12 +238,7 @@ export async function runSubprocess(
 
     const exitCode = subprocess.get_if_exited() ? subprocess.get_exit_status() : -1;
     if (exitCode !== 0) {
-      const spawnFailed = exitCode === 127 && stderrText.startsWith("provider-limits-spawn: ");
-      throw new SubprocessError(
-        `Subprocess exited with code ${exitCode}`,
-        stderrText,
-        spawnFailed ? -1 : exitCode,
-      );
+      throw new SubprocessError(`Subprocess exited with code ${exitCode}`, stderrText, exitCode);
     }
 
     return { stdout: stdoutText, stderr: stderrText, exitCode };
