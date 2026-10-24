@@ -42,19 +42,36 @@ export function normalizeExpiresAt(value: unknown): number | null {
   return null;
 }
 
-export function credentialExpiresAt(creds: unknown): number | null {
-  if (!creds || typeof creds !== "object") return null;
-
+function credentialObject(creds: unknown): Record<string, unknown> | null {
+  if (!creds || typeof creds !== "object" || Array.isArray(creds)) return null;
   const record = creds as Record<string, unknown>;
-  const direct = normalizeExpiresAt(record.expiresAt ?? record.expires_at);
-  if (direct !== null) return direct;
+  if (record.claudeAiOauth === undefined) return record;
+  const nested = record.claudeAiOauth;
+  return nested && typeof nested === "object" && !Array.isArray(nested)
+    ? (nested as Record<string, unknown>)
+    : null;
+}
 
-  const oauth = record.claudeAiOauth;
-  if (oauth && typeof oauth === "object") {
-    const oauthRecord = oauth as Record<string, unknown>;
-    return normalizeExpiresAt(oauthRecord.expiresAt ?? oauthRecord.expires_at);
-  }
-  return null;
+export function credentialExpiresAt(creds: unknown): number | null {
+  const source = credentialObject(creds);
+  return source ? normalizeExpiresAt(source.expiresAt ?? source.expires_at) : null;
+}
+
+export interface ClaudeAuth {
+  token: string;
+  expiresAtMs: number | null;
+}
+
+export function parseClaudeCredentials(creds: unknown): ClaudeAuth | null {
+  const source = credentialObject(creds);
+  if (!source) return null;
+  const nested = source !== creds;
+  const token = nested ? source.accessToken : (source.access_token ?? source.token);
+  if (typeof token !== "string" || !token.trim()) return null;
+  const rawExpiry = source.expiresAt ?? source.expires_at;
+  const expiresAtMs = normalizeExpiresAt(rawExpiry);
+  if (rawExpiry !== undefined && expiresAtMs === null) return null;
+  return { token, expiresAtMs };
 }
 
 export function isCredentialExpired(expiresAtMs: number | null, now: number): boolean {

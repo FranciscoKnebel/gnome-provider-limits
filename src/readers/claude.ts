@@ -13,20 +13,16 @@ import {
   parseClaudeCliOutput,
 } from "./claudeParser.js";
 import {
-  credentialExpiresAt,
+  type ClaudeAuth,
   isCredentialExpired,
   nextCliFailureAt,
+  parseClaudeCredentials,
   shouldProbeCli,
 } from "./claudeProbe.js";
 
 const CLAUDE_ALL_PATHS_FAILED = "Claude: all paths failed. Run `claude` to refresh credentials.";
 const CLAUDE_USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
 const CLI_PROBE_TIMEOUT_SECONDS = 15;
-
-interface ClaudeAuth {
-  token: string;
-  expiresAtMs: number | null;
-}
 
 export const CLAUDE_FIELDS: readonly FieldDef[] = [
   {
@@ -228,15 +224,7 @@ export class ClaudeReader extends BaseReader {
     const [contents] = await file.load_contents_async(cancellable);
     const text = new TextDecoder().decode(contents);
     const creds = JSON.parse(text) as unknown;
-    if (!creds || typeof creds !== "object") return null;
-    const token =
-      "access_token" in creds && typeof creds.access_token === "string"
-        ? creds.access_token
-        : "token" in creds && typeof creds.token === "string"
-          ? creds.token
-          : null;
-    if (!token || !token.trim()) return null;
-    return { token, expiresAtMs: credentialExpiresAt(creds) };
+    return parseClaudeCredentials(creds);
   }
 
   private async _fetchUsage(
