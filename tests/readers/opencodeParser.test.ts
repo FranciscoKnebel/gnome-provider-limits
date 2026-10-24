@@ -6,13 +6,21 @@ import {
 
 describe("opencodeParser", () => {
   describe("normalizeOpenCodeDbRow", () => {
-    it("returns zeros when the row is null or undefined", () => {
-      expect(normalizeOpenCodeDbRow(null)).toEqual({ totalCost: 0, sessionsCount: 0 });
-      expect(normalizeOpenCodeDbRow(undefined)).toEqual({ totalCost: 0, sessionsCount: 0 });
+    it("keeps absent rows unavailable", () => {
+      expect(normalizeOpenCodeDbRow(null)).toEqual({ totalCost: null, sessionsCount: null });
+      expect(normalizeOpenCodeDbRow(undefined)).toEqual({ totalCost: null, sessionsCount: null });
     });
 
-    it("coerces null fields to 0", () => {
+    it("keeps missing fields unavailable without losing valid session counts", () => {
       expect(normalizeOpenCodeDbRow({ total_cost: null, sessions_count: null })).toEqual({
+        totalCost: null,
+        sessionsCount: null,
+      });
+      expect(normalizeOpenCodeDbRow({ total_cost: null, sessions_count: 3 })).toEqual({
+        totalCost: null,
+        sessionsCount: 3,
+      });
+      expect(normalizeOpenCodeDbRow({ total_cost: 0, sessions_count: 0 })).toEqual({
         totalCost: 0,
         sessionsCount: 0,
       });

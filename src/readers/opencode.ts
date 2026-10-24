@@ -231,14 +231,30 @@ export class OpenCodeReader extends BaseReader {
   }
 
   private async _readDiskTelemetry(): Promise<OpenCodeDiskTelemetry | null> {
-    const rows = await querySqlite(
-      GLib.build_filenamev([this._dataDir(), "opencode.db"]),
-      "SELECT CAST(SUM(cost) AS REAL) AS total_cost, COUNT(*) AS sessions_count FROM session",
-      { timeoutSeconds: 5 },
-    );
-    const firstRow = Array.isArray(rows) ? (rows[0] as OpenCodeDbRow | undefined) : undefined;
-    if (!firstRow) return null;
-    return normalizeOpenCodeDbRow(firstRow);
+    const dbPath = GLib.build_filenamev([this._dataDir(), "opencode.db"]);
+    const [sessions, costs] = await Promise.all([
+      querySqlite(dbPath, "SELECT COUNT(*) AS sessions_count FROM session", { timeoutSeconds: 5 }),
+      querySqlite(
+        dbPath,
+        `
+        SELECT COALESCE(SUM(CASE WHEN json_extract(data, '$.role') = 'assistant'
+          AND json_type(data, '$.cost') IN ('integer', 'real')
+          AND json_extract(data, '$.cost') >= 0
+          THEN json_extract(data, '$.cost') END), 0) AS total_cost
+        FROM message WHERE json_valid(data)
+      `,
+        { timeoutSeconds: 5 },
+      ),
+    ]);
+    const sessionRow = Array.isArray(sessions)
+      ? (sessions[0] as OpenCodeDbRow | undefined)
+      : undefined;
+    const costRow = Array.isArray(costs) ? (costs[0] as OpenCodeDbRow | undefined) : undefined;
+    if (!sessionRow && !costRow) return null;
+    return normalizeOpenCodeDbRow({
+      sessions_count: sessionRow?.sessions_count ?? null,
+      total_cost: costRow?.total_cost ?? null,
+    });
   }
 
   private _parseResult(
@@ -277,14 +293,18 @@ export class OpenCodeReader extends BaseReader {
       this._makeField(
         "total_cost",
         telemetry?.totalCost ?? null,
-        telemetry ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
+        telemetry?.totalCost !== null && telemetry?.totalCost !== undefined
+          ? FieldStatus.OK
+          : FieldStatus.UNAVAILABLE,
       ),
     );
     fields.push(
       this._makeField(
         "sessions_count",
         telemetry?.sessionsCount ?? null,
-        telemetry ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
+        telemetry?.sessionsCount !== null && telemetry?.sessionsCount !== undefined
+          ? FieldStatus.OK
+          : FieldStatus.UNAVAILABLE,
       ),
     );
     fields.push(
