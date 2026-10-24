@@ -33,3 +33,6 @@ pages/Gemfile.lock
 pages/.jekyll-cache/
 pages/_site/
 
+# Local git worktrees
+.worktrees/
+
