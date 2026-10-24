@@ -70,21 +70,25 @@ describe("claudeParser", () => {
   describe("normalizeClaudeUsagePayload", () => {
     it("normalizes known OAuth payload fields", () => {
       const payload = normalizeClaudeUsagePayload({
-        five_hour: { used_percent: 42, reset_at: 1700000000 },
-        seven_day_sonnet: { used_percent: 15 },
-        extra_usage: { enabled: true, disabled_reason: "" },
+        five_hour: { utilization: 42, resets_at: "2023-11-14T22:13:20Z" },
+        seven_day: { utilization: 0 },
+        seven_day_sonnet: { utilization: 15 },
+        seven_day_opus: { utilization: 90 },
+        extra_usage: { is_enabled: true, disabled_reason: "" },
       });
 
       expect(payload?.five_hour?.used_percent).toBe(42);
       expect(payload?.five_hour?.reset_at).toBe(1700000000);
       expect(payload?.seven_day_sonnet?.used_percent).toBe(15);
+      expect(payload?.seven_day?.used_percent).toBe(0);
+      expect(payload?.seven_day_opus?.used_percent).toBe(90);
       expect(payload?.extra_usage?.enabled).toBe(true);
     });
 
     it("drops invalid field values without trusting the payload shape", () => {
       const payload = normalizeClaudeUsagePayload({
-        five_hour: { used_percent: "42", reset_at: Number.NaN },
-        extra_usage: { enabled: "yes", disabled_reason: 123 },
+        five_hour: { utilization: "42", resets_at: "not-a-date" },
+        extra_usage: { is_enabled: "yes", disabled_reason: 123 },
       });
 
       expect(payload?.five_hour?.used_percent).toBeUndefined();
@@ -96,6 +100,20 @@ describe("claudeParser", () => {
     it("rejects non-object payloads", () => {
       expect(normalizeClaudeUsagePayload(null)).toBeNull();
       expect(normalizeClaudeUsagePayload("invalid")).toBeNull();
+    });
+
+    it("keeps invalid percentages and internal-only names unavailable", () => {
+      for (const value of [-1, 101, NaN, Infinity, null]) {
+        expect(
+          normalizeClaudeUsagePayload({ five_hour: { utilization: value } })?.five_hour
+            ?.used_percent,
+        ).toBeUndefined();
+      }
+      const payload = normalizeClaudeUsagePayload({
+        five_hour: { used_percent: 42, reset_at: 1700000000 },
+      });
+      expect(payload?.five_hour?.used_percent).toBeUndefined();
+      expect(payload?.five_hour?.reset_at).toBeUndefined();
     });
   });
 });
