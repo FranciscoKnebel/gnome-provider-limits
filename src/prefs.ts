@@ -1,13 +1,10 @@
-import Gettext from "gettext";
 import Adw from "gi://Adw";
 import Gio from "gi://Gio";
 import GLib from "gi://GLib";
-import {
-  ExtensionPreferences,
-  gettext as _,
-} from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
+import { ExtensionPreferences } from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
 
 import { PROVIDER_NAMES, type ProviderName } from "./constants.js";
+import { configureTranslations } from "./helpers/gettext.js";
 import { ProviderLimitsPreferencesPage, type LanguageEntry } from "./ui/prefs/main-page.js";
 import { ProviderPage } from "./ui/prefs/provider-page.js";
 import { isDisposablePage } from "./ui/prefs/shared.js";
@@ -38,6 +35,7 @@ export default class ProviderLimitsPreferences extends ExtensionPreferences {
   private _enabledChangedIds: number[] = [];
   private _pages: Adw.PreferencesPage[] = [];
   private _windowDestroyed = false;
+  private _windowGeneration = 0;
 
   private _disconnectEnabledSignals(settings: Gio.Settings): void {
     for (const id of this._enabledChangedIds) {
@@ -65,20 +63,7 @@ export default class ProviderLimitsPreferences extends ExtensionPreferences {
   }
 
   private _buildWindow(window: Adw.PreferencesWindow, settings: Gio.Settings): void {
-    const lang = settings.get_string("language");
-    if (lang && lang.trim()) {
-      GLib.setenv("LANGUAGE", lang.trim(), true);
-    } else {
-      GLib.unsetenv("LANGUAGE");
-    }
-    // Force GLib to re-evaluate the language list so subsequent _()
-    // calls pick up the new LANGUAGE value.
-    GLib.get_language_names();
-    // Rebind the gettext domain to force glibc to reload the .mo file
-    // with the updated LANGUAGE.
-    const localeDir = GLib.build_filenamev([this.path, "locale"]);
-    Gettext.bindtextdomain("gnome-provider-limits", localeDir);
-    Gettext.textdomain("gnome-provider-limits");
+    configureTranslations(this.path, settings.get_string("language"));
 
     const mainPage = new ProviderLimitsPreferencesPage(settings, loadLanguages(this.path));
     window.add(mainPage);
@@ -116,6 +101,7 @@ export default class ProviderLimitsPreferences extends ExtensionPreferences {
   fillPreferencesWindow(window: Adw.PreferencesWindow): Promise<void> {
     const settings = this.getSettings();
     this._windowDestroyed = false;
+    const generation = ++this._windowGeneration;
 
     this._buildWindow(window, settings);
 
@@ -126,7 +112,8 @@ export default class ProviderLimitsPreferences extends ExtensionPreferences {
       this._scheduleWindowRebuild(window, settings);
     });
 
-    window.connect("destroy", () => {
+    const cleanup = () => {
+      if (this._windowDestroyed || generation !== this._windowGeneration) return;
       this._windowDestroyed = true;
       if (this._languageRebuildId !== null) {
         GLib.Source.remove(this._languageRebuildId);
@@ -137,12 +124,19 @@ export default class ProviderLimitsPreferences extends ExtensionPreferences {
         settings.disconnect(this._languageChangedId);
         this._languageChangedId = 0;
       }
+      this._removeAllPages(window);
+    };
+    window.connect("close-request", () => {
+      cleanup();
+      return false;
     });
+    window.connect("destroy", cleanup);
 
     return Promise.resolve();
   }
 
   private _scheduleWindowRebuild(window: Adw.PreferencesWindow, settings: Gio.Settings): void {
+    if (this._windowDestroyed) return;
     if (this._languageRebuildId !== null) {
       GLib.Source.remove(this._languageRebuildId);
     }

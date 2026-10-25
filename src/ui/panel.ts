@@ -2,12 +2,14 @@ import Clutter from "gi://Clutter";
 import type Gio from "gi://Gio";
 import GLib from "gi://GLib";
 import St from "gi://St";
-import { gettext as _ } from "resource:///org/gnome/shell/extensions/extension.js";
+import { ensureActorVisibleInScrollView } from "resource:///org/gnome/shell/misc/animationUtils.js";
 import { Spinner } from "resource:///org/gnome/shell/ui/animation.js";
+import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
 import type { ProviderName } from "../constants.js";
 import { formatAbsoluteTimestamp, formatTimestampTemplate } from "../formatters.js";
+import { gettext as _ } from "../helpers/gettext.js";
 import { resolveLocale } from "../helpers/locale.js";
 import { normalizeProvidersOrder, providerDisplayName } from "../helpers/provider-settings.js";
 import type { BaseReader, ReaderResult } from "../readers/base.js";
@@ -51,6 +53,9 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
   private _lastRefreshLabel: St.Label | null = null;
   private _sections: PanelSection[] = [];
   private _structureKey: string | null = null;
+  private _body: PopupMenu.PopupMenuSection;
+  private _scroll: St.ScrollView;
+  private _settingsItem: PopupMenu.PopupMenuItem;
 
   constructor(
     settings: Gio.Settings,
@@ -63,6 +68,33 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     this._readers = readers;
     this._openPreferences = openPreferences;
     this._onRefresh = onRefresh;
+    this._body = new PopupMenu.PopupMenuSection();
+    this._scroll = new St.ScrollView({ overlay_scrollbars: true, x_expand: true });
+    this._scroll.set_policy(St.PolicyType.NEVER, St.PolicyType.AUTOMATIC);
+    this.addMenuItem(this._body);
+    this.box.remove_child(this._body.actor);
+    // add_actor is the GNOME 45 API; set_child replaced it in newer Shells.
+    const scroll = this._scroll as St.ScrollView & { add_actor?: (actor: Clutter.Actor) => void };
+    if (typeof scroll.set_child === "function") scroll.set_child(this._body.actor);
+    else scroll.add_actor?.(this._body.actor);
+    this.box.add_child(this._scroll);
+    this._scroll.connect("notify::mapped", () => {
+      if (!this._scroll.mapped) return;
+      const monitor = Main.layoutManager.findMonitorForActor(this.actor);
+      if (!monitor) return;
+      const area = Main.layoutManager.getWorkAreaForMonitor(monitor.index);
+      const scale = St.ThemeContext.get_for_stage(this.actor.get_stage()).scale_factor;
+      this._scroll.style = `max-height: ${Math.max(1, Math.floor((area.height / scale) * 0.6))}px;`;
+    });
+    this._addRefreshRow(null, "en");
+    this._settingsItem = new PopupMenu.PopupMenuItem(_("Settings"));
+    this._settingsItem.connect("activate", () => this._openPreferences());
+    this.addMenuItem(this._settingsItem);
+  }
+
+  override destroy(): void {
+    this._body.destroy();
+    super.destroy();
   }
 
   render(results: Map<ProviderName, ReaderResult>, lastRefreshAt: number | null): void {
@@ -81,15 +113,10 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
       plans.push(this._planSection(name, result, locale));
     }
 
-    const hasLastRefresh = lastRefreshAt !== null && Number.isFinite(lastRefreshAt);
-    const nextStructureKey = structureKey([
-      locale,
-      hasLastRefresh ? "1" : "0",
-      ...plans.map((plan) => plan.key),
-    ]);
+    const nextStructureKey = structureKey([locale, ...plans.map((plan) => plan.key)]);
 
     if (nextStructureKey !== this._structureKey) {
-      this._rebuild(plans, lastRefreshAt, locale);
+      this._rebuild(plans, lastRefreshAt);
       this._structureKey = nextStructureKey;
       return;
     }
@@ -104,6 +131,7 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
       GLib.getenv("LC_MESSAGES"),
       GLib.getenv("LANG"),
     );
+    this._lastRefreshLabel.visible = lastRefreshAt !== null;
     this._lastRefreshLabel.text = formatTimestampTemplate(
       _("Last refresh: %s"),
       lastRefreshAt,
@@ -165,26 +193,16 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     };
   }
 
-  private _rebuild(plans: SectionPlan[], lastRefreshAt: number | null, locale: string): void {
-    this.removeAll();
-    this._refreshRow = null;
-    this._refreshButtonLabel = null;
-    this._refreshSpinner = null;
-    this._lastRefreshLabel = null;
+  private _rebuild(plans: SectionPlan[], lastRefreshAt: number | null): void {
+    this._body.removeAll();
     this._sections = [];
-
     plans.forEach((plan, index) => {
-      if (index > 0) this.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
+      if (index > 0) this._body.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
       this._sections.push(this._addSection(plan));
     });
-
-    this._addRefreshRow(lastRefreshAt, locale);
-
-    const settingsItem = new PopupMenu.PopupMenuItem(_("Settings"));
-    settingsItem.connect("activate", () => {
-      this._openPreferences();
-    });
-    this.addMenuItem(settingsItem);
+    this._settingsItem.label.text = _("Settings");
+    this.setRunning(this._running);
+    this.setLastRefreshAt(lastRefreshAt);
   }
 
   private _update(plans: SectionPlan[], lastRefreshAt: number | null): void {
@@ -230,7 +248,7 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     const headerText = this._buildHeaderText(plan.displayName, plan.status);
     const header = new PopupMenu.PopupMenuItem(headerText, {
       reactive: true,
-      can_focus: false,
+      can_focus: true,
       activate: false,
       hover: false,
     });
@@ -238,7 +256,8 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     header.add_style_class_name("provider-limits-static-row");
     header.accessible_name = headerText;
     header.label.accessible_name = headerText;
-    this.addMenuItem(header);
+    header.connect("key-focus-in", () => ensureActorVisibleInScrollView(this._scroll, header));
+    this._body.addMenuItem(header);
 
     const detailLabel = this._addTextRow(plan.detailText, "provider-limits-dim");
 
@@ -267,7 +286,7 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     label.clutter_text.line_wrap = true;
     label.accessible_name = text;
     row.add_child(label);
-    this.addMenuItem(row);
+    this._body.addMenuItem(row);
     return label;
   }
 
@@ -311,7 +330,7 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     }
 
     row.add_child(content);
-    this.addMenuItem(row);
+    this._body.addMenuItem(row);
     return { value: valueLabel, error: errorLabel };
   }
 
@@ -326,18 +345,19 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     });
     label.accessible_name = text;
     row.add_child(label);
-    this.addMenuItem(row);
+    this._body.addMenuItem(row);
     return label;
   }
 
   private _addStaticRow(): PopupMenu.PopupBaseMenuItem {
     const row = new PopupMenu.PopupBaseMenuItem({
       reactive: true,
-      can_focus: false,
+      can_focus: true,
       activate: false,
       hover: false,
     });
     row.add_style_class_name("provider-limits-static-row");
+    row.connect("key-focus-in", () => ensureActorVisibleInScrollView(this._scroll, row));
     return row;
   }
 
@@ -358,15 +378,12 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     buttonLabel.accessible_name = buttonLabel.text;
     row.add_child(buttonLabel);
 
-    let lastRefreshLabel: St.Label | null = null;
-    if (lastRefreshAt !== null && Number.isFinite(lastRefreshAt)) {
-      lastRefreshLabel = new St.Label({
-        text: formatTimestampTemplate(_("Last refresh: %s"), lastRefreshAt, locale),
-        style_class: "provider-limits-dim",
-        x_align: Clutter.ActorAlign.END,
-      });
-      row.add_child(lastRefreshLabel);
-    }
+    const lastRefreshLabel = new St.Label({
+      text: formatTimestampTemplate(_("Last refresh: %s"), lastRefreshAt, locale),
+      style_class: "provider-limits-dim",
+      x_align: Clutter.ActorAlign.END,
+    });
+    row.add_child(lastRefreshLabel);
 
     const spinner = new Spinner(14, { animate: true, hideOnStop: true });
     spinner.add_style_class_name("provider-limits-refresh-spinner");
