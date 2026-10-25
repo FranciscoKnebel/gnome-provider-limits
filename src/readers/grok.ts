@@ -1,15 +1,13 @@
-import Gettext from "gettext";
 import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 
-import { GETTEXT_DOMAIN } from "../constants.js";
+import { gettext as _ } from "../helpers/gettext.js";
 import { HttpClient, TokenError } from "../helpers/http.js";
 import { logWarn } from "../helpers/log.js";
 import { BaseReader, FieldStatus, type FieldDef, type ReaderResult } from "./base.js";
 import { normalizeGrokUsagePayload, parseGrokAuth } from "./grokParser.js";
 
 const GROK_BASE_URL = "https://cli-chat-proxy.grok.com/v1";
-const _ = (text: string): string => Gettext.dgettext(GETTEXT_DOMAIN, text);
 
 Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish");
 
@@ -53,18 +51,27 @@ export const GROK_FIELDS: readonly FieldDef[] = [
 
 export class GrokReader extends BaseReader {
   private _http: HttpClient | null = null;
+  private _destroyed = false;
+  private _cancellable = new Gio.Cancellable();
 
   get FIELDS(): readonly FieldDef[] {
     return GROK_FIELDS;
   }
 
   override destroy(): void {
+    this._destroyed = true;
+    this._cancellable.cancel();
     this._http?.destroy();
     this._http = null;
     super.destroy();
   }
 
+  private _assertAlive(): void {
+    if (this._destroyed) throw new Error("Grok Reader destroyed");
+  }
+
   async read(): Promise<ReaderResult> {
+    this._assertAlive();
     const pathsTried = ["auth-file"];
     let auth = null;
     try {
@@ -72,12 +79,15 @@ export class GrokReader extends BaseReader {
       const home = GLib.getenv("GROK_HOME")?.trim() || `${GLib.get_home_dir()}/.grok`;
       const path = customPath || `${home}/auth.json`;
       const expandedPath = path.startsWith("~/") ? `${GLib.get_home_dir()}/${path.slice(2)}` : path;
-      const [contents] = await Gio.File.new_for_path(expandedPath).load_contents_async(null);
+      const [contents] = await Gio.File.new_for_path(expandedPath).load_contents_async(
+        this._cancellable,
+      );
       auth = parseGrokAuth(new TextDecoder().decode(contents));
     } catch {
       logWarn("grok auth file unavailable");
     }
 
+    this._assertAlive();
     if (!auth) {
       return this._lastGoodOrError(
         _("Grok: no valid login. Run `grok login` to sign in."),
@@ -107,6 +117,7 @@ export class GrokReader extends BaseReader {
       );
     }
 
+    this._assertAlive();
     const usage = normalizeGrokUsagePayload(payload);
     if (
       !usage ||
@@ -130,6 +141,7 @@ export class GrokReader extends BaseReader {
       logWarn("grok subscription plan unavailable");
     }
 
+    this._assertAlive();
     const optionalField = (name: string, value: unknown) =>
       this._makeField(name, value, value !== null ? FieldStatus.OK : FieldStatus.UNAVAILABLE);
     const fields = [

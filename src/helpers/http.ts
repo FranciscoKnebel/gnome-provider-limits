@@ -72,6 +72,8 @@ export interface HttpGetOptions extends HttpRequestOptions {
 
 export class HttpClient {
   private _session: Soup.Session;
+  private _lifetime = new Gio.Cancellable();
+  private _destroyed = false;
 
   constructor(session?: Soup.Session) {
     this._session =
@@ -82,17 +84,38 @@ export class HttpClient {
   }
 
   async getJson(url: string, options?: HttpGetOptions): Promise<unknown> {
+    if (this._destroyed) throw new NetworkError("HTTP client destroyed");
+    const request = new Gio.Cancellable();
+    const lifetimeId = this._lifetime.connect(() => request.cancel());
+    const outer = options?.cancellable;
+    const outerId = outer?.connect(() => request.cancel());
+    if (outer?.is_cancelled()) request.cancel();
+    try {
+      return await this._getJson(url, options, request);
+    } finally {
+      this._lifetime.disconnect(lifetimeId);
+      if (outerId !== undefined) outer?.disconnect(outerId);
+    }
+  }
+
+  private async _getJson(
+    url: string,
+    options: HttpGetOptions | undefined,
+    cancellable: Gio.Cancellable,
+  ): Promise<unknown> {
     const maxAttempts = 1 + (options?.retries ?? RETRY_MAX_ATTEMPTS - 1);
     const deadlineMs = options?.deadlineMs ?? RETRY_DEADLINE_MS;
-    const cancellable = options?.cancellable ?? null;
     const startedAt = this._monotonicMs();
     let attempt = 0;
 
     for (;;) {
+      if (this._destroyed || cancellable.is_cancelled())
+        throw new NetworkError("Request cancelled");
+      const remainingMs = deadlineMs - (this._monotonicMs() - startedAt);
+      if (remainingMs <= 0) throw new NetworkError("Request deadline exceeded");
       attempt++;
       const message = Soup.Message.new("GET", url);
       this._applyHeaders(message, options?.headers);
-      const remainingMs = deadlineMs - (this._monotonicMs() - startedAt);
 
       try {
         return await this._runWithDeadline(remainingMs, cancellable, (attemptCancellable) =>
@@ -187,7 +210,7 @@ export class HttpClient {
       }
     } catch (error) {
       if (error instanceof HttpError || error instanceof ProtocolError) throw error;
-      throw new NetworkError(`Request failed: ${error}`);
+      throw new NetworkError("Request failed");
     }
   }
 
@@ -242,7 +265,7 @@ export class HttpClient {
     payload: unknown,
     retryAfterSeconds: number | null = null,
   ): HttpError {
-    const message = this._extractErrorMessage(payload) ?? `HTTP ${statusCode}`;
+    const message = `HTTP ${statusCode}`;
 
     if (statusCode === 401 || statusCode === 403) {
       return new TokenError(message, statusCode, payload);
@@ -256,27 +279,6 @@ export class HttpClient {
     return new HttpError(message, statusCode, payload);
   }
 
-  private _extractErrorMessage(payload: unknown): string | null {
-    if (!payload || typeof payload !== "object") return null;
-
-    const obj = payload as Record<string, unknown>;
-    for (const key of ["message", "detail", "title"]) {
-      const value = obj[key];
-      if (typeof value === "string" && value.trim()) {
-        return value.trim();
-      }
-    }
-
-    const nested = obj.error;
-    if (typeof nested === "string" && nested.trim()) {
-      return nested.trim();
-    }
-    if (nested && typeof nested === "object" && !Array.isArray(nested)) {
-      return this._extractErrorMessage(nested);
-    }
-    return null;
-  }
-
   private _decodeBytes(bytes: GLib.Bytes | Uint8Array | null): string {
     if (!bytes) return "";
     const data = bytes instanceof Uint8Array ? bytes : (bytes as GLib.Bytes).toArray();
@@ -284,6 +286,9 @@ export class HttpClient {
   }
 
   destroy(): void {
+    if (this._destroyed) return;
+    this._destroyed = true;
+    this._lifetime.cancel();
     this._session.abort();
   }
 }

@@ -215,7 +215,7 @@ export async function runSubprocess(
       writeInput(),
       subprocess.wait_async(ioCancellable),
     ]);
-    const terminationReason = await termination;
+    const terminationReason = await (termination as Promise<TerminationReason> | null);
     const stdoutText = decodeChunks(stdoutChunks);
     const stderrText = decodeChunks(stderrChunks);
 
