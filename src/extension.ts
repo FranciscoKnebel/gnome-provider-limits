@@ -1,10 +1,9 @@
-import Gettext from "gettext";
 import Clutter from "gi://Clutter";
 import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 import GObject from "gi://GObject";
 import St from "gi://St";
-import { Extension, gettext as _ } from "resource:///org/gnome/shell/extensions/extension.js";
+import { Extension } from "resource:///org/gnome/shell/extensions/extension.js";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PanelMenu from "resource:///org/gnome/shell/ui/panelMenu.js";
 import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
@@ -15,10 +14,11 @@ import {
   PROVIDER_NAMES,
   type ProviderName,
 } from "./constants.js";
+import { configureTranslations, gettext as _ } from "./helpers/gettext.js";
 import { logError } from "./helpers/log.js";
 import { normalizeProvidersOrder } from "./helpers/provider-settings.js";
 import { readerResultsEqual } from "./helpers/reader.js";
-import { currentRefreshInterval, shouldRender } from "./helpers/refresh.js";
+import { currentRefreshInterval } from "./helpers/refresh.js";
 import { type BaseReader, type ReaderResult, ReaderStatus } from "./readers/base.js";
 import { ClaudeReader } from "./readers/claude.js";
 import { CodexReader } from "./readers/codex.js";
@@ -48,10 +48,7 @@ const ProviderLimitsIndicator = GObject.registerClass(
     declare _pendingRefreshes: number;
     declare _lastRefreshAt: number | null;
     declare _destroyed: boolean;
-    declare _hasRendered: boolean;
-    declare _renderPending: boolean;
     declare _renderDebounceId: number | null;
-    declare _menuStateChangedId: number;
 
     // @ts-expect-error GJS registerClass allows custom _init signatures at runtime;
     //    TypeScript cannot model the union of inherited base overloads with an
@@ -60,8 +57,7 @@ const ProviderLimitsIndicator = GObject.registerClass(
       this._extension = extension;
       this._settings = extension.getSettings();
 
-      // Override language before any _() calls so gettext picks it up
-      // from the first render onward.
+      // Load only this extension’s catalog before constructing translated UI.
       this._applyLanguageOverride();
 
       super._init(0.5, _("Provider Limits"));
@@ -76,10 +72,7 @@ const ProviderLimitsIndicator = GObject.registerClass(
       this._pendingRefreshes = 0;
       this._lastRefreshAt = null;
       this._destroyed = false;
-      this._hasRendered = false;
-      this._renderPending = false;
       this._renderDebounceId = null;
-      this._menuStateChangedId = 0;
 
       const box = new St.BoxLayout({
         style_class: "provider-limits-status-bar",
@@ -114,13 +107,6 @@ const ProviderLimitsIndicator = GObject.registerClass(
       // narrow to PopupMenu.PopupMenu before using addMenuItem.
       const menu = this.menu as PopupMenu.PopupMenu;
       menu.addMenuItem(this._panel);
-      this._menuStateChangedId = menu.connect("open-state-changed", (_menu, open: boolean) => {
-        if (!open && this._renderPending) {
-          this._renderPending = false;
-          this._renderNow();
-        }
-        return false;
-      });
 
       this._initReaders();
       this._connectSettingsSignals();
@@ -172,16 +158,7 @@ const ProviderLimitsIndicator = GObject.registerClass(
     }
 
     private _applyLanguageOverride(): void {
-      const lang = this._settings.get_string("language");
-      if (lang && lang.trim()) {
-        GLib.setenv("LANGUAGE", lang.trim(), true);
-      } else {
-        GLib.unsetenv("LANGUAGE");
-      }
-      GLib.get_language_names();
-      const localeDir = GLib.build_filenamev([this._extension.path, "locale"]);
-      Gettext.bindtextdomain(GETTEXT_DOMAIN, localeDir);
-      Gettext.textdomain(GETTEXT_DOMAIN);
+      configureTranslations(this._extension.path, this._settings.get_string("language"));
     }
 
     private _onProviderEnabledChanged(name: ProviderName): void {
@@ -221,6 +198,7 @@ const ProviderLimitsIndicator = GObject.registerClass(
     }
 
     async refresh(options?: { force?: boolean }): Promise<void> {
+      if (this._destroyed) return;
       const generation = ++this._refreshGeneration;
       const refreshStartedAt = Date.now();
       this._pendingRefreshes++;
@@ -291,21 +269,18 @@ const ProviderLimitsIndicator = GObject.registerClass(
           this._stableReads++;
         }
 
-        if (shouldRender(this._hasRendered, anyChanged)) {
-          this._render();
-        } else {
-          this._panel.setLastRefreshAt(this._lastRefreshAt);
-        }
+        this._render();
       } finally {
         this._pendingRefreshes--;
         if (this._pendingRefreshes <= 0) {
           this._pendingRefreshes = 0;
-          this._scheduleStopRefreshIndicator(refreshStartedAt);
+          if (!this._destroyed) this._scheduleStopRefreshIndicator(refreshStartedAt);
         }
       }
     }
 
     private _scheduleStopRefreshIndicator(refreshStartedAt: number): void {
+      if (this._destroyed) return;
       const remainingMs = Math.max(0, MIN_REFRESH_INDICATOR_MS - (Date.now() - refreshStartedAt));
       if (remainingMs === 0) {
         this._panel.setRunning(false);
@@ -320,6 +295,7 @@ const ProviderLimitsIndicator = GObject.registerClass(
     }
 
     private _scheduleRender(): void {
+      if (this._destroyed) return;
       if (this._renderDebounceId !== null) {
         GLib.Source.remove(this._renderDebounceId);
       }
@@ -332,16 +308,11 @@ const ProviderLimitsIndicator = GObject.registerClass(
 
     private _render(): void {
       if (this._destroyed) return;
-      if ((this.menu as PopupMenu.PopupMenu).isOpen) {
-        this._renderPending = true;
-        return;
-      }
       this._renderNow();
     }
 
     private _renderNow(): void {
       if (this._destroyed) return;
-      this._hasRendered = true;
       this._statusBar.render(this._results);
       this._panel.render(this._results, this._lastRefreshAt);
     }
@@ -356,6 +327,7 @@ const ProviderLimitsIndicator = GObject.registerClass(
     }
 
     private _restartRefreshTimer(): void {
+      if (this._destroyed) return;
       if (this._refreshSourceId !== null) {
         GLib.Source.remove(this._refreshSourceId);
         this._refreshSourceId = null;
@@ -366,6 +338,7 @@ const ProviderLimitsIndicator = GObject.registerClass(
         GLib.PRIORITY_DEFAULT,
         Math.max(interval, DEFAULT_REFRESH_SHORT_INTERVAL_SECONDS),
         () => {
+          this._refreshSourceId = null;
           void this._refreshAndRestartTimer();
           return GLib.SOURCE_REMOVE;
         },
@@ -399,11 +372,6 @@ const ProviderLimitsIndicator = GObject.registerClass(
       if (this._renderDebounceId !== null) {
         GLib.Source.remove(this._renderDebounceId);
         this._renderDebounceId = null;
-      }
-
-      if (this._menuStateChangedId) {
-        (this.menu as PopupMenu.PopupMenu).disconnect(this._menuStateChangedId);
-        this._menuStateChangedId = 0;
       }
 
       for (const reader of this._readers.values()) {
@@ -449,8 +417,6 @@ export default class ProviderLimitsExtension extends Extension {
       `gnome-provider-limits: configured language "${lang}" has no compiled catalogue in the bundle; falling back to system locale.`,
     );
     settings.set_string("language", "");
-    GLib.unsetenv("LANGUAGE");
-    GLib.get_language_names();
   }
 
   disable(): void {

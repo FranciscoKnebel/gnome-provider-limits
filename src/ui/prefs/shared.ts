@@ -4,6 +4,8 @@ import Gio from "gi://Gio";
 import GObject from "gi://GObject";
 import Gtk from "gi://Gtk?version=4.0";
 
+import { reorderValue } from "../../helpers/reorder.js";
+
 export interface DisposablePage {
   cleanup(): void;
 }
@@ -103,19 +105,17 @@ function stringArraysEqual(a: readonly string[], b: readonly string[]): boolean 
   return a.length === b.length && a.every((value, index) => value === b[index]);
 }
 
-export function setupDropTarget(row: Adw.ActionRow, settings: Gio.Settings, key: string): void {
+export function setupDropTarget(
+  row: Adw.ActionRow,
+  settings: Gio.Settings,
+  key: string,
+  targetValue: string,
+): void {
   const dropTarget = new Gtk.DropTarget({ actions: Gdk.DragAction.MOVE });
   dropTarget.set_gtypes([GObject.TYPE_STRING]);
   dropTarget.connect("drop", (_target: Gtk.DropTarget, value: unknown) => {
-    const draggedValue = String(value);
-    const values = settings.get_strv(key);
-    const fromIndex = values.indexOf(draggedValue);
-    if (fromIndex < 0) return false;
-    const targetIndex = row.get_index();
-    if (targetIndex < 0 || targetIndex === fromIndex) return false;
-    const reordered = [...values];
-    reordered.splice(fromIndex, 1);
-    reordered.splice(Math.min(targetIndex, reordered.length), 0, draggedValue);
+    const reordered = reorderValue(settings.get_strv(key), String(value), targetValue);
+    if (!reordered) return false;
     settings.set_strv(key, reordered);
     return true;
   });

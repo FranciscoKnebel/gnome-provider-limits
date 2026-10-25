@@ -178,7 +178,7 @@ export const ProviderPage = GObject.registerClass(
           dialog.add_response(def.name, _(def.label));
         }
 
-        if (used.size >= available.length) {
+        if (available.every((def) => used.has(def.name))) {
           dialog.add_response("none", _("No more fields available"));
           dialog.set_response_enabled("none", false);
         }
@@ -218,7 +218,7 @@ export const ProviderPage = GObject.registerClass(
         row.add_suffix(removeButton);
 
         setupDragSource(row, name);
-        setupDropTarget(row, this._settings, key);
+        setupDropTarget(row, this._settings, key, name);
 
         return row;
       });

@@ -1,6 +1,5 @@
 import Adw from "gi://Adw";
 import Gio from "gi://Gio";
-import GLib from "gi://GLib";
 import GObject from "gi://GObject";
 import Gtk from "gi://Gtk?version=4.0";
 
@@ -125,12 +124,6 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
       row.connect("notify::selected", (combo: Adw.ComboRow) => {
         const lang = combo.selected === 0 ? "" : sorted[combo.selected - 1].code;
         this._settings.set_string("language", lang);
-        if (lang && lang.trim()) {
-          GLib.setenv("LANGUAGE", lang.trim(), true);
-        } else {
-          GLib.unsetenv("LANGUAGE");
-        }
-        GLib.get_language_names();
       });
 
       group.add(row);
@@ -218,7 +211,7 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
       row.add_prefix(dragHandle);
 
       setupDragSource(row, value);
-      setupDropTarget(row, this._settings, key);
+      setupDropTarget(row, this._settings, key, value);
 
       return row;
     }
