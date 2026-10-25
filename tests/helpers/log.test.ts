@@ -176,31 +176,37 @@ describe("maskSecrets", () => {
   });
 });
 
-describe("logError", () => {
-  it("logs the error message and stack", () => {
-    const spy = spyOn(console, "error");
-    logError("reader failed", new Error("boom"));
-
-    const args = spy.calls.mostRecent().args;
-    expect(String(args[0])).toContain("boom");
-    const redacted = args[1] as Record<string, unknown>;
-    expect(String(redacted.stack)).toContain("boom");
+describe("logging boundaries", () => {
+  it("retains only normalized type/status and never provider prose or stacks", () => {
+    const warn = spyOn(console, "warn");
+    const error = spyOn(console, "error");
+    const failure = Object.assign(new Error("No account found for reviewer@example.invalid"), {
+      name: "TokenError",
+      statusCode: 403,
+      payload: { account: "private-account-123" },
+    });
+    logWarn("codex request failed", failure);
+    logError("reader failed", failure);
+    for (const calls of [warn.calls, error.calls]) {
+      const args = calls.mostRecent().args;
+      expect(args[1]).toEqual({ type: "TokenError", statusCode: 403 });
+      expect(JSON.stringify(args)).not.toContain("reviewer@");
+      expect(JSON.stringify(args)).not.toContain("private-account");
+      expect(JSON.stringify(args)).not.toContain("stack");
+    }
   });
-
-  it("masks secrets in the logged message", () => {
-    const spy = spyOn(console, "error");
-    logError("reader failed", new Error(`Bearer ${JWT}`));
-    expect(String(spy.calls.mostRecent().args[0])).not.toContain(JWT);
-  });
-});
-
-describe("logWarn", () => {
-  it("renders Errors with their message and stack", () => {
-    const spy = spyOn(console, "warn");
-    logWarn("reader failed", new Error("boom"));
-
-    const redacted = spy.calls.mostRecent().args[1] as Record<string, unknown>;
-    expect(redacted.message).toBe("boom");
-    expect(String(redacted.stack)).toContain("boom");
+  it("does not trust thrown objects or custom error names", () => {
+    const warn = spyOn(console, "warn");
+    logWarn(
+      "reader failed",
+      { message: "private account" },
+      "private prose",
+      Object.assign(new Error("private prose"), { name: "private name" }),
+    );
+    expect(warn.calls.mostRecent().args.slice(1)).toEqual([
+      { type: "UnknownError" },
+      { type: "UnknownError" },
+      { type: "Error" },
+    ]);
   });
 });

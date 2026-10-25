@@ -19,22 +19,19 @@ jobs:
       - run: npm ci
 
       - name: Install test dependencies
-        run: sudo apt-get update && sudo apt-get install -y gjs gir1.2-soup-3.0 gettext
+        run: sudo apt-get update && sudo apt-get install -y gjs gir1.2-soup-3.0 gettext libglib2.0-bin zip gir1.2-gtk-4.0 gir1.2-adw-1 xvfb
 
       - name: Run checks
         run: npm run check
 
-      - name: Install GJS test dependencies
-        run: sudo apt-get update && sudo apt-get install -y gjs gir1.2-soup-3.0
+      - name: Run GJS tests with a virtual display
+        run: xvfb-run -a npm run test:gjs
 
-      - name: Run GJS tests
-        run: npm run test:gjs
+      - name: Build and validate extension package
+        run: npm run pack
 
       - uses: actions/upload-artifact@v7
         if: always()
         with:
           name: coverage
           path: coverage/
-
-      - name: Run GJS tests
-        run: npm run test:gjs

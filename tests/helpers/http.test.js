@@ -393,15 +393,19 @@ export async function run() {
     });
   }
 
-  // Test 13: nested error.message is extracted
+  // Test 13: nested provider error prose is excluded
   try {
     const client = new HttpClient(makeSession(""));
     const error = client._errorForStatus(500, { error: { message: "upstream down" } });
-    assertEqual(error.message, "upstream down", "should recurse into error.message");
-    results.push({ name: "nested error.message is extracted", passed: true });
+    assertEqual(error.message, "HTTP 500", "provider prose must not become the error message");
+    results.push({ name: "nested provider error prose is excluded", passed: true });
     client.destroy();
   } catch (e) {
-    results.push({ name: "nested error.message is extracted", passed: false, error: String(e) });
+    results.push({
+      name: "nested provider error prose is excluded",
+      passed: false,
+      error: String(e),
+    });
   }
 
   // Test 14: RateLimitError carries Retry-After seconds
@@ -426,19 +430,19 @@ export async function run() {
     try {
       await client.getJson("https://example.com/api/errmsg");
       results.push({
-        name: "extracts error message from 400",
+        name: "normalizes error message from 400",
         passed: false,
         error: "should have thrown",
       });
     } catch (e) {
       assert(e instanceof HttpError, "should be HttpError");
       assertEqual(e.statusCode, 400, "status code should be 400");
-      assertEqual(e.message, "bad request", "should extract message");
-      results.push({ name: "extracts error message from 400", passed: true });
+      assertEqual(e.message, "HTTP 400", "should normalize message");
+      results.push({ name: "normalizes error message from 400", passed: true });
     }
     client.destroy();
   } catch (e) {
-    results.push({ name: "extracts error message from 400", passed: false, error: String(e) });
+    results.push({ name: "normalizes error message from 400", passed: false, error: String(e) });
   }
 
   // Test 16: the per-attempt deadline cancels a slow request

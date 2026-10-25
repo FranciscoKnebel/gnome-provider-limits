@@ -31,6 +31,8 @@ jobs:
 
       - run: npm ci
 
+      - run: sudo apt-get update && sudo apt-get install -y gettext libglib2.0-bin zip
+
       - name: Build and pack extension
         run: npm run pack
 
