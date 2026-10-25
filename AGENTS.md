@@ -25,14 +25,15 @@ already have a canonical name.
 - `glib-compile-schemas` (from `libglib2.0-dev-bin` or equivalent)
 - `gnome-extensions` CLI (bundled with GNOME Shell)
 - `python3` (for SQLite helper, stdlib on all GNOME desktops)
+- GNU `msgfmt` (`gettext` package, required to compile translation catalogs)
 
 ### Commands
 
 ```bash
 npm ci                    # install deps
 npm run typecheck         # tsc --noEmit
-npm run lint              # oxlint
-npm run lint:fix          # oxlint --fix
+npm run lint              # oxlint --type-aware
+npm run lint:fix          # oxlint --type-aware --fix
 npm run format            # oxfmt --write .
 npm run format:check      # oxfmt --check .
 npm run test              # Node jasmine suite
