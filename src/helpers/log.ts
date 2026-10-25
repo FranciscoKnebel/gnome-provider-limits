@@ -73,18 +73,37 @@ export function redactForLog(value: unknown, seen = new WeakSet<object>()): unkn
   return result;
 }
 
-export function logError(message: string, error: unknown): void {
-  if (error instanceof Error) {
-    console.error(
-      `[provider-limits] ${message}: ${maskSecrets(error.message)}`,
-      redactForLog(error),
-    );
-    return;
-  }
+const ERROR_TYPES = new Set([
+  "Error",
+  "HttpError",
+  "TokenError",
+  "RateLimitError",
+  "ServerError",
+  "NetworkError",
+  "ProtocolError",
+  "SubprocessError",
+  "TypeError",
+  "SyntaxError",
+]);
 
-  console.error(`[provider-limits] ${message}:`, redactForLog(error));
+export function errorSummary(error: unknown): Record<string, unknown> {
+  if (!(error instanceof Error)) return { type: "UnknownError" };
+  const summary: Record<string, unknown> = {
+    type: ERROR_TYPES.has(error.name) ? error.name : "Error",
+  };
+  for (const key of ["statusCode", "exitCode"] as const) {
+    if (key in error) {
+      const value = (error as unknown as Record<string, unknown>)[key];
+      if (typeof value === "number" && Number.isFinite(value)) summary[key] = value;
+    }
+  }
+  return summary;
+}
+
+export function logError(message: string, error: unknown): void {
+  console.error(`[provider-limits] ${message}:`, errorSummary(error));
 }
 
 export function logWarn(message: string, ...args: unknown[]): void {
-  console.warn(`[provider-limits] ${message}`, ...args.map((arg) => redactForLog(arg)));
+  console.warn(`[provider-limits] ${message}`, ...args.map(errorSummary));
 }

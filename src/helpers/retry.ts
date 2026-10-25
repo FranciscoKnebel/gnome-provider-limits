@@ -39,5 +39,6 @@ export function nextRetry(options: RetryOptions): RetryDecision {
       : baseDelayMs * 2 ** options.attempt;
   const jitterMs = Math.floor(Math.random() * Math.min(baseDelayMs, remainingMs));
 
-  return { delayMs: Math.min(backoffMs + jitterMs, remainingMs) };
+  const delayMs = backoffMs + jitterMs;
+  return { delayMs: Number.isFinite(delayMs) && delayMs < remainingMs ? delayMs : null };
 }
