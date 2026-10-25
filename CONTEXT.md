@@ -112,7 +112,7 @@ system). A language is considered supported only when its `.po` file is fully
 translated (every translatable string has a non-empty `msgstr`). On `enable()`,
 `extension.ts` self-heals a stale `language` value: if the configured code has
 no corresponding compiled `.mo` in the bundle, it resets `language` to `''`,
-unsets `LANGUAGE`, and logs the fallback. This heals after a downgrade or a
+preserves the process language environment, and logs the fallback. This heals after a downgrade or a
 language removal without the user opening prefs. The heal persists to GSettings
 (matches the user's hidden intent: they chose the language when it was
 supported, not to stay on it once removed).

@@ -36,7 +36,7 @@ feature_row_demo:
 
 AI coding tools restrict usage with hourly or weekly limits that reset at unpredictable times. To check your remaining limits, you usually have to run a command or open a browser tab. Both options interrupt your work.
 
-This extension reads the local files that AI tools already save to your disk, such as session databases and auth tokens, and displays the information in the GNOME top bar. It does not require a separate login or send your credentials to any external servers.
+This extension reads the local files that AI tools already save to your disk, such as session databases and auth tokens, and displays the information in the GNOME top bar. It reuses your existing logins and sends credentials only to their respective first-party provider APIs to read usage. There is no separate extension account or third-party credential collection.
 
 ## Features
 
