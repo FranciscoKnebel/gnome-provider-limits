@@ -114,7 +114,7 @@ describe("nextRetry", () => {
     ).toBeNull();
   });
 
-  it("never delays past the remaining deadline", () => {
+  it("abandons retries when Retry-After cannot fit before the deadline", () => {
     const { delayMs } = nextRetry({
       attempt: 1,
       statusCode: 429,
@@ -123,9 +123,7 @@ describe("nextRetry", () => {
       deadlineMs: 15_000,
     });
 
-    expect(delayMs).not.toBeNull();
-    expect(delayMs as number).toBeLessThanOrEqual(400);
-    expect(delayMs as number).toBeGreaterThanOrEqual(0);
+    expect(delayMs).toBeNull();
   });
 
   it("keeps jitter bounded by the base delay", () => {

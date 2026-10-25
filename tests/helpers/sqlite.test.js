@@ -224,8 +224,7 @@ export async function run() {
 
     clearSqliteCache();
     const rows = await querySqlite(tmpDb, "SELECT * FROM test");
-    assertEqual(rows.length, 1, "should read the main file");
-    assertEqual(rows[0].value, "main", "should read the checkpointed value");
+    assertDeepEqual(rows, [], "WAL requiring sidecar creation must be unavailable");
     assert(!fileExists(`${tmpDb}-wal`), "reading must not create -wal");
     assert(!fileExists(`${tmpDb}-shm`), "reading must not create -shm");
 
@@ -239,7 +238,7 @@ export async function run() {
     });
   }
 
-  // Test: WAL fallback reads the main file when mode=ro cannot open the WAL
+  // Test: unreadable WAL fails safely when mode=ro cannot open the WAL
   try {
     const tmpDb = tempDbPath("wal-fallback");
     await runPython(WAL_HOT_SCRIPT, [tmpDb]);
@@ -251,14 +250,13 @@ export async function run() {
 
     clearSqliteCache();
     const rows = await querySqlite(tmpDb, "SELECT * FROM test ORDER BY id");
-    assertEqual(rows.length, 1, "fallback should read the main file after mode=ro fails");
-    assertEqual(rows[0].value, "main", "fallback should read the checkpointed value");
+    assertDeepEqual(rows, [], "must not hide unreadable WAL behind immutable data");
     assert(fileExists(walPath), "fallback must not remove the -wal entry");
 
     removeFiles([tmpDb, ...sidecarPaths(tmpDb)]);
-    results.push({ name: "WAL fallback reads the main file", passed: true });
+    results.push({ name: "unreadable WAL fails safely", passed: true });
   } catch (e) {
-    results.push({ name: "WAL fallback reads the main file", passed: false, error: String(e) });
+    results.push({ name: "unreadable WAL fails safely", passed: false, error: String(e) });
   }
 
   // Test: a pending rollback journal blocks the immutable fallback
