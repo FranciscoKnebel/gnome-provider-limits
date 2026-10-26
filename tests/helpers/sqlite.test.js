@@ -215,7 +215,7 @@ export async function run() {
     });
   }
 
-  // Test: a checkpointed WAL database is read without creating -wal/-shm
+  // Test: a cleanly closed WAL database is read without creating -wal/-shm
   try {
     const tmpDb = tempDbPath("wal-clean");
     await runPython(WAL_CLEAN_SCRIPT, [tmpDb]);
@@ -224,15 +224,17 @@ export async function run() {
 
     clearSqliteCache();
     const rows = await querySqlite(tmpDb, "SELECT * FROM test");
-    assertDeepEqual(rows, [], "WAL requiring sidecar creation must be unavailable");
+    assertEqual(rows.length, 1, "clean WAL database should return its committed row");
+    assertEqual(rows[0].id, 1, "clean WAL row id should be preserved");
+    assertEqual(rows[0].value, "main", "clean WAL row value should be preserved");
     assert(!fileExists(`${tmpDb}-wal`), "reading must not create -wal");
     assert(!fileExists(`${tmpDb}-shm`), "reading must not create -shm");
 
     removeFiles([tmpDb, ...sidecarPaths(tmpDb)]);
-    results.push({ name: "clean WAL database creates no sidecars", passed: true });
+    results.push({ name: "clean WAL database stays readable without sidecars", passed: true });
   } catch (e) {
     results.push({
-      name: "clean WAL database creates no sidecars",
+      name: "clean WAL database stays readable without sidecars",
       passed: false,
       error: String(e),
     });

@@ -262,7 +262,7 @@ test("SQLite syscall boundary reads complete WAL without touching files; incompl
       [
         "-c",
         `
-import hashlib, os, pathlib, sqlite3, subprocess, sys
+import hashlib, json, os, pathlib, sqlite3, subprocess, sys
 root, helper = pathlib.Path(sys.argv[1]), sys.argv[2]
 def snapshot(db):
     return {str(p): (p.stat().st_mtime_ns, hashlib.sha256(p.read_bytes()).hexdigest())
@@ -272,7 +272,7 @@ def run(db, query='select * from t'):
     r = subprocess.run([sys.executable,helper,str(db),query], capture_output=True, text=True)
     assert snapshot(db) == before, (db.name, r.stderr)
     return r
-for state in ['plain','complete','wal-only','shm-only','journal']:
+for state in ['plain','complete','closed-wal','wal-only','shm-only','journal']:
     db=root/state
     if state == 'journal':
         creator = "import os,sqlite3,sys; c=sqlite3.connect(sys.argv[1]); c.execute('create table t(v)'); c.commit(); c.execute('pragma cache_size=1'); c.execute('begin immediate'); c.executemany('insert into t values(?)', [(str(i)*100,) for i in range(1000)]); os._exit(0)"
@@ -283,11 +283,13 @@ for state in ['plain','complete','wal-only','shm-only','journal']:
         c.execute('create table t(v)'); c.execute('insert into t values(1)'); c.commit()
         if state == 'wal-only': os.unlink(str(db)+'-shm')
         if state == 'shm-only': os.unlink(str(db)+'-wal')
+        if state == 'closed-wal': c.close()
     r=run(db)
-    if state in ('plain','complete'): assert r.returncode == 0, r.stderr
+    if state in ('plain','complete','closed-wal'): assert r.returncode == 0, r.stderr
+    if state == 'closed-wal': assert json.loads(r.stdout) == [{'v': 1}], r.stdout
     if state in ('wal-only','shm-only','journal'): assert r.returncode != 0, (state,r.stdout)
     assert run(db, 'create table forbidden(v)').returncode != 0
-    if state != 'journal': c.close()
+    if state not in ('journal','closed-wal'): c.close()
 # Sidecar cleanup at different points during open/read must never be undone.
 for i, delay in enumerate([0, 0.005, 0.02, 0.04, 0.08]):
     db = root / ('race-' + str(i))
