@@ -419,17 +419,31 @@ const ProviderLimitsIndicator = GObject.registerClass(
 
 export default class ProviderLimitsExtension extends Extension {
   private _indicator: InstanceType<typeof ProviderLimitsIndicator> | null = null;
+  private _settings: Gio.Settings | null = null;
+  private _positionChangedId = 0;
 
   enable(): void {
     this._selfHealLanguage();
+    this._settings = this.getSettings();
     this._indicator = new ProviderLimitsIndicator(this);
+    this._registerIndicator(this._settings.get_string("status-bar-position"));
+    this._positionChangedId = this._settings.connect("changed::status-bar-position", () => {
+      if (!this._indicator || !this._settings) return;
+      Reflect.deleteProperty(Main.panel.statusArea, PROVIDER_LIMITS_UUID);
+      this._registerIndicator(this._settings.get_string("status-bar-position"));
+    });
+  }
+
+  private _registerIndicator(position: string): void {
+    if (!this._indicator) return;
+    const box = position === "left" ? "left" : "right";
     Main.panel.addToStatusArea(
       PROVIDER_LIMITS_UUID,
       // @ts-expect-error GJS registerClass casts our class to Button at runtime;
       //    the custom _init signature prevents structural assignability here.
       this._indicator,
       0,
-      "right",
+      box,
     );
   }
 
@@ -454,6 +468,11 @@ export default class ProviderLimitsExtension extends Extension {
   }
 
   disable(): void {
+    if (this._settings && this._positionChangedId) {
+      this._settings.disconnect(this._positionChangedId);
+    }
+    this._positionChangedId = 0;
+    this._settings = null;
     this._indicator?.destroy();
     this._indicator = null;
   }

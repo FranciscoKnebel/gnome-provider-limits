@@ -24,6 +24,7 @@ const PROVIDER_KEY_SUFFIXES = [
 const GLOBAL_KEYS = [
   "providers-order",
   "language",
+  "status-bar-position",
   "refresh-short-interval-seconds",
   "refresh-long-interval-seconds",
   "refresh-stable-reads-threshold",

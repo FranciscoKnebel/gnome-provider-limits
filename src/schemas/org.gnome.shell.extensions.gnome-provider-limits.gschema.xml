@@ -27,6 +27,13 @@
       <description>Language code (e.g. 'en', 'pt_BR') or empty string to follow the system locale.</description>
     </key>
 
+    <!-- Globals: status bar -->
+    <key name="status-bar-position" type="s">
+      <default>'right'</default>
+      <summary>Status bar position</summary>
+      <description>Side of the top bar where the status bar appears: 'left' or 'right'.</description>
+    </key>
+
     <!-- Globals: provider order -->
     <key name="providers-order" type="as">
       <default>['codex','claude','opencode','grok']</default>

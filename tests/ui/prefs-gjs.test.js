@@ -10,11 +10,26 @@ const PROVIDER_DISPLAY_NAMES = {
 };
 
 function skipResult(reason) {
-  return [{ name: "prefs pages are constructable and bind settings", skipped: true, reason }];
+  return [
+    { name: "preferences page binds the status bar position setting", skipped: true, reason },
+  ];
 }
 
 function messageOf(e) {
   return e instanceof Error ? (e.message ?? String(e)) : String(e);
+}
+
+function findWidget(widget, predicate) {
+  if (predicate(widget)) return widget;
+
+  let child = widget.get_first_child?.() ?? null;
+  while (child) {
+    const found = findWidget(child, predicate);
+    if (found) return found;
+    child = child.get_next_sibling();
+  }
+
+  return null;
 }
 
 export async function run() {
@@ -58,13 +73,28 @@ export async function run() {
       "refresh-long-interval-seconds": 120,
       "refresh-stable-reads-threshold": 3,
       language: "",
+      "status-bar-position": "left",
     });
     const page = new ProviderLimitsPreferencesPage(settings, [{ code: "en", name: "English" }]);
     assertNotNull(page, "page should be created");
-    results.push({ name: "ProviderLimitsPreferencesPage is constructable", passed: true });
+    const positionRow = findWidget(
+      page,
+      (widget) => widget instanceof Adw.ComboRow && widget.title === "Status bar position",
+    );
+    assertNotNull(positionRow, "status bar position row should exist");
+    assertEqual(positionRow.selected, 0, "left should be selected from settings");
+    positionRow.selected = 1;
+    assertEqual(
+      settings.get_string("status-bar-position"),
+      "right",
+      "selection should update settings",
+    );
+    settings.set_string("status-bar-position", "left");
+    assertEqual(positionRow.selected, 0, "selection should follow external setting changes");
+    results.push({ name: "Status bar position preference binds to settings", passed: true });
   } catch (e) {
     results.push({
-      name: "ProviderLimitsPreferencesPage is constructable",
+      name: "Status bar position preference binds to settings",
       passed: false,
       error: String(e),
     });

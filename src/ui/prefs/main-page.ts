@@ -46,6 +46,7 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
       this._bindings = [];
       this.connect("destroy", () => this.cleanup());
       this.add(this._buildRefreshGroup());
+      this.add(this._buildStatusBarPositionGroup());
       this.add(this._buildLanguageGroup());
       this.add(this._buildProvidersGroup());
     }
@@ -98,6 +99,37 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
       );
       group.add(thresholdRow);
 
+      return group;
+    }
+
+    private _buildStatusBarPositionGroup(): Adw.PreferencesGroup {
+      const group = new Adw.PreferencesGroup({
+        title: _("Status bar"),
+      });
+      const model = Gtk.StringList.new([_("Left"), _("Right")]);
+      const row = new Adw.ComboRow({
+        title: _("Status bar position"),
+        subtitle: _(
+          "Choose whether the status bar appears on the left or right side of the top bar.",
+        ),
+        model,
+      });
+
+      row.selected = this._settings.get_string("status-bar-position") === "left" ? 0 : 1;
+      row.connect("notify::selected", (combo: Adw.ComboRow) => {
+        const position = combo.selected === 0 ? "left" : "right";
+        if (this._settings.get_string("status-bar-position") !== position) {
+          this._settings.set_string("status-bar-position", position);
+        }
+      });
+      this._settingsChangedIds.push(
+        this._settings.connect("changed::status-bar-position", () => {
+          const selected = this._settings.get_string("status-bar-position") === "left" ? 0 : 1;
+          if (row.selected !== selected) row.selected = selected;
+        }),
+      );
+
+      group.add(row);
       return group;
     }
 

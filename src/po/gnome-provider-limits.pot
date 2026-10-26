@@ -91,6 +91,26 @@ msgstr ""
 msgid "Number of unchanged reads before degrading to the long interval."
 msgstr ""
 
+#: src/ui/prefs/main-page.ts
+msgid "Status bar"
+msgstr ""
+
+#: src/ui/prefs/main-page.ts
+msgid "Left"
+msgstr ""
+
+#: src/ui/prefs/main-page.ts
+msgid "Right"
+msgstr ""
+
+#: src/ui/prefs/main-page.ts
+msgid "Status bar position"
+msgstr ""
+
+#: src/ui/prefs/main-page.ts
+msgid "Choose whether the status bar appears on the left or right side of the top bar."
+msgstr ""
+
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Language"
 msgstr ""

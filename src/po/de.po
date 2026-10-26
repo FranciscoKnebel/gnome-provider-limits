@@ -92,6 +92,26 @@ msgstr "Schwellenwert für stabile Lesevorgänge"
 msgid "Number of unchanged reads before degrading to the long interval."
 msgstr "Anzahl unveränderter Lesevorgänge, bevor auf das lange Intervall zurückgegangen wird."
 
+#: src/ui/prefs/main-page.ts
+msgid "Status bar"
+msgstr "Statusleiste"
+
+#: src/ui/prefs/main-page.ts
+msgid "Left"
+msgstr "Links"
+
+#: src/ui/prefs/main-page.ts
+msgid "Right"
+msgstr "Rechts"
+
+#: src/ui/prefs/main-page.ts
+msgid "Status bar position"
+msgstr "Position der Statusleiste"
+
+#: src/ui/prefs/main-page.ts
+msgid "Choose whether the status bar appears on the left or right side of the top bar."
+msgstr "Wähle, ob die Statusleiste links oder rechts in der oberen Leiste angezeigt wird."
+
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Language"
 msgstr "Sprache"

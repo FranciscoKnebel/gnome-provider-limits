@@ -92,6 +92,26 @@ msgstr "Stable reads threshold"
 msgid "Number of unchanged reads before degrading to the long interval."
 msgstr "Number of unchanged reads before degrading to the long interval."
 
+#: src/ui/prefs/main-page.ts
+msgid "Status bar"
+msgstr "Status bar"
+
+#: src/ui/prefs/main-page.ts
+msgid "Left"
+msgstr "Left"
+
+#: src/ui/prefs/main-page.ts
+msgid "Right"
+msgstr "Right"
+
+#: src/ui/prefs/main-page.ts
+msgid "Status bar position"
+msgstr "Status bar position"
+
+#: src/ui/prefs/main-page.ts
+msgid "Choose whether the status bar appears on the left or right side of the top bar."
+msgstr "Choose whether the status bar appears on the left or right side of the top bar."
+
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Language"
 msgstr "Language"
