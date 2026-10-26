@@ -92,6 +92,26 @@ msgstr "Seuil de lectures stables"
 msgid "Number of unchanged reads before degrading to the long interval."
 msgstr "Nombre de lectures sans changement avant de passer à l'intervalle long."
 
+#: src/ui/prefs/main-page.ts
+msgid "Status bar"
+msgstr "Barre d’état"
+
+#: src/ui/prefs/main-page.ts
+msgid "Left"
+msgstr "Gauche"
+
+#: src/ui/prefs/main-page.ts
+msgid "Right"
+msgstr "Droite"
+
+#: src/ui/prefs/main-page.ts
+msgid "Status bar position"
+msgstr "Position de la barre d’état"
+
+#: src/ui/prefs/main-page.ts
+msgid "Choose whether the status bar appears on the left or right side of the top bar."
+msgstr "Choisissez d’afficher la barre d’état à gauche ou à droite de la barre supérieure."
+
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Language"
 msgstr "Langue"

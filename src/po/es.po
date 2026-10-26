@@ -92,6 +92,26 @@ msgstr "Umbral de lecturas estables"
 msgid "Number of unchanged reads before degrading to the long interval."
 msgstr "Número de lecturas sin cambios antes de pasar al intervalo largo."
 
+#: src/ui/prefs/main-page.ts
+msgid "Status bar"
+msgstr "Barra de estado"
+
+#: src/ui/prefs/main-page.ts
+msgid "Left"
+msgstr "Izquierda"
+
+#: src/ui/prefs/main-page.ts
+msgid "Right"
+msgstr "Derecha"
+
+#: src/ui/prefs/main-page.ts
+msgid "Status bar position"
+msgstr "Posición de la barra de estado"
+
+#: src/ui/prefs/main-page.ts
+msgid "Choose whether the status bar appears on the left or right side of the top bar."
+msgstr "Elige si la barra de estado se muestra en el lado izquierdo o derecho de la barra superior."
+
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Language"
 msgstr "Idioma"
