@@ -58,7 +58,27 @@ libc = ctypes.CDLL(None, use_errno=True)
 if libc.prctl(38, 1, 0, 0, 0) or libc.prctl(22, 2, ctypes.byref(program), 0, 0):
     raise RuntimeError("Read-only SQLite sandbox unavailable")
 
-uri = "file:" + urllib.parse.quote(sys.argv[1]) + "?mode=ro"
+db_path = sys.argv[1]
+sidecar_suffixes = ("-wal", "-shm", "-journal")
+def sidecars_absent():
+    return all(not os.path.lexists(db_path + suffix) for suffix in sidecar_suffixes)
+
+def immutable_wal_snapshot():
+    if not sidecars_absent():
+        return None
+    try:
+        with open(db_path, "rb") as database:
+            header = database.read(100)
+            snapshot = os.fstat(database.fileno())
+    except OSError:
+        return None
+    if header[:16] != b"SQLite format 3\x00" or header[18:20] != b"\x02\x02":
+        return None
+    return snapshot
+
+immutable_snapshot = immutable_wal_snapshot()
+uri_mode = "immutable=1" if immutable_snapshot is not None else "mode=ro"
+uri = "file:" + urllib.parse.quote(db_path) + "?" + uri_mode
 conn = sqlite3.connect(uri, uri=True)
 try:
     conn.execute("PRAGMA query_only = ON")
@@ -66,9 +86,26 @@ try:
     conn.execute("PRAGMA busy_timeout = 2000")
     conn.row_factory = sqlite3.Row
     cur = conn.execute(sys.argv[2])
-    print(json.dumps([dict(row) for row in cur.fetchall()], default=str))
+    rows = [dict(row) for row in cur.fetchall()]
 finally:
     conn.close()
+
+if immutable_snapshot is not None:
+    try:
+        current = os.stat(db_path)
+        unchanged = (
+            current.st_dev == immutable_snapshot.st_dev and
+            current.st_ino == immutable_snapshot.st_ino and
+            current.st_size == immutable_snapshot.st_size and
+            current.st_mtime_ns == immutable_snapshot.st_mtime_ns and
+            current.st_ctime_ns == immutable_snapshot.st_ctime_ns
+        )
+    except OSError:
+        unchanged = False
+    if not unchanged or not sidecars_absent():
+        raise RuntimeError("database changed during immutable WAL read")
+
+print(json.dumps(rows, default=str))
 `;
 
 // The cache key drops the caller's timeoutSeconds: a timeout is a transport
