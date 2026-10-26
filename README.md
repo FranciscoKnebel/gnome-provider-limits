@@ -103,7 +103,7 @@ preferences to select an existing `auth.json` in another location; `~/` is suppo
 Only this path is saved in GSettings, never tokens. Expired or rejected credentials
 require signing in again with `grok login`; the extension never refreshes tokens,
 reads browser cookies, writes authentication files, or makes billable inference requests.
-Enterprise/team logins and API-key logins are not supported by this reader.
+Grok Build logins with Team principals are supported. xAI API-key logins are not.
 
 Subscription usage comes from
 `https://cli-chat-proxy.grok.com/v1/billing?format=credits`, the endpoint used by
@@ -122,7 +122,8 @@ The implementation was researched against the official
 [billing contract](https://github.com/xai-org/grok-build/blob/2bdd1d6a6369de0e8c68132ea4539e9abd9e14a8/crates/codegen/xai-grok-shell/src/extensions/billing.rs),
 [authentication guide](https://github.com/xai-org/grok-build/blob/2bdd1d6a6369de0e8c68132ea4539e9abd9e14a8/crates/codegen/xai-grok-pager/docs/user-guide/02-authentication.md),
 and the independent [CodexBar Grok investigation](https://github.com/steipete/CodexBar/blob/main/docs/grok.md).
-No live authenticated SuperGrok account was available for verification.
+A live authenticated Team-principal login was verified against the billing endpoint.
+No live account payload or credential is stored in this repository.
 
 ## Development
 
