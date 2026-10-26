@@ -7,5 +7,6 @@ authenticated account capture. Its fields and values come from the public
 The unused historical-period array is omitted. No user credentials or identity
 data are present.
 
-Live SuperGrok account compatibility still requires manual verification. Replace
-or supplement this example with a sanitized capture when one becomes available.
+A live Team-principal login was verified separately against the billing endpoint.
+This fixture remains contract-derived, and no authenticated account payload is
+stored in the repository.

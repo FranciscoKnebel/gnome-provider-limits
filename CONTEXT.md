@@ -80,16 +80,18 @@ usage against a limit.
 _Avoid_: Console scraping, Codex usage API, local spend estimate.
 
 **Grok Subscription Credits**:
-The personal Grok/SuperGrok allowance reported by
+The subscription credit usage for the authenticated Grok Build account, including
+personal and Team principals, reported by
 `https://cli-chat-proxy.grok.com/v1/billing?format=credits`, authenticated with
 the existing Grok Build login in `~/.grok/auth.json` (or `GROK_HOME`).
 `creditUsagePercent` and `currentPeriod.end` describe the provider's current
 weekly or monthly credit pool. `isUnifiedBillingUser` indicates whether this
 pool is shared across Grok products; otherwise it represents Grok Build credits.
-Missing usage stays unavailable, not zero. This is not xAI API billing or a
-per-model chat message limit. Purchased credits (`prepaidBalance`, USD cents)
-are a separate balance, never a subscription usage percentage.
-_Avoid_: xAI API balance, team spending limit, messages remaining.
+Missing usage stays unavailable, not zero. This is not organization-wide Team
+spending, xAI API billing, or a per-model chat message limit. Purchased credits
+(`prepaidBalance`, USD cents) are a separate balance, never a subscription usage
+percentage.
+_Avoid_: xAI API balance, organization-wide Team spending limit, messages remaining.
 
 **Telemetry Field**:
 A field that expresses usage already performed, with no reference to a ceiling

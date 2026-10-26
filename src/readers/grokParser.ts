@@ -39,9 +39,6 @@ export function parseGrokAuth(text: string, now = Date.now()): GrokAuth | null {
       const createdAt = timestamp(entry.create_time);
       if (createdAt === null || (createdAt + 30 * 86400) * 1000 <= now) return null;
     }
-    if (typeof entry.principal_type === "string" && entry.principal_type.toLowerCase() === "team") {
-      return null;
-    }
     return {
       token,
       userId:

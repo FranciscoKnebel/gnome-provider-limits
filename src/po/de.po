@@ -33,8 +33,8 @@ msgstr "Gekauftes Guthaben"
 msgid "Shared subscription credits"
 msgstr "Gemeinsames Abonnementguthaben"
 
-msgid "Grok: no valid personal login. Run `grok login` with your SuperGrok account."
-msgstr "Grok: keine gültige persönliche Anmeldung. Führen Sie `grok login` mit Ihrem SuperGrok-Konto aus."
+msgid "Grok: no valid login. Run `grok login` to sign in."
+msgstr "Grok: keine gültige Anmeldung. Führen Sie `grok login` aus, um sich anzumelden."
 
 msgid "Grok: login rejected. Run `grok login` to sign in again."
 msgstr "Grok: Anmeldung abgelehnt. Führen Sie `grok login` aus, um sich erneut anzumelden."
@@ -46,8 +46,8 @@ msgstr "Grok: Abonnementguthaben nicht verfügbar. Versuchen Sie es später erne
 msgid "Authentication file"
 msgstr "Authentifizierungsdatei"
 
-msgid "Sign in with `grok login` using your SuperGrok account."
-msgstr "Melden Sie sich mit `grok login` bei Ihrem SuperGrok-Konto an."
+msgid "Sign in with `grok login`."
+msgstr "Melden Sie sich mit `grok login` an."
 
 msgid "Leave the authentication file empty to use $GROK_HOME/auth.json or ~/.grok/auth.json."
 msgstr "Lassen Sie die Authentifizierungsdatei leer, um $GROK_HOME/auth.json oder ~/.grok/auth.json zu verwenden."

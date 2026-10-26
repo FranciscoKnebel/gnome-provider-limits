@@ -33,8 +33,8 @@ msgstr "Créditos comprados"
 msgid "Shared subscription credits"
 msgstr "Créditos compartilhados da assinatura"
 
-msgid "Grok: no valid personal login. Run `grok login` with your SuperGrok account."
-msgstr "Grok: nenhum login pessoal válido. Execute `grok login` com sua conta SuperGrok."
+msgid "Grok: no valid login. Run `grok login` to sign in."
+msgstr "Grok: nenhum login válido. Execute `grok login` para entrar."
 
 msgid "Grok: login rejected. Run `grok login` to sign in again."
 msgstr "Grok: login rejeitado. Execute `grok login` para entrar novamente."
@@ -46,8 +46,8 @@ msgstr "Grok: créditos da assinatura indisponíveis. Tente novamente mais tarde
 msgid "Authentication file"
 msgstr "Arquivo de autenticação"
 
-msgid "Sign in with `grok login` using your SuperGrok account."
-msgstr "Entre com `grok login` usando sua conta SuperGrok."
+msgid "Sign in with `grok login`."
+msgstr "Entre com `grok login`."
 
 msgid "Leave the authentication file empty to use $GROK_HOME/auth.json or ~/.grok/auth.json."
 msgstr "Deixe o arquivo de autenticação vazio para usar $GROK_HOME/auth.json ou ~/.grok/auth.json."

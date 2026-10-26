@@ -130,7 +130,7 @@ export const ProviderPage = GObject.registerClass(
       if (this._provider === "grok") {
         group.add(
           new Adw.ActionRow({
-            title: _("Sign in with `grok login` using your SuperGrok account."),
+            title: _("Sign in with `grok login`."),
             subtitle: _(
               "Leave the authentication file empty to use $GROK_HOME/auth.json or ~/.grok/auth.json.",
             ),
