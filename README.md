@@ -193,3 +193,22 @@ Please read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting pull requests.
 ## License
 
 This project is licensed under the GPL-3.0 license. See [LICENSE](LICENSE) for the full text.
+
+### Authenticated data flow and local SQLite access
+
+Existing credentials are sent only to their respective first-party provider APIs
+(chatgpt.com, api.anthropic.com, opencode.ai and cli-chat-proxy.grok.com) to read
+usage. There is no separate extension account or third-party credential collection.
+The extension does not persist credentials or raw provider error payloads in logs.
+
+The SQLite Helper always opens databases with `mode=ro`, behind a Linux seccomp
+filter that denies writable file opens and filesystem mutation before SQLite runs.
+It never falls back to `immutable=1` for a live database. Complete, readable WAL
+state is supported; incomplete WAL state or pending recovery can be unavailable.
+If the sandbox cannot be installed (or the CPU is not x86_64 or aarch64), local
+SQLite telemetry is unavailable rather than using an unsafe fallback. API reads
+continue to work. Python's standard library is the only runtime dependency.
+
+Building translation catalogs requires GNU `msgfmt` (the `gettext` package).
+Language selection reads the extension's compiled catalogs without changing the
+process `LANGUAGE` or gettext default domain.
