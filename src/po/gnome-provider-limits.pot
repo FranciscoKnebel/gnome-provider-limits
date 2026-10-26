@@ -32,7 +32,7 @@ msgstr ""
 msgid "Shared subscription credits"
 msgstr ""
 
-msgid "Grok: no valid personal login. Run `grok login` with your SuperGrok account."
+msgid "Grok: no valid login. Run `grok login` to sign in."
 msgstr ""
 
 msgid "Grok: login rejected. Run `grok login` to sign in again."
@@ -45,7 +45,7 @@ msgstr ""
 msgid "Authentication file"
 msgstr ""
 
-msgid "Sign in with `grok login` using your SuperGrok account."
+msgid "Sign in with `grok login`."
 msgstr ""
 
 msgid "Leave the authentication file empty to use $GROK_HOME/auth.json or ~/.grok/auth.json."

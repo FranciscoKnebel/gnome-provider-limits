@@ -158,12 +158,18 @@ describe("Grok subscription authentication", () => {
     ).toBe("recent");
   });
 
-  it("rejects API keys, team principals and unrelated identity providers", () => {
-    for (const entry of [
-      { key: "xai-management-key" },
-      { key: "token", principal_type: "Team" },
-      { key: "bad\r\nheader" },
-    ]) {
+  it("accepts Team principals from the Grok Build login scope", () => {
+    expect(
+      parseGrokAuth(
+        JSON.stringify({
+          "https://auth.x.ai::test": { key: "team-token", principal_type: "Team" },
+        }),
+      ),
+    ).toEqual({ token: "team-token", userId: null });
+  });
+
+  it("rejects API keys, malformed tokens and unrelated identity providers", () => {
+    for (const entry of [{ key: "xai-management-key" }, { key: "bad\r\nheader" }]) {
       expect(parseGrokAuth(JSON.stringify({ "https://auth.x.ai::test": entry }))).toBeNull();
     }
     expect(

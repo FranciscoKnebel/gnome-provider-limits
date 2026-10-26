@@ -80,7 +80,7 @@ export class GrokReader extends BaseReader {
 
     if (!auth) {
       return this._lastGoodOrError(
-        _("Grok: no valid personal login. Run `grok login` with your SuperGrok account."),
+        _("Grok: no valid login. Run `grok login` to sign in."),
         pathsTried,
       );
     }

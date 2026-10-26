@@ -86,6 +86,38 @@ export async function run() {
     return reader;
   };
 
+  await test("GrokReader reads weekly credits for a Team login", async () => {
+    Gio.File.prototype.load_contents_async = async () => [
+      new TextEncoder().encode(
+        JSON.stringify({
+          "https://auth.x.ai::test": {
+            key: "team-session",
+            principal_type: "Team",
+          },
+        }),
+      ),
+    ];
+    const resetAt = "2026-10-28T21:40:44.216+00:00";
+    const reader = newReader(async (url, options) => {
+      assertEqual(options.headers.Authorization, "Bearer team-session");
+      if (url.endsWith("/settings")) return { subscription_tier_display: "SuperGrok" };
+      assertEqual(url, "https://cli-chat-proxy.grok.com/v1/billing?format=credits");
+      return {
+        config: {
+          creditUsagePercent: 54,
+          currentPeriod: { end: resetAt },
+          isUnifiedBillingUser: true,
+        },
+      };
+    });
+    const result = await reader.read();
+    const value = (name) => result.fields.find((field) => field.name === name)?.value;
+    assertEqual(result.status, "partial");
+    assertEqual(value("used_percent_credits"), 54);
+    assertEqual(value("reset_at_credits"), Date.parse(resetAt) / 1000);
+    reader.destroy();
+  });
+
   await test("GrokReader never contacts the provider with expired credentials", async () => {
     mockAuth("expired", "2020-01-01T00:00:00Z");
     let requests = 0;
