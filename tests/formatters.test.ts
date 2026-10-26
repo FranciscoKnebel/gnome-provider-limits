@@ -129,6 +129,26 @@ describe("formatters", () => {
         `${"😀".repeat(8)}…`,
       );
     });
+
+    it("formats text when Intl.Segmenter is unavailable", () => {
+      const segmenter = Object.getOwnPropertyDescriptor(Intl, "Segmenter");
+
+      try {
+        Object.defineProperty(Intl, "Segmenter", { configurable: true, value: undefined });
+        expect(
+          formatField({ type: "text", value: "org_level_disabled", zone: "status", locale: "en" }),
+        ).toBe("org_leve…");
+        expect(formatField({ type: "text", value: "plan", zone: "panel", locale: "en" })).toBe(
+          "plan",
+        );
+      } finally {
+        if (segmenter) {
+          Object.defineProperty(Intl, "Segmenter", segmenter);
+        } else {
+          Reflect.deleteProperty(Intl, "Segmenter");
+        }
+      }
+    });
   });
 
   describe("formatTimestampTemplate", () => {

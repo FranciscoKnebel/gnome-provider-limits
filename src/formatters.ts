@@ -158,11 +158,13 @@ function formatBool(value: unknown, zone: FieldZone, tr: (s: string) => string):
 
 function formatText(value: unknown, zone: FieldZone): string {
   const str = typeof value === "string" ? value : (JSON.stringify(value) ?? "—");
-  const chars = Array.from(new Intl.Segmenter().segment(str), (part) => part.segment);
-  if (zone === "status" && chars.length > 10) {
-    return `${chars.slice(0, 8).join("")}…`;
-  }
-  return str;
+  if (zone !== "status") return str;
+
+  const chars =
+    typeof Intl.Segmenter === "function"
+      ? Array.from(new Intl.Segmenter().segment(str), (part) => part.segment)
+      : Array.from(str);
+  return chars.length > 10 ? `${chars.slice(0, 8).join("")}…` : str;
 }
 
 /**
