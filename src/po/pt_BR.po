@@ -431,3 +431,55 @@ msgstr "d"
 #: src/formatters.ts
 msgid "w"
 msgstr "sem"
+
+#: src/ui/cardPlan.ts
+msgid "Live"
+msgstr "Ativo"
+
+#: src/ui/cardPlan.ts
+msgid "Cached"
+msgstr "Em cache"
+
+#: src/ui/cardPlan.ts
+msgid "Unavailable"
+msgstr "Indisponível"
+
+#: src/ui/cardPlan.ts
+msgid "Loading provider limits…"
+msgstr "Carregando limites dos provedores…"
+
+#: src/ui/cardPlan.ts
+msgid "Waiting for provider data…"
+msgstr "Aguardando dados dos provedores…"
+
+#: src/ui/cardPlan.ts
+msgid "No providers enabled"
+msgstr "Nenhum provedor ativado"
+
+#: src/ui/cardPlan.ts
+msgid "Enable a provider in Settings to monitor usage limits."
+msgstr "Ative um provedor nas Configurações para monitorar limites de uso."
+
+#: src/ui/prefs/main-page.ts
+msgid "Enable and reorder providers by dragging rows or using arrow buttons."
+msgstr "Ative e reordene provedores arrastando linhas ou usando os botões de seta."
+
+#: src/ui/prefs/provider-page.ts
+msgid "Reorder rows or use \"+\" to add fields."
+msgstr "Reordene as linhas ou use \"+\" para adicionar campos."
+
+#: src/ui/prefs/provider-page.ts
+msgid "Reset defaults"
+msgstr "Restaurar padrões"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Restore default fields"
+msgstr "Restaurar campos padrão"
+
+#: src/ui/prefs/shared.ts
+msgid "Move up"
+msgstr "Mover para cima"
+
+#: src/ui/prefs/shared.ts
+msgid "Move down"
+msgstr "Mover para baixo"

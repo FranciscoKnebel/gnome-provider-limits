@@ -14,6 +14,7 @@ function load(path, expression, globals = {}) {
       compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 },
     })
     .outputText.replace(/^import[\s\S]*?;\n/gm, "")
+    .replace(/^export\s+\{[\s\S]*?\}\s+from\s+[\s\S]*?;\n/gm, "")
     .replace(/export default /g, "")
     .replace(/export /g, "");
   return vm.runInNewContext(`${compiled}\n;${expression}`, {
@@ -560,7 +561,7 @@ test("Language override, system selection, self-heal and disable preserve shared
   assert.equal(unrelated(), before);
 });
 
-test("Panel keeps footer actors across structural/value updates and scrolls focused fields", () => {
+test("Panel keeps footer actors across structural/value updates and scrolls focused cards", () => {
   const focused = [];
   class Actor {
     children = [];
@@ -624,10 +625,18 @@ test("Panel keeps footer actors across structural/value updates and scrolls focu
       ScrollView: Scroll,
       Label: Actor,
       BoxLayout: Actor,
+      Icon: Actor,
       PolicyType: { NEVER: 0, AUTOMATIC: 1 },
       ThemeContext: { get_for_stage: () => ({ scale_factor: 2 }) },
     },
-    Clutter: { ActorAlign: { START: 0, END: 1 } },
+    Clutter: {
+      ActorAlign: { START: 0, END: 1, CENTER: 2 },
+      KEY_Return: 1,
+      KEY_KP_Enter: 2,
+      KEY_space: 3,
+      EVENT_STOP: true,
+      EVENT_PROPAGATE: false,
+    },
     Spinner: class extends Actor {
       play() {}
       stop() {}
@@ -643,28 +652,119 @@ test("Panel keeps footer actors across structural/value updates and scrolls focu
     },
     formatTimestampTemplate: (_t, at) => String(at),
     applyToneClass() {},
+    applyHealthToneClass() {},
+    computeBarWidthPx: (_track, pct) => Math.round((260 * pct) / 100),
     ensureActorVisibleInScrollView: (scroll, row) => focused.push([scroll, row]),
   });
   const panel = new K({ get_string: () => "en" }, new Map(), () => {});
   assert.ok(panel._scroll.children.includes(panel._body.actor));
-  const refresh = panel._refreshRow;
-  const settings = panel._settingsItem;
-  assert.ok(panel.box.children.includes(refresh));
-  assert.ok(!panel._scroll.children.includes(refresh));
+  const footerRow = panel._footerRow;
+  const refreshButton = panel._refreshButton;
+  const settingsButton = panel._settingsButton;
+  assert.ok(panel.box.children.includes(footerRow));
+  assert.ok(!panel._scroll.children.includes(footerRow));
   panel._scroll.mapped = true;
   panel._scroll.signals.get("notify::mapped")();
   assert.equal(panel._scroll.style, "max-height: 230px;");
-  panel._addSection = () => ({ fields: [] });
-  panel._rebuild([{ rows: [] }], 100);
-  panel._rebuild([{ rows: [] }, { rows: [] }], 200);
-  panel._update([{ rows: [] }, { rows: [] }], 300);
-  assert.equal(panel._refreshRow, refresh);
-  assert.equal(panel._settingsItem, settings);
+
+  const sampleCard = (pct) => ({
+    provider: "codex",
+    displayName: "Codex",
+    status: "ok",
+    healthTone: "ok",
+    badgeKind: "live",
+    badgeText: "Live",
+    lastUpdatedText: "Last updated: 10:00",
+    bannerKind: null,
+    bannerText: null,
+    limitProgressRows: [
+      {
+        kind: "progress",
+        name: "used_percent_secondary",
+        label: "Used % (weekly)",
+        valueText: `${pct}%`,
+        fillPercent: pct,
+        hasValue: true,
+        tone: "ok",
+        accessibleText: `Used % (weekly): ${pct}%`,
+      },
+    ],
+    limitMetaRows: [],
+    telemetryRows: [],
+    key: "card-1",
+  });
+
+  panel._rebuild(
+    {
+      emptyState: "none",
+      emptyTitle: null,
+      emptySubtitle: null,
+      cards: [sampleCard(40)],
+      structureKey: "s1",
+    },
+    100,
+  );
+  panel._rebuild(
+    {
+      emptyState: "none",
+      emptyTitle: null,
+      emptySubtitle: null,
+      cards: [sampleCard(40), sampleCard(60)],
+      structureKey: "s2",
+    },
+    200,
+  );
+  panel._update(
+    {
+      emptyState: "none",
+      emptyTitle: null,
+      emptySubtitle: null,
+      cards: [sampleCard(80), sampleCard(60)],
+      structureKey: "s2",
+    },
+    300,
+  );
+  assert.equal(panel._footerRow, footerRow);
+  assert.equal(panel._refreshButton, refreshButton);
+  assert.equal(panel._settingsButton, settingsButton);
   assert.equal(panel._lastRefreshLabel.text, "300");
-  const field = panel._addStaticRow();
-  assert.equal(field.can_focus, true);
-  field.signals.get("key-focus-in")();
-  assert.deepEqual(focused[0], [panel._scroll, field]);
+  assert.equal(panel._cards[0].progressRows[0].value.text, "80%");
+  assert.equal(panel._cards[0].progressRows[0].fill.width, 208);
+
+  const cardHost = panel._body.items[0];
+  assert.equal(cardHost.can_focus, true);
+  cardHost.signals.get("key-focus-in")();
+  assert.deepEqual(focused[0], [panel._scroll, cardHost]);
+});
+
+test("dual-process GI boundaries and prefs reader IO decoupling are strictly preserved", () => {
+  const shellFiles = ["src/extension.ts", "src/ui/statusBar.ts", "src/ui/panel.ts"];
+  for (const file of shellFiles) {
+    const code = readFileSync(file, "utf8");
+    assert.doesNotMatch(code, /gi:\/\/(Gtk|Adw|Gdk)\b/, `${file} must not import Gtk/Adw/Gdk`);
+  }
+
+  const prefsFiles = [
+    "src/prefs.ts",
+    "src/ui/prefs/main-page.ts",
+    "src/ui/prefs/provider-page.ts",
+    "src/ui/prefs/shared.ts",
+    "src/ui/prefs/gettext.ts",
+    "src/readers/fields.ts",
+  ];
+  for (const file of prefsFiles) {
+    const code = readFileSync(file, "utf8");
+    assert.doesNotMatch(
+      code,
+      /gi:\/\/(St|Clutter|Soup)\b/,
+      `${file} must not import St/Clutter/Soup`,
+    );
+    assert.doesNotMatch(
+      code,
+      /readers\/(codex|claude|opencode|grok)\.js/,
+      `${file} must not import IO reader implementations`,
+    );
+  }
 });
 
 test("late destruction of an old preferences window cannot tear down a reopened window", async () => {
@@ -698,4 +798,108 @@ test("late destruction of an old preferences window cannot tear down a reopened 
   secondSignals.get("close-request")();
   assert.equal(cleaned, 2);
   assert.equal(active.size, 0);
+});
+
+test("preferences dynamic provider pages follow providers-order and re-sync on reorder or toggle", () => {
+  const K = load("src/prefs.ts", "ProviderLimitsPreferences", {
+    ExtensionPreferences: class {},
+    GLib: timers(),
+    PROVIDER_NAMES: ["codex", "claude", "opencode", "grok"],
+    configureTranslations() {},
+    normalizeProvidersOrder: (values) => values,
+    ProviderLimitsPreferencesPage: class {
+      title = "General";
+      cleanup() {}
+    },
+    ProviderPage: class {
+      constructor(_s, name) {
+        this.name = name;
+        this.cleaned = 0;
+      }
+      cleanup() {
+        this.cleaned++;
+      }
+    },
+    isDisposablePage: (p) => typeof p.cleanup === "function",
+    log() {},
+  });
+
+  const prefs = new K();
+  prefs.path = "/synthetic";
+  const handlers = new Map();
+  let nextId = 1;
+  const state = {
+    language: "en",
+    "providers-order": ["opencode", "codex", "claude", "grok"],
+    "codex-enabled": false,
+    "claude-enabled": true,
+    "opencode-enabled": true,
+    "grok-enabled": false,
+  };
+  const settings = {
+    get_string: (k) => state[k] ?? "",
+    get_strv: (k) => [...(state[k] ?? [])],
+    get_boolean: (k) => Boolean(state[k]),
+    connect: (sig, fn) => {
+      const id = nextId++;
+      const list = handlers.get(sig) ?? [];
+      list.push({ id, fn });
+      handlers.set(sig, list);
+      return id;
+    },
+    disconnect: (id) => {
+      for (const [sig, list] of handlers.entries()) {
+        handlers.set(
+          sig,
+          list.filter((entry) => entry.id !== id),
+        );
+      }
+    },
+    emit: (sig) => {
+      for (const { fn } of handlers.get(sig) ?? []) fn();
+    },
+  };
+
+  const attached = [];
+  const window = {
+    add: (p) => attached.push(p),
+    remove: (p) => {
+      const idx = attached.indexOf(p);
+      if (idx >= 0) attached.splice(idx, 1);
+    },
+  };
+
+  prefs._buildWindow(window, settings);
+  assert.deepEqual(
+    attached.slice(1).map((p) => p.name),
+    ["opencode", "claude"],
+  );
+
+  // Enabling codex inserts it between opencode and claude according to providers-order
+  state["codex-enabled"] = true;
+  settings.emit("changed::codex-enabled");
+  assert.deepEqual(
+    attached.slice(1).map((p) => p.name),
+    ["opencode", "codex", "claude"],
+  );
+
+  // Reordering providers-order re-syncs attached pages without disposing active ones
+  const claudePage = attached[3];
+  state["providers-order"] = ["claude", "codex", "opencode", "grok"];
+  settings.emit("changed::providers-order");
+  assert.deepEqual(
+    attached.slice(1).map((p) => p.name),
+    ["claude", "codex", "opencode"],
+  );
+  assert.equal(claudePage.cleaned, 0);
+
+  // Disabling codex disposes only codex and preserves remaining order
+  const codexPage = attached[2];
+  state["codex-enabled"] = false;
+  settings.emit("changed::codex-enabled");
+  assert.equal(codexPage.cleaned, 1);
+  assert.deepEqual(
+    attached.slice(1).map((p) => p.name),
+    ["claude", "opencode"],
+  );
 });

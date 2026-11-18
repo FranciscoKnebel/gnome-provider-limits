@@ -7,6 +7,7 @@ import { resolveOpenCodeDataDir } from "../helpers/paths.js";
 import { querySqlite } from "../helpers/sqlite.js";
 import type { FieldDef, FieldResult, ReadOptions, ReaderResult } from "./base.js";
 import { BaseReader, FieldStatus } from "./base.js";
+import { OPENCODE_FIELDS } from "./fields.js";
 import {
   type OpenCodeDbRow,
   type OpenCodeDiskTelemetry,
@@ -18,105 +19,13 @@ import {
   parseOpenCodeAuthKey,
 } from "./opencodeParser.js";
 
+export { OPENCODE_FIELDS } from "./fields.js";
+
 const OPENCODE_ALL_PATHS_FAILED =
   "OpenCode: no usage data. Run `opencode auth login` and start OpenCode Go.";
 const OPENCODE_USAGE_URL = "https://opencode.ai/zen/go/v1/usage";
 
 Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish");
-
-export const OPENCODE_FIELDS: readonly FieldDef[] = [
-  {
-    name: "used_percent_rolling",
-    label: "Used % (rolling 5h)",
-    type: "percent",
-    description: "Percentage used in the provider-reported rolling 5-hour window.",
-    defaultZone: "status",
-  },
-  {
-    name: "remaining_percent_rolling",
-    label: "Remaining % (rolling 5h)",
-    type: "percent",
-    description: "Percentage remaining in the provider-reported rolling 5-hour window.",
-    defaultZone: "status",
-  },
-  {
-    name: "reset_at_rolling",
-    label: "Reset at (rolling)",
-    type: "timestamp",
-    description: "When the provider-reported rolling window resets.",
-    defaultZone: "status",
-  },
-  {
-    name: "used_percent_weekly",
-    label: "Used % (weekly)",
-    type: "percent",
-    description: "Percentage used in the provider-reported weekly window.",
-    defaultZone: "panel",
-  },
-  {
-    name: "remaining_percent_weekly",
-    label: "Remaining % (weekly)",
-    type: "percent",
-    description: "Percentage remaining in the provider-reported weekly window.",
-    defaultZone: "panel",
-  },
-  {
-    name: "reset_at_weekly",
-    label: "Reset at (weekly)",
-    type: "timestamp",
-    description: "When the provider-reported weekly window resets.",
-    defaultZone: "panel",
-  },
-  {
-    name: "used_percent_monthly",
-    label: "Used % (monthly)",
-    type: "percent",
-    description: "Percentage used in the provider-reported monthly window.",
-    defaultZone: "panel",
-  },
-  {
-    name: "remaining_percent_monthly",
-    label: "Remaining % (monthly)",
-    type: "percent",
-    description: "Percentage remaining in the provider-reported monthly window.",
-    defaultZone: "panel",
-  },
-  {
-    name: "reset_at_monthly",
-    label: "Reset at (monthly)",
-    type: "timestamp",
-    description: "When the provider-reported monthly window resets.",
-    defaultZone: "panel",
-  },
-  {
-    name: "limit_reached",
-    label: "Limit reached",
-    type: "bool",
-    description: "Whether any OpenCode Go usage window is rate-limited.",
-    defaultZone: "panel",
-  },
-  {
-    name: "total_cost",
-    label: "Total cost",
-    type: "cost",
-    description: "Total local session cost observed in opencode.db.",
-    defaultZone: "panel",
-  },
-  {
-    name: "sessions_count",
-    label: "Sessions count",
-    type: "count",
-    description: "Total number of local sessions.",
-    defaultZone: "panel",
-  },
-  {
-    name: "usage_source",
-    label: "Usage source",
-    type: "text",
-    description: "Where OpenCode Go usage was read from.",
-    defaultZone: "panel",
-  },
-];
 
 export class OpenCodeReader extends BaseReader {
   private _http: HttpClient | null = null;
