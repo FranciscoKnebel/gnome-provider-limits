@@ -36,7 +36,7 @@
 
     <!-- Globals: provider order -->
     <key name="providers-order" type="as">
-      <default>['codex','claude','opencode','grok','cursor']</default>
+      <default>['codex','claude','opencode','grok','cursor','google']</default>
       <summary>Providers display order</summary>
       <description>Order in which providers appear in the status bar and panel.</description>
     </key>
@@ -199,6 +199,38 @@
       <default>['remaining_percent_credits','used_percent_auto','used_percent_api','remaining_credits','spend_limit_used','limit_reached','plan_type','usage_source']</default>
       <summary>Cursor panel fields</summary>
       <description>Fields shown for Cursor in the panel, in display order.</description>
+    </key>
+
+    <!-- Per-provider: Google / Antigravity / Gemini subscription -->
+    <key name="google-enabled" type="b">
+      <default>false</default>
+      <summary>Google enabled</summary>
+      <description>Whether Google appears in the status bar and panel.</description>
+    </key>
+    <key name="google-display-name" type="s">
+      <default>'Google'</default>
+      <summary>Google display name</summary>
+      <description>Full display name for Google in the panel and preferences.</description>
+    </key>
+    <key name="google-display-name-short" type="s">
+      <default>'google'</default>
+      <summary>Google short display name</summary>
+      <description>Compact label for Google in the status bar.</description>
+    </key>
+    <key name="google-cli-path" type="s">
+      <default>''</default>
+      <summary>Google authentication file</summary>
+      <description>Path to an existing Gemini CLI or Antigravity OAuth credential JSON file, used instead of a CLI binary. Empty checks ANTIGRAVITY_ACP_TOKEN_PATH, ~/.gemini/oauth_creds.json, ~/.gemini/antigravity-acp/acp_token.json, ~/.gemini/antigravity/acp_token.json, ~/.config/antigravity/acp_token.json, ~/.t3/userdata/providers/antigravity/*/antigravity-acp/acp_token.json, and Google Application Default Credentials fallbacks. Only the path is stored, never credentials.</description>
+    </key>
+    <key name="google-status-fields" type="as">
+      <default>['used_percent_session','reset_at_session']</default>
+      <summary>Google status bar fields</summary>
+      <description>Fields shown for Google in the status bar, in display order.</description>
+    </key>
+    <key name="google-panel-fields" type="as">
+      <default>['used_percent_weekly','reset_at_weekly','used_percent_3p_session','used_percent_3p_weekly','limit_reached','plan_type','usage_source']</default>
+      <summary>Google panel fields</summary>
+      <description>Fields shown for Google in the panel, in display order.</description>
     </key>
 
   </schema>

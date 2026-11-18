@@ -36,6 +36,7 @@ describe("normalizeProvidersOrder", () => {
       "claude",
       "grok",
       "cursor",
+      "google",
     ]);
   });
 
@@ -46,6 +47,7 @@ describe("normalizeProvidersOrder", () => {
       "opencode",
       "grok",
       "cursor",
+      "google",
     ]);
   });
 
@@ -56,6 +58,7 @@ describe("normalizeProvidersOrder", () => {
       "opencode",
       "grok",
       "cursor",
+      "google",
     ]);
   });
 
@@ -66,6 +69,7 @@ describe("normalizeProvidersOrder", () => {
       "opencode",
       "grok",
       "cursor",
+      "google",
     ]);
   });
 

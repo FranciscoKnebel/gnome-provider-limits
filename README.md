@@ -5,7 +5,7 @@
 [![GNOME Shell](https://img.shields.io/badge/GNOME_Shell-45-50-4a86cf)](https://extensions.gnome.org)
 [![License](https://img.shields.io/badge/license-GPL--3.0-blue)](LICENSE)
 
-GNOME Shell extension that displays usage limits for Codex, Claude, OpenCode Go, Grok/SuperGrok, and Cursor in your top bar. It reads existing local credentials and usage state, querying only provider endpoints, so you do not need to open browser dashboards.
+GNOME Shell extension that displays usage limits for Codex, Claude, OpenCode Go, Grok/SuperGrok, Cursor, and Google (Gemini / Antigravity) in your top bar. It reads existing local credentials and usage state, querying only provider endpoints, so you do not need to open browser dashboards.
 
 > Note: The extension is in active development. If you rely on it daily, test new versions before updating.
 
@@ -19,7 +19,7 @@ This extension reads the local files and SQLite databases that providers already
 
 ## Features
 
-- Monitor Codex, Claude, OpenCode Go, Grok/SuperGrok, and Cursor in a single status bar indicator.
+- Monitor Codex, Claude, OpenCode Go, Grok/SuperGrok, Cursor, and Google in a single status bar indicator.
 - Use the compact top bar indicator for quick updates, or click to open the dropdown panel for full details.
 - Choose which fields appear in each zone and arrange their order, customized per provider.
 - Save resources with adaptive polling: updates run every 10 seconds during active usage and slow to 120 seconds once readings stabilize.
@@ -36,6 +36,7 @@ This extension reads the local files and SQLite databases that providers already
 | OpenCode Go      | Used % (rolling 5h), Used % (weekly), Used % (monthly), Reset at, Limit reached                    | Total cost, Sessions count                                      | Usage API (`opencode.ai/zen/go/v1/usage`), SQLite telemetry (`~/.local/share/opencode/opencode.db`)          |
 | Grok / SuperGrok | Used % (credits), Remaining % (credits), Reset at (credits)                                        | Purchased credits (USD), Shared subscription credits, Plan type | Grok subscription credits API (`cli-chat-proxy.grok.com`), login from `~/.grok/auth.json`                    |
 | Cursor           | Used % (credits), Remaining % (credits), Reset at (credits), Used % (Auto + Composer / API), Limit | Remaining credits (USD), On-demand spend (USD), Plan type       | Cursor SDK `DashboardService` (`api2.cursor.sh`), login from `~/.cursor/sdk/auth.json` or `~/.config/cursor` |
+| Google           | Used % (session 5h), Used % (weekly), Used % (Claude & GPT 5h / weekly), Reset at, Limit reached   | Plan type                                                       | Google Cloud Code quota API (`cloudcode-pa.googleapis.com`), login from Gemini CLI or Antigravity            |
 
 ## Requirements
 
@@ -145,6 +146,31 @@ The implementation and test fixture (`tests/fixtures/cursor-period-usage.json`) 
 from the official `@cursor/sdk` and `DashboardService` contracts; live authenticated account
 behavior was not captured in this repository.
 
+### Google (Gemini / Antigravity)
+
+Google is disabled by default. Sign in with the official Gemini CLI (`gemini`) or
+Antigravity, then enable Google in the extension preferences. The reader checks
+`$ANTIGRAVITY_ACP_TOKEN_PATH`, `$GEMINI_HOME/oauth_creds.json` (or
+`$GEMINI_CLI_HOME/.gemini/oauth_creds.json` / `~/.gemini/oauth_creds.json`),
+`~/.gemini/antigravity-acp/acp_token.json`, `~/.gemini/antigravity/acp_token.json`,
+`~/.config/antigravity/acp_token.json`, existing T3 Code Antigravity ACP logins, and
+finally Application Default Credentials (`$GOOGLE_APPLICATION_CREDENTIALS` and
+`~/.config/gcloud/application_default_credentials.json`) on every refresh (or an
+explicit authentication file configured in Google preferences; `~/` is supported).
+Service-account keys and credentials with non-Google `token_uri` values are rejected.
+
+Unexpired `access_token` values (such as `@google/gemini-cli` `oauth_creds.json`) are
+used directly. When `refresh_token`, `client_id`, and `client_secret` are all present
+in the credential file (such as Antigravity `acp_token.json` or `authorized_user` ADC
+files), expired OAuth tokens are refreshed in memory via
+`https://oauth2.googleapis.com/token` and discarded immediately after the refresh
+cycle (never written back to disk). Subscription quotas are queried via
+`v1internal:retrieveUserQuotaSummary` (falling back to `v1internal:fetchAvailableModels`)
+and optional plan-tier lookup (`v1internal:loadCodeAssist`) across
+`https://daily-cloudcode-pa.googleapis.com` and `https://cloudcode-pa.googleapis.com`,
+covering both Google AI Pro / Google AI Ultra / Gemini Code Assist 5-hour and weekly
+Gemini windows as well as Antigravity's Claude & GPT 5-hour and weekly pools.
+
 ## Development
 
 ```bash
@@ -196,7 +222,8 @@ src/
 │   ├── claude.ts
 │   ├── opencode.ts
 │   ├── grok.ts
-│   └── cursor.ts
+│   ├── cursor.ts
+│   └── google.ts
 ├── helpers/             # Subprocess wrappers, SQLite helpers, and HTTP requests
 ├── ui/                  # Status bar indicator and dropdown panel components
 ├── schemas/             # GSettings XML schemas
@@ -218,10 +245,11 @@ This project is licensed under the GPL-3.0 license. See [LICENSE](LICENSE) for t
 ### Authenticated data flow and local SQLite access
 
 Existing credentials are sent only to their respective first-party provider APIs
-(chatgpt.com, api.anthropic.com, opencode.ai, cli-chat-proxy.grok.com, and
-api2.cursor.sh) to read usage. There is no separate extension account or third-party
-credential collection. The extension does not persist credentials or raw provider
-error payloads in logs.
+(chatgpt.com, api.anthropic.com, opencode.ai, cli-chat-proxy.grok.com,
+api2.cursor.sh, oauth2.googleapis.com, cloudcode-pa.googleapis.com, and
+daily-cloudcode-pa.googleapis.com) to read usage. There is no separate extension
+account or third-party credential collection. The extension does not persist
+credentials or raw provider error payloads in logs.
 
 The SQLite Helper always opens databases with `mode=ro`, behind a Linux seccomp
 filter that denies writable file opens and filesystem mutation before SQLite runs.

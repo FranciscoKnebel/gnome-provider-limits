@@ -465,3 +465,48 @@ msgstr "d"
 #: src/formatters.ts
 msgid "w"
 msgstr "w"
+
+#: src/readers/google.ts
+msgid "Used % (Claude & GPT 5h)"
+msgstr "Used % (Claude & GPT 5h)"
+
+#: src/readers/google.ts
+msgid "Remaining % (Claude & GPT 5h)"
+msgstr "Remaining % (Claude & GPT 5h)"
+
+#: src/readers/google.ts
+msgid "Reset at (Claude & GPT 5h)"
+msgstr "Reset at (Claude & GPT 5h)"
+
+#: src/readers/google.ts
+msgid "Used % (Claude & GPT weekly)"
+msgstr "Used % (Claude & GPT weekly)"
+
+#: src/readers/google.ts
+msgid "Remaining % (Claude & GPT weekly)"
+msgstr "Remaining % (Claude & GPT weekly)"
+
+#: src/readers/google.ts
+msgid "Reset at (Claude & GPT weekly)"
+msgstr "Reset at (Claude & GPT weekly)"
+
+#: src/readers/google.ts
+msgid "Google: no valid login. Sign in with Gemini CLI or Antigravity."
+msgstr "Google: no valid login. Sign in with Gemini CLI or Antigravity."
+
+#: src/readers/google.ts
+msgid "Google: login rejected. Sign in again with Gemini CLI or Antigravity."
+msgstr "Google: login rejected. Sign in again with Gemini CLI or Antigravity."
+
+#: src/readers/google.ts
+msgid "Google: subscription quota unavailable. Try again later."
+msgstr "Google: subscription quota unavailable. Try again later."
+
+#: src/ui/prefs/provider-page.ts
+msgid "Sign in with Gemini CLI or Antigravity."
+msgstr "Sign in with Gemini CLI or Antigravity."
+
+#: src/ui/prefs/provider-page.ts
+msgid "Leave the authentication file empty to use ~/.gemini/oauth_creds.json or Antigravity credentials."
+msgstr "Leave the authentication file empty to use ~/.gemini/oauth_creds.json or Antigravity credentials."
+
