@@ -431,3 +431,75 @@ msgstr "d"
 #: src/formatters.ts
 msgid "w"
 msgstr "sem"
+
+#: src/ui/cockpitModel.ts
+msgid "OK"
+msgstr "OK"
+
+#: src/ui/cockpitModel.ts
+msgid "Cached"
+msgstr "En caché"
+
+#: src/ui/cockpitModel.ts
+msgid "Partial"
+msgstr "Parcial"
+
+#: src/ui/panel.ts
+msgid "Overview"
+msgstr "Resumen"
+
+#: src/ui/panel.ts
+msgid "No providers enabled"
+msgstr "Ningún proveedor habilitado"
+
+#: src/ui/panel.ts
+msgid "Enable a provider in Settings to monitor usage limits."
+msgstr "Habilite un proveedor en Ajustes para supervisar los límites de uso."
+
+#: src/ui/panel.ts
+msgid "Reading provider limits…"
+msgstr "Leyendo límites de proveedores…"
+
+#: src/ui/panel.ts
+msgid "Waiting for initial refresh to complete."
+msgstr "Esperando a que finalice la actualización inicial."
+
+#: src/ui/panel.ts
+msgid "No panel fields configured for this provider."
+msgstr "No hay campos del panel configurados para este proveedor."
+
+#: src/ui/prefs/main-page.ts
+msgid "Move up"
+msgstr "Subir"
+
+#: src/ui/prefs/main-page.ts
+msgid "Move down"
+msgstr "Bajar"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Field Matrix"
+msgstr "Matriz de campos"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Toggle which fields appear in the status bar and panel."
+msgstr "Alterne qué campos aparecen en la barra de estado y en el panel."
+
+#: src/ui/prefs/provider-page.ts
+msgid "Reset defaults"
+msgstr "Restablecer valores predeterminados"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Top Bar"
+msgstr "Barra superior"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Panel"
+msgstr "Panel"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Reorder active fields with the arrow buttons or by dragging."
+msgstr "Reordene los campos activos con los botones de flecha o arrastrando."
+
+#: src/ui/prefs/provider-page.ts
+msgid "No fields selected."
+msgstr "Ningún campo seleccionado."

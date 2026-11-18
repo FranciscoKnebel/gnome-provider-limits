@@ -1,10 +1,12 @@
 src/extension.ts
 src/prefs.ts
 src/formatters.ts
+src/readers/fields.ts
 src/readers/codex.ts
 src/readers/claude.ts
 src/readers/opencode.ts
 src/readers/grok.ts
+src/ui/cockpitModel.ts
 src/ui/statusBar.ts
 src/ui/panel.ts
 src/ui/prefs/main-page.ts

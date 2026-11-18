@@ -1,0 +1,606 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
+
+import { PROVIDER_NAMES } from "../../src/constants.js";
+import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
+import type { ReaderResult } from "../../src/readers/base.js";
+import {
+  CLAUDE_FIELDS,
+  CODEX_FIELDS,
+  DEFAULT_PROVIDER_ZONE_FIELDS,
+  GROK_FIELDS,
+  OPENCODE_FIELDS,
+  PROVIDER_FIELDS,
+} from "../../src/readers/fields.js";
+import {
+  buildOverviewRowModel,
+  CAIRO_LINE_CAP_ROUND,
+  chunkGauges,
+  chunkPairs,
+  clampRatio,
+  computeGaugeGeometry,
+  computeStatusMicroMeter,
+  cycleTab,
+  disposeCairoContext,
+  drawMicroRing,
+  drawMiniCapsule,
+  drawRadialGauge,
+  extractWindowSuffix,
+  GAUGE_END_ANGLE,
+  GAUGE_START_ANGLE,
+  GAUGE_SWEEP_ANGLE,
+  getAvailableTabs,
+  isCairoContext,
+  partitionProviderPanel,
+  providerDetailStructureKey,
+  resolveActiveTab,
+  TONE_RGB,
+  toneToRgb,
+} from "../../src/ui/cockpitModel.js";
+import type { CairoContextLike } from "../../src/ui/cockpitModel.js";
+
+interface RecordedCairoOp {
+  readonly op: string;
+  readonly args: readonly number[];
+}
+
+function createMockCairoContext(withDispose = true): {
+  cr: CairoContextLike;
+  ops: RecordedCairoOp[];
+  disposed: () => boolean;
+} {
+  const ops: RecordedCairoOp[] = [];
+  let wasDisposed = false;
+
+  const cr: CairoContextLike = {
+    save: () => ops.push({ op: "save", args: [] }),
+    restore: () => ops.push({ op: "restore", args: [] }),
+    newPath: () => ops.push({ op: "newPath", args: [] }),
+    newSubPath: () => ops.push({ op: "newSubPath", args: [] }),
+    moveTo: (x, y) => ops.push({ op: "moveTo", args: [x, y] }),
+    lineTo: (x, y) => ops.push({ op: "lineTo", args: [x, y] }),
+    arc: (xc, yc, r, a1, a2) => ops.push({ op: "arc", args: [xc, yc, r, a1, a2] }),
+    setLineWidth: (w) => ops.push({ op: "setLineWidth", args: [w] }),
+    setLineCap: (cap) => ops.push({ op: "setLineCap", args: [cap] }),
+    setSourceRGBA: (r, g, b, a) => ops.push({ op: "setSourceRGBA", args: [r, g, b, a] }),
+    stroke: () => ops.push({ op: "stroke", args: [] }),
+    ...(withDispose
+      ? {
+          $dispose: () => {
+            wasDisposed = true;
+          },
+        }
+      : {}),
+  };
+
+  return { cr, ops, disposed: () => wasDisposed };
+}
+
+describe("src/readers/fields", () => {
+  it("exposes pure FieldDef arrays for all providers without duplicate field names", () => {
+    expect(PROVIDER_FIELDS.codex).toBe(CODEX_FIELDS);
+    expect(PROVIDER_FIELDS.claude).toBe(CLAUDE_FIELDS);
+    expect(PROVIDER_FIELDS.opencode).toBe(OPENCODE_FIELDS);
+    expect(PROVIDER_FIELDS.grok).toBe(GROK_FIELDS);
+
+    for (const provider of PROVIDER_NAMES) {
+      const defs = PROVIDER_FIELDS[provider];
+      expect(defs.length).toBeGreaterThan(0);
+      const names = defs.map((d) => d.name);
+      expect(new Set(names).size).toBe(names.length);
+    }
+  });
+
+  it("matches gschema.xml default status-fields and panel-fields for every provider", () => {
+    const schemaPath = join(
+      process.cwd(),
+      "src/schemas/org.gnome.shell.extensions.gnome-provider-limits.gschema.xml",
+    );
+    const xml = readFileSync(schemaPath, "utf8");
+
+    for (const provider of PROVIDER_NAMES) {
+      for (const zone of ["status", "panel"] as const) {
+        const keyName = `${provider}-${zone}-fields`;
+        const keyPattern = new RegExp(
+          `<key\\s+name="${keyName}"[^>]*>[\\s\\S]*?<default>\\s*\\[([\\s\\S]*?)\\]\\s*</default>`,
+        );
+        const match = keyPattern.exec(xml);
+        expect(match).not.toBeNull();
+        const rawList = match?.[1] ?? "";
+        const schemaDefaults = Array.from(rawList.matchAll(/'([^']+)'/g), (m) => m[1]);
+        expect(DEFAULT_PROVIDER_ZONE_FIELDS[provider][zone]).toEqual(schemaDefaults);
+      }
+    }
+  });
+});
+
+describe("cockpitModel gauge math", () => {
+  it("clampRatio clamps numeric percentages to [0, 1] and rejects non-finite values", () => {
+    expect(clampRatio(0)).toBe(0);
+    expect(clampRatio(42.5)).toBeCloseTo(0.425, 5);
+    expect(clampRatio(100)).toBe(1);
+    expect(clampRatio(-15)).toBe(0);
+    expect(clampRatio(145)).toBe(1);
+    expect(clampRatio(Number.NaN)).toBeNull();
+    expect(clampRatio(Number.POSITIVE_INFINITY)).toBeNull();
+    expect(clampRatio(null)).toBeNull();
+    expect(clampRatio("50")).toBeNull();
+  });
+
+  it("toneToRgb maps semantic tones to RGB tuples in [0, 1]", () => {
+    for (const tone of ["ok", "warning", "critical", "neutral"] as const) {
+      const rgb = toneToRgb(tone);
+      expect(rgb).toEqual(TONE_RGB[tone]);
+      for (const channel of rgb) {
+        expect(channel).toBeGreaterThanOrEqual(0);
+        expect(channel).toBeLessThanOrEqual(1);
+      }
+    }
+  });
+
+  it("computeGaugeGeometry calculates sweep angles and tones for used_* and remaining_* fields", () => {
+    const lowUsed = computeGaugeGeometry("used_percent_primary", 25);
+    expect(lowUsed.hasValue).toBeTrue();
+    expect(lowUsed.ratio).toBeCloseTo(0.25, 5);
+    expect(lowUsed.startAngle).toBeCloseTo(GAUGE_START_ANGLE, 5);
+    expect(lowUsed.endAngle).toBeCloseTo(GAUGE_START_ANGLE + 0.25 * GAUGE_SWEEP_ANGLE, 5);
+    expect(lowUsed.trackEndAngle).toBeCloseTo(GAUGE_END_ANGLE, 5);
+    expect(lowUsed.tone).toBe("ok");
+    expect(lowUsed.centerText).toBe("25%");
+
+    const warnUsed = computeGaugeGeometry("used_percent_primary", 75);
+    expect(warnUsed.tone).toBe("warning");
+    expect(warnUsed.fieldTone).toBe("warning");
+
+    const critUsed = computeGaugeGeometry("used_percent_primary", 92);
+    expect(critUsed.tone).toBe("critical");
+    expect(critUsed.fieldTone).toBe("critical");
+
+    const lowRemaining = computeGaugeGeometry("remaining_percent_primary", 8);
+    expect(lowRemaining.tone).toBe("critical");
+    expect(lowRemaining.ratio).toBeCloseTo(0.08, 5);
+
+    const warnRemaining = computeGaugeGeometry("remaining_percent_primary", 35);
+    expect(warnRemaining.tone).toBe("warning");
+
+    const missing = computeGaugeGeometry("used_percent_primary", null);
+    expect(missing.hasValue).toBeFalse();
+    expect(missing.ratio).toBe(0);
+    expect(missing.endAngle).toBe(GAUGE_START_ANGLE);
+    expect(missing.tone).toBe("neutral");
+    expect(missing.centerText).toBe("—");
+  });
+
+  it("extractWindowSuffix parses primary/secondary/rolling/weekly/monthly suffixes", () => {
+    expect(extractWindowSuffix("used_percent_primary")).toBe("primary");
+    expect(extractWindowSuffix("remaining_percent_five_hour")).toBe("five_hour");
+    expect(extractWindowSuffix("used_percent_seven_day_sonnet")).toBe("seven_day_sonnet");
+    expect(extractWindowSuffix("total_cost")).toBeNull();
+    expect(extractWindowSuffix("reset_at_primary")).toBeNull();
+  });
+});
+
+describe("computeStatusMicroMeter", () => {
+  it("picks the first configured status percent field and falls back to provider percent field", () => {
+    const okResult: ReaderResult = {
+      provider: "codex",
+      status: ReaderStatus.OK,
+      lastUpdated: 1_700_000_000,
+      fields: [
+        { name: "used_percent_primary", value: 30, status: FieldStatus.OK },
+        { name: "used_percent_secondary", value: 65, status: FieldStatus.OK },
+      ],
+    };
+
+    const secondPicked = computeStatusMicroMeter(CODEX_FIELDS, okResult, [
+      "reset_at_primary",
+      "used_percent_secondary",
+    ]);
+    expect(secondPicked.hasValue).toBeTrue();
+    expect(secondPicked.ratio).toBeCloseTo(0.65, 5);
+    expect(secondPicked.tone).toBe("warning");
+    expect(secondPicked.isError).toBeFalse();
+
+    const fallbackPicked = computeStatusMicroMeter(CODEX_FIELDS, okResult, ["plan_type"]);
+    expect(fallbackPicked.hasValue).toBeTrue();
+    expect(fallbackPicked.ratio).toBeCloseTo(0.3, 5);
+    expect(fallbackPicked.tone).toBe("ok");
+  });
+
+  it("returns critical error spec on ERROR/UNAVAILABLE and neutral when percent value is missing", () => {
+    const errResult: ReaderResult = {
+      provider: "codex",
+      status: ReaderStatus.ERROR,
+      lastUpdated: 1_700_000_000,
+      fields: [],
+      lastError: "Auth expired",
+    };
+    const errSpec = computeStatusMicroMeter(CODEX_FIELDS, errResult, ["used_percent_primary"]);
+    expect(errSpec.isError).toBeTrue();
+    expect(errSpec.hasValue).toBeFalse();
+    expect(errSpec.tone).toBe("critical");
+
+    const emptyOkResult: ReaderResult = {
+      provider: "codex",
+      status: ReaderStatus.OK,
+      lastUpdated: 1_700_000_000,
+      fields: [{ name: "used_percent_primary", value: null, status: FieldStatus.UNAVAILABLE }],
+    };
+    const neutralSpec = computeStatusMicroMeter(CODEX_FIELDS, emptyOkResult, [
+      "used_percent_primary",
+    ]);
+    expect(neutralSpec.isError).toBeFalse();
+    expect(neutralSpec.hasValue).toBeFalse();
+    expect(neutralSpec.tone).toBe("neutral");
+  });
+});
+
+describe("partitionProviderPanel & chunking", () => {
+  it("chunks gauges into balanced rows of 1-3 (with 4 split into 2+2) and Bento into pairs", () => {
+    expect(chunkGauges([])).toEqual([]);
+    expect(chunkGauges([1, 2])).toEqual([[1, 2]]);
+    expect(chunkGauges([1, 2, 3])).toEqual([[1, 2, 3]]);
+    expect(chunkGauges([1, 2, 3, 4])).toEqual([
+      [1, 2],
+      [3, 4],
+    ]);
+    expect(chunkGauges([1, 2, 3, 4, 5])).toEqual([
+      [1, 2, 3],
+      [4, 5],
+    ]);
+
+    expect(chunkPairs([1, 2, 3])).toEqual([[1, 2], [3]]);
+  });
+
+  it("pairs reset_at_* timestamps with matching percent gauges and puts remaining fields into Bento pairs", () => {
+    const futureEpoch = Math.floor(Date.now() / 1000) + 7200;
+    const result: ReaderResult = {
+      provider: "codex",
+      status: ReaderStatus.OK,
+      lastUpdated: 1_700_000_000,
+      fields: [
+        { name: "used_percent_primary", value: 40, status: FieldStatus.OK },
+        { name: "reset_at_primary", value: futureEpoch, status: FieldStatus.OK },
+        { name: "used_percent_secondary", value: 82, status: FieldStatus.OK },
+        { name: "reset_at_secondary", value: null, status: FieldStatus.UNAVAILABLE },
+        { name: "reset_credits_expire_at", value: futureEpoch, status: FieldStatus.OK },
+        { name: "plan_type", value: "pro", status: FieldStatus.OK },
+        { name: "limit_reached", value: false, status: FieldStatus.OK },
+      ],
+    };
+
+    const partition = partitionProviderPanel(
+      CODEX_FIELDS,
+      result,
+      [
+        "used_percent_primary",
+        "reset_at_primary",
+        "used_percent_secondary",
+        "reset_at_secondary",
+        "reset_credits_expire_at",
+        "plan_type",
+        "limit_reached",
+        "unknown_field",
+      ],
+      "en",
+    );
+
+    expect(partition.gauges.map((g) => g.fieldName)).toEqual([
+      "used_percent_primary",
+      "used_percent_secondary",
+    ]);
+    expect(partition.gauges[0].hasResetSlot).toBeTrue();
+    expect(partition.gauges[0].resetText).toContain("↻");
+    expect(partition.gauges[1].hasResetSlot).toBeTrue();
+    expect(partition.gauges[1].resetText).toBe("↻ —");
+
+    // Paired reset_at_primary and reset_at_secondary were consumed by gauges,
+    // while unpaired reset_credits_expire_at, plan_type, and limit_reached stay in Bento!
+    expect(partition.bentoTiles.map((b) => b.fieldName)).toEqual([
+      "reset_credits_expire_at",
+      "plan_type",
+      "limit_reached",
+    ]);
+    expect(partition.bentoRows.length).toBe(2);
+    expect(partition.bentoRows[0].length).toBe(2);
+    expect(partition.bentoRows[1].length).toBe(1);
+  });
+
+  it("keeps unpaired reset_at_* in Bento when its companion percent gauge is not in panel fields", () => {
+    const futureEpoch = Math.floor(Date.now() / 1000) + 3600;
+    const result: ReaderResult = {
+      provider: "codex",
+      status: ReaderStatus.OK,
+      lastUpdated: 1_700_000_000,
+      fields: [{ name: "reset_at_primary", value: futureEpoch, status: FieldStatus.OK }],
+    };
+
+    const partition = partitionProviderPanel(CODEX_FIELDS, result, ["reset_at_primary"], "en");
+    expect(partition.gauges.length).toBe(0);
+    expect(partition.bentoTiles.map((b) => b.fieldName)).toEqual(["reset_at_primary"]);
+  });
+
+  it("propagates field-level errors onto gauges and Bento tiles", () => {
+    const result: ReaderResult = {
+      provider: "claude",
+      status: ReaderStatus.PARTIAL,
+      lastUpdated: 1_700_000_000,
+      fields: [
+        {
+          name: "used_percent_session",
+          value: null,
+          status: FieldStatus.ERROR,
+          error: "Probe timeout",
+        },
+        {
+          name: "has_extra_usage_enabled",
+          value: null,
+          status: FieldStatus.ERROR,
+          error: "Missing token",
+        },
+      ],
+    };
+
+    const partition = partitionProviderPanel(
+      CLAUDE_FIELDS,
+      result,
+      ["used_percent_session", "has_extra_usage_enabled"],
+      "en",
+    );
+    expect(partition.gauges[0].errorText).toBe("Probe timeout");
+    expect(partition.bentoTiles[0].errorText).toBe("Missing token");
+  });
+});
+
+describe("buildOverviewRowModel, tabs & structure keys", () => {
+  it("builds loading, OK, Cached (last-known-good), Partial, and Error overview models", () => {
+    const loading = buildOverviewRowModel({
+      provider: "codex",
+      displayName: "Codex",
+      fieldsDefs: CODEX_FIELDS,
+      result: undefined,
+      statusFieldNames: ["used_percent_primary"],
+      panelFieldNames: [],
+      locale: "en",
+    });
+    expect(loading.badgeKind).toBe("loading");
+    expect(loading.primaryText).toBe("…");
+
+    const futureEpoch = Math.floor(Date.now() / 1000) + 1800;
+    const okRow = buildOverviewRowModel({
+      provider: "codex",
+      displayName: "Codex",
+      fieldsDefs: CODEX_FIELDS,
+      result: {
+        provider: "codex",
+        status: ReaderStatus.OK,
+        lastUpdated: 1_700_000_000,
+        fields: [
+          { name: "used_percent_primary", value: 55, status: FieldStatus.OK },
+          { name: "reset_at_primary", value: futureEpoch, status: FieldStatus.OK },
+        ],
+      },
+      statusFieldNames: ["plan_type"],
+      panelFieldNames: ["used_percent_primary"],
+      locale: "en",
+    });
+    expect(okRow.badgeKind).toBe("ok");
+    expect(okRow.badgeText).toBe("OK");
+    expect(okRow.primaryText).toBe("55%");
+    expect(okRow.secondaryText).toContain("↻");
+
+    const cachedRow = buildOverviewRowModel({
+      provider: "claude",
+      displayName: "Claude",
+      fieldsDefs: CLAUDE_FIELDS,
+      result: {
+        provider: "claude",
+        status: ReaderStatus.PARTIAL,
+        lastUpdated: 1_700_000_000,
+        pathsTried: ["oauth-api", "last-known-good"],
+        lastError: "HTTP 503",
+        fields: [{ name: "used_percent_session", value: 72, status: FieldStatus.OK }],
+      },
+      statusFieldNames: [],
+      panelFieldNames: [],
+      locale: "en",
+    });
+    expect(cachedRow.badgeKind).toBe("cached");
+    expect(cachedRow.badgeText).toBe("Cached");
+    expect(cachedRow.tone).toBe("warning");
+
+    const partialRow = buildOverviewRowModel({
+      provider: "opencode",
+      displayName: "OpenCode Go",
+      fieldsDefs: OPENCODE_FIELDS,
+      result: {
+        provider: "opencode",
+        status: ReaderStatus.PARTIAL,
+        lastUpdated: 1_700_000_000,
+        pathsTried: ["sqlite"],
+        fields: [{ name: "total_cost", value: 4.5, status: FieldStatus.OK }],
+      },
+      statusFieldNames: ["total_cost"],
+      panelFieldNames: [],
+      locale: "en",
+    });
+    expect(partialRow.badgeKind).toBe("partial");
+    expect(partialRow.badgeText).toBe("Partial");
+    expect(partialRow.primaryText).toBe("—");
+
+    const errorRow = buildOverviewRowModel({
+      provider: "grok",
+      displayName: "Grok",
+      fieldsDefs: GROK_FIELDS,
+      result: {
+        provider: "grok",
+        status: ReaderStatus.ERROR,
+        lastUpdated: 1_700_000_000,
+        lastError: "Missing auth.json",
+        fields: [],
+      },
+      statusFieldNames: ["used_percent_credits"],
+      panelFieldNames: [],
+      locale: "en",
+    });
+    expect(errorRow.badgeKind).toBe("error");
+    expect(errorRow.secondaryText).toBe("Missing auth.json");
+    expect(errorRow.tone).toBe("critical");
+  });
+
+  it("resolves active tab with fallback when disabled and cycles tabs in both directions", () => {
+    const enabled = ["codex", "opencode"] as const;
+    expect(getAvailableTabs(enabled)).toEqual(["overview", "codex", "opencode"]);
+    expect(resolveActiveTab("overview", enabled)).toBe("overview");
+    expect(resolveActiveTab("codex", enabled)).toBe("codex");
+    expect(resolveActiveTab("claude", enabled)).toBe("overview");
+
+    expect(cycleTab("overview", enabled, 1)).toBe("codex");
+    expect(cycleTab("codex", enabled, 1)).toBe("opencode");
+    expect(cycleTab("opencode", enabled, 1)).toBe("overview");
+    expect(cycleTab("overview", enabled, -1)).toBe("opencode");
+    expect(cycleTab("claude", enabled, 1)).toBe("codex");
+    expect(cycleTab("overview", [], 1)).toBe("overview");
+  });
+
+  it("produces stable providerDetailStructureKey values that change only on structural changes", () => {
+    const baseResult: ReaderResult = {
+      provider: "codex",
+      status: ReaderStatus.OK,
+      lastUpdated: 100,
+      fields: [
+        { name: "used_percent_primary", value: 20, status: FieldStatus.OK },
+        { name: "plan_type", value: "plus", status: FieldStatus.OK },
+      ],
+    };
+    const updatedResult: ReaderResult = {
+      provider: "codex",
+      status: ReaderStatus.OK,
+      lastUpdated: 200,
+      fields: [
+        { name: "used_percent_primary", value: 85, status: FieldStatus.OK },
+        { name: "plan_type", value: "pro", status: FieldStatus.OK },
+      ],
+    };
+
+    const p1 = partitionProviderPanel(
+      CODEX_FIELDS,
+      baseResult,
+      ["used_percent_primary", "plan_type"],
+      "en",
+    );
+    const p2 = partitionProviderPanel(
+      CODEX_FIELDS,
+      updatedResult,
+      ["used_percent_primary", "plan_type"],
+      "en",
+    );
+    const p3 = partitionProviderPanel(CODEX_FIELDS, updatedResult, ["used_percent_primary"], "en");
+
+    const k1 = providerDetailStructureKey({
+      provider: "codex",
+      displayName: "Codex",
+      status: "ok",
+      locale: "en",
+      hasCallout: false,
+      hasTimestamp: true,
+      partition: p1,
+    });
+    const k2 = providerDetailStructureKey({
+      provider: "codex",
+      displayName: "Codex",
+      status: "ok",
+      locale: "en",
+      hasCallout: false,
+      hasTimestamp: true,
+      partition: p2,
+    });
+    const k3 = providerDetailStructureKey({
+      provider: "codex",
+      displayName: "Codex",
+      status: "ok",
+      locale: "en",
+      hasCallout: false,
+      hasTimestamp: true,
+      partition: p3,
+    });
+
+    expect(k1).toBe(k2);
+    expect(k3).not.toBe(k1);
+  });
+});
+
+describe("Cairo vector drawing helpers & context disposal", () => {
+  it("validates Cairo contexts and disposes GJS Cairo handles safely", () => {
+    const { cr, disposed } = createMockCairoContext(true);
+    expect(isCairoContext(cr)).toBeTrue();
+    expect(isCairoContext(null)).toBeFalse();
+    expect(isCairoContext({})).toBeFalse();
+
+    disposeCairoContext(cr);
+    expect(disposed()).toBeTrue();
+
+    const noDispose = createMockCairoContext(false);
+    expect(() => disposeCairoContext(noDispose.cr)).not.toThrow();
+    expect(() => disposeCairoContext(null)).not.toThrow();
+  });
+
+  it("draws micro rings, radial gauges, and mini capsules with rounded line caps", () => {
+    const geom = computeGaugeGeometry("used_percent_primary", 64);
+    const okMeter = {
+      ratio: geom.ratio,
+      hasValue: true,
+      startAngle: geom.startAngle,
+      endAngle: geom.endAngle,
+      tone: geom.tone,
+      rgb: geom.rgb,
+      isError: false,
+    };
+    const errMeter = {
+      ...okMeter,
+      hasValue: false,
+      ratio: 0,
+      isError: true,
+    };
+
+    const ringCtx = createMockCairoContext();
+    drawMicroRing(ringCtx.cr, 14, 14, okMeter);
+    expect(
+      ringCtx.ops.some((o) => o.op === "setLineCap" && o.args[0] === CAIRO_LINE_CAP_ROUND),
+    ).toBeTrue();
+    expect(ringCtx.ops.filter((o) => o.op === "stroke").length).toBe(2);
+
+    const errRingCtx = createMockCairoContext();
+    drawMicroRing(errRingCtx.cr, 14, 14, errMeter);
+    expect(errRingCtx.ops.filter((o) => o.op === "stroke").length).toBe(1);
+
+    const tinyRingCtx = createMockCairoContext();
+    drawMicroRing(tinyRingCtx.cr, 1, 1, okMeter);
+    expect(tinyRingCtx.ops.length).toBe(0);
+
+    const radialCtx = createMockCairoContext();
+    drawRadialGauge(radialCtx.cr, 80, 80, geom);
+    // Inner subtle ring + track arc + active value arc = 3 strokes
+    expect(radialCtx.ops.filter((o) => o.op === "stroke").length).toBe(3);
+
+    const emptyRadialCtx = createMockCairoContext();
+    drawRadialGauge(emptyRadialCtx.cr, 80, 80, computeGaugeGeometry("used_percent_primary", null));
+    expect(emptyRadialCtx.ops.filter((o) => o.op === "stroke").length).toBe(2);
+
+    const tinyRadialCtx = createMockCairoContext();
+    drawRadialGauge(tinyRadialCtx.cr, 4, 4, geom);
+    expect(tinyRadialCtx.ops.length).toBe(0);
+
+    const capsuleCtx = createMockCairoContext();
+    drawMiniCapsule(capsuleCtx.cr, 56, 6, okMeter);
+    expect(capsuleCtx.ops.filter((o) => o.op === "stroke").length).toBe(2);
+
+    const errCapsuleCtx = createMockCairoContext();
+    drawMiniCapsule(errCapsuleCtx.cr, 56, 6, errMeter);
+    expect(errCapsuleCtx.ops.filter((o) => o.op === "stroke").length).toBe(1);
+
+    const tinyCapsuleCtx = createMockCairoContext();
+    drawMiniCapsule(tinyCapsuleCtx.cr, 2, 1, okMeter);
+    expect(tinyCapsuleCtx.ops.length).toBe(0);
+  });
+});

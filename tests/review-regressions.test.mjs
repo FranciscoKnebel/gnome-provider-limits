@@ -14,6 +14,7 @@ function load(path, expression, globals = {}) {
       compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.ES2022 },
     })
     .outputText.replace(/^import[\s\S]*?;\n/gm, "")
+    .replace(/^export\s*\{[\s\S]*?\}(?:\s*from\s*[^;]+)?;\n/gm, "")
     .replace(/export default /g, "")
     .replace(/export /g, "");
   return vm.runInNewContext(`${compiled}\n;${expression}`, {
@@ -560,8 +561,9 @@ test("Language override, system selection, self-heal and disable preserve shared
   assert.equal(unrelated(), before);
 });
 
-test("Panel keeps footer actors across structural/value updates and scrolls focused fields", () => {
+test("Panel keeps footer actors across structural/value updates, switches tabs without closing, and scrolls focused fields", () => {
   const focused = [];
+  let menuClosed = false;
   class Actor {
     children = [];
     signals = new Map();
@@ -577,6 +579,21 @@ test("Panel keeps footer actors across structural/value updates and scrolls focu
     remove_child(child) {
       this.children = this.children.filter((v) => v !== child);
     }
+    get_first_child() {
+      return this.children[0] ?? null;
+    }
+    get_next_sibling() {
+      if (!this.parent) return null;
+      const idx = this.parent.children.indexOf(this);
+      return idx >= 0 ? (this.parent.children[idx + 1] ?? null) : null;
+    }
+    destroy() {
+      if (this.parent) this.parent.remove_child(this);
+      this.children = [];
+    }
+    grab_key_focus() {
+      focused.push(["focus", this]);
+    }
     connect(name, fn) {
       this.signals.set(name, fn);
     }
@@ -584,6 +601,18 @@ test("Panel keeps footer actors across structural/value updates and scrolls focu
     remove_style_class_name() {}
     get_stage() {
       return {};
+    }
+  }
+  class DrawingArea extends Actor {
+    repaintCount = 0;
+    queue_repaint() {
+      this.repaintCount++;
+    }
+    get_context() {
+      return { $dispose() {} };
+    }
+    get_surface_size() {
+      return [80, 80];
     }
   }
   class Section {
@@ -598,11 +627,14 @@ test("Panel keeps footer actors across structural/value updates and scrolls focu
       this.items = [];
       this.actor.children = [];
     }
+    destroy() {
+      this.removeAll();
+    }
   }
   class Item extends Actor {
     constructor(text, props) {
-      super(props ?? text);
-      this.label = new Actor({ text });
+      super(typeof text === "object" ? text : (props ?? {}));
+      this.label = new Actor({ text: typeof text === "string" ? text : "" });
     }
   }
   class Scroll extends Actor {
@@ -624,10 +656,25 @@ test("Panel keeps footer actors across structural/value updates and scrolls focu
       ScrollView: Scroll,
       Label: Actor,
       BoxLayout: Actor,
+      Button: Actor,
+      Widget: Actor,
+      DrawingArea,
       PolicyType: { NEVER: 0, AUTOMATIC: 1 },
       ThemeContext: { get_for_stage: () => ({ scale_factor: 2 }) },
     },
-    Clutter: { ActorAlign: { START: 0, END: 1 } },
+    Clutter: {
+      ActorAlign: { START: 0, CENTER: 1, END: 2 },
+      BinLayout: class {},
+      EVENT_STOP: true,
+      EVENT_PROPAGATE: false,
+      KEY_Left: 65361,
+      KEY_Right: 65363,
+      KEY_KP_Left: 65430,
+      KEY_KP_Right: 65432,
+      KEY_Return: 65293,
+      KEY_KP_Enter: 65421,
+      KEY_space: 32,
+    },
     Spinner: class extends Actor {
       play() {}
       stop() {}
@@ -635,36 +682,222 @@ test("Panel keeps footer actors across structural/value updates and scrolls focu
     _: (s) => s,
     GLib: { getenv: () => "en" },
     resolveLocale: () => "en",
+    normalizeProvidersOrder: (order) => order,
+    providerDisplayName: (_s, name) => name.toUpperCase(),
+    ReaderStatus: {
+      OK: "ok",
+      PARTIAL: "partial",
+      ERROR: "error",
+      UNAVAILABLE: "unavailable",
+      DISABLED: "disabled",
+    },
+    PROVIDER_FIELDS: {
+      codex: [{ name: "used_percent_primary", label: "Used (5h window)", type: "percent" }],
+      claude: [{ name: "used_percent_five_hour", label: "Used (5h window)", type: "percent" }],
+    },
+    structureKey: (parts) => parts.join("|"),
+    resolveActiveTab: (cur, enabled) =>
+      cur === "overview" || enabled.includes(cur) ? cur : "overview",
+    getAvailableTabs: (enabled) => ["overview", ...enabled],
+    cycleTab: (cur, enabled, dir) => {
+      const tabs = ["overview", ...enabled];
+      const idx = Math.max(0, tabs.indexOf(cur));
+      return tabs[(idx + dir + tabs.length) % tabs.length];
+    },
+    buildOverviewRowModel: ({ provider, displayName }) => ({
+      provider,
+      displayName,
+      badgeKind: "ok",
+      badgeText: "OK",
+      meter: {
+        ratio: 0.4,
+        hasValue: true,
+        startAngle: 0,
+        endAngle: 1,
+        tone: "ok",
+        rgb: [0, 1, 0],
+        isError: false,
+      },
+      primaryText: "40%",
+      secondaryText: "↻ 2h",
+      tone: "ok",
+      accessibleText: `${displayName}: 40%`,
+    }),
+    partitionProviderPanel: (_defs, result) => ({
+      gauges: [
+        {
+          fieldName: "used_percent_primary",
+          label: "Used (5h window)",
+          translatedLabel: "Used (5h window)",
+          geometry: {
+            ratio: (result?.fields?.[0]?.value ?? 0) / 100,
+            hasValue: true,
+            startAngle: 0,
+            endAngle: 1,
+            trackEndAngle: 2,
+            tone: "ok",
+            fieldTone: "ok",
+            rgb: [0, 1, 0],
+            centerText: `${result?.fields?.[0]?.value ?? 0}%`,
+          },
+          resetText: "↻ 2h",
+          hasResetSlot: true,
+          accessibleText: "Used: 40%",
+        },
+      ],
+      gaugeRows: [
+        [
+          {
+            fieldName: "used_percent_primary",
+            label: "Used (5h window)",
+            translatedLabel: "Used (5h window)",
+            geometry: {
+              ratio: (result?.fields?.[0]?.value ?? 0) / 100,
+              hasValue: true,
+              startAngle: 0,
+              endAngle: 1,
+              trackEndAngle: 2,
+              tone: "ok",
+              fieldTone: "ok",
+              rgb: [0, 1, 0],
+              centerText: `${result?.fields?.[0]?.value ?? 0}%`,
+            },
+            resetText: "↻ 2h",
+            hasResetSlot: true,
+            accessibleText: "Used: 40%",
+          },
+        ],
+      ],
+      bentoTiles: [],
+      bentoRows: [],
+    }),
+    providerDetailStructureKey: ({ provider, status }) => `${provider}:${status}`,
+    isCairoContext: () => false,
+    disposeCairoContext: (cr) => cr?.$dispose?.(),
+    drawMiniCapsule() {},
+    drawRadialGauge() {},
     Main: {
       layoutManager: {
         findMonitorForActor: () => ({ index: 0 }),
         getWorkAreaForMonitor: () => ({ height: 768 }),
       },
     },
+    formatAbsoluteTimestamp: (epoch) => `T${epoch}`,
     formatTimestampTemplate: (_t, at) => String(at),
     applyToneClass() {},
     ensureActorVisibleInScrollView: (scroll, row) => focused.push([scroll, row]),
   });
-  const panel = new K({ get_string: () => "en" }, new Map(), () => {});
+
+  const mockSettings = {
+    get_string: () => "en",
+    get_strv: (k) => (k === "providers-order" ? ["codex", "claude"] : ["used_percent_primary"]),
+    get_boolean: () => true,
+  };
+  const panel = new K(
+    mockSettings,
+    new Map([
+      ["codex", {}],
+      ["claude", {}],
+    ]),
+    () => {},
+  );
+  panel._getTopMenu = () => ({
+    close: () => {
+      menuClosed = true;
+    },
+  });
+
   assert.ok(panel._scroll.children.includes(panel._body.actor));
+  const footerRow = panel._footerRow;
   const refresh = panel._refreshRow;
   const settings = panel._settingsItem;
-  assert.ok(panel.box.children.includes(refresh));
+  assert.ok(panel.box.children.includes(footerRow));
+  assert.ok(!panel._scroll.children.includes(footerRow));
   assert.ok(!panel._scroll.children.includes(refresh));
+
   panel._scroll.mapped = true;
   panel._scroll.signals.get("notify::mapped")();
   assert.equal(panel._scroll.style, "max-height: 230px;");
-  panel._addSection = () => ({ fields: [] });
-  panel._rebuild([{ rows: [] }], 100);
-  panel._rebuild([{ rows: [] }, { rows: [] }], 200);
-  panel._update([{ rows: [] }, { rows: [] }], 300);
+
+  const results1 = new Map([
+    [
+      "codex",
+      { status: "ok", lastUpdated: 100, fields: [{ name: "used_percent_primary", value: 40 }] },
+    ],
+    [
+      "claude",
+      { status: "ok", lastUpdated: 100, fields: [{ name: "used_percent_five_hour", value: 20 }] },
+    ],
+  ]);
+  const results2 = new Map([
+    [
+      "codex",
+      { status: "ok", lastUpdated: 250, fields: [{ name: "used_percent_primary", value: 65 }] },
+    ],
+    [
+      "claude",
+      { status: "ok", lastUpdated: 250, fields: [{ name: "used_percent_five_hour", value: 30 }] },
+    ],
+  ]);
+
+  // Loading -> Overview -> In-place Overview -> Tab switch via arrow key -> Detail in-place update
+  panel.render(new Map(), null);
+  panel.render(results1, 100);
+  panel.render(results2, 200);
+  assert.equal(panel.activeTab, "overview");
+
+  const handledRight = panel._body.actor.signals.get("key-press-event")(panel._body.actor, {
+    get_key_symbol: () => 65363,
+  });
+  assert.equal(handledRight, true);
+  assert.equal(panel.activeTab, "codex");
+  assert.equal(menuClosed, false);
+
+  panel.render(results2, 300);
+  assert.equal(panel._footerRow, footerRow);
   assert.equal(panel._refreshRow, refresh);
   assert.equal(panel._settingsItem, settings);
   assert.equal(panel._lastRefreshLabel.text, "300");
+
   const field = panel._addStaticRow();
   assert.equal(field.can_focus, true);
   field.signals.get("key-focus-in")();
-  assert.deepEqual(focused[0], [panel._scroll, field]);
+  assert.deepEqual(
+    focused.find((entry) => entry[0] === panel._scroll),
+    [panel._scroll, field],
+  );
+});
+
+test("Dual-process GI boundary: Shell UI never imports Gtk/Adw/Gdk and Prefs never imports St/Clutter/Soup or IO readers", () => {
+  const shellFiles = [
+    "src/extension.ts",
+    "src/ui/statusBar.ts",
+    "src/ui/panel.ts",
+    "src/ui/cockpitModel.ts",
+  ];
+  for (const file of shellFiles) {
+    const src = readFileSync(file, "utf8");
+    assert.ok(!/gi:\/\/(Gtk|Adw|Gdk)\b/.test(src), `${file} must not import Gtk, Adw, or Gdk`);
+  }
+
+  const prefsFiles = [
+    "src/prefs.ts",
+    "src/ui/prefs/shared.ts",
+    "src/ui/prefs/main-page.ts",
+    "src/ui/prefs/provider-page.ts",
+    "src/readers/fields.ts",
+  ];
+  for (const file of prefsFiles) {
+    const src = readFileSync(file, "utf8");
+    assert.ok(
+      !/gi:\/\/(St|Clutter|Soup)\b/.test(src),
+      `${file} must not import St, Clutter, or Soup`,
+    );
+    assert.ok(
+      !/readers\/(codex|claude|opencode|grok)\.js/.test(src),
+      `${file} must import field metadata from readers/fields.js, not IO readers`,
+    );
+  }
 });
 
 test("late destruction of an old preferences window cannot tear down a reopened window", async () => {

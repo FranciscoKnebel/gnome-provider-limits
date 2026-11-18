@@ -426,3 +426,75 @@ msgstr ""
 #: src/formatters.ts
 msgid "w"
 msgstr ""
+
+#: src/ui/cockpitModel.ts
+msgid "OK"
+msgstr ""
+
+#: src/ui/cockpitModel.ts
+msgid "Cached"
+msgstr ""
+
+#: src/ui/cockpitModel.ts
+msgid "Partial"
+msgstr ""
+
+#: src/ui/panel.ts
+msgid "Overview"
+msgstr ""
+
+#: src/ui/panel.ts
+msgid "No providers enabled"
+msgstr ""
+
+#: src/ui/panel.ts
+msgid "Enable a provider in Settings to monitor usage limits."
+msgstr ""
+
+#: src/ui/panel.ts
+msgid "Reading provider limits…"
+msgstr ""
+
+#: src/ui/panel.ts
+msgid "Waiting for initial refresh to complete."
+msgstr ""
+
+#: src/ui/panel.ts
+msgid "No panel fields configured for this provider."
+msgstr ""
+
+#: src/ui/prefs/main-page.ts
+msgid "Move up"
+msgstr ""
+
+#: src/ui/prefs/main-page.ts
+msgid "Move down"
+msgstr ""
+
+#: src/ui/prefs/provider-page.ts
+msgid "Field Matrix"
+msgstr ""
+
+#: src/ui/prefs/provider-page.ts
+msgid "Toggle which fields appear in the status bar and panel."
+msgstr ""
+
+#: src/ui/prefs/provider-page.ts
+msgid "Reset defaults"
+msgstr ""
+
+#: src/ui/prefs/provider-page.ts
+msgid "Top Bar"
+msgstr ""
+
+#: src/ui/prefs/provider-page.ts
+msgid "Panel"
+msgstr ""
+
+#: src/ui/prefs/provider-page.ts
+msgid "Reorder active fields with the arrow buttons or by dragging."
+msgstr ""
+
+#: src/ui/prefs/provider-page.ts
+msgid "No fields selected."
+msgstr ""
