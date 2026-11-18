@@ -2,7 +2,8 @@
 
 Provider Limits reuses logins already persisted by supported Providers. It sends
 credentials only to the corresponding first-party usage endpoints on
-`chatgpt.com`, `api.anthropic.com`, `opencode.ai` and `cli-chat-proxy.grok.com`.
+`chatgpt.com`, `api.anthropic.com`, `opencode.ai`, `cli-chat-proxy.grok.com`,
+and `api2.cursor.sh`.
 There is no separate extension account or third-party credential collection.
 Credentials are read for each Refresh and are not persisted by the extension.
 GSettings stores preferences, never authentication material.

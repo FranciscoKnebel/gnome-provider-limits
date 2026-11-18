@@ -45,10 +45,11 @@ describe("redactForLog", () => {
   });
 
   it("redacts keys that partially match sensitive names", () => {
-    const input = { my_token_value: "secret", api_key_primary: "key123" };
+    const input = { my_token_value: "secret", api_key_primary: "key123", client_secret: "shh" };
     const output = redactForLog(input) as Record<string, unknown>;
     expect(output.my_token_value).toBe("<redacted>");
     expect(output.api_key_primary).toBe("<redacted>");
+    expect(output.client_secret).toBe("<redacted>");
   });
 
   it("masks JWT-looking strings", () => {

@@ -41,6 +41,34 @@ msgstr ""
 msgid "Grok: subscription credits unavailable. Try again later."
 msgstr ""
 
+#: src/readers/cursor.ts
+msgid "Used % (Auto + Composer)"
+msgstr ""
+
+msgid "Remaining % (Auto + Composer)"
+msgstr ""
+
+msgid "Used % (API pool)"
+msgstr ""
+
+msgid "Remaining % (API pool)"
+msgstr ""
+
+msgid "Remaining credits"
+msgstr ""
+
+msgid "On-demand spend"
+msgstr ""
+
+msgid "Cursor: no valid login. Run `cursor-agent login` to sign in."
+msgstr ""
+
+msgid "Cursor: login rejected. Run `cursor-agent login` to sign in again."
+msgstr ""
+
+msgid "Cursor: subscription credits unavailable. Try again later."
+msgstr ""
+
 #: src/ui/prefs/provider-page.ts
 msgid "Authentication file"
 msgstr ""
@@ -49,6 +77,12 @@ msgid "Sign in with `grok login`."
 msgstr ""
 
 msgid "Leave the authentication file empty to use $GROK_HOME/auth.json or ~/.grok/auth.json."
+msgstr ""
+
+msgid "Sign in with `cursor-agent login`."
+msgstr ""
+
+msgid "Leave the authentication file empty to use ~/.cursor/sdk/auth.json or ~/.config/cursor/auth.json."
 msgstr ""
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts

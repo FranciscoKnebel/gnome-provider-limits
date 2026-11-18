@@ -42,6 +42,34 @@ msgstr "Grok: login rejeitado. Execute `grok login` para entrar novamente."
 msgid "Grok: subscription credits unavailable. Try again later."
 msgstr "Grok: créditos da assinatura indisponíveis. Tente novamente mais tarde."
 
+#: src/readers/cursor.ts
+msgid "Used % (Auto + Composer)"
+msgstr "% usado (Auto + Composer)"
+
+msgid "Remaining % (Auto + Composer)"
+msgstr "% restante (Auto + Composer)"
+
+msgid "Used % (API pool)"
+msgstr "% usado (pool de API)"
+
+msgid "Remaining % (API pool)"
+msgstr "% restante (pool de API)"
+
+msgid "Remaining credits"
+msgstr "Créditos restantes"
+
+msgid "On-demand spend"
+msgstr "Gasto sob demanda"
+
+msgid "Cursor: no valid login. Run `cursor-agent login` to sign in."
+msgstr "Cursor: nenhum login válido. Execute `cursor-agent login` para entrar."
+
+msgid "Cursor: login rejected. Run `cursor-agent login` to sign in again."
+msgstr "Cursor: login rejeitado. Execute `cursor-agent login` para entrar novamente."
+
+msgid "Cursor: subscription credits unavailable. Try again later."
+msgstr "Cursor: créditos da assinatura indisponíveis. Tente novamente mais tarde."
+
 #: src/ui/prefs/provider-page.ts
 msgid "Authentication file"
 msgstr "Arquivo de autenticação"
@@ -51,6 +79,12 @@ msgstr "Entre com `grok login`."
 
 msgid "Leave the authentication file empty to use $GROK_HOME/auth.json or ~/.grok/auth.json."
 msgstr "Deixe o arquivo de autenticação vazio para usar $GROK_HOME/auth.json ou ~/.grok/auth.json."
+
+msgid "Sign in with `cursor-agent login`."
+msgstr "Entre com `cursor-agent login`."
+
+msgid "Leave the authentication file empty to use ~/.cursor/sdk/auth.json or ~/.config/cursor/auth.json."
+msgstr "Deixe o arquivo de autenticação vazio para usar ~/.cursor/sdk/auth.json ou ~/.config/cursor/auth.json."
 
 #: src/extension.ts src/prefs.ts src/ui/panel.ts src/ui/statusBar.ts
 msgid "Provider Limits"

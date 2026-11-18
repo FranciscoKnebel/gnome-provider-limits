@@ -12,6 +12,7 @@ const SENSITIVE_KEYS = [
   "password",
   "apiKey",
   "api_key",
+  "secret",
 ] as const;
 
 const SECRET_PATTERNS: readonly RegExp[] = [

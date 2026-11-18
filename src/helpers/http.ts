@@ -63,11 +63,19 @@ export class ProtocolError extends Error {
 export interface HttpRequestOptions {
   headers?: Record<string, string>;
   cancellable?: Gio.Cancellable;
+  noRedirect?: boolean;
 }
 
 export interface HttpGetOptions extends HttpRequestOptions {
   retries?: number;
   deadlineMs?: number;
+}
+
+export type HttpPostOptions = HttpGetOptions;
+
+interface EncodedBody {
+  contentType: string;
+  bytes: Uint8Array;
 }
 
 export class HttpClient {
@@ -84,6 +92,28 @@ export class HttpClient {
   }
 
   async getJson(url: string, options?: HttpGetOptions): Promise<unknown> {
+    return this._withCancellable(options, (request) =>
+      this._requestJson("GET", url, null, options, request),
+    );
+  }
+
+  async postJson(url: string, body: unknown, options?: HttpPostOptions): Promise<unknown> {
+    const encoded = new TextEncoder().encode(JSON.stringify(body ?? {}));
+    return this._withCancellable(options, (request) =>
+      this._requestJson(
+        "POST",
+        url,
+        { contentType: "application/json", bytes: encoded },
+        options,
+        request,
+      ),
+    );
+  }
+
+  private async _withCancellable<T>(
+    options: HttpRequestOptions | undefined,
+    run: (cancellable: Gio.Cancellable) => Promise<T>,
+  ): Promise<T> {
     if (this._destroyed) throw new NetworkError("HTTP client destroyed");
     const request = new Gio.Cancellable();
     const lifetimeId = this._lifetime.connect(() => request.cancel());
@@ -91,15 +121,17 @@ export class HttpClient {
     const outerId = outer?.connect(() => request.cancel());
     if (outer?.is_cancelled()) request.cancel();
     try {
-      return await this._getJson(url, options, request);
+      return await run(request);
     } finally {
       this._lifetime.disconnect(lifetimeId);
       if (outerId !== undefined) outer?.disconnect(outerId);
     }
   }
 
-  private async _getJson(
+  private async _requestJson(
+    method: string,
     url: string,
+    body: EncodedBody | null,
     options: HttpGetOptions | undefined,
     cancellable: Gio.Cancellable,
   ): Promise<unknown> {
@@ -114,8 +146,12 @@ export class HttpClient {
       const remainingMs = deadlineMs - (this._monotonicMs() - startedAt);
       if (remainingMs <= 0) throw new NetworkError("Request deadline exceeded");
       attempt++;
-      const message = Soup.Message.new("GET", url);
+      const message = Soup.Message.new(method, url);
+      if (options?.noRedirect) message.set_flags(Soup.MessageFlags.NO_REDIRECT);
       this._applyHeaders(message, options?.headers);
+      if (body) {
+        message.set_request_body_from_bytes(body.contentType, new GLib.Bytes(body.bytes));
+      }
 
       try {
         return await this._runWithDeadline(remainingMs, cancellable, (attemptCancellable) =>

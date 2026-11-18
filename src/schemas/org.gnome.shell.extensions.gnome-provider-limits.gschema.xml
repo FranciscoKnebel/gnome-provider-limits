@@ -36,7 +36,7 @@
 
     <!-- Globals: provider order -->
     <key name="providers-order" type="as">
-      <default>['codex','claude','opencode','grok']</default>
+      <default>['codex','claude','opencode','grok','cursor']</default>
       <summary>Providers display order</summary>
       <description>Order in which providers appear in the status bar and panel.</description>
     </key>
@@ -167,6 +167,38 @@
       <default>['remaining_percent_credits','prepaid_balance','unified_billing','plan_type','usage_source']</default>
       <summary>Grok panel fields</summary>
       <description>Fields shown for Grok in the panel, in display order.</description>
+    </key>
+
+    <!-- Per-provider: Cursor subscription -->
+    <key name="cursor-enabled" type="b">
+      <default>false</default>
+      <summary>Cursor enabled</summary>
+      <description>Whether Cursor appears in the status bar and panel.</description>
+    </key>
+    <key name="cursor-display-name" type="s">
+      <default>'Cursor'</default>
+      <summary>Cursor display name</summary>
+      <description>Full display name for Cursor in the panel and preferences.</description>
+    </key>
+    <key name="cursor-display-name-short" type="s">
+      <default>'cursor'</default>
+      <summary>Cursor short display name</summary>
+      <description>Compact label for Cursor in the status bar.</description>
+    </key>
+    <key name="cursor-cli-path" type="s">
+      <default>''</default>
+      <summary>Cursor authentication file</summary>
+      <description>Path to an existing Cursor SDK or Cursor CLI auth.json file, used instead of a CLI binary. Empty checks CURSOR_HOME/sdk/auth.json, ~/.config/cursor/auth.json, and ~/.cursor/auth.json. Only the path is stored, never credentials.</description>
+    </key>
+    <key name="cursor-status-fields" type="as">
+      <default>['used_percent_credits','reset_at_credits']</default>
+      <summary>Cursor status bar fields</summary>
+      <description>Fields shown for Cursor in the status bar, in display order.</description>
+    </key>
+    <key name="cursor-panel-fields" type="as">
+      <default>['remaining_percent_credits','used_percent_auto','used_percent_api','remaining_credits','spend_limit_used','limit_reached','plan_type','usage_source']</default>
+      <summary>Cursor panel fields</summary>
+      <description>Fields shown for Cursor in the panel, in display order.</description>
     </key>
 
   </schema>

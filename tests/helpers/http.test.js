@@ -523,5 +523,41 @@ export async function run() {
     });
   }
 
+  // Test 19: postJson encodes request body and applies NO_REDIRECT when requested
+  try {
+    const captured = [];
+    class InspectHttpClient extends HttpClient {
+      async _sendAndParse(message) {
+        captured.push({
+          method: message.get_method(),
+          flags: message.get_flags(),
+        });
+        return { ok: true };
+      }
+    }
+    const client = new InspectHttpClient();
+
+    const jsonRes = await client.postJson(
+      "https://example.com/rpc",
+      { hello: "world" },
+      { noRedirect: true },
+    );
+    assertEqual(jsonRes.ok, true, "postJson should parse response");
+    assertEqual(captured[0].method, "POST", "postJson should use POST");
+    assert(
+      (captured[0].flags & Soup.MessageFlags.NO_REDIRECT) !== 0,
+      "noRedirect should set Soup.MessageFlags.NO_REDIRECT",
+    );
+
+    results.push({ name: "postJson and noRedirect work", passed: true });
+    client.destroy();
+  } catch (e) {
+    results.push({
+      name: "postJson and noRedirect work",
+      passed: false,
+      error: String(e),
+    });
+  }
+
   return results;
 }

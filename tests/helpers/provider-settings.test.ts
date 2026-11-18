@@ -35,6 +35,7 @@ describe("normalizeProvidersOrder", () => {
       "codex",
       "claude",
       "grok",
+      "cursor",
     ]);
   });
 
@@ -44,6 +45,7 @@ describe("normalizeProvidersOrder", () => {
       "claude",
       "opencode",
       "grok",
+      "cursor",
     ]);
   });
 
@@ -53,11 +55,18 @@ describe("normalizeProvidersOrder", () => {
       "codex",
       "opencode",
       "grok",
+      "cursor",
     ]);
   });
 
   it("appends missing defaults after the configured values", () => {
-    expect(normalizeProvidersOrder(["claude"])).toEqual(["claude", "codex", "opencode", "grok"]);
+    expect(normalizeProvidersOrder(["claude"])).toEqual([
+      "claude",
+      "codex",
+      "opencode",
+      "grok",
+      "cursor",
+    ]);
   });
 
   it("returns the default order for empty input", () => {

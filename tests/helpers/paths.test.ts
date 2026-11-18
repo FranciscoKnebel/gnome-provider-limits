@@ -1,6 +1,8 @@
 import {
+  expandHomePath,
   resolveClaudeConfigDir,
   resolveCodexHome,
+  resolveCursorAuthPaths,
   resolveOpenCodeDataDir,
 } from "../../src/helpers/paths.js";
 
@@ -55,5 +57,27 @@ describe("resolveOpenCodeDataDir", () => {
     expect(resolveOpenCodeDataDir({ XDG_DATA_HOME: "  " }, HOME)).toBe(
       "/home/tester/.local/share/opencode",
     );
+  });
+});
+
+describe("expandHomePath", () => {
+  it("expands ~ and ~/ prefixes while preserving absolute paths", () => {
+    expect(expandHomePath("~", HOME)).toBe("/home/tester");
+    expect(expandHomePath("~/custom/auth.json", HOME)).toBe("/home/tester/custom/auth.json");
+    expect(expandHomePath("/etc/auth.json", HOME)).toBe("/etc/auth.json");
+  });
+});
+
+describe("resolveCursorAuthPaths", () => {
+  it("orders SDK credential store before CLI auth files and honors overrides", () => {
+    expect(resolveCursorAuthPaths({}, HOME)).toEqual([
+      "/home/tester/.cursor/sdk/auth.json",
+      "/home/tester/.config/cursor/auth.json",
+      "/home/tester/.cursor/auth.json",
+    ]);
+
+    expect(
+      resolveCursorAuthPaths({ CURSOR_HOME: "/opt/cursor", XDG_CONFIG_HOME: "/opt/cfg" }, HOME),
+    ).toEqual(["/opt/cursor/sdk/auth.json", "/opt/cfg/cursor/auth.json", "/opt/cursor/auth.json"]);
   });
 });
