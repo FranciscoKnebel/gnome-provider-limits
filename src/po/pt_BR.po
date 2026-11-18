@@ -431,3 +431,47 @@ msgstr "d"
 #: src/formatters.ts
 msgid "w"
 msgstr "sem"
+
+#: src/ui/matrixPlan.ts
+msgid "Limits"
+msgstr "Limites"
+
+#: src/ui/matrixPlan.ts
+msgid "Telemetry"
+msgstr "Telemetria"
+
+#: src/ui/matrixPlan.ts
+msgid "No providers enabled. Open Settings to enable a provider."
+msgstr "Nenhum provedor ativado. Abra Configurações para ativar um provedor."
+
+#: src/ui/matrixPlan.ts src/ui/statusBar.ts
+msgid "Reading provider limits…"
+msgstr "Lendo limites dos provedores…"
+
+#: src/ui/panel.ts
+msgid "Expand all"
+msgstr "Expandir todos"
+
+#: src/ui/panel.ts
+msgid "Collapse all"
+msgstr "Recolher todos"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Move up"
+msgstr "Mover para cima"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Move down"
+msgstr "Mover para baixo"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Reset"
+msgstr "Redefinir"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Reset fields to defaults"
+msgstr "Redefinir campos para o padrão"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Enable, reorder, and configure each provider inline."
+msgstr "Ative, reordene e configure cada provedor na própria linha."

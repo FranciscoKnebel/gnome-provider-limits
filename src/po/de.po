@@ -431,3 +431,47 @@ msgstr "Tg"
 #: src/formatters.ts
 msgid "w"
 msgstr "Wo"
+
+#: src/ui/matrixPlan.ts
+msgid "Limits"
+msgstr "Limits"
+
+#: src/ui/matrixPlan.ts
+msgid "Telemetry"
+msgstr "Telemetrie"
+
+#: src/ui/matrixPlan.ts
+msgid "No providers enabled. Open Settings to enable a provider."
+msgstr "Keine Anbieter aktiviert. Öffnen Sie die Einstellungen, um einen Anbieter zu aktivieren."
+
+#: src/ui/matrixPlan.ts src/ui/statusBar.ts
+msgid "Reading provider limits…"
+msgstr "Anbieterlimits werden gelesen…"
+
+#: src/ui/panel.ts
+msgid "Expand all"
+msgstr "Alle ausklappen"
+
+#: src/ui/panel.ts
+msgid "Collapse all"
+msgstr "Alle einklappen"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Move up"
+msgstr "Nach oben verschieben"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Move down"
+msgstr "Nach unten verschieben"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Reset"
+msgstr "Zurücksetzen"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Reset fields to defaults"
+msgstr "Felder auf Standardwerte zurücksetzen"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Enable, reorder, and configure each provider inline."
+msgstr "Aktivieren, sortieren und konfigurieren Sie jeden Anbieter direkt in der Zeile."

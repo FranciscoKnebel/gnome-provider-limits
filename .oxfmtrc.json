@@ -7,5 +7,5 @@
   "trailingComma": "all",
   "semi": true,
   "sortImports": true,
-  "ignorePatterns": ["dist/", "node_modules/"]
+  "ignorePatterns": ["coverage/", "dist/", "docs/", "node_modules/"]
 }

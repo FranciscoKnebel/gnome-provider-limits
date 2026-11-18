@@ -426,3 +426,47 @@ msgstr ""
 #: src/formatters.ts
 msgid "w"
 msgstr ""
+
+#: src/ui/matrixPlan.ts
+msgid "Limits"
+msgstr ""
+
+#: src/ui/matrixPlan.ts
+msgid "Telemetry"
+msgstr ""
+
+#: src/ui/matrixPlan.ts
+msgid "No providers enabled. Open Settings to enable a provider."
+msgstr ""
+
+#: src/ui/matrixPlan.ts src/ui/statusBar.ts
+msgid "Reading provider limits…"
+msgstr ""
+
+#: src/ui/panel.ts
+msgid "Expand all"
+msgstr ""
+
+#: src/ui/panel.ts
+msgid "Collapse all"
+msgstr ""
+
+#: src/ui/prefs/provider-page.ts
+msgid "Move up"
+msgstr ""
+
+#: src/ui/prefs/provider-page.ts
+msgid "Move down"
+msgstr ""
+
+#: src/ui/prefs/provider-page.ts
+msgid "Reset"
+msgstr ""
+
+#: src/ui/prefs/provider-page.ts
+msgid "Reset fields to defaults"
+msgstr ""
+
+#: src/ui/prefs/provider-page.ts
+msgid "Enable, reorder, and configure each provider inline."
+msgstr ""

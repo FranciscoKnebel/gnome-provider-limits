@@ -4,97 +4,104 @@ import GLib from "gi://GLib";
 import GObject from "gi://GObject";
 import St from "gi://St";
 
-import type { ProviderName } from "../constants.js";
+import { PROVIDER_NAMES, type ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { resolveLocale } from "../helpers/locale.js";
 import { normalizeProvidersOrder, providerDisplayNameShort } from "../helpers/provider-settings.js";
-import type { BaseReader, ReaderResult } from "../readers/base.js";
-import { ReaderStatus } from "../readers/base.js";
-import { getFieldRows } from "./fieldRows.js";
-import type { FieldRow } from "./fieldRows.js";
-import { sectionKey, structureKey } from "./renderStructure.js";
-import { applyToneClass } from "./tone.js";
+import type { BaseReader, FieldDef, ReaderResult } from "../readers/base.js";
+import { planStatusBar } from "./matrixPlan.js";
+import type { StatusBarPlan } from "./matrixPlan.js";
+import { applyStatusAttentionClass } from "./tone.js";
 
-interface SegmentPlan {
-  displayName: string;
-  status: ReaderStatus;
-  rows: FieldRow[];
-  key: string;
+interface PooledSegment {
+  box: St.BoxLayout;
+  nameLabel: St.Label;
+  metricsLabel: St.Label | null;
 }
 
 export const StatusBarWidget = GObject.registerClass(
   class StatusBarWidget extends St.BoxLayout {
     declare _settings: Gio.Settings;
     declare _readers: Map<ProviderName, BaseReader>;
-    declare _segments: St.Label[][];
+    declare _segments: PooledSegment[];
+    declare _placeholderLabel: St.Label | null;
     declare _structureKey: string | null;
 
     _init(settings: Gio.Settings, readers: Map<ProviderName, BaseReader>) {
       super._init({
-        style_class: "provider-limits-status-bar",
+        style_class: "provider-limits-status-bar provider-limits-tnum",
         y_align: Clutter.ActorAlign.CENTER,
       });
       this._settings = settings;
       this._readers = readers;
       this._segments = [];
+      this._placeholderLabel = null;
       this._structureKey = null;
       this.accessible_name = _("Provider Limits");
+
+      this.render(new Map());
     }
 
     render(results: Map<ProviderName, ReaderResult>): void {
-      const order = normalizeProvidersOrder(this._settings.get_strv("providers-order"));
+      const rawOrder =
+        typeof this._settings.get_strv === "function"
+          ? this._settings.get_strv("providers-order")
+          : PROVIDER_NAMES;
+      const order = normalizeProvidersOrder(rawOrder);
       const locale = resolveLocale(
-        this._settings.get_string("language"),
+        typeof this._settings.get_string === "function"
+          ? this._settings.get_string("language")
+          : "",
         GLib.getenv("LC_MESSAGES"),
         GLib.getenv("LANG"),
       );
 
-      const plans: SegmentPlan[] = [];
+      const enabledProviders = new Set<ProviderName>();
+      const shortLabels = {} as Record<ProviderName, string>;
+      const statusFields = {} as Record<ProviderName, readonly string[]>;
+      const fieldDefs: Partial<Record<ProviderName, readonly FieldDef[]>> = {};
 
-      for (const name of order) {
-        const result = results.get(name);
-        if (!result) continue;
-        if (result.status === ReaderStatus.DISABLED) continue;
+      for (const name of PROVIDER_NAMES) {
+        const enabled =
+          typeof this._settings.get_boolean === "function"
+            ? this._settings.get_boolean(`${name}-enabled`)
+            : this._readers.has(name) || results.has(name);
+        if (enabled) enabledProviders.add(name);
 
-        const displayName = providerDisplayNameShort(this._settings, name);
-        const rows = getFieldRows(
-          this._readers.get(name),
-          result,
-          this._settings.get_strv(`${name}-status-fields`),
-          "status",
-          locale,
-          _,
-        );
+        shortLabels[name] =
+          typeof this._settings.get_string === "function"
+            ? providerDisplayNameShort(this._settings, name)
+            : name;
+        statusFields[name] =
+          typeof this._settings.get_strv === "function"
+            ? this._settings.get_strv(`${name}-status-fields`)
+            : [];
 
-        plans.push({
-          displayName,
-          status: result.status,
-          rows,
-          key: sectionKey({
-            provider: name,
-            displayName,
-            status: result.status,
-            locale,
-            rows,
-            hasDetail: false,
-            hasError:
-              result.status === ReaderStatus.ERROR || result.status === ReaderStatus.UNAVAILABLE,
-            hasTimestamp: false,
-          }),
-        });
+        const reader = this._readers.get(name);
+        if (reader) fieldDefs[name] = reader.FIELDS;
       }
 
-      const nextStructureKey = structureKey([locale, ...plans.map((plan) => plan.key)]);
-      if (nextStructureKey !== this._structureKey) {
-        this._rebuild(plans);
-        this._structureKey = nextStructureKey;
+      const plan = planStatusBar({
+        order,
+        enabledProviders,
+        results,
+        shortLabels,
+        statusFields,
+        fieldDefs,
+        locale,
+        t: _,
+      });
+
+      if (plan.key !== this._structureKey) {
+        this._rebuild(plan);
+        this._structureKey = plan.key;
         return;
       }
 
-      this._update(plans);
+      this._update(plan);
     }
 
-    private _rebuild(plans: SegmentPlan[]): void {
+    private _clearActors(): void {
       let child = this.get_first_child();
       while (child) {
         const next = child.get_next_sibling();
@@ -102,83 +109,81 @@ export const StatusBarWidget = GObject.registerClass(
         child = next;
       }
       this._segments = [];
+      this._placeholderLabel = null;
+    }
 
-      plans.forEach((plan, index) => {
-        if (index > 0) {
-          this.add_child(
-            new St.Label({
-              text: " · ",
-              style_class: "provider-limits-separator",
-              y_align: Clutter.ActorAlign.CENTER,
-            }),
-          );
-        }
+    private _rebuild(plan: StatusBarPlan): void {
+      this._clearActors();
 
-        const label = new St.Label({
-          text: plan.displayName,
+      if (plan.state === "loading" && plan.placeholderText) {
+        const placeholder = new St.Label({
+          text: plan.placeholderText,
+          style_class: "provider-limits-status-placeholder provider-limits-tnum",
+          y_align: Clutter.ActorAlign.CENTER,
+        });
+        placeholder.accessible_name = _("Reading provider limits…");
+        this.add_child(placeholder);
+        this._placeholderLabel = placeholder;
+        return;
+      }
+
+      plan.badges.forEach((badge, index) => {
+        const segment = new St.BoxLayout({
+          style_class:
+            index > 0
+              ? "provider-limits-status-segment provider-limits-status-segment-divided"
+              : "provider-limits-status-segment",
+          y_align: Clutter.ActorAlign.CENTER,
+        });
+        segment.accessible_name = badge.accessibleText;
+
+        const nameLabel = new St.Label({
+          text: badge.shortLabel,
           style_class: "provider-limits-provider-label",
           y_align: Clutter.ActorAlign.CENTER,
         });
-        label.accessible_name = plan.displayName;
-        this.add_child(label);
+        nameLabel.accessible_name = badge.shortLabel;
+        segment.add_child(nameLabel);
 
-        this._addStatusSuffix(plan.status);
-
-        const values = plan.rows.map((row) => {
-          const valueLabel = new St.Label({
-            text: row.valueText,
+        let metricsLabel: St.Label | null = null;
+        if (badge.metricsText) {
+          metricsLabel = new St.Label({
+            text: badge.metricsText,
+            style_class: "provider-limits-status-metrics provider-limits-tnum",
             y_align: Clutter.ActorAlign.CENTER,
           });
-          this._applyRow(valueLabel, row);
-          this.add_child(valueLabel);
-          return valueLabel;
-        });
+          metricsLabel.accessible_name = badge.accessibleText;
+          segment.add_child(metricsLabel);
+        }
 
-        this._segments.push(values);
+        applyStatusAttentionClass(segment, metricsLabel ?? nameLabel, badge.attention);
+        this.add_child(segment);
+        this._segments.push({ box: segment, nameLabel, metricsLabel });
       });
     }
 
-    private _update(plans: SegmentPlan[]): void {
-      plans.forEach((plan, index) => {
-        const values = this._segments[index];
-        if (!values) return;
-
-        plan.rows.forEach((row, rowIndex) => {
-          const valueLabel = values[rowIndex];
-          if (!valueLabel) return;
-          valueLabel.text = row.valueText;
-          this._applyRow(valueLabel, row);
-        });
-      });
-    }
-
-    private _applyRow(label: St.Label, row: FieldRow): void {
-      label.accessible_name = row.accessibleText ?? `${row.label}: ${row.valueText}`;
-      applyToneClass(label, row.tone);
-    }
-
-    private _addStatusSuffix(status: ReaderStatus): void {
-      const text = this._statusSuffix(status);
-      if (!text) return;
-
-      const suffix = new St.Label({
-        text,
-        style_class: "provider-limits-error",
-        y_align: Clutter.ActorAlign.CENTER,
-      });
-      suffix.accessible_name = text;
-      this.add_child(suffix);
-    }
-
-    private _statusSuffix(status: ReaderStatus): string {
-      switch (status) {
-        case ReaderStatus.ERROR:
-          return _("(error)");
-        case ReaderStatus.UNAVAILABLE:
-          return _("(unavailable)");
-        default:
-          return "";
+    private _update(plan: StatusBarPlan): void {
+      if (plan.state === "loading" && this._placeholderLabel && plan.placeholderText) {
+        this._placeholderLabel.text = plan.placeholderText;
+        return;
       }
+
+      plan.badges.forEach((badge, index) => {
+        const pooled = this._segments[index];
+        if (!pooled) return;
+
+        pooled.box.accessible_name = badge.accessibleText;
+        pooled.nameLabel.text = badge.shortLabel;
+        if (pooled.metricsLabel) {
+          pooled.metricsLabel.text = badge.metricsText;
+          pooled.metricsLabel.accessible_name = badge.accessibleText;
+        }
+        applyStatusAttentionClass(
+          pooled.box,
+          pooled.metricsLabel ?? pooled.nameLabel,
+          badge.attention,
+        );
+      });
     }
   },
 );
