@@ -426,3 +426,55 @@ msgstr ""
 #: src/formatters.ts
 msgid "w"
 msgstr ""
+
+#: src/ui/cardPlan.ts
+msgid "Live"
+msgstr ""
+
+#: src/ui/cardPlan.ts
+msgid "Cached"
+msgstr ""
+
+#: src/ui/cardPlan.ts
+msgid "Unavailable"
+msgstr ""
+
+#: src/ui/cardPlan.ts
+msgid "Loading provider limits…"
+msgstr ""
+
+#: src/ui/cardPlan.ts
+msgid "Waiting for provider data…"
+msgstr ""
+
+#: src/ui/cardPlan.ts
+msgid "No providers enabled"
+msgstr ""
+
+#: src/ui/cardPlan.ts
+msgid "Enable a provider in Settings to monitor usage limits."
+msgstr ""
+
+#: src/ui/prefs/main-page.ts
+msgid "Enable and reorder providers by dragging rows or using arrow buttons."
+msgstr ""
+
+#: src/ui/prefs/provider-page.ts
+msgid "Reorder rows or use \"+\" to add fields."
+msgstr ""
+
+#: src/ui/prefs/provider-page.ts
+msgid "Reset defaults"
+msgstr ""
+
+#: src/ui/prefs/provider-page.ts
+msgid "Restore default fields"
+msgstr ""
+
+#: src/ui/prefs/shared.ts
+msgid "Move up"
+msgstr ""
+
+#: src/ui/prefs/shared.ts
+msgid "Move down"
+msgstr ""

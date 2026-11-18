@@ -16,13 +16,20 @@ function defaultValueFor(key) {
 
 export const MockSettings = GObject.registerClass(
   class MockSettings extends GObject.Object {
-    _init(props = {}) {
+    _init(props = {}, defaults = {}) {
       super._init();
       this._values = { ...props };
+      this._defaults = { ...defaults };
       this._handlers = new Map();
       this._bindings = new Map();
       this._nextHandlerId = 1;
       this._pushing = false;
+    }
+
+    reset(key) {
+      const def = key in this._defaults ? this._defaults[key] : defaultValueFor(key);
+      this._values[key] = Array.isArray(def) ? [...def] : def;
+      this._emitChange(key);
     }
 
     connect(signal, callback) {

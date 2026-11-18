@@ -165,23 +165,28 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
     private _buildProvidersGroup(): Adw.PreferencesGroup {
       const group = new Adw.PreferencesGroup({
         title: _("Providers"),
-        description: _("Enable and reorder providers by dragging the rows."),
+        description: _("Enable and reorder providers by dragging rows or using arrow buttons."),
       });
 
       const toggleBindings: SettingsBinding[] = [];
       const { listBox, render, destroy } = buildReorderableList(
         this._settings,
         "providers-order",
-        (value) => {
+        (value, reorderControls) => {
           if (!isProviderName(value)) return null;
+          const displayName = providerDisplayName(this._settings, value);
           const row = this._buildReorderableRow({
             key: "providers-order",
             value,
-            label: providerDisplayName(this._settings, value),
+            label: displayName,
           });
+          row.add_suffix(reorderControls);
+
           const toggle = new Gtk.Switch({ valign: Gtk.Align.CENTER });
+          toggle.update_property([Gtk.AccessibleProperty.LABEL], [displayName]);
           bindSetting(this._settings, `${value}-enabled`, toggle, "active", toggleBindings);
           row.add_suffix(toggle);
+          row.activatable_widget = toggle;
           return row;
         },
         normalizeProvidersOrder,
@@ -236,7 +241,6 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
 
       const row = new Adw.ActionRow({
         title: label,
-        activatable: false,
       });
 
       const dragHandle = new Gtk.Image({ icon_name: "list-drag-handle-symbolic" });

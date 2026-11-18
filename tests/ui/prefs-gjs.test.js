@@ -1,12 +1,13 @@
 import GLib from "gi://GLib";
 
-import { assertEqual, assertNotNull } from "../helpers/assert.js";
+import { assert, assertDeepEqual, assertEqual, assertNotNull } from "../helpers/assert.js";
 import { MockSettings } from "../mocks/mock-settings.js";
 
 const PROVIDER_DISPLAY_NAMES = {
   codex: "Codex Pro",
   claude: "Claude Max",
   opencode: "OpenCode Go",
+  grok: "Grok Build",
 };
 
 function skipResult(reason) {
@@ -32,6 +33,18 @@ function findWidget(widget, predicate) {
   return null;
 }
 
+function findAllWidgets(widget, predicate, acc = []) {
+  if (predicate(widget)) acc.push(widget);
+
+  let child = widget.get_first_child?.() ?? null;
+  while (child) {
+    findAllWidgets(child, predicate, acc);
+    child = child.get_next_sibling();
+  }
+
+  return acc;
+}
+
 export async function run() {
   let Gtk;
   let Adw;
@@ -47,6 +60,11 @@ export async function run() {
   }
   Adw.init();
 
+  const gettextUrl = GLib.Uri.resolve_relative(
+    import.meta.url,
+    "../../dist/helpers/gettext.js",
+    GLib.UriFlags.NONE,
+  );
   const mainPageUrl = GLib.Uri.resolve_relative(
     import.meta.url,
     "../../dist/ui/prefs/main-page.js",
@@ -57,22 +75,30 @@ export async function run() {
     "../../dist/ui/prefs/provider-page.js",
     GLib.UriFlags.NONE,
   );
+  const { configureTranslations } = await import(gettextUrl);
+  configureTranslations(`${GLib.get_current_dir()}/dist`, "en");
+
   const { ProviderLimitsPreferencesPage } = await import(mainPageUrl);
   const { ProviderPage } = await import(providerPageUrl);
 
   const results = [];
 
-  // Test 1: ProviderLimitsPreferencesPage can be constructed
+  // Test 1: ProviderLimitsPreferencesPage binds status bar position & accessible reorderable switches
   try {
     const settings = new MockSettings({
-      "providers-order": ["codex", "claude", "opencode"],
+      "providers-order": ["codex", "claude", "opencode", "grok"],
       "codex-enabled": true,
       "claude-enabled": false,
       "opencode-enabled": true,
+      "grok-enabled": false,
+      "codex-display-name": "Codex",
+      "claude-display-name": "Claude",
+      "opencode-display-name": "OpenCode Go",
+      "grok-display-name": "Grok",
       "refresh-short-interval-seconds": 10,
       "refresh-long-interval-seconds": 120,
       "refresh-stable-reads-threshold": 3,
-      language: "",
+      language: "en",
       "status-bar-position": "left",
     });
     const page = new ProviderLimitsPreferencesPage(settings, [{ code: "en", name: "English" }]);
@@ -91,6 +117,37 @@ export async function run() {
     );
     settings.set_string("status-bar-position", "left");
     assertEqual(positionRow.selected, 0, "selection should follow external setting changes");
+
+    const codexRow = findWidget(
+      page,
+      (widget) => widget instanceof Adw.ActionRow && widget.title === "Codex",
+    );
+    assertNotNull(codexRow, "Codex row should exist");
+    assertNotNull(
+      codexRow.activatable_widget,
+      "Codex row should have an activatable_widget switch",
+    );
+
+    const providersList = codexRow.get_parent();
+    assertEqual(
+      providersList.selection_mode,
+      Gtk.SelectionMode.NONE,
+      "reorderable list should use Gtk.SelectionMode.NONE",
+    );
+
+    const moveDownButtons = findAllWidgets(
+      codexRow,
+      (w) => w instanceof Gtk.Button && w.icon_name === "go-down-symbolic",
+    );
+    assertEqual(moveDownButtons.length, 1, "Codex row should have a Move Down button");
+    moveDownButtons[0].emit("clicked");
+    assertDeepEqual(
+      settings.get_strv("providers-order"),
+      ["claude", "codex", "opencode", "grok"],
+      "clicking Move Down should reorder providers",
+    );
+
+    page.cleanup();
     results.push({ name: "Status bar position preference binds to settings", passed: true });
   } catch (e) {
     results.push({
@@ -117,6 +174,7 @@ export async function run() {
       const page = new ProviderPage(settings, provider);
       assertNotNull(page, "ProviderPage should be created");
       assertEqual(page.title, displayName, "page title should match the display name setting");
+      page.cleanup();
       results.push({ name, passed: true });
     } catch (e) {
       results.push({ name, passed: false, error: String(e) });
@@ -132,7 +190,7 @@ export async function run() {
       "codex-cli-path": "",
       "codex-status-fields": ["used_percent_primary"],
       "codex-panel-fields": [],
-      language: "",
+      language: "en",
     });
 
     const page = new ProviderPage(settings, "codex");
@@ -147,6 +205,7 @@ export async function run() {
 
     assertEqual(page.title, "New Name", "title should follow the display name setting");
     assertEqual(titleChanged, true, "changing the setting should notify the title");
+    page.cleanup();
     results.push({ name: "Settings binding triggers title change", passed: true });
   } catch (e) {
     results.push({
@@ -156,7 +215,68 @@ export async function run() {
     });
   }
 
-  // Test 4: MockSettings.set_strv emits changed:: signal
+  // Test 4: ProviderPage Gtk.MenuButton + Popover adds fields and Reset defaults restores defaults
+  try {
+    const settings = new MockSettings(
+      {
+        "codex-enabled": true,
+        "codex-display-name": "Codex",
+        "codex-display-name-short": "codex",
+        "codex-cli-path": "",
+        "codex-status-fields": ["used_percent_primary"],
+        "codex-panel-fields": [],
+        language: "en",
+      },
+      {
+        "codex-status-fields": ["used_percent_primary", "reset_at_primary"],
+      },
+    );
+
+    const page = new ProviderPage(settings, "codex");
+    const menuButtons = findAllWidgets(page, (w) => w instanceof Gtk.MenuButton);
+    assert(menuButtons.length >= 2, "should have MenuButtons for status and panel fields");
+
+    const statusPopover = menuButtons[0].popover;
+    assertNotNull(statusPopover, "status fields MenuButton should have a Popover");
+
+    const availableRow = findWidget(
+      statusPopover,
+      (w) => w instanceof Adw.ActionRow && w.title === "Remaining % (5h window)",
+    );
+    assertNotNull(availableRow, "available field row should appear in Popover");
+    availableRow.emit("activated");
+    assertDeepEqual(
+      settings.get_strv("codex-status-fields"),
+      ["used_percent_primary", "remaining_percent_primary"],
+      "activating Popover row should append field immediately",
+    );
+
+    const resetButtons = findAllWidgets(
+      page,
+      (w) => w instanceof Gtk.Button && w.label === "Reset defaults",
+    );
+    assert(resetButtons.length >= 2, "should have Reset defaults buttons");
+    resetButtons[0].emit("clicked");
+    assertDeepEqual(
+      settings.get_strv("codex-status-fields"),
+      ["used_percent_primary", "reset_at_primary"],
+      "Reset defaults should restore schema defaults",
+    );
+
+    page.cleanup();
+    results.push({
+      name: "ProviderPage Popover adds fields and Reset defaults restores defaults",
+      passed: true,
+    });
+  } catch (e) {
+    results.push({
+      name: "ProviderPage Popover adds fields and Reset defaults restores defaults",
+      passed: false,
+      error: String(e),
+    });
+  }
+
+  // Test 5: MockSettings.set_strv emits changed:: signal
   try {
     const settings = new MockSettings({
       "codex-status-fields": ["used_percent_primary"],

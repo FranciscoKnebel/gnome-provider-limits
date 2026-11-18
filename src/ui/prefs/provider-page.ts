@@ -8,15 +8,13 @@ import type { ProviderName } from "../../constants.js";
 import { formatField } from "../../formatters.js";
 import { resolveLocale } from "../../helpers/locale.js";
 import { providerDisplayName } from "../../helpers/provider-settings.js";
-import type { FieldDef, FieldType } from "../../readers/base.js";
-import { CLAUDE_FIELDS } from "../../readers/claude.js";
-import { CODEX_FIELDS } from "../../readers/codex.js";
-import { GROK_FIELDS } from "../../readers/grok.js";
-import { OPENCODE_FIELDS } from "../../readers/opencode.js";
+import { getProviderFields } from "../../readers/fields.js";
+import type { FieldDef, FieldType } from "../../readers/fields.js";
 import { gettext as _ } from "./gettext.js";
 import {
   bindSetting,
   buildReorderableList,
+  clearListBox,
   setupDragSource,
   setupDropTarget,
   unbindSettings,
@@ -35,17 +33,6 @@ const SAMPLE_VALUES: Record<Exclude<FieldType, "timestamp">, unknown> = {
 function sampleValue(type: FieldType): unknown {
   if (type === "timestamp") return Date.now() + 5400 * 1000;
   return SAMPLE_VALUES[type];
-}
-
-const READER_FIELDS: Record<ProviderName, readonly FieldDef[]> = {
-  codex: CODEX_FIELDS,
-  claude: CLAUDE_FIELDS,
-  opencode: OPENCODE_FIELDS,
-  grok: GROK_FIELDS,
-};
-
-function getReaderFields(provider: ProviderName): readonly FieldDef[] {
-  return READER_FIELDS[provider];
 }
 
 export const ProviderPage = GObject.registerClass(
@@ -148,80 +135,151 @@ export const ProviderPage = GObject.registerClass(
         GLib.getenv("LC_MESSAGES"),
         GLib.getenv("LANG"),
       );
-      const available = getReaderFields(this._provider);
+      const available = getProviderFields(this._provider);
 
       const group = new Adw.PreferencesGroup({
         title,
-        description: _('Drag rows to reorder. Use "+" to add fields.'),
+        description: _('Reorder rows or use "+" to add fields.'),
       });
 
-      const addButton = new Gtk.Button({
+      const headerBox = new Gtk.Box({
+        orientation: Gtk.Orientation.HORIZONTAL,
+        spacing: 4,
+        valign: Gtk.Align.CENTER,
+      });
+
+      const resetButton = new Gtk.Button({
+        label: _("Reset defaults"),
+        tooltip_text: _("Restore default fields"),
+        valign: Gtk.Align.CENTER,
+      });
+      resetButton.add_css_class("flat");
+      resetButton.connect("clicked", () => {
+        this._settings.reset(key);
+      });
+      headerBox.append(resetButton);
+
+      const popover = new Gtk.Popover({
+        has_arrow: true,
+      });
+      const scrolled = new Gtk.ScrolledWindow({
+        hscrollbar_policy: Gtk.PolicyType.NEVER,
+        vscrollbar_policy: Gtk.PolicyType.AUTOMATIC,
+        propagate_natural_height: true,
+        propagate_natural_width: true,
+        max_content_height: 300,
+        min_content_width: 280,
+      });
+      const popoverContent = new Gtk.Box({
+        orientation: Gtk.Orientation.VERTICAL,
+        margin_top: 6,
+        margin_bottom: 6,
+        margin_start: 6,
+        margin_end: 6,
+      });
+      const popoverList = new Gtk.ListBox({
+        selection_mode: Gtk.SelectionMode.NONE,
+        show_separators: false,
+      });
+      popoverList.add_css_class("boxed-list");
+      popoverContent.append(popoverList);
+      scrolled.set_child(popoverContent);
+      popover.set_child(scrolled);
+
+      const populatePopover = () => {
+        clearListBox(popoverList);
+        const used = new Set(this._settings.get_strv(key));
+        const remaining = available.filter((def) => !used.has(def.name));
+
+        if (remaining.length === 0) {
+          popoverList.append(
+            new Adw.ActionRow({
+              title: _("No more fields available"),
+              activatable: false,
+              sensitive: false,
+            }),
+          );
+          return;
+        }
+
+        for (const def of remaining) {
+          const itemRow = new Adw.ActionRow({
+            title: _(def.label),
+            subtitle: this._preview(def, zone, locale),
+            activatable: true,
+          });
+          itemRow.add_suffix(
+            new Gtk.Image({
+              icon_name: "list-add-symbolic",
+              valign: Gtk.Align.CENTER,
+            }),
+          );
+          itemRow.connect("activated", () => {
+            const current = this._settings.get_strv(key);
+            if (!current.includes(def.name)) {
+              this._settings.set_strv(key, [...current, def.name]);
+            }
+            popover.popdown();
+          });
+          popoverList.append(itemRow);
+        }
+      };
+
+      populatePopover();
+      popover.connect("show", populatePopover);
+      const popoverSyncId = this._settings.connect(`changed::${key}`, populatePopover);
+      this._destroyCallbacks.push(() => this._settings.disconnect(popoverSyncId));
+
+      const addLabel = _("Add field");
+      const addButton = new Gtk.MenuButton({
         icon_name: "list-add-symbolic",
-        tooltip_text: _("Add field"),
+        tooltip_text: addLabel,
+        popover,
+        valign: Gtk.Align.CENTER,
       });
       addButton.add_css_class("flat");
-      group.set_header_suffix(addButton);
+      addButton.update_property([Gtk.AccessibleProperty.LABEL], [addLabel]);
+      headerBox.append(addButton);
 
-      addButton.connect("clicked", () => {
-        const used = new Set(this._settings.get_strv(key));
+      group.set_header_suffix(headerBox);
 
-        const dialog = new Adw.MessageDialog({
-          body: _("Select a field to add:"),
-          close_response: "cancel",
-        });
+      const { listBox, destroy } = buildReorderableList(
+        this._settings,
+        key,
+        (name, reorderControls) => {
+          const def = available.find((f) => f.name === name);
+          if (!def) return null;
 
-        dialog.add_response("cancel", _("Cancel"));
-        dialog.set_default_response("cancel");
+          const row = new Adw.ActionRow({
+            title: _(def.label),
+            subtitle: this._preview(def, zone, locale),
+            activatable: false,
+          });
 
-        for (const def of available) {
-          if (used.has(def.name)) continue;
-          dialog.add_response(def.name, _(def.label));
-        }
+          const dragHandle = new Gtk.Image({ icon_name: "list-drag-handle-symbolic" });
+          row.add_prefix(dragHandle);
+          row.add_suffix(reorderControls);
 
-        if (available.every((def) => used.has(def.name))) {
-          dialog.add_response("none", _("No more fields available"));
-          dialog.set_response_enabled("none", false);
-        }
+          const removeLabel = _("Remove");
+          const removeButton = new Gtk.Button({
+            icon_name: "list-remove-symbolic",
+            valign: Gtk.Align.CENTER,
+            tooltip_text: removeLabel,
+          });
+          removeButton.add_css_class("flat");
+          removeButton.update_property([Gtk.AccessibleProperty.LABEL], [removeLabel]);
+          removeButton.connect("clicked", () => {
+            const values = this._settings.get_strv(key).filter((v) => v !== name);
+            this._settings.set_strv(key, values);
+          });
+          row.add_suffix(removeButton);
 
-        dialog.connect("response", (_widget, response) => {
-          if (response === "cancel" || response === "none") return;
-          const values = this._settings.get_strv(key);
-          this._settings.set_strv(key, [...values, response]);
-        });
+          setupDragSource(row, name);
+          setupDropTarget(row, this._settings, key, name);
 
-        dialog.present();
-      });
-
-      const { listBox, destroy } = buildReorderableList(this._settings, key, (name) => {
-        const def = available.find((f) => f.name === name);
-        if (!def) return null;
-
-        const row = new Adw.ActionRow({
-          title: _(def.label),
-          subtitle: this._preview(def, zone, locale),
-          activatable: false,
-        });
-
-        const dragHandle = new Gtk.Image({ icon_name: "list-drag-handle-symbolic" });
-        row.add_prefix(dragHandle);
-
-        const removeButton = new Gtk.Button({
-          icon_name: "list-remove-symbolic",
-          valign: Gtk.Align.CENTER,
-          tooltip_text: _("Remove"),
-        });
-        removeButton.add_css_class("flat");
-        removeButton.connect("clicked", () => {
-          const values = this._settings.get_strv(key).filter((v) => v !== name);
-          this._settings.set_strv(key, values);
-        });
-        row.add_suffix(removeButton);
-
-        setupDragSource(row, name);
-        setupDropTarget(row, this._settings, key, name);
-
-        return row;
-      });
+          return row;
+        },
+      );
       this._destroyCallbacks.push(destroy);
       group.add(listBox);
       return group;

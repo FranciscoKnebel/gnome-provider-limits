@@ -110,6 +110,7 @@ const ProviderLimitsIndicator = GObject.registerClass(
 
       this._initReaders();
       this._connectSettingsSignals();
+      this._renderNow();
       this._restartRefreshTimer();
       void this.refresh();
     }
