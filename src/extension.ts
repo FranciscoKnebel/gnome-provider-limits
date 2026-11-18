@@ -109,6 +109,7 @@ const ProviderLimitsIndicator = GObject.registerClass(
       menu.addMenuItem(this._panel);
 
       this._initReaders();
+      this._renderNow();
       this._connectSettingsSignals();
       this._restartRefreshTimer();
       void this.refresh();

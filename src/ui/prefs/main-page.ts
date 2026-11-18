@@ -13,6 +13,7 @@ import { gettext as _ } from "./gettext.js";
 import {
   bindSetting,
   buildReorderableList,
+  createMoveButtons,
   setupDragSource,
   setupDropTarget,
   unbindSettings,
@@ -172,20 +173,40 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
       const { listBox, render, destroy } = buildReorderableList(
         this._settings,
         "providers-order",
-        (value) => {
+        (value, context) => {
           if (!isProviderName(value)) return null;
+          const label = providerDisplayName(this._settings, value);
           const row = this._buildReorderableRow({
             key: "providers-order",
             value,
-            label: providerDisplayName(this._settings, value),
+            label,
           });
-          const toggle = new Gtk.Switch({ valign: Gtk.Align.CENTER });
+
+          const moveButtons = createMoveButtons({
+            settings: this._settings,
+            key: "providers-order",
+            visibleValues: context.visibleValues,
+            index: context.index,
+            moveUpLabel: _("Move up"),
+            moveDownLabel: _("Move down"),
+          });
+          row.add_suffix(moveButtons);
+
+          const toggle = new Gtk.Switch({
+            valign: Gtk.Align.CENTER,
+            tooltip_text: label,
+          });
           bindSetting(this._settings, `${value}-enabled`, toggle, "active", toggleBindings);
           row.add_suffix(toggle);
+          row.set_activatable_widget(toggle);
+
           return row;
         },
-        normalizeProvidersOrder,
-        () => unbindSettings(toggleBindings),
+        {
+          normalizeValues: normalizeProvidersOrder,
+          beforeRender: () => unbindSettings(toggleBindings),
+          isRenderable: isProviderName,
+        },
       );
       this._destroyCallbacks.push(() => unbindSettings(toggleBindings));
       this._destroyCallbacks.push(destroy);
@@ -236,7 +257,6 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
 
       const row = new Adw.ActionRow({
         title: label,
-        activatable: false,
       });
 
       const dragHandle = new Gtk.Image({ icon_name: "list-drag-handle-symbolic" });

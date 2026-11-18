@@ -5,6 +5,7 @@ import { ExtensionPreferences } from "resource:///org/gnome/Shell/Extensions/js/
 
 import { PROVIDER_NAMES, type ProviderName } from "./constants.js";
 import { configureTranslations } from "./helpers/gettext.js";
+import { normalizeProvidersOrder } from "./helpers/provider-settings.js";
 import { ProviderLimitsPreferencesPage, type LanguageEntry } from "./ui/prefs/main-page.js";
 import { ProviderPage } from "./ui/prefs/provider-page.js";
 import { isDisposablePage } from "./ui/prefs/shared.js";
@@ -70,31 +71,62 @@ export default class ProviderLimitsPreferences extends ExtensionPreferences {
     this._pages.push(mainPage);
 
     const providerPages = new Map<ProviderName, Adw.PreferencesPage>();
+    let attachedOrder: ProviderName[] = [];
 
-    for (const name of PROVIDER_NAMES) {
-      if (settings.get_boolean(`${name}-enabled`)) {
-        const page = this._buildProviderPage(settings, name);
-        providerPages.set(name, page);
-        window.add(page);
-        this._pages.push(page);
+    const syncProviderPages = () => {
+      const desiredOrder = normalizeProvidersOrder(settings.get_strv("providers-order")).filter(
+        (name) => settings.get_boolean(`${name}-enabled`),
+      );
+      const desiredSet = new Set(desiredOrder);
+
+      for (const [name, existing] of providerPages) {
+        if (!desiredSet.has(name)) {
+          this._disposePage(window, existing);
+          providerPages.delete(name);
+          attachedOrder = attachedOrder.filter((n) => n !== name);
+          this._pages = this._pages.filter((p) => p !== existing);
+        }
       }
 
-      const id = settings.connect(`changed::${name}-enabled`, () => {
-        const existing = providerPages.get(name);
-        if (settings.get_boolean(`${name}-enabled`)) {
-          if (!existing) {
-            const page = this._buildProviderPage(settings, name);
-            providerPages.set(name, page);
-            window.add(page);
-            this._pages.push(page);
-          }
-        } else if (existing) {
-          this._disposePage(window, existing);
-          this._pages = this._pages.filter((p) => p !== existing);
-          providerPages.delete(name);
+      const samePrefix = attachedOrder.every((name, idx) => desiredOrder[idx] === name);
+      if (samePrefix) {
+        for (let i = attachedOrder.length; i < desiredOrder.length; i++) {
+          const name = desiredOrder[i];
+          const page = this._buildProviderPage(settings, name);
+          providerPages.set(name, page);
+          window.add(page);
+          this._pages.push(page);
+          attachedOrder.push(name);
         }
-      });
-      this._enabledChangedIds.push(id);
+        return;
+      }
+
+      for (const name of attachedOrder) {
+        const existing = providerPages.get(name);
+        if (existing) window.remove(existing);
+      }
+
+      const nextProviderPages: Adw.PreferencesPage[] = [];
+      for (const name of desiredOrder) {
+        let page = providerPages.get(name);
+        if (!page) {
+          page = this._buildProviderPage(settings, name);
+          providerPages.set(name, page);
+        }
+        window.add(page);
+        nextProviderPages.push(page);
+      }
+
+      attachedOrder = [...desiredOrder];
+      this._pages = [mainPage, ...nextProviderPages];
+    };
+
+    syncProviderPages();
+
+    this._enabledChangedIds.push(settings.connect("changed::providers-order", syncProviderPages));
+
+    for (const name of PROVIDER_NAMES) {
+      this._enabledChangedIds.push(settings.connect(`changed::${name}-enabled`, syncProviderPages));
     }
   }
 

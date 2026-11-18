@@ -10,23 +10,41 @@ import { resolveLocale } from "../helpers/locale.js";
 import { normalizeProvidersOrder, providerDisplayNameShort } from "../helpers/provider-settings.js";
 import type { BaseReader, ReaderResult } from "../readers/base.js";
 import { ReaderStatus } from "../readers/base.js";
+import { PROVIDER_FIELDS } from "../readers/fields.js";
+import {
+  computeStatusMicroMeter,
+  disposeCairoContext,
+  drawMicroRing,
+  isCairoContext,
+} from "./cockpitModel.js";
+import type { MicroMeterSpec } from "./cockpitModel.js";
 import { getFieldRows } from "./fieldRows.js";
 import type { FieldRow } from "./fieldRows.js";
 import { sectionKey, structureKey } from "./renderStructure.js";
 import { applyToneClass } from "./tone.js";
 
+const MICRO_GAUGE_SIZE = 14;
+
 interface SegmentPlan {
+  provider: ProviderName;
   displayName: string;
   status: ReaderStatus;
+  meter: MicroMeterSpec;
   rows: FieldRow[];
   key: string;
+}
+
+interface SegmentWidgets {
+  meter: MicroMeterSpec;
+  gaugeArea: St.DrawingArea;
+  values: St.Label[];
 }
 
 export const StatusBarWidget = GObject.registerClass(
   class StatusBarWidget extends St.BoxLayout {
     declare _settings: Gio.Settings;
     declare _readers: Map<ProviderName, BaseReader>;
-    declare _segments: St.Label[][];
+    declare _segments: SegmentWidgets[];
     declare _structureKey: string | null;
 
     _init(settings: Gio.Settings, readers: Map<ProviderName, BaseReader>) {
@@ -49,6 +67,27 @@ export const StatusBarWidget = GObject.registerClass(
         GLib.getenv("LANG"),
       );
 
+      if (results.size === 0) {
+        const hasEnabled =
+          this._readers.size > 0 ||
+          order.some((name) => this._settings.get_boolean(`${name}-enabled`));
+        const placeholderKey = structureKey([locale, hasEnabled ? "loading" : "empty"]);
+        if (placeholderKey !== this._structureKey) {
+          this._clearChildren();
+          if (hasEnabled) {
+            const placeholder = new St.Label({
+              text: "…",
+              style_class: "pl-status-placeholder",
+              y_align: Clutter.ActorAlign.CENTER,
+            });
+            placeholder.accessible_name = _("Refreshing…");
+            this.add_child(placeholder);
+          }
+          this._structureKey = placeholderKey;
+        }
+        return;
+      }
+
       const plans: SegmentPlan[] = [];
 
       for (const name of order) {
@@ -56,19 +95,18 @@ export const StatusBarWidget = GObject.registerClass(
         if (!result) continue;
         if (result.status === ReaderStatus.DISABLED) continue;
 
+        const reader = this._readers.get(name);
+        const fieldsDefs = reader?.FIELDS ?? PROVIDER_FIELDS[name];
+        const statusFields = this._settings.get_strv(`${name}-status-fields`);
         const displayName = providerDisplayNameShort(this._settings, name);
-        const rows = getFieldRows(
-          this._readers.get(name),
-          result,
-          this._settings.get_strv(`${name}-status-fields`),
-          "status",
-          locale,
-          _,
-        );
+        const meter = computeStatusMicroMeter(fieldsDefs, result, statusFields);
+        const rows = getFieldRows(reader, result, statusFields, "status", locale, _);
 
         plans.push({
+          provider: name,
           displayName,
           status: result.status,
+          meter,
           rows,
           key: sectionKey({
             provider: name,
@@ -94,7 +132,7 @@ export const StatusBarWidget = GObject.registerClass(
       this._update(plans);
     }
 
-    private _rebuild(plans: SegmentPlan[]): void {
+    private _clearChildren(): void {
       let child = this.get_first_child();
       while (child) {
         const next = child.get_next_sibling();
@@ -102,49 +140,98 @@ export const StatusBarWidget = GObject.registerClass(
         child = next;
       }
       this._segments = [];
+    }
+
+    private _rebuild(plans: SegmentPlan[]): void {
+      this._clearChildren();
 
       plans.forEach((plan, index) => {
         if (index > 0) {
           this.add_child(
-            new St.Label({
-              text: " · ",
-              style_class: "provider-limits-separator",
+            new St.Widget({
+              style_class: "pl-status-divider",
               y_align: Clutter.ActorAlign.CENTER,
             }),
           );
         }
 
+        const segmentBox = new St.BoxLayout({
+          style_class: "pl-status-segment",
+          y_align: Clutter.ActorAlign.CENTER,
+        });
+
+        const gaugeArea = new St.DrawingArea({
+          style_class: "pl-status-gauge",
+          width: MICRO_GAUGE_SIZE,
+          height: MICRO_GAUGE_SIZE,
+          y_align: Clutter.ActorAlign.CENTER,
+        });
+
+        const segmentWidgets: SegmentWidgets = {
+          meter: plan.meter,
+          gaugeArea,
+          values: [],
+        };
+
+        gaugeArea.connect("repaint", (area: St.DrawingArea) => {
+          const rawCr: unknown = area.get_context();
+          try {
+            if (isCairoContext(rawCr)) {
+              const [w, h] = area.get_surface_size();
+              drawMicroRing(rawCr, w, h, segmentWidgets.meter);
+            }
+          } finally {
+            disposeCairoContext(rawCr);
+          }
+        });
+        segmentBox.add_child(gaugeArea);
+
         const label = new St.Label({
           text: plan.displayName,
-          style_class: "provider-limits-provider-label",
+          style_class: "provider-limits-provider-label pl-status-label",
           y_align: Clutter.ActorAlign.CENTER,
         });
         label.accessible_name = plan.displayName;
-        this.add_child(label);
+        segmentBox.add_child(label);
 
-        this._addStatusSuffix(plan.status);
+        const suffixText = this._statusSuffix(plan.status);
+        if (suffixText) {
+          const suffix = new St.Label({
+            text: suffixText,
+            style_class: "provider-limits-error pl-status-value",
+            y_align: Clutter.ActorAlign.CENTER,
+          });
+          suffix.accessible_name = suffixText;
+          segmentBox.add_child(suffix);
+        }
 
-        const values = plan.rows.map((row) => {
+        segmentWidgets.values = plan.rows.map((row) => {
           const valueLabel = new St.Label({
             text: row.valueText,
+            style_class: "pl-status-value",
             y_align: Clutter.ActorAlign.CENTER,
           });
           this._applyRow(valueLabel, row);
-          this.add_child(valueLabel);
+          segmentBox.add_child(valueLabel);
           return valueLabel;
         });
 
-        this._segments.push(values);
+        this.add_child(segmentBox);
+        this._segments.push(segmentWidgets);
+        gaugeArea.queue_repaint();
       });
     }
 
     private _update(plans: SegmentPlan[]): void {
       plans.forEach((plan, index) => {
-        const values = this._segments[index];
-        if (!values) return;
+        const segment = this._segments[index];
+        if (!segment) return;
+
+        segment.meter = plan.meter;
+        segment.gaugeArea.queue_repaint();
 
         plan.rows.forEach((row, rowIndex) => {
-          const valueLabel = values[rowIndex];
+          const valueLabel = segment.values[rowIndex];
           if (!valueLabel) return;
           valueLabel.text = row.valueText;
           this._applyRow(valueLabel, row);
@@ -155,19 +242,6 @@ export const StatusBarWidget = GObject.registerClass(
     private _applyRow(label: St.Label, row: FieldRow): void {
       label.accessible_name = row.accessibleText ?? `${row.label}: ${row.valueText}`;
       applyToneClass(label, row.tone);
-    }
-
-    private _addStatusSuffix(status: ReaderStatus): void {
-      const text = this._statusSuffix(status);
-      if (!text) return;
-
-      const suffix = new St.Label({
-        text,
-        style_class: "provider-limits-error",
-        y_align: Clutter.ActorAlign.CENTER,
-      });
-      suffix.accessible_name = text;
-      this.add_child(suffix);
     }
 
     private _statusSuffix(status: ReaderStatus): string {

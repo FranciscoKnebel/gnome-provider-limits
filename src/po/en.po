@@ -431,3 +431,75 @@ msgstr "d"
 #: src/formatters.ts
 msgid "w"
 msgstr "w"
+
+#: src/ui/cockpitModel.ts
+msgid "OK"
+msgstr "OK"
+
+#: src/ui/cockpitModel.ts
+msgid "Cached"
+msgstr "Cached"
+
+#: src/ui/cockpitModel.ts
+msgid "Partial"
+msgstr "Partial"
+
+#: src/ui/panel.ts
+msgid "Overview"
+msgstr "Overview"
+
+#: src/ui/panel.ts
+msgid "No providers enabled"
+msgstr "No providers enabled"
+
+#: src/ui/panel.ts
+msgid "Enable a provider in Settings to monitor usage limits."
+msgstr "Enable a provider in Settings to monitor usage limits."
+
+#: src/ui/panel.ts
+msgid "Reading provider limits…"
+msgstr "Reading provider limits…"
+
+#: src/ui/panel.ts
+msgid "Waiting for initial refresh to complete."
+msgstr "Waiting for initial refresh to complete."
+
+#: src/ui/panel.ts
+msgid "No panel fields configured for this provider."
+msgstr "No panel fields configured for this provider."
+
+#: src/ui/prefs/main-page.ts
+msgid "Move up"
+msgstr "Move up"
+
+#: src/ui/prefs/main-page.ts
+msgid "Move down"
+msgstr "Move down"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Field Matrix"
+msgstr "Field Matrix"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Toggle which fields appear in the status bar and panel."
+msgstr "Toggle which fields appear in the status bar and panel."
+
+#: src/ui/prefs/provider-page.ts
+msgid "Reset defaults"
+msgstr "Reset defaults"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Top Bar"
+msgstr "Top Bar"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Panel"
+msgstr "Panel"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Reorder active fields with the arrow buttons or by dragging."
+msgstr "Reorder active fields with the arrow buttons or by dragging."
+
+#: src/ui/prefs/provider-page.ts
+msgid "No fields selected."
+msgstr "No fields selected."
