@@ -18,97 +18,14 @@ import {
   parseCodexLogBody,
   summarizeCodexResetCredits,
 } from "./codexParser.js";
+import * as fieldCatalog from "./fields.js";
+
+export const CODEX_FIELDS: readonly FieldDef[] =
+  typeof fieldCatalog !== "undefined" ? fieldCatalog.CODEX_FIELDS : [];
 
 const CODEX_ALL_PATHS_FAILED = "Codex: all paths failed. Run `codex login`.";
 const CODEX_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
 const CODEX_RESET_CREDITS_URL = "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits";
-
-export const CODEX_FIELDS: readonly FieldDef[] = [
-  {
-    name: "used_percent_primary",
-    label: "Used % (5h window)",
-    type: "percent",
-    description: "Percentage used in the primary 5-hour rolling window.",
-    defaultZone: "status",
-  },
-  {
-    name: "remaining_percent_primary",
-    label: "Remaining % (5h window)",
-    type: "percent",
-    description: "Percentage remaining in the primary 5-hour rolling window.",
-    defaultZone: "status",
-  },
-  {
-    name: "reset_at_primary",
-    label: "Reset at (5h window)",
-    type: "timestamp",
-    description: "When the primary 5-hour window resets.",
-    defaultZone: "status",
-  },
-  {
-    name: "used_percent_secondary",
-    label: "Used % (weekly)",
-    type: "percent",
-    description: "Percentage used in the weekly window.",
-    defaultZone: "panel",
-  },
-  {
-    name: "remaining_percent_secondary",
-    label: "Remaining % (weekly)",
-    type: "percent",
-    description: "Percentage remaining in the weekly window.",
-    defaultZone: "panel",
-  },
-  {
-    name: "reset_at_secondary",
-    label: "Reset at (weekly)",
-    type: "timestamp",
-    description: "When the weekly window resets.",
-    defaultZone: "panel",
-  },
-  {
-    name: "window_minutes_primary",
-    label: "Window (5h)",
-    type: "count",
-    description: "Primary window duration in minutes.",
-    defaultZone: "panel",
-  },
-  {
-    name: "window_minutes_secondary",
-    label: "Window (weekly)",
-    type: "count",
-    description: "Secondary window duration in minutes.",
-    defaultZone: "panel",
-  },
-  {
-    name: "limit_reached",
-    label: "Limit reached",
-    type: "bool",
-    description: "Whether any rate limit has been reached.",
-    defaultZone: "panel",
-  },
-  {
-    name: "plan_type",
-    label: "Plan type",
-    type: "text",
-    description: "Current plan type (e.g. plus, pro).",
-    defaultZone: "panel",
-  },
-  {
-    name: "reset_credits_available",
-    label: "Resets available",
-    type: "count",
-    description: "Banked rate-limit reset credits available to redeem.",
-    defaultZone: "panel",
-  },
-  {
-    name: "reset_credits_expire_at",
-    label: "Resets expire at",
-    type: "timestamp",
-    description: "When the earliest banked rate-limit reset credit expires.",
-    defaultZone: "panel",
-  },
-];
 
 Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish");
 

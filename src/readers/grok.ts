@@ -5,49 +5,15 @@ import { gettext as _ } from "../helpers/gettext.js";
 import { HttpClient, TokenError } from "../helpers/http.js";
 import { logWarn } from "../helpers/log.js";
 import { BaseReader, FieldStatus, type FieldDef, type ReaderResult } from "./base.js";
+import * as fieldCatalog from "./fields.js";
 import { normalizeGrokUsagePayload, parseGrokAuth } from "./grokParser.js";
+
+export const GROK_FIELDS: readonly FieldDef[] =
+  typeof fieldCatalog !== "undefined" ? fieldCatalog.GROK_FIELDS : [];
 
 const GROK_BASE_URL = "https://cli-chat-proxy.grok.com/v1";
 
 Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish");
-
-export const GROK_FIELDS: readonly FieldDef[] = [
-  {
-    name: "used_percent_credits",
-    label: "Used % (credits)",
-    type: "percent",
-    description: "Provider-reported subscription credit usage, not an API spending limit.",
-    defaultZone: "status",
-  },
-  {
-    name: "remaining_percent_credits",
-    label: "Remaining % (credits)",
-    type: "percent",
-    defaultZone: "status",
-  },
-  {
-    name: "reset_at_credits",
-    label: "Reset at (credits)",
-    type: "timestamp",
-    defaultZone: "status",
-  },
-  {
-    name: "prepaid_balance",
-    label: "Purchased credits",
-    type: "cost",
-    description: "Purchased credit balance in USD, separate from subscription credit usage.",
-    defaultZone: "panel",
-  },
-  {
-    name: "unified_billing",
-    label: "Shared subscription credits",
-    type: "bool",
-    description: "Whether Grok reports a shared subscription credit pool.",
-    defaultZone: "panel",
-  },
-  { name: "plan_type", label: "Plan type", type: "text", defaultZone: "panel" },
-  { name: "usage_source", label: "Usage source", type: "text", defaultZone: "panel" },
-];
 
 export class GrokReader extends BaseReader {
   private _http: HttpClient | null = null;

@@ -48,21 +48,38 @@ export function clearListBox(listBox: Gtk.ListBox): void {
   }
 }
 
-export function setupDragSource(row: Adw.ActionRow, value: string): void {
+export function setupDragSource(row: Gtk.Widget, value: string): void {
   const dragSource = new Gtk.DragSource({ actions: Gdk.DragAction.MOVE });
   dragSource.connect("prepare", () => Gdk.ContentProvider.new_for_value(value));
   row.add_controller(dragSource);
 }
 
+export function stringArraysEqual(a: readonly string[], b: readonly string[]): boolean {
+  return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
+export function resetStrvSetting(
+  settings: Gio.Settings,
+  key: string,
+  defaults: readonly string[],
+): void {
+  const maybeReset = settings as Gio.Settings & { reset?: (k: string) => void };
+  if (typeof maybeReset.reset === "function") {
+    maybeReset.reset(key);
+    return;
+  }
+  settings.set_strv(key, [...defaults]);
+}
+
 export function buildReorderableList(
   settings: Gio.Settings,
   key: string,
-  buildRow: (value: string) => Adw.ActionRow | null,
+  buildRow: (value: string, index: number, values: readonly string[]) => Gtk.ListBoxRow | null,
   normalizeValues?: (values: readonly string[]) => readonly string[],
   beforeRender?: () => void,
 ): { listBox: Gtk.ListBox; render: () => void; destroy: () => void } {
   const listBox = new Gtk.ListBox({
-    selection_mode: Gtk.SelectionMode.SINGLE,
+    selection_mode: Gtk.SelectionMode.NONE,
     show_separators: false,
     accessible_role: Gtk.AccessibleRole.LIST,
   });
@@ -81,10 +98,10 @@ export function buildReorderableList(
       if (normalizeValues && !stringArraysEqual(currentValues, values)) {
         settings.set_strv(key, values);
       }
-      for (const value of values) {
-        const row = buildRow(value);
+      values.forEach((value, index) => {
+        const row = buildRow(value, index, values);
         if (row) listBox.append(row);
-      }
+      });
     } finally {
       isRendering = false;
     }
@@ -101,12 +118,8 @@ export function buildReorderableList(
   };
 }
 
-function stringArraysEqual(a: readonly string[], b: readonly string[]): boolean {
-  return a.length === b.length && a.every((value, index) => value === b[index]);
-}
-
 export function setupDropTarget(
-  row: Adw.ActionRow,
+  row: Gtk.Widget,
   settings: Gio.Settings,
   key: string,
   targetValue: string,
