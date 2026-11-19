@@ -7,6 +7,8 @@ const PROVIDER_DISPLAY_NAMES = {
   codex: "Codex Pro",
   claude: "Claude Max",
   opencode: "OpenCode Go",
+  grok: "SuperGrok",
+  cursor: "Cursor Pro",
 };
 
 function skipResult(reason) {

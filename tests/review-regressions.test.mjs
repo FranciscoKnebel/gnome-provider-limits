@@ -513,6 +513,82 @@ for (const phase of ["auth", "billing", "settings"])
     await assert.rejects(reader.read());
   });
 
+for (const phase of ["auth", "exchange", "usage", "plan"])
+  test(`Cursor destruction during ${phase} prevents further requests`, async () => {
+    let release;
+    const waiting = new Promise((resolve) => {
+      release = resolve;
+    });
+    let requests = 0;
+    let clients = 0;
+    let destroyed = 0;
+    const K = load("src/readers/cursor.ts", "CursorReader", {
+      Gio: {
+        ...gio,
+        File: {
+          prototype: {},
+          new_for_path: () => ({
+            load_contents_async: async () => {
+              if (phase === "auth") await waiting;
+              return [new TextEncoder().encode("synthetic")];
+            },
+          }),
+        },
+      },
+      GLib: { getenv: () => null, get_home_dir: () => "/synthetic" },
+      BaseReader: class {
+        destroy() {}
+        _lastGoodOrError() {
+          return {};
+        }
+      },
+      HttpClient: class {
+        constructor() {
+          clients++;
+        }
+        destroy() {
+          destroyed++;
+        }
+        async postJson(url) {
+          requests++;
+          if (
+            (phase === "exchange" && url.includes("exchange_user_api_key")) ||
+            (phase === "usage" && url.includes("GetCurrentPeriodUsage")) ||
+            (phase === "plan" && url.includes("GetPlanInfo"))
+          )
+            await waiting;
+          return { accessToken: "synthetic-token" };
+        }
+      },
+      CURSOR_BACKEND_URL: "https://api2.cursor.sh",
+      expandHomePath: (p) => p,
+      resolveCursorAuthPaths: () => ["/synthetic/auth.json"],
+      parseCursorAuth: () => ({ accessToken: null, apiKey: "synthetic-key" }),
+      parseCursorEnvAuth: () => null,
+      parseCursorExchangeResponse: () => "synthetic-token",
+      normalizeCursorUsagePayload: () => ({ usedPercentCredits: 10 }),
+      parseCursorPlanInfo: () => ({ planName: "Pro", resetAt: null }),
+      FieldStatus: { OK: "ok", UNAVAILABLE: "unavailable" },
+      logWarn() {},
+      _: (s) => s,
+      TokenError: class {},
+    });
+    const reader = new K();
+    reader.settings = { get_string: () => "/synthetic/auth.json" };
+    const pending = reader.read();
+    const settled = Promise.allSettled([pending]);
+    await new Promise((resolve) => setImmediate(resolve));
+    const before = requests;
+    reader.destroy();
+    release();
+    await settled;
+    assert.equal(requests, before);
+    assert.equal(reader._http, null);
+    assert.equal(clients, phase === "auth" ? 0 : 1);
+    assert.equal(destroyed, clients);
+    await assert.rejects(reader.read());
+  });
+
 test("Language override, system selection, self-heal and disable preserve shared gettext state", () => {
   const env = { LANGUAGE: "de:en" };
   let domain = "gnome-shell";

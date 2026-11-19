@@ -19,3 +19,19 @@ export function resolveOpenCodeDataDir(env: Env, home: string): string {
   const dataHome = envValue(env, "XDG_DATA_HOME") ?? `${home}/.local/share`;
   return `${dataHome}/opencode`;
 }
+
+export function expandHomePath(path: string, home: string): string {
+  if (path === "~") return home;
+  return path.startsWith("~/") ? `${home}/${path.slice(2)}` : path;
+}
+
+export function resolveCursorAuthPaths(env: Env, home: string): string[] {
+  const cursorHome = envValue(env, "CURSOR_HOME") ?? `${home}/.cursor`;
+  const configHome = envValue(env, "XDG_CONFIG_HOME") ?? `${home}/.config`;
+  const candidates = [
+    `${cursorHome}/sdk/auth.json`,
+    `${configHome}/cursor/auth.json`,
+    `${cursorHome}/auth.json`,
+  ];
+  return [...new Set(candidates)];
+}

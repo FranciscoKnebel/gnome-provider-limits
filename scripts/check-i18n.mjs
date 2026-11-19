@@ -46,8 +46,8 @@ function extractStrings(file) {
   const rel = relative(SRC_DIR, file);
 
   const patterns = [
-    /_\((["'])((?:(?!\1).)+)\1\)/g,
-    /\btr\((["'])((?:(?!\1).)+)\1\)/g,
+    /_\(\s*(["'])((?:(?!\1).)+)\1/g,
+    /\btr\(\s*(["'])((?:(?!\1).)+)\1/g,
     /label:\s*(["'])((?:(?!\1).)+)\1/g,
   ];
 

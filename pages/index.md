@@ -1,7 +1,7 @@
 ---
 layout: splash
 title: "Provider Limits"
-excerpt: "Monitor session limits for Codex, Claude, and OpenCode Go from your GNOME top bar without running CLI commands or opening web dashboards."
+excerpt: "Monitor session limits for Codex, Claude, OpenCode Go, Grok/SuperGrok, and Cursor from your GNOME top bar without running CLI commands or opening web dashboards."
 header:
   overlay_color: "#2d3748"
   overlay_filter: 0.5
@@ -40,7 +40,7 @@ This extension reads the local files that AI tools already save to your disk, su
 
 ## Features
 
-- Supports Codex, Claude, and OpenCode Go in a single indicator.
+- Supports Codex, Claude, OpenCode Go, Grok/SuperGrok, and Cursor in a single indicator.
 - Displays information in two areas: a compact status bar and a detailed dropdown panel.
 - Allows you to configure which fields show up in the status bar and panel, and customize their order for each provider.
 - Adjusts the refresh frequency automatically, polling every 10 seconds during active usage and slowing to 120 seconds when stable.
@@ -50,11 +50,13 @@ This extension reads the local files that AI tools already save to your disk, su
 
 ## Provider support
 
-| Provider        | Limit fields                                                                   | Telemetry fields                         | Data source                                                                |
-| --------------- | ------------------------------------------------------------------------------ | ---------------------------------------- | -------------------------------------------------------------------------- |
-| **Codex**       | Used % (5h), Used % (weekly), Reset at, Limit reached                          | Plan type                                | OAuth API (`chatgpt.com`), SQLite disk fallback (`~/.codex/logs_2.sqlite`) |
-| **Claude**      | Used % (session 5h), Used % (weekly), Used % (Sonnet), Used % (Opus), Reset at | Extra usage status                       | OAuth API (`api.anthropic.com`), CLI PTY fallback                          |
-| **OpenCode Go** | _(coming in v1.x via web cookies)_                                             | Total cost, Sessions count, Token expiry | SQLite disk (`~/.local/share/opencode/opencode.db`)                        |
+| Provider             | Limit fields                                                                                       | Telemetry fields                                                | Data source                                                                                                  |
+| -------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| **Codex**            | Used % (5h), Used % (weekly), Reset at, Limit reached                                              | Plan type                                                       | OAuth API (`chatgpt.com`), SQLite disk fallback (`~/.codex/logs_2.sqlite`)                                   |
+| **Claude**           | Used % (session 5h), Used % (weekly), Used % (Sonnet), Used % (Opus), Reset at                     | Extra usage status                                              | OAuth API (`api.anthropic.com`), CLI PTY fallback                                                            |
+| **OpenCode Go**      | Used % (rolling 5h), Used % (weekly), Used % (monthly), Reset at, Limit reached                    | Total cost, Sessions count                                      | Usage API (`opencode.ai/zen/go/v1/usage`), SQLite telemetry (`~/.local/share/opencode/opencode.db`)          |
+| **Grok / SuperGrok** | Used % (credits), Remaining % (credits), Reset at (credits)                                        | Purchased credits (USD), Shared subscription credits, Plan type | Grok subscription credits API (`cli-chat-proxy.grok.com`), login from `~/.grok/auth.json`                    |
+| **Cursor**           | Used % (credits), Remaining % (credits), Reset at (credits), Used % (Auto + Composer / API), Limit | Remaining credits (USD), On-demand spend (USD), Plan type       | Cursor SDK `DashboardService` (`api2.cursor.sh`), login from `~/.cursor/sdk/auth.json` or `~/.config/cursor` |
 
 ## Requirements
 

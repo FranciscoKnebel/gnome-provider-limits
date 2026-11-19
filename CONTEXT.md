@@ -93,6 +93,20 @@ spending, xAI API billing, or a per-model chat message limit. Purchased credits
 percentage.
 _Avoid_: xAI API balance, organization-wide Team spending limit, messages remaining.
 
+**Cursor Subscription Credits**:
+The subscription credit usage for the authenticated Cursor account in the current
+billing cycle, reported by the ConnectRPC `DashboardService/GetCurrentPeriodUsage`
+endpoint on `https://api2.cursor.sh` (as defined in `@cursor/sdk`), with optional
+plan enrichment from `DashboardService/GetPlanInfo`. Authenticated with an existing
+Cursor SDK credential (`~/.cursor/sdk/auth.json`, exchanged via
+`/auth/exchange_user_api_key`) or Cursor CLI session (`~/.config/cursor/auth.json`
+or `~/.cursor/auth.json`). Exposes combined credit usage (`used_percent_credits`,
+`remaining_percent_credits`, `reset_at_credits`) alongside Cursor's separate
+Auto + Composer (`used_percent_auto`) and API (`used_percent_api`) pools,
+remaining included credits in USD (`remaining_credits`), and on-demand spend in
+USD (`spend_limit_used`). Missing usage stays unavailable, not zero.
+_Avoid_: Grok CLI limits, IDE keyring tokens, third-party API spend.
+
 **Telemetry Field**:
 A field that expresses usage already performed, with no reference to a ceiling
 , e.g. `totalCost`, `lastTotalInputTokens`, `sessionsCount`. Cannot be

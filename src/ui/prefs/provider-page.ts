@@ -11,6 +11,7 @@ import { providerDisplayName } from "../../helpers/provider-settings.js";
 import type { FieldDef, FieldType } from "../../readers/base.js";
 import { CLAUDE_FIELDS } from "../../readers/claude.js";
 import { CODEX_FIELDS } from "../../readers/codex.js";
+import { CURSOR_FIELDS } from "../../readers/cursor.js";
 import { GROK_FIELDS } from "../../readers/grok.js";
 import { OPENCODE_FIELDS } from "../../readers/opencode.js";
 import { gettext as _ } from "./gettext.js";
@@ -42,6 +43,7 @@ const READER_FIELDS: Record<ProviderName, readonly FieldDef[]> = {
   claude: CLAUDE_FIELDS,
   opencode: OPENCODE_FIELDS,
   grok: GROK_FIELDS,
+  cursor: CURSOR_FIELDS,
 };
 
 function getReaderFields(provider: ProviderName): readonly FieldDef[] {
@@ -121,8 +123,9 @@ export const ProviderPage = GObject.registerClass(
       group.add(shortNameRow);
 
       const pathKey = `${this._provider}-cli-path`;
+      const isAuthFileProvider = this._provider === "grok" || this._provider === "cursor";
       const cliRow = new Adw.EntryRow({
-        title: this._provider === "grok" ? _("Authentication file") : _("CLI path"),
+        title: isAuthFileProvider ? _("Authentication file") : _("CLI path"),
         text: this._settings.get_string(pathKey) ?? "",
       });
       bindSetting(this._settings, pathKey, cliRow, "text", this._bindings);
@@ -133,6 +136,15 @@ export const ProviderPage = GObject.registerClass(
             title: _("Sign in with `grok login`."),
             subtitle: _(
               "Leave the authentication file empty to use $GROK_HOME/auth.json or ~/.grok/auth.json.",
+            ),
+          }),
+        );
+      } else if (this._provider === "cursor") {
+        group.add(
+          new Adw.ActionRow({
+            title: _("Sign in with `cursor-agent login`."),
+            subtitle: _(
+              "Leave the authentication file empty to use ~/.cursor/sdk/auth.json or ~/.config/cursor/auth.json.",
             ),
           }),
         );
