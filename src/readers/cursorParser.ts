@@ -261,8 +261,25 @@ export function normalizeCursorUsagePayload(raw: unknown): CursorUsage | null {
     }
   }
 
-  const usedPercentAuto = clampPercent(planUsage?.autoPercentUsed);
-  const usedPercentApi = clampPercent(planUsage?.apiPercentUsed);
+  const planLimit = centsToDollars(planUsage?.limit);
+  const remaining = centsToDollars(planUsage?.remaining);
+  const unusedPlan =
+    planLimit !== null &&
+    planLimit > 0 &&
+    remaining === planLimit &&
+    planUsage?.includedSpend === undefined;
+  if (usedPercentCredits === null && planUsage?.totalPercentUsed === undefined && unusedPlan) {
+    usedPercentCredits = 0;
+  }
+  const hasUsagePool = usedPercentCredits !== null;
+  const usedPercentAuto =
+    planUsage?.autoPercentUsed === undefined && hasUsagePool
+      ? 0
+      : clampPercent(planUsage?.autoPercentUsed);
+  const usedPercentApi =
+    planUsage?.apiPercentUsed === undefined && hasUsagePool
+      ? 0
+      : clampPercent(planUsage?.apiPercentUsed);
   const remainingCredits = resolveRemainingCredits(planUsage, usedPercentCredits);
   const spendLimitUsed = resolveSpendLimitUsed(spendLimitUsage);
   const resetAtCredits = epochTimestampSeconds(raw.billingCycleEnd);

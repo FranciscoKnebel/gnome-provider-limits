@@ -52,6 +52,21 @@ describe("Cursor usage normalization", () => {
     expect(usage?.limitReached).toBeFalse();
   });
 
+  it("recognizes omitted zero usage only for established pools", () => {
+    const unused = normalizeCursorUsagePayload({ planUsage: { limit: 2000, remaining: 2000 } });
+    expect(unused?.usedPercentCredits).toBe(0);
+    expect(unused?.usedPercentAuto).toBe(0);
+    expect(unused?.usedPercentApi).toBe(0);
+    const partial = normalizeCursorUsagePayload({ planUsage: { limit: 2000 } });
+    expect(partial?.usedPercentCredits).toBeNull();
+    expect(partial?.usedPercentAuto).toBeNull();
+    expect(partial?.usedPercentApi).toBeNull();
+    const invalid = normalizeCursorUsagePayload({
+      planUsage: { limit: 2000, remaining: 2000, totalPercentUsed: "invalid" },
+    });
+    expect(invalid?.usedPercentCredits).toBeNull();
+  });
+
   it("prefers server totalPercentUsed over includedSpend/limit when bonusSpend exists", () => {
     const usage = normalizeCursorUsagePayload({
       planUsage: {
