@@ -5,7 +5,7 @@ Guidelines for agents (and humans) contributing to this repository.
 ## Project
 
 GNOME Shell extension that shows session limits of multiple AI coding
-providers (Codex, Claude, OpenCode Go, Grok/SuperGrok, Cursor) in the top bar. Written in TypeScript,
+providers (Codex, Claude, OpenCode Go, Grok/SuperGrok, Cursor, Google) in the top bar. Written in TypeScript,
 transpiled to ESM JavaScript, runs in GJS (GNOME JavaScript).
 
 ## Language
@@ -178,7 +178,8 @@ The suite is split between two runners:
       libsecret).
 - [ ] No network calls to third-party endpoints (only provider APIs:
       chatgpt.com, api.anthropic.com, opencode.ai, cli-chat-proxy.grok.com,
-      api2.cursor.sh).
+      api2.cursor.sh, oauth2.googleapis.com, cloudcode-pa.googleapis.com,
+      daily-cloudcode-pa.googleapis.com).
 
 ## i18n
 

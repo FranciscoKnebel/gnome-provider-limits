@@ -3,6 +3,7 @@ import {
   resolveClaudeConfigDir,
   resolveCodexHome,
   resolveCursorAuthPaths,
+  resolveGoogleAuthPaths,
   resolveOpenCodeDataDir,
 } from "../../src/helpers/paths.js";
 
@@ -79,5 +80,46 @@ describe("resolveCursorAuthPaths", () => {
     expect(
       resolveCursorAuthPaths({ CURSOR_HOME: "/opt/cursor", XDG_CONFIG_HOME: "/opt/cfg" }, HOME),
     ).toEqual(["/opt/cursor/sdk/auth.json", "/opt/cfg/cursor/auth.json", "/opt/cursor/auth.json"]);
+  });
+});
+
+describe("resolveGoogleAuthPaths", () => {
+  it("orders Antigravity/Gemini paths before extra T3 paths and ADC fallbacks and honors overrides", () => {
+    expect(resolveGoogleAuthPaths({}, HOME)).toEqual([
+      "/home/tester/.gemini/oauth_creds.json",
+      "/home/tester/.gemini/antigravity-acp/acp_token.json",
+      "/home/tester/.gemini/antigravity/acp_token.json",
+      "/home/tester/.config/antigravity/acp_token.json",
+      "/home/tester/.config/gcloud/application_default_credentials.json",
+    ]);
+
+    expect(
+      resolveGoogleAuthPaths(
+        {
+          GOOGLE_APPLICATION_CREDENTIALS: "~/adc.json",
+          ANTIGRAVITY_ACP_TOKEN_PATH: "~/acp.json",
+          GEMINI_CLI_HOME: "/opt/gemini-home",
+          XDG_CONFIG_HOME: "/opt/cfg",
+          CLOUDSDK_CONFIG: "/opt/gcloud",
+        },
+        HOME,
+        ["/home/tester/.t3/userdata/providers/antigravity/abc/antigravity-acp/acp_token.json"],
+      ),
+    ).toEqual([
+      "/home/tester/acp.json",
+      "/opt/gemini-home/.gemini/oauth_creds.json",
+      "/opt/gemini-home/.gemini/antigravity-acp/acp_token.json",
+      "/opt/gemini-home/.gemini/antigravity/acp_token.json",
+      "/opt/cfg/antigravity/acp_token.json",
+      "/home/tester/.t3/userdata/providers/antigravity/abc/antigravity-acp/acp_token.json",
+      "/home/tester/adc.json",
+      "/opt/gcloud/application_default_credentials.json",
+    ]);
+
+    expect(resolveGoogleAuthPaths({ GEMINI_HOME: "/custom/gemini" }, HOME).slice(0, 3)).toEqual([
+      "/custom/gemini/oauth_creds.json",
+      "/custom/gemini/antigravity-acp/acp_token.json",
+      "/custom/gemini/antigravity/acp_token.json",
+    ]);
   });
 });

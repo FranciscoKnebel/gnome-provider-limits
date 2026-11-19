@@ -9,6 +9,7 @@ const PROVIDER_DISPLAY_NAMES = {
   opencode: "OpenCode Go",
   grok: "SuperGrok",
   cursor: "Cursor Pro",
+  google: "Google AI Ultra",
 };
 
 function skipResult(reason) {

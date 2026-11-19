@@ -2,7 +2,7 @@
   "name": "gnome-provider-limits",
   "version": "0.1.1",
   "private": true,
-  "description": "GNOME Shell extension that shows usage limits of Codex, Claude, OpenCode Go, Grok/SuperGrok, and Cursor in the top bar.",
+  "description": "GNOME Shell extension that shows usage limits of Codex, Claude, OpenCode Go, Grok/SuperGrok, Cursor, and Google in the top bar.",
   "homepage": "https://github.com/FranciscoKnebel/gnome-provider-limits",
   "license": "GPL-3.0",
   "repository": {

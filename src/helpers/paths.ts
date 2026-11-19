@@ -35,3 +35,45 @@ export function resolveCursorAuthPaths(env: Env, home: string): string[] {
   ];
   return [...new Set(candidates)];
 }
+
+export function resolveGooglePrimaryAuthPaths(env: Env, home: string): string[] {
+  const configHome = envValue(env, "XDG_CONFIG_HOME") ?? `${home}/.config`;
+  const geminiRoot = envValue(env, "GEMINI_CLI_HOME") ?? home;
+  const geminiDir = envValue(env, "GEMINI_HOME") ?? `${geminiRoot}/.gemini`;
+  const acpEnv = envValue(env, "ANTIGRAVITY_ACP_TOKEN_PATH");
+
+  const candidates: string[] = [];
+  if (acpEnv) candidates.push(expandHomePath(acpEnv, home));
+  candidates.push(
+    `${geminiDir}/oauth_creds.json`,
+    `${geminiDir}/antigravity-acp/acp_token.json`,
+    `${geminiDir}/antigravity/acp_token.json`,
+    `${configHome}/antigravity/acp_token.json`,
+  );
+  return [...new Set(candidates)];
+}
+
+export function resolveGoogleAdcAuthPaths(env: Env, home: string): string[] {
+  const configHome = envValue(env, "XDG_CONFIG_HOME") ?? `${home}/.config`;
+  const gcloudDir = envValue(env, "CLOUDSDK_CONFIG") ?? `${configHome}/gcloud`;
+  const googleAdcEnv = envValue(env, "GOOGLE_APPLICATION_CREDENTIALS");
+
+  const candidates: string[] = [];
+  if (googleAdcEnv) candidates.push(expandHomePath(googleAdcEnv, home));
+  candidates.push(`${gcloudDir}/application_default_credentials.json`);
+  return [...new Set(candidates)];
+}
+
+export function resolveGoogleAuthPaths(
+  env: Env,
+  home: string,
+  extraAntigravityPaths: readonly string[] = [],
+): string[] {
+  return [
+    ...new Set([
+      ...resolveGooglePrimaryAuthPaths(env, home),
+      ...extraAntigravityPaths,
+      ...resolveGoogleAdcAuthPaths(env, home),
+    ]),
+  ];
+}

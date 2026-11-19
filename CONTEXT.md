@@ -107,6 +107,25 @@ remaining included credits in USD (`remaining_credits`), and on-demand spend in
 USD (`spend_limit_used`). Missing usage stays unavailable, not zero.
 _Avoid_: Grok CLI limits, IDE keyring tokens, third-party API spend.
 
+**Google Subscription Quota**:
+The subscription quota usage for the authenticated Google AI / Antigravity / Gemini
+CLI account, reported by `v1internal:retrieveUserQuotaSummary` (with fallback to
+`v1internal:fetchAvailableModels`) and optional tier enrichment from
+`v1internal:loadCodeAssist` on `https://daily-cloudcode-pa.googleapis.com` and
+`https://cloudcode-pa.googleapis.com`. Authenticated with an existing Antigravity ACP
+credential (`$ANTIGRAVITY_ACP_TOKEN_PATH`, `~/.gemini/antigravity-acp/acp_token.json`,
+`~/.gemini/antigravity/acp_token.json`, `~/.config/antigravity/acp_token.json`, or T3
+Code's Antigravity provider directory), Gemini CLI OAuth file (`~/.gemini/oauth_creds.json`),
+or `authorized_user` Application Default Credentials fallback; when `refresh_token`,
+`client_id`, and `client_secret` are present in the file, expired OAuth tokens are
+refreshed in memory via `https://oauth2.googleapis.com/token` without writing back to
+disk. Exposes Gemini 5-hour session and weekly windows (`used_percent_session`,
+`reset_at_session`, `used_percent_weekly`, `reset_at_weekly`) plus optional third-party
+Claude & GPT 5-hour and weekly pools on Antigravity (`used_percent_3p_session`,
+`used_percent_3p_weekly`). Untouched 0% windows whose distant reset time matches
+Google's idle placeholder horizon omit `reset_at` until active usage starts.
+_Avoid_: Google Cloud billing, Vertex AI pay-as-you-go spend, service-account keys.
+
 **Telemetry Field**:
 A field that expresses usage already performed, with no reference to a ceiling
 , e.g. `totalCost`, `lastTotalInputTokens`, `sessionsCount`. Cannot be

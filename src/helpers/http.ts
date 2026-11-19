@@ -110,6 +110,26 @@ export class HttpClient {
     );
   }
 
+  async postForm(
+    url: string,
+    params: Record<string, string>,
+    options?: HttpPostOptions,
+  ): Promise<unknown> {
+    const form = Object.entries(params)
+      .map(([key, value]) => `${encodeURIComponent(key)}=${encodeURIComponent(value)}`)
+      .join("&");
+    const encoded = new TextEncoder().encode(form);
+    return this._withCancellable(options, (request) =>
+      this._requestJson(
+        "POST",
+        url,
+        { contentType: "application/x-www-form-urlencoded", bytes: encoded },
+        options,
+        request,
+      ),
+    );
+  }
+
   private async _withCancellable<T>(
     options: HttpRequestOptions | undefined,
     run: (cancellable: Gio.Cancellable) => Promise<T>,

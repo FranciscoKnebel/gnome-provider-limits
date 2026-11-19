@@ -1,0 +1,43 @@
+{
+  "groups": [
+    {
+      "groupId": "gemini",
+      "displayName": "Gemini",
+      "buckets": [
+        {
+          "bucketId": "gemini-5h",
+          "window": "5h",
+          "remainingFraction": 0.96,
+          "resetTime": "2026-04-20T05:10:00Z",
+          "description": "4% used of 5-hour quota"
+        },
+        {
+          "bucketId": "gemini-weekly",
+          "window": "weekly",
+          "remainingFraction": 0.72,
+          "resetTime": "2026-04-24T12:00:00Z",
+          "description": "28% used of weekly quota"
+        }
+      ]
+    },
+    {
+      "groupId": "3p",
+      "displayName": "Claude & GPT",
+      "buckets": [
+        {
+          "bucketId": "3p-5h",
+          "window": "5h",
+          "remainingFraction": 1,
+          "resetTime": "2026-04-20T08:00:00Z"
+        },
+        {
+          "bucketId": "3p-weekly",
+          "window": "weekly",
+          "remainingFraction": 0.85,
+          "resetTime": "2026-04-25T00:00:00Z",
+          "description": "15% used of weekly quota"
+        }
+      ]
+    }
+  ]
+}

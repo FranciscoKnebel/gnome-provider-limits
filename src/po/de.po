@@ -465,3 +465,48 @@ msgstr "Tg"
 #: src/formatters.ts
 msgid "w"
 msgstr "Wo"
+
+#: src/readers/google.ts
+msgid "Used % (Claude & GPT 5h)"
+msgstr "Verbraucht % (Claude & GPT 5h)"
+
+#: src/readers/google.ts
+msgid "Remaining % (Claude & GPT 5h)"
+msgstr "Verbleibend % (Claude & GPT 5h)"
+
+#: src/readers/google.ts
+msgid "Reset at (Claude & GPT 5h)"
+msgstr "Zurücksetzen um (Claude & GPT 5h)"
+
+#: src/readers/google.ts
+msgid "Used % (Claude & GPT weekly)"
+msgstr "Verbraucht % (Claude & GPT wöchentlich)"
+
+#: src/readers/google.ts
+msgid "Remaining % (Claude & GPT weekly)"
+msgstr "Verbleibend % (Claude & GPT wöchentlich)"
+
+#: src/readers/google.ts
+msgid "Reset at (Claude & GPT weekly)"
+msgstr "Zurücksetzen um (Claude & GPT wöchentlich)"
+
+#: src/readers/google.ts
+msgid "Google: no valid login. Sign in with Gemini CLI or Antigravity."
+msgstr "Google: keine gültige Anmeldung. Mit Gemini CLI oder Antigravity anmelden."
+
+#: src/readers/google.ts
+msgid "Google: login rejected. Sign in again with Gemini CLI or Antigravity."
+msgstr "Google: Anmeldung abgelehnt. Erneut mit Gemini CLI oder Antigravity anmelden."
+
+#: src/readers/google.ts
+msgid "Google: subscription quota unavailable. Try again later."
+msgstr "Google: Abonnementkontingent nicht verfügbar. Später erneut versuchen."
+
+#: src/ui/prefs/provider-page.ts
+msgid "Sign in with Gemini CLI or Antigravity."
+msgstr "Mit Gemini CLI oder Antigravity anmelden."
+
+#: src/ui/prefs/provider-page.ts
+msgid "Leave the authentication file empty to use ~/.gemini/oauth_creds.json or Antigravity credentials."
+msgstr "Authentifizierungsdatei leer lassen, um ~/.gemini/oauth_creds.json oder Antigravity-Zugangsdaten zu verwenden."
+

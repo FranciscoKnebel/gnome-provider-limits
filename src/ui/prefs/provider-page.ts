@@ -12,6 +12,7 @@ import type { FieldDef, FieldType } from "../../readers/base.js";
 import { CLAUDE_FIELDS } from "../../readers/claude.js";
 import { CODEX_FIELDS } from "../../readers/codex.js";
 import { CURSOR_FIELDS } from "../../readers/cursor.js";
+import { GOOGLE_FIELDS } from "../../readers/google.js";
 import { GROK_FIELDS } from "../../readers/grok.js";
 import { OPENCODE_FIELDS } from "../../readers/opencode.js";
 import { gettext as _ } from "./gettext.js";
@@ -44,6 +45,7 @@ const READER_FIELDS: Record<ProviderName, readonly FieldDef[]> = {
   opencode: OPENCODE_FIELDS,
   grok: GROK_FIELDS,
   cursor: CURSOR_FIELDS,
+  google: GOOGLE_FIELDS,
 };
 
 function getReaderFields(provider: ProviderName): readonly FieldDef[] {
@@ -123,7 +125,8 @@ export const ProviderPage = GObject.registerClass(
       group.add(shortNameRow);
 
       const pathKey = `${this._provider}-cli-path`;
-      const isAuthFileProvider = this._provider === "grok" || this._provider === "cursor";
+      const isAuthFileProvider =
+        this._provider === "grok" || this._provider === "cursor" || this._provider === "google";
       const cliRow = new Adw.EntryRow({
         title: isAuthFileProvider ? _("Authentication file") : _("CLI path"),
         text: this._settings.get_string(pathKey) ?? "",
@@ -145,6 +148,15 @@ export const ProviderPage = GObject.registerClass(
             title: _("Sign in with `cursor-agent login`."),
             subtitle: _(
               "Leave the authentication file empty to use ~/.cursor/sdk/auth.json or ~/.config/cursor/auth.json.",
+            ),
+          }),
+        );
+      } else if (this._provider === "google") {
+        group.add(
+          new Adw.ActionRow({
+            title: _("Sign in with Gemini CLI or Antigravity."),
+            subtitle: _(
+              "Leave the authentication file empty to use ~/.gemini/oauth_creds.json or Antigravity credentials.",
             ),
           }),
         );
