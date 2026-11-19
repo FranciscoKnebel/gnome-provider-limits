@@ -2,7 +2,7 @@ import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 
 import { gettext as _ } from "../helpers/gettext.js";
-import { HttpClient, TokenError } from "../helpers/http.js";
+import { HttpClient, HttpError, TokenError } from "../helpers/http.js";
 import { logWarn } from "../helpers/log.js";
 import {
   expandHomePath,
@@ -274,20 +274,35 @@ export class GoogleReader extends BaseReader {
   ): Promise<string | null> {
     if (!auth.refreshToken || !auth.clientId || !auth.clientSecret) return null;
     pushOnce(pathsTried, "oauth-refresh");
-    const response = await this._http!.postForm(
-      GOOGLE_OAUTH_TOKEN_URL,
-      {
-        client_id: auth.clientId,
-        client_secret: auth.clientSecret,
-        refresh_token: auth.refreshToken,
-        grant_type: "refresh_token",
-      },
-      {
-        headers: { Accept: "application/json" },
-        cancellable,
-        noRedirect: true,
-      },
-    );
+    let response: unknown;
+    try {
+      response = await this._http!.postForm(
+        GOOGLE_OAUTH_TOKEN_URL,
+        {
+          client_id: auth.clientId,
+          client_secret: auth.clientSecret,
+          refresh_token: auth.refreshToken,
+          grant_type: "refresh_token",
+        },
+        {
+          headers: { Accept: "application/json" },
+          cancellable,
+          noRedirect: true,
+        },
+      );
+    } catch (error) {
+      if (
+        error instanceof HttpError &&
+        error.statusCode === 400 &&
+        typeof error.payload === "object" &&
+        error.payload !== null &&
+        "error" in error.payload &&
+        error.payload.error === "invalid_grant"
+      ) {
+        throw new TokenError("Google OAuth refresh grant rejected", 400);
+      }
+      throw error;
+    }
     this._assertAlive();
     if (cancellable.is_cancelled()) return null;
     return parseGoogleTokenResponse(response);

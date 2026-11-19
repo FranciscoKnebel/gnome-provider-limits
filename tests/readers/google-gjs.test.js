@@ -8,7 +8,8 @@ function encodeJson(value) {
 
 export async function run() {
   const { GoogleReader } = await import("../../dist/readers/google.js");
-  const { TokenError, RateLimitError, NetworkError } = await import("../../dist/helpers/http.js");
+  const { HttpError, TokenError, RateLimitError, NetworkError } =
+    await import("../../dist/helpers/http.js");
   const results = [];
   const originalLoad = Gio.File.prototype.load_contents_async;
 
@@ -307,6 +308,53 @@ export async function run() {
     reader.destroy();
     assertEqual(destroyed, true);
     assertEqual(reader._http, null);
+  });
+
+  await test("GoogleReader skips invalid refresh grants before and after a 401", async () => {
+    for (const initialAccess of [false, true]) {
+      Gio.File.prototype.load_contents_async = async function () {
+        const path = this.get_path();
+        if (path.endsWith("/oauth_creds.json")) {
+          return encodeJson({
+            ...(initialAccess ? { access_token: "stale", expiry_date: Date.now() + 3600000 } : {}),
+            refresh_token: "revoked",
+            client_id: "client",
+            client_secret: "secret",
+          });
+        }
+        if (path.endsWith("/antigravity-acp/acp_token.json")) {
+          return encodeJson({ access_token: "valid", expiry_date: Date.now() + 3600000 });
+        }
+        throw new Error("missing candidate");
+      };
+      let refreshes = 0;
+      const reader = newReader(
+        {
+          postForm: async () => {
+            refreshes++;
+            throw new HttpError("HTTP 400", 400, { error: "invalid_grant" });
+          },
+          postJson: async (url, _body, options) => {
+            if (options.headers.Authorization === "Bearer stale")
+              throw new TokenError("HTTP 401", 401);
+            if (url.endsWith("/v1internal:loadCodeAssist")) return {};
+            return {
+              models: {
+                "gemini-2.5-pro": {
+                  modelProvider: "MODEL_PROVIDER_GOOGLE",
+                  quotaInfo: { remainingFraction: 0.6 },
+                },
+              },
+            };
+          },
+        },
+        "",
+      );
+      const result = await reader.read();
+      assertEqual(refreshes, 1);
+      assertEqual(result.fields.find((field) => field.name === "used_percent_session")?.value, 40);
+      reader.destroy();
+    }
   });
 
   await test("GoogleReader falls back across 403 RPC/hosts, multi-candidate auth files, and cancels superseded reads", async () => {
