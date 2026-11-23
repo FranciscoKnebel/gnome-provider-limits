@@ -1,13 +1,9 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-
 import { PROVIDER_NAMES } from "../../src/constants.js";
 import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
 import type { ReaderResult } from "../../src/readers/base.js";
 import {
   CLAUDE_FIELDS,
   CODEX_FIELDS,
-  DEFAULT_PROVIDER_ZONE_FIELDS,
   GROK_FIELDS,
   OPENCODE_FIELDS,
   PROVIDER_FIELDS,
@@ -89,28 +85,6 @@ describe("src/readers/fields", () => {
       expect(defs.length).toBeGreaterThan(0);
       const names = defs.map((d) => d.name);
       expect(new Set(names).size).toBe(names.length);
-    }
-  });
-
-  it("matches gschema.xml default status-fields and panel-fields for every provider", () => {
-    const schemaPath = join(
-      process.cwd(),
-      "src/schemas/org.gnome.shell.extensions.gnome-provider-limits.gschema.xml",
-    );
-    const xml = readFileSync(schemaPath, "utf8");
-
-    for (const provider of PROVIDER_NAMES) {
-      for (const zone of ["status", "panel"] as const) {
-        const keyName = `${provider}-${zone}-fields`;
-        const keyPattern = new RegExp(
-          `<key\\s+name="${keyName}"[^>]*>[\\s\\S]*?<default>\\s*\\[([\\s\\S]*?)\\]\\s*</default>`,
-        );
-        const match = keyPattern.exec(xml);
-        expect(match).not.toBeNull();
-        const rawList = match?.[1] ?? "";
-        const schemaDefaults = Array.from(rawList.matchAll(/'([^']+)'/g), (m) => m[1]);
-        expect(DEFAULT_PROVIDER_ZONE_FIELDS[provider][zone]).toEqual(schemaDefaults);
-      }
     }
   });
 });

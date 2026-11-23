@@ -9,6 +9,7 @@ import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
 import type { ProviderName } from "../constants.js";
 import { formatTimestampTemplate } from "../formatters.js";
+import { bindActivation } from "../helpers/keyboard.js";
 import { resolveLocale } from "../helpers/locale.js";
 import { setScrollViewChild } from "../helpers/scroll.js";
 import type { ReaderResult } from "../readers/base.js";
@@ -140,12 +141,6 @@ export interface PanelShellOptions {
   translate: (message: string) => string;
   footerVariant: PanelStyle;
   onFooterKeyPress?: (event: Clutter.Event) => boolean;
-}
-
-function isActivationKey(symbol: number): boolean {
-  return (
-    symbol === Clutter.KEY_Return || symbol === Clutter.KEY_KP_Enter || symbol === Clutter.KEY_space
-  );
 }
 
 /**
@@ -286,22 +281,6 @@ export class PanelShell extends PopupMenu.PopupMenuSection {
     return row;
   }
 
-  private _bindActivation(actor: St.Widget, onActivate: () => void): void {
-    const activate = () => {
-      onActivate();
-      return Clutter.EVENT_STOP;
-    };
-    actor.connect("button-release-event", activate);
-    actor.connect("clicked", activate);
-    actor.connect("key-press-event", (_actor: Clutter.Actor, event: Clutter.Event) => {
-      if (isActivationKey(event.get_key_symbol())) {
-        onActivate();
-        return Clutter.EVENT_STOP;
-      }
-      return this._footerKeyHandler(event);
-    });
-  }
-
   /** Shared construction path for both refresh and settings actions, in every style. */
   private _buildAction(options: {
     spec: ActionSpec;
@@ -372,7 +351,9 @@ export class PanelShell extends PopupMenu.PopupMenuSection {
     }
 
     control.accessible_name = options.accessibleName;
-    this._bindActivation(control, options.onActivate);
+    bindActivation(control, options.onActivate, {
+      onOtherKey: (event) => this._footerKeyHandler(event),
+    });
     return { control, icon, label };
   }
 

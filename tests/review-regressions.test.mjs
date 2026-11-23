@@ -829,8 +829,7 @@ test("Panel swaps style sections on setting change and forwards render and runni
     CompactPanelSection: CompactStub,
     PanelShell: ShellStub,
     resolvePanelStyle,
-    PROVIDER_NAMES: ["codex", "claude", "opencode", "grok", "cursor", "google"],
-    getProviderFields: () => [],
+    resolveFieldDefs: () => ({}),
     _: (message) => message,
   });
 
@@ -1002,15 +1001,20 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
   }
 
   const focusCalls = [];
+  const Clutter = {
+    ActorAlign: { CENTER: 0, START: 1, END: 2 },
+    KEY_Return: 1,
+    KEY_KP_Enter: 2,
+    KEY_space: 3,
+    KEY_Left: 4,
+    KEY_Right: 5,
+    EVENT_STOP: 1,
+    EVENT_PROPAGATE: 0,
+  };
+  const { bindActivation } = load("src/helpers/keyboard.ts", "({ bindActivation })", { Clutter });
   const { PanelShell } = load("src/ui/panelShell.ts", "({ PanelShell })", {
-    Clutter: {
-      ActorAlign: { CENTER: 0, START: 1, END: 2 },
-      KEY_Return: 1,
-      KEY_KP_Enter: 2,
-      KEY_space: 3,
-      EVENT_STOP: 1,
-      EVENT_PROPAGATE: 0,
-    },
+    Clutter,
+    bindActivation,
     GLib: { getenv: () => null },
     St: {
       BoxLayout: Actor,
@@ -1156,4 +1160,163 @@ test("late destruction of an old preferences window cannot tear down a reopened 
   secondSignals.get("close-request")();
   assert.equal(cleaned, 2);
   assert.equal(active.size, 0);
+});
+
+test("keyboard activation is shared across buttons and key-press fallbacks", () => {
+  const Clutter = {
+    KEY_Return: 1,
+    KEY_KP_Enter: 2,
+    KEY_space: 3,
+    KEY_Left: 4,
+    EVENT_STOP: 1,
+    EVENT_PROPAGATE: 0,
+  };
+  const { isActivationKey, bindActivation } = load(
+    "src/helpers/keyboard.ts",
+    "({ isActivationKey, bindActivation })",
+    { Clutter },
+  );
+
+  assert.equal(isActivationKey(Clutter.KEY_Return), true);
+  assert.equal(isActivationKey(Clutter.KEY_KP_Enter), true);
+  assert.equal(isActivationKey(Clutter.KEY_space), true);
+  assert.equal(isActivationKey(Clutter.KEY_Left), false);
+
+  class Actor {
+    handlers = new Map();
+    connect(name, fn) {
+      const list = this.handlers.get(name) ?? [];
+      list.push(fn);
+      this.handlers.set(name, list);
+      return list.length;
+    }
+    fire(name, ...args) {
+      return (this.handlers.get(name) ?? []).map((fn) => fn(this, ...args));
+    }
+  }
+  let activations = 0;
+  const forwarded = [];
+  const actor = new Actor();
+  bindActivation(actor, () => activations++, {
+    pointerSignals: ["clicked"],
+    onOtherKey: (e) => {
+      forwarded.push(e.get_key_symbol());
+      return 42;
+    },
+  });
+
+  assert.deepEqual([...actor.handlers.keys()], ["clicked", "key-press-event"]);
+  actor.fire("clicked");
+  assert.equal(activations, 1);
+  assert.equal(
+    actor.fire("key-press-event", { get_key_symbol: () => Clutter.KEY_KP_Enter })[0],
+    Clutter.EVENT_STOP,
+  );
+  assert.equal(activations, 2);
+  assert.equal(actor.fire("key-press-event", { get_key_symbol: () => Clutter.KEY_Left })[0], 42);
+  assert.deepEqual(forwarded, [Clutter.KEY_Left]);
+  assert.equal(activations, 2);
+});
+
+test("status bar renderer plans once per render and owns structure rebuilds", () => {
+  const destroyed = [];
+  const parent = {
+    children: [],
+    add_child(child) {
+      this.children.push(child);
+      child.parent = this;
+    },
+    get_first_child() {
+      return this.children[0] ?? null;
+    },
+  };
+  const makeChild = (id) => ({
+    id,
+    parent: null,
+    get_next_sibling() {
+      const siblings = this.parent?.children ?? [];
+      return siblings[siblings.indexOf(this) + 1] ?? null;
+    },
+    destroy() {
+      destroyed.push(this.id);
+      if (this.parent) this.parent.children = this.parent.children.filter((c) => c !== this);
+    },
+  });
+  const { StatusBarRenderer } = load("src/ui/statusBarRenderer.ts", "({ StatusBarRenderer })");
+
+  const plans = [];
+  const builds = [];
+  const updates = [];
+  class Renderer extends StatusBarRenderer {
+    plan(context) {
+      plans.push(context.key);
+      return { key: context.key, value: context.value };
+    }
+    build(plan) {
+      builds.push(plan.key);
+      const child = makeChild(plan.key);
+      this.parent.add_child(child);
+    }
+    update(plan) {
+      updates.push(plan.value);
+    }
+  }
+  const renderer = new Renderer(parent);
+
+  renderer.render({ key: "a", value: 1 });
+  assert.deepEqual(plans, ["a"], "one plan per render");
+  assert.deepEqual(builds, ["a"], "first render builds");
+  assert.deepEqual(updates, []);
+  assert.equal(parent.children.length, 1);
+
+  renderer.render({ key: "a", value: 2 });
+  assert.deepEqual(plans, ["a", "a"], "one plan per render on update");
+  assert.deepEqual(builds, ["a"], "same structure key updates in place");
+  assert.deepEqual(updates, [2]);
+  assert.equal(parent.children.length, 1);
+
+  renderer.render({ key: "b", value: 3 });
+  assert.deepEqual(plans, ["a", "a", "b"]);
+  assert.deepEqual(builds, ["a", "b"], "changed structure key rebuilds");
+  assert.deepEqual(destroyed, ["a"], "old children are disposed on rebuild");
+  assert.equal(parent.children.length, 1);
+
+  renderer.dispose();
+  assert.deepEqual(destroyed, ["a", "b"]);
+  assert.equal(parent.children.length, 0);
+
+  renderer.render({ key: "b", value: 4 });
+  assert.deepEqual(builds, ["a", "b", "b"], "dispose clears the structure key");
+  assert.deepEqual(updates, [2]);
+});
+
+test("review findings stay consolidated in shared helpers and field lookup", () => {
+  const statusBar = readFileSync("src/ui/statusBar.ts", "utf8");
+  const panel = readFileSync("src/ui/panel.ts", "utf8");
+  const fields = readFileSync("src/readers/fields.ts", "utf8");
+  const shell = readFileSync("src/ui/panelShell.ts", "utf8");
+  const compactPanel = readFileSync("src/ui/panelCompact.ts", "utf8");
+  const overview = readFileSync("src/ui/panelGaugesOverview.ts", "utf8");
+  const renderers = [
+    readFileSync("src/ui/statusBarPills.ts", "utf8"),
+    readFileSync("src/ui/statusBarGauges.ts", "utf8"),
+    readFileSync("src/ui/statusBarCompact.ts", "utf8"),
+  ];
+
+  assert.match(fields, /export function resolveFieldDefs/);
+  for (const source of [statusBar, panel]) {
+    assert.match(source, /import\s*\{\s*resolveFieldDefs\s*\}/);
+    assert.doesNotMatch(source, /function resolveFieldDefs/);
+  }
+  assert.doesNotMatch(statusBar, /statusKey|_structureKey/);
+  for (const source of renderers) {
+    assert.match(source, /extends StatusBarRenderer/);
+    assert.doesNotMatch(source, /_planFor|private _context|statusKey\(/);
+  }
+  for (const source of [shell, compactPanel, overview]) {
+    assert.match(source, /from "\.\.\/helpers\/keyboard\.js"/);
+    assert.doesNotMatch(source, /KEY_KP_Enter/);
+  }
+  assert.doesNotMatch(compactPanel, /_bindButtonActivate/);
+  assert.doesNotMatch(shell, /_bindActivation\(/);
 });

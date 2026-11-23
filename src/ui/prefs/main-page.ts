@@ -4,14 +4,50 @@ import GObject from "gi://GObject";
 import Gtk from "gi://Gtk?version=4.0";
 
 import {
+  DEFAULT_PANEL_STYLE,
+  DEFAULT_STATUS_BAR_STYLE,
   PANEL_STYLES,
   STATUS_BAR_STYLES,
+  isPanelStyle,
+  isStatusBarStyle,
   type PanelStyle,
   type StatusBarStyle,
 } from "../styles.js";
 import { gettext as _ } from "./gettext.js";
 import { bindSetting, unbindSettings } from "./shared.js";
 import type { SettingsBinding } from "./shared.js";
+
+function bindEnumCombo<Value extends string>(
+  settings: Gio.Settings,
+  key: string,
+  values: readonly Value[],
+  labels: readonly string[],
+  guard: (value: string) => value is Value,
+  fallback: Value,
+  row: Adw.ComboRow,
+  changedIds: number[],
+): void {
+  row.model = Gtk.StringList.new([...labels]);
+  const fallbackIndex = Math.max(0, values.indexOf(fallback));
+
+  const updateFromSettings = () => {
+    const value = settings.get_string(key);
+    const index = guard(value) ? values.indexOf(value) : -1;
+    const selected = index >= 0 ? index : fallbackIndex;
+    if (row.selected !== selected) row.selected = selected;
+  };
+
+  updateFromSettings();
+
+  row.connect("notify::selected", (combo: Adw.ComboRow) => {
+    const value = values[combo.selected] ?? fallback;
+    if (settings.get_string(key) !== value) {
+      settings.set_string(key, value);
+    }
+  });
+
+  changedIds.push(settings.connect(`changed::${key}`, updateFromSettings));
+}
 
 export interface LanguageEntry {
   code: string;
@@ -100,98 +136,68 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
         description: _("Choose the visual styles for the top bar and dropdown menu."),
       });
 
-      // 1. Status Bar Style
       const statusStyleLabels: Record<StatusBarStyle, string> = {
         pills: _("Capsule pills"),
         gauges: _("Micro-ring gauges"),
         compact: _("Compact text"),
       };
-      const statusStyleModel = Gtk.StringList.new(
-        STATUS_BAR_STYLES.map((style) => statusStyleLabels[style]),
-      );
+      const statusStyleValues = STATUS_BAR_STYLES.map((style) => statusStyleLabels[style]);
       const statusStyleRow = new Adw.ComboRow({
         title: _("Status bar style"),
         subtitle: _("Visual presentation of metrics in the top bar."),
-        model: statusStyleModel,
       });
-
-      const updateStatusStyleFromSettings = () => {
-        const val = this._settings.get_string("status-bar-style");
-        const idx = STATUS_BAR_STYLES.indexOf(val as (typeof STATUS_BAR_STYLES)[number]);
-        statusStyleRow.selected = idx >= 0 ? idx : 0;
-      };
-      updateStatusStyleFromSettings();
-
-      statusStyleRow.connect("notify::selected", (combo: Adw.ComboRow) => {
-        const selectedVal = STATUS_BAR_STYLES[combo.selected] ?? "pills";
-        if (this._settings.get_string("status-bar-style") !== selectedVal) {
-          this._settings.set_string("status-bar-style", selectedVal);
-        }
-      });
-      const statusStyleChangedId = this._settings.connect(
-        "changed::status-bar-style",
-        updateStatusStyleFromSettings,
+      bindEnumCombo(
+        this._settings,
+        "status-bar-style",
+        STATUS_BAR_STYLES,
+        statusStyleValues,
+        isStatusBarStyle,
+        DEFAULT_STATUS_BAR_STYLE,
+        statusStyleRow,
+        this._settingsChangedIds,
       );
-      this._settingsChangedIds.push(statusStyleChangedId);
       group.add(statusStyleRow);
 
-      // 2. Panel Style
       const panelStyleLabels: Record<PanelStyle, string> = {
         gauges: _("Tabbed cockpit & gauges"),
         cards: _("Quick settings cards"),
         compact: _("Collapsible matrix HUD"),
       };
-      const panelStyleModel = Gtk.StringList.new(
-        PANEL_STYLES.map((style) => panelStyleLabels[style]),
-      );
+      const panelStyleValues = PANEL_STYLES.map((style) => panelStyleLabels[style]);
       const panelStyleRow = new Adw.ComboRow({
         title: _("Dropdown panel style"),
         subtitle: _("Visual presentation of details in the dropdown panel."),
-        model: panelStyleModel,
       });
-
-      const updatePanelStyleFromSettings = () => {
-        const val = this._settings.get_string("panel-style");
-        const idx = PANEL_STYLES.indexOf(val as (typeof PANEL_STYLES)[number]);
-        panelStyleRow.selected = idx >= 0 ? idx : 0;
-      };
-      updatePanelStyleFromSettings();
-
-      panelStyleRow.connect("notify::selected", (combo: Adw.ComboRow) => {
-        const selectedVal = PANEL_STYLES[combo.selected] ?? "gauges";
-        if (this._settings.get_string("panel-style") !== selectedVal) {
-          this._settings.set_string("panel-style", selectedVal);
-        }
-      });
-      const panelStyleChangedId = this._settings.connect(
-        "changed::panel-style",
-        updatePanelStyleFromSettings,
+      bindEnumCombo(
+        this._settings,
+        "panel-style",
+        PANEL_STYLES,
+        panelStyleValues,
+        isPanelStyle,
+        DEFAULT_PANEL_STYLE,
+        panelStyleRow,
+        this._settingsChangedIds,
       );
-      this._settingsChangedIds.push(panelStyleChangedId);
       group.add(panelStyleRow);
 
-      // 3. Status Bar Position
-      const positionModel = Gtk.StringList.new([_("Left"), _("Right")]);
+      const positionValues = ["left", "right"] as const;
+      type Position = (typeof positionValues)[number];
       const positionRow = new Adw.ComboRow({
         title: _("Status bar position"),
         subtitle: _(
           "Choose whether the status bar appears on the left or right side of the top bar.",
         ),
-        model: positionModel,
       });
-
-      positionRow.selected = this._settings.get_string("status-bar-position") === "left" ? 0 : 1;
-      positionRow.connect("notify::selected", (combo: Adw.ComboRow) => {
-        const position = combo.selected === 0 ? "left" : "right";
-        if (this._settings.get_string("status-bar-position") !== position) {
-          this._settings.set_string("status-bar-position", position);
-        }
-      });
-      const positionChangedId = this._settings.connect("changed::status-bar-position", () => {
-        const position = this._settings.get_string("status-bar-position") === "left" ? 0 : 1;
-        if (positionRow.selected !== position) positionRow.selected = position;
-      });
-      this._settingsChangedIds.push(positionChangedId);
+      bindEnumCombo(
+        this._settings,
+        "status-bar-position",
+        positionValues,
+        [_("Left"), _("Right")],
+        (value): value is Position => value === "left" || value === "right",
+        "right",
+        positionRow,
+        this._settingsChangedIds,
+      );
       group.add(positionRow);
 
       return group;

@@ -7,7 +7,8 @@ import type { FieldView } from "./fieldViews.js";
 import { deriveStatusBarSegments } from "./fieldViews.js";
 import type { ProviderTone } from "./providerTypes.js";
 import { structureKey } from "./renderStructure.js";
-import type { StatusBarRenderContext, StatusBarRenderer } from "./statusBar.js";
+import type { StatusBarRenderContext } from "./statusBar.js";
+import { StatusBarRenderer } from "./statusBarRenderer.js";
 import { applyHealthToneClass, applyToneClass } from "./tone.js";
 
 interface PillWidgets {
@@ -28,10 +29,10 @@ interface PillPlan {
 }
 
 interface PillsPlan {
+  readonly key: string;
   loading: boolean;
   loadingAccessibleText: string;
   pills: readonly PillPlan[];
-  structureKey: string;
 }
 
 function planPills(context: StatusBarRenderContext): PillsPlan {
@@ -56,31 +57,25 @@ function planPills(context: StatusBarRenderContext): PillsPlan {
 
   const loading = pills.length === 0 && context.results.size === 0 && context.hasEnabledProviders;
   return {
-    loading,
-    loadingAccessibleText: context.t("Loading provider limits…"),
-    pills,
-    structureKey: structureKey([
+    key: structureKey([
       context.locale,
       loading ? "loading" : "ready",
       ...pills.map((pill) => pill.key),
     ]),
+    loading,
+    loadingAccessibleText: context.t("Loading provider limits…"),
+    pills,
   };
 }
 
-export class PillsStatusBarRenderer implements StatusBarRenderer {
+export class PillsStatusBarRenderer extends StatusBarRenderer<PillsPlan> {
   private _pills: PillWidgets[] = [];
-  private _context: StatusBarRenderContext | null = null;
-  private _plan: PillsPlan | null = null;
 
-  constructor(private readonly _parent: St.BoxLayout) {}
-
-  statusKey(context: StatusBarRenderContext): string {
-    return this._planFor(context).structureKey;
+  protected plan(context: StatusBarRenderContext): PillsPlan {
+    return planPills(context);
   }
 
-  build(context: StatusBarRenderContext): void {
-    const plan = this._planFor(context);
-
+  protected build(plan: PillsPlan): void {
     if (plan.loading) {
       const loadingPill = new St.BoxLayout({
         style_class: "pl-status-pill pl-status-pill-loading",
@@ -100,7 +95,7 @@ export class PillsStatusBarRenderer implements StatusBarRenderer {
       });
       loadingLabel.accessible_name = plan.loadingAccessibleText;
       loadingPill.add_child(loadingLabel);
-      this._parent.add_child(loadingPill);
+      this.parent.add_child(loadingPill);
       return;
     }
 
@@ -151,13 +146,12 @@ export class PillsStatusBarRenderer implements StatusBarRenderer {
         return valueLabel;
       });
 
-      this._parent.add_child(pill);
+      this.parent.add_child(pill);
       this._pills.push({ dot, values });
     }
   }
 
-  update(context: StatusBarRenderContext): void {
-    const plan = this._planFor(context);
+  protected update(plan: PillsPlan): void {
     plan.pills.forEach((pillPlan, index) => {
       const widgets = this._pills[index];
       if (!widgets) return;
@@ -174,23 +168,7 @@ export class PillsStatusBarRenderer implements StatusBarRenderer {
     });
   }
 
-  dispose(): void {
-    let child = this._parent.get_first_child();
-    while (child) {
-      const next = child.get_next_sibling();
-      child.destroy();
-      child = next;
-    }
+  protected onDispose(): void {
     this._pills = [];
-    this._context = null;
-    this._plan = null;
-  }
-
-  private _planFor(context: StatusBarRenderContext): PillsPlan {
-    if (this._context !== context || !this._plan) {
-      this._plan = planPills(context);
-      this._context = context;
-    }
-    return this._plan;
   }
 }

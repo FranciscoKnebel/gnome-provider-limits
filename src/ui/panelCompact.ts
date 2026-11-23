@@ -6,6 +6,7 @@ import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
 import { PROVIDER_NAMES, type ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
+import { bindActivation } from "../helpers/keyboard.js";
 import { resolveLocale } from "../helpers/locale.js";
 import { normalizeProvidersOrder, providerDisplayName } from "../helpers/provider-settings.js";
 import type { BaseReader, FieldDef, ReaderResult } from "../readers/base.js";
@@ -208,7 +209,9 @@ export class CompactPanelSection implements PanelStyleSection {
       y_align: Clutter.ActorAlign.CENTER,
     });
     expandAllButton.accessible_name = _("Expand all");
-    this._bindButtonActivate(expandAllButton, () => this._toggleAllProviders());
+    bindActivation(expandAllButton, () => this._toggleAllProviders(), {
+      pointerSignals: ["clicked"],
+    });
     actionsBox.add_child(expandAllButton);
     actionsBox.add_child(footer.refreshControl);
     actionsBox.add_child(footer.settingsControl);
@@ -217,24 +220,6 @@ export class CompactPanelSection implements PanelStyleSection {
     footer.row.add_child(actionsBox);
 
     return { titleLabel, expandAllButton, expandAllLabel };
-  }
-
-  private _bindButtonActivate(button: St.Button, onActivate: () => void): void {
-    button.connect("clicked", () => {
-      onActivate();
-    });
-    button.connect("key-press-event", (_actor: Clutter.Actor, event: Clutter.Event) => {
-      const symbol = event.get_key_symbol();
-      if (
-        symbol === Clutter.KEY_Return ||
-        symbol === Clutter.KEY_KP_Enter ||
-        symbol === Clutter.KEY_space
-      ) {
-        onActivate();
-        return Clutter.EVENT_STOP;
-      }
-      return Clutter.EVENT_PROPAGATE;
-    });
   }
 
   private _syncToolbar(plan: PanelMatrixPlan, lastRefreshAt: number | null): void {
@@ -373,29 +358,20 @@ export class CompactPanelSection implements PanelStyleSection {
       headerRow.add_style_class_name("provider-limits-matrix-group-divided");
     }
     headerRow.accessible_name = plan.headerAccessibleName;
-    headerRow.connect("button-release-event", () => {
-      this._toggleProvider(plan.provider);
-      return Clutter.EVENT_STOP;
-    });
-    headerRow.connect("key-press-event", (_actor: Clutter.Actor, event: Clutter.Event) => {
-      const symbol = event.get_key_symbol();
-      if (
-        symbol === Clutter.KEY_Return ||
-        symbol === Clutter.KEY_KP_Enter ||
-        symbol === Clutter.KEY_space
-      ) {
-        this._toggleProvider(plan.provider);
-        return Clutter.EVENT_STOP;
-      }
-      if (symbol === Clutter.KEY_Left) {
-        this._toggleProvider(plan.provider, false);
-        return Clutter.EVENT_STOP;
-      }
-      if (symbol === Clutter.KEY_Right) {
-        this._toggleProvider(plan.provider, true);
-        return Clutter.EVENT_STOP;
-      }
-      return Clutter.EVENT_PROPAGATE;
+    bindActivation(headerRow, () => this._toggleProvider(plan.provider), {
+      pointerSignals: ["button-release-event"],
+      onOtherKey: (event) => {
+        const symbol = event.get_key_symbol();
+        if (symbol === Clutter.KEY_Left) {
+          this._toggleProvider(plan.provider, false);
+          return Clutter.EVENT_STOP;
+        }
+        if (symbol === Clutter.KEY_Right) {
+          this._toggleProvider(plan.provider, true);
+          return Clutter.EVENT_STOP;
+        }
+        return Clutter.EVENT_PROPAGATE;
+      },
     });
 
     const headerStack = new St.BoxLayout({

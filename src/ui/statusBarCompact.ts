@@ -7,7 +7,8 @@ import { ReaderStatus } from "../readers/base.js";
 import { deriveStatusBarSegments, statusBadgeText, toAttention } from "./fieldViews.js";
 import type { ProviderAttention } from "./providerTypes.js";
 import { structureKey } from "./renderStructure.js";
-import type { StatusBarRenderContext, StatusBarRenderer } from "./statusBar.js";
+import type { StatusBarRenderContext } from "./statusBar.js";
+import { StatusBarRenderer } from "./statusBarRenderer.js";
 import { applyStatusAttentionClass } from "./tone.js";
 
 interface CompactPooledSegment {
@@ -95,21 +96,15 @@ function planCompact(context: StatusBarRenderContext): CompactPlan {
   };
 }
 
-export class CompactStatusBarRenderer implements StatusBarRenderer {
+export class CompactStatusBarRenderer extends StatusBarRenderer<CompactPlan> {
   private _segments: CompactPooledSegment[] = [];
   private _placeholder: St.Label | null = null;
-  private _context: StatusBarRenderContext | null = null;
-  private _plan: CompactPlan | null = null;
 
-  constructor(private readonly _parent: St.BoxLayout) {}
-
-  statusKey(context: StatusBarRenderContext): string {
-    return this._planFor(context).key;
+  protected plan(context: StatusBarRenderContext): CompactPlan {
+    return planCompact(context);
   }
 
-  build(context: StatusBarRenderContext): void {
-    const plan = this._planFor(context);
-
+  protected build(plan: CompactPlan): void {
     if (plan.state === "loading" && plan.placeholderText) {
       const placeholder = new St.Label({
         text: plan.placeholderText,
@@ -117,7 +112,7 @@ export class CompactStatusBarRenderer implements StatusBarRenderer {
         y_align: Clutter.ActorAlign.CENTER,
       });
       placeholder.accessible_name = _("Reading provider limits…");
-      this._parent.add_child(placeholder);
+      this.parent.add_child(placeholder);
       this._placeholder = placeholder;
       return;
     }
@@ -152,14 +147,12 @@ export class CompactStatusBarRenderer implements StatusBarRenderer {
       }
 
       applyStatusAttentionClass(segment, metricsLabel ?? nameLabel, badge.attention);
-      this._parent.add_child(segment);
+      this.parent.add_child(segment);
       this._segments.push({ box: segment, nameLabel, metricsLabel });
     });
   }
 
-  update(context: StatusBarRenderContext): void {
-    const plan = this._planFor(context);
-
+  protected update(plan: CompactPlan): void {
     if (plan.state === "loading" && this._placeholder && plan.placeholderText) {
       this._placeholder.text = plan.placeholderText;
       return;
@@ -183,23 +176,8 @@ export class CompactStatusBarRenderer implements StatusBarRenderer {
     });
   }
 
-  dispose(): void {
-    let child = this._parent.get_first_child();
-    while (child) {
-      const next = child.get_next_sibling();
-      child.destroy();
-      child = next;
-    }
+  protected onDispose(): void {
     this._segments = [];
     this._placeholder = null;
-    this._context = null;
-    this._plan = null;
-  }
-
-  private _planFor(context: StatusBarRenderContext): CompactPlan {
-    if (this._context === context && this._plan) return this._plan;
-    this._plan = planCompact(context);
-    this._context = context;
-    return this._plan;
   }
 }

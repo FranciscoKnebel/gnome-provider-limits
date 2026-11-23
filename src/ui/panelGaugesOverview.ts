@@ -5,6 +5,7 @@ import { ensureActorVisibleInScrollView } from "resource:///org/gnome/shell/misc
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
 import type { ProviderName } from "../constants.js";
+import { bindActivation } from "../helpers/keyboard.js";
 import { providerDisplayName } from "../helpers/provider-settings.js";
 import type { FieldDef, ReaderResult } from "../readers/base.js";
 import { ReaderStatus } from "../readers/base.js";
@@ -192,21 +193,9 @@ export class OverviewRenderer {
           child: content,
         });
         button.accessible_name = labelText;
-
-        button.connect("clicked", () => {
-          this._host.selectTab(tab);
-        });
-        button.connect("key-press-event", (_actor: Clutter.Actor, event: Clutter.Event) => {
-          const symbol = event.get_key_symbol();
-          if (
-            symbol === Clutter.KEY_Return ||
-            symbol === Clutter.KEY_KP_Enter ||
-            symbol === Clutter.KEY_space
-          ) {
-            this._host.selectTab(tab);
-            return Clutter.EVENT_STOP;
-          }
-          return this._host.handleArrowNavigation(event);
+        bindActivation(button, () => this._host.selectTab(tab), {
+          pointerSignals: ["clicked"],
+          onOtherKey: (event) => this._host.handleArrowNavigation(event),
         });
 
         this._tabBar.add_child(button);
@@ -281,21 +270,9 @@ export class OverviewRenderer {
       item.connect("key-focus-in", () =>
         ensureActorVisibleInScrollView(this._host.shell.scrollView, item),
       );
-      item.connect("button-release-event", () => {
-        this._host.selectTab(model.provider, true);
-        return Clutter.EVENT_STOP;
-      });
-      item.connect("key-press-event", (_actor: Clutter.Actor, event: Clutter.Event) => {
-        const symbol = event.get_key_symbol();
-        if (
-          symbol === Clutter.KEY_Return ||
-          symbol === Clutter.KEY_KP_Enter ||
-          symbol === Clutter.KEY_space
-        ) {
-          this._host.selectTab(model.provider, true);
-          return Clutter.EVENT_STOP;
-        }
-        return this._host.handleArrowNavigation(event);
+      bindActivation(item, () => this._host.selectTab(model.provider, true), {
+        pointerSignals: ["button-release-event"],
+        onOtherKey: (event) => this._host.handleArrowNavigation(event),
       });
 
       const outer = new St.BoxLayout({

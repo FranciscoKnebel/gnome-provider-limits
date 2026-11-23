@@ -9,12 +9,13 @@ import {
   deriveFieldViews,
   deriveProviderHealth,
   healthFromStatusAndTones,
+  projectUsageFacts,
   statusBadgeText,
   toAttention,
 } from "./fieldViews.js";
 import type { ProviderAttention } from "./providerTypes.js";
 import { structureKey } from "./renderStructure.js";
-import { clampFillRatio, deriveUsageSnapshot } from "./usageSnapshot.js";
+import { clampFillRatio } from "./usageSnapshot.js";
 
 export interface MatrixDetailRow {
   readonly name: string;
@@ -202,27 +203,24 @@ export function planPanelMatrix(input: PlanPanelMatrixInput): PanelMatrixPlan {
     const defs = input.fieldDefs[provider];
     const expanded = resolveProviderExpanded(provider, enabledCount, input.expandedOverrides);
     const chevron: "▾" | "▸" = expanded ? "▾" : "▸";
-    const statusViews = deriveFieldViews(
+    const statusFieldNames = input.statusFields[provider] ?? [];
+    const headerFieldNames = [...statusFieldNames, ...(input.panelFields[provider] ?? [])];
+    const headerViews = deriveFieldViews(
       defs,
       result,
-      input.statusFields[provider] ?? [],
+      headerFieldNames,
       "status",
       input.locale,
       tr,
     );
-    const statusBadge = statusBadgeText(deriveProviderHealth(result, statusViews, tr, defs), tr);
+    const statusBadge = statusBadgeText(deriveProviderHealth(result, headerViews, tr, defs), tr);
 
-    const snapshot = deriveUsageSnapshot({
-      fieldDefs: defs,
-      result,
-      preferredFieldNames: input.statusFields[provider] ?? [],
-      locale: input.locale,
-      t: tr,
+    const facts = projectUsageFacts(result, headerViews, statusFieldNames, {
       limitOnly: true,
       requireFiniteValue: true,
+      t: tr,
     });
-    const fiveSegmentBar =
-      snapshot.fillRatio !== null ? formatSegmentedBar(snapshot.fillRatio, 5) : "";
+    const fiveSegmentBar = facts.fillRatio !== null ? formatSegmentedBar(facts.fillRatio, 5) : "";
 
     const errorText =
       result.status === ReaderStatus.ERROR || result.status === ReaderStatus.UNAVAILABLE
@@ -253,7 +251,7 @@ export function planPanelMatrix(input: PlanPanelMatrixInput): PanelMatrixPlan {
 
     const accessibleParts = [displayName];
     if (statusBadge) accessibleParts.push(statusBadge);
-    if (snapshot.summaryText) accessibleParts.push(snapshot.summaryText);
+    if (facts.summaryText) accessibleParts.push(facts.summaryText);
     const headerAccessibleName = accessibleParts.join(" ");
 
     const groupStructure = groups.map((g) => [
@@ -282,10 +280,10 @@ export function planPanelMatrix(input: PlanPanelMatrixInput): PanelMatrixPlan {
       expanded,
       chevron,
       statusBadge,
-      primarySummary: snapshot.summaryText,
+      primarySummary: facts.summaryText,
       fiveSegmentBar,
-      fillRatio: snapshot.fillRatio,
-      headerTone: snapshot.tone,
+      fillRatio: facts.fillRatio,
+      headerTone: facts.tone,
       headerAccessibleName,
       detailText,
       errorText,

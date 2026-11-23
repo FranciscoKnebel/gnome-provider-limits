@@ -1,37 +1,20 @@
 import type { ProviderName } from "../constants.js";
 import { formatField } from "../formatters.js";
-import type { FieldDef, FieldType, FieldZone, ReaderResult } from "../readers/base.js";
+import type { FieldDef, FieldResult, FieldType, FieldZone, ReaderResult } from "../readers/base.js";
 import { FieldStatus, ReaderStatus } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
 import { companionResetFieldName, resolveFieldCategory } from "../readers/fields.js";
-import type { FieldTone } from "./fieldRows.js";
-import { getFieldRows } from "./fieldRows.js";
+import type { FieldRow, FieldTone } from "./fieldRows.js";
+import { fieldTone, getFieldRows } from "./fieldRows.js";
 import type {
   CardBadgeValue,
   OverviewBadgeValue,
   ProviderAttention,
-  ProviderBadge,
   ProviderHealth,
   ProviderState,
-  ProviderStateCore,
   ProviderTone,
 } from "./providerTypes.js";
-import {
-  ATTENTION_BY_STATE,
-  CARD_BADGE_BY_BADGE,
-  CARD_BADGE_LABEL,
-  OVERVIEW_BADGE_BY_BADGE,
-  OVERVIEW_BADGE_LABEL,
-  STATUS_BADGE_LABEL,
-  TONE_BY_STATE,
-} from "./providerTypes.js";
-import {
-  clampFillRatio,
-  collectFieldTones,
-  extractWindowSuffix,
-  isLimitReached,
-  worstFieldTone,
-} from "./usageSnapshot.js";
+import { clampFillRatio, extractWindowSuffix } from "./usageSnapshot.js";
 
 export interface FieldView {
   readonly name: string;
@@ -44,11 +27,55 @@ export interface FieldView {
   readonly tone?: FieldTone;
   readonly errorText?: string;
   readonly ratio: number | null;
+  readonly usageRatio: number | null;
   readonly fillPercent?: number;
   readonly hasValue: boolean;
   readonly resetName: string | null;
   readonly resetText: string | null;
   readonly hasResetSlot: boolean;
+}
+
+const TONE_SEVERITY: Record<FieldTone, number> = {
+  ok: 1,
+  warning: 2,
+  critical: 3,
+};
+
+export function worstFieldTone(tones: readonly (FieldTone | undefined)[]): FieldTone | undefined {
+  let worst: FieldTone | undefined;
+  for (const candidate of tones) {
+    if (candidate && (!worst || TONE_SEVERITY[candidate] > TONE_SEVERITY[worst])) {
+      worst = candidate;
+    }
+  }
+  return worst;
+}
+
+export function isLimitReached(fields: readonly FieldResult[] | undefined): boolean {
+  const field = fields?.find((candidate) => candidate.name === "limit_reached");
+  return field?.status === FieldStatus.OK && field.value === true;
+}
+
+export function collectFieldTones(
+  rows: readonly FieldRow[],
+  fields?: readonly FieldResult[],
+  fieldDefs?: readonly FieldDef[],
+): (FieldTone | undefined)[] {
+  const tones: (FieldTone | undefined)[] = rows.map((row) => row.tone);
+  if (fields && fieldDefs) {
+    for (const def of fieldDefs) {
+      if (def.type !== "percent") continue;
+      const field = fields.find((candidate) => candidate.name === def.name);
+      if (field?.status === FieldStatus.OK) tones.push(fieldTone(def.name, field.value));
+    }
+  }
+  if (isLimitReached(fields)) tones.push("critical");
+  return tones;
+}
+
+function usedPercentOf(fieldName: string, value: unknown): number | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  return fieldName.startsWith("remaining_percent") ? 100 - value : value;
 }
 
 export function deriveFieldViews(
@@ -84,6 +111,7 @@ export function deriveFieldViews(
     const category = row.category ?? (def ? resolveFieldCategory(def) : "limit");
     const resetName =
       row.companionResetName ?? companionResetFieldName(def ?? { name, type }) ?? null;
+    const field = result.fields.find((candidate) => candidate.name === name);
 
     let resetText: string | null = null;
     let hasResetSlot = false;
@@ -105,8 +133,13 @@ export function deriveFieldViews(
       }
     }
 
-    const field = result.fields.find((candidate) => candidate.name === name);
-    const tone = limitReached && name === "limit_reached" ? "critical" : row.tone;
+    const usedPercent = type === "percent" ? usedPercentOf(name, field?.value) : null;
+    let usageRatio = usedPercent === null ? null : clampFillRatio(usedPercent / 100);
+    if (limitReached && type === "percent") {
+      usageRatio = usageRatio === null ? 1 : Math.max(usageRatio, 1);
+    }
+    const tone =
+      limitReached && (name === "limit_reached" || type === "percent") ? "critical" : row.tone;
     return {
       name,
       type,
@@ -116,6 +149,7 @@ export function deriveFieldViews(
       valueText: row.valueText,
       accessibleText: row.accessibleText ?? `${tr(row.label)}: ${row.valueText}`,
       ratio: row.fillPercent === undefined ? null : clampFillRatio(row.fillPercent / 100),
+      usageRatio,
       hasValue: row.valueText !== "—",
       resetName,
       resetText,
@@ -127,6 +161,80 @@ export function deriveFieldViews(
   });
 }
 
+export interface UsageViewSelection {
+  readonly limitOnly?: boolean;
+  readonly requireFiniteValue?: boolean;
+}
+
+export function selectUsageView(
+  views: readonly FieldView[],
+  preferredNames: readonly string[],
+  options: UsageViewSelection = {},
+): FieldView | undefined {
+  const candidates = views.filter(
+    (view) => view.type === "percent" && (!options.limitOnly || view.category === "limit"),
+  );
+  const isUsable = (view: FieldView): boolean => !options.requireFiniteValue || view.hasValue;
+  for (const name of preferredNames) {
+    const view = candidates.find((candidate) => candidate.name === name);
+    if (view && isUsable(view)) return view;
+  }
+  return candidates.find(isUsable);
+}
+
+export interface UsageFacts {
+  readonly valueText: string;
+  readonly fillRatio: number | null;
+  readonly tone: FieldTone | "error" | undefined;
+  readonly resetText: string | null;
+  readonly summaryText: string;
+}
+
+export interface UsageProjectionOptions extends UsageViewSelection {
+  readonly t?: (s: string) => string;
+}
+
+export function projectUsageFacts(
+  result: ReaderResult,
+  views: readonly FieldView[],
+  preferredFieldNames: readonly string[],
+  options: UsageProjectionOptions = {},
+): UsageFacts {
+  const tr = options.t ?? ((s: string) => s);
+  if (result.status === ReaderStatus.ERROR || result.status === ReaderStatus.UNAVAILABLE) {
+    return {
+      valueText: "—",
+      fillRatio: null,
+      tone: "error",
+      resetText: null,
+      summaryText: result.status === ReaderStatus.ERROR ? tr("Error") : tr("(unavailable)"),
+    };
+  }
+
+  const primary = selectUsageView(views, preferredFieldNames, options);
+  const tokens: string[] = [];
+  for (const name of preferredFieldNames) {
+    const view = views.find((candidate) => candidate.name === name);
+    if (view?.hasValue) tokens.push(view.valueText);
+  }
+  if (tokens.length === 0) {
+    if (primary?.hasValue) tokens.push(primary.valueText);
+    const resetView = views.find(
+      (candidate) =>
+        candidate.type === "timestamp" && candidate.category === "limit" && candidate.hasValue,
+    );
+    if (resetView) tokens.push(resetView.valueText);
+  }
+
+  return {
+    valueText: primary?.valueText ?? "—",
+    fillRatio: primary?.usageRatio ?? null,
+    tone: primary?.tone,
+    resetText: primary?.resetText ?? null,
+    summaryText: tokens.length > 0 ? tokens.join(" · ") : "—",
+  };
+}
+
 export function isLastKnownGood(result: ReaderResult): boolean {
   return (
     result.status === ReaderStatus.PARTIAL &&
@@ -134,12 +242,23 @@ export function isLastKnownGood(result: ReaderResult): boolean {
   );
 }
 
+const TONE_BY_STATE: Readonly<Record<ProviderState, ProviderTone>> = {
+  ok: "ok",
+  warning: "warning",
+  critical: "critical",
+  partial: "partial",
+  error: "error",
+  unavailable: "error",
+  idle: "idle",
+  loading: "idle",
+};
+
 export function deriveProviderState(
   status: ReaderStatus,
   tones: readonly (FieldTone | undefined)[],
   hasUsableField: boolean,
   lastKnownGood: boolean,
-): ProviderStateCore {
+): ProviderHealth {
   const worstTone = worstFieldTone(tones);
   let state: ProviderState;
   if (status === ReaderStatus.ERROR) state = "error";
@@ -154,24 +273,12 @@ export function deriveProviderState(
   return {
     state,
     tone: TONE_BY_STATE[state],
-    badge: badgeForStatus(status, lastKnownGood),
     worstTone,
+    hasUsableField,
+    lastKnownGood,
+    stateTag: null,
+    stateAccessibleText: null,
   };
-}
-
-function badgeForStatus(status: ReaderStatus, lastKnownGood: boolean): ProviderBadge {
-  switch (status) {
-    case ReaderStatus.ERROR:
-      return "error";
-    case ReaderStatus.UNAVAILABLE:
-      return "unavailable";
-    case ReaderStatus.PARTIAL:
-      return lastKnownGood ? "cached" : "partial";
-    case ReaderStatus.DISABLED:
-      return "idle";
-    case ReaderStatus.OK:
-      return "ok";
-  }
 }
 
 function localizedStateText(
@@ -209,13 +316,7 @@ export function deriveProviderHealth(
   const core = deriveProviderState(result.status, tones, hasUsableField, lastKnownGood);
   const stateText = localizedStateText(result.status, tr);
 
-  return {
-    status: result.status,
-    ...core,
-    ...stateText,
-    lastKnownGood,
-    hasUsableField,
-  };
+  return { ...core, ...stateText };
 }
 
 export function healthFromStatusAndTones(
@@ -228,43 +329,101 @@ export function healthFromStatusAndTones(
   const core = deriveProviderState(status, tones, hasUsableField, false);
   const stateText = localizedStateText(status, tr);
 
-  return {
-    status,
-    ...core,
-    ...stateText,
-    lastKnownGood: false,
-    hasUsableField,
-  };
-}
-
-export function toHealthTone(health: ProviderHealth): ProviderTone {
-  return health.tone;
+  return { ...core, ...stateText };
 }
 
 export function toAttention(health: ProviderHealth): ProviderAttention {
   if (health.state === "partial" && health.worstTone === "warning") return "warning";
-  return ATTENTION_BY_STATE[health.state];
+  switch (health.state) {
+    case "error":
+    case "unavailable":
+      return "error";
+    case "partial":
+      return "partial";
+    case "warning":
+      return "warning";
+    case "critical":
+      return "critical";
+    default:
+      return "quiet";
+  }
 }
 
-export function toCardBadge(health: ProviderHealth): CardBadgeValue {
-  return CARD_BADGE_BY_BADGE[health.badge];
+export type BadgeZone = "card" | "overview" | "status";
+
+export interface BadgeValues {
+  readonly card: CardBadgeValue;
+  readonly overview: OverviewBadgeValue;
+  readonly status: string;
+  readonly cardLabel: string;
+  readonly overviewLabel: string;
 }
 
-export function toOverviewBadge(health: ProviderHealth): OverviewBadgeValue {
-  return OVERVIEW_BADGE_BY_BADGE[health.badge];
+type BadgeKey = ProviderState | "cached";
+
+const BADGE_BY_KEY: Readonly<Record<BadgeKey, BadgeValues>> = {
+  ok: { card: "live", overview: "ok", status: "", cardLabel: "Live", overviewLabel: "OK" },
+  warning: { card: "live", overview: "ok", status: "", cardLabel: "Live", overviewLabel: "OK" },
+  critical: { card: "live", overview: "ok", status: "", cardLabel: "Live", overviewLabel: "OK" },
+  partial: {
+    card: "cached",
+    overview: "partial",
+    status: "(partial)",
+    cardLabel: "Cached",
+    overviewLabel: "Partial",
+  },
+  cached: {
+    card: "cached",
+    overview: "cached",
+    status: "(partial)",
+    cardLabel: "Cached",
+    overviewLabel: "Cached",
+  },
+  error: {
+    card: "error",
+    overview: "error",
+    status: "(error)",
+    cardLabel: "Error",
+    overviewLabel: "Error",
+  },
+  unavailable: {
+    card: "unavailable",
+    overview: "error",
+    status: "(unavailable)",
+    cardLabel: "Unavailable",
+    overviewLabel: "Error",
+  },
+  idle: { card: "live", overview: "ok", status: "", cardLabel: "Live", overviewLabel: "…" },
+  loading: {
+    card: "live",
+    overview: "loading",
+    status: "",
+    cardLabel: "Live",
+    overviewLabel: "…",
+  },
+};
+
+function badgeValues(health: ProviderHealth): BadgeValues {
+  const key: BadgeKey =
+    health.lastKnownGood && health.state === "partial" ? "cached" : health.state;
+  return BADGE_BY_KEY[key];
+}
+
+export function badgeForZone<Z extends BadgeZone>(health: ProviderHealth, zone: Z): BadgeValues[Z] {
+  return badgeValues(health)[zone];
 }
 
 export function cardBadgeText(health: ProviderHealth, t: (s: string) => string): string {
-  return t(CARD_BADGE_LABEL[health.badge]);
+  return t(badgeValues(health).cardLabel);
 }
 
 export function overviewBadgeText(health: ProviderHealth, t: (s: string) => string): string {
   if (health.state === "loading" || health.state === "idle") return "…";
-  return t(OVERVIEW_BADGE_LABEL[health.badge]);
+  return t(badgeValues(health).overviewLabel);
 }
 
 export function statusBadgeText(health: ProviderHealth, t: (s: string) => string): string {
-  const label = STATUS_BADGE_LABEL[health.badge];
+  const label = badgeForZone(health, "status");
   return label ? t(label) : "";
 }
 

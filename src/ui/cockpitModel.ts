@@ -1,24 +1,21 @@
 import type { ProviderName } from "../constants.js";
 import { formatField } from "../formatters.js";
-import { FieldStatus, ReaderStatus } from "../readers/base.js";
+import { ReaderStatus } from "../readers/base.js";
 import type { FieldDef, ReaderResult } from "../readers/base.js";
 import { GAUGE_END_ANGLE, GAUGE_START_ANGLE, GAUGE_SWEEP_ANGLE, TONE_RGB } from "./cairoDrawing.js";
 import { fieldTone, type FieldTone } from "./fieldRows.js";
 import {
+  badgeForZone,
   deriveFieldViews,
   deriveProviderHealth,
   overviewBadgeText,
-  toOverviewBadge,
+  projectUsageFacts,
+  selectUsageView,
 } from "./fieldViews.js";
 import type { GaugeGeometry, GaugeTone, MicroMeterSpec, RgbTuple } from "./gaugeTypes.js";
 import type { OverviewBadgeValue } from "./providerTypes.js";
 import { structureKey } from "./renderStructure.js";
-import {
-  clampRatio,
-  deriveUsageSnapshot,
-  isLimitReached,
-  selectPercentField,
-} from "./usageSnapshot.js";
+import { clampRatio } from "./usageSnapshot.js";
 
 export type CockpitTab = "overview" | ProviderName;
 
@@ -123,37 +120,22 @@ export function computeStatusMicroMeter(
     };
   }
 
-  if (isLimitReached(result.fields)) {
+  const viewNames = [...statusFieldNames, ...fieldsDefs.map((def) => def.name)];
+  const views = deriveFieldViews(fieldsDefs, result, viewNames, "status", "en");
+  const primary = selectUsageView(views, statusFieldNames);
+
+  if (primary?.hasValue && primary.type === "percent") {
+    const ratio = primary.usageRatio ?? 0;
+    const tone: GaugeTone = primary.tone ?? "ok";
     return {
-      ratio: 1,
+      ratio,
       hasValue: true,
       startAngle: GAUGE_START_ANGLE,
-      endAngle: GAUGE_START_ANGLE + GAUGE_SWEEP_ANGLE,
-      tone: "critical",
-      rgb: TONE_RGB.critical,
+      endAngle: GAUGE_START_ANGLE + ratio * GAUGE_SWEEP_ANGLE,
+      tone,
+      rgb: TONE_RGB[tone],
       isError: false,
     };
-  }
-
-  const candidateName: string | null =
-    selectPercentField(fieldsDefs, statusFieldNames, result.fields)?.name ?? null;
-
-  if (candidateName !== null) {
-    const field = result.fields.find((f) => f.name === candidateName);
-    if (field && field.status === FieldStatus.OK) {
-      const geom = computeGaugeGeometry(candidateName, field.value);
-      if (geom.hasValue) {
-        return {
-          ratio: geom.ratio,
-          hasValue: true,
-          startAngle: geom.startAngle,
-          endAngle: geom.endAngle,
-          tone: geom.tone,
-          rgb: geom.rgb,
-          isError: false,
-        };
-      }
-    }
   }
 
   return {
@@ -295,7 +277,7 @@ export function buildOverviewRowModel(options: {
   const searchOrder = [...statusFieldNames, ...panelFieldNames];
   const overviewViews = deriveFieldViews(fieldsDefs, result, searchOrder, "status", locale, tr);
   const health = deriveProviderHealth(result, overviewViews, tr, fieldsDefs);
-  const badgeKind: OverviewBadgeKind = toOverviewBadge(health);
+  const badgeKind: OverviewBadgeKind = badgeForZone(health, "overview");
   const badgeText = overviewBadgeText(health, tr);
 
   const meter = computeStatusMicroMeter(fieldsDefs, result, statusFieldNames);
@@ -315,43 +297,10 @@ export function buildOverviewRowModel(options: {
     };
   }
 
-  const snapshot = deriveUsageSnapshot({
-    fieldDefs: fieldsDefs,
-    result,
-    preferredFieldNames: searchOrder,
-    locale,
-    t: tr,
-  });
+  const facts = projectUsageFacts(result, overviewViews, searchOrder, { t: tr });
   const resolvedTone = health.hasUsableField ? health.worstTone : undefined;
-
-  let primaryText = "—";
-  if (snapshot.fieldName !== null && snapshot.value !== null) {
-    primaryText = formatField({
-      type: "percent",
-      value: snapshot.value,
-      zone: "status",
-      locale,
-      t: tr,
-    });
-  }
-
-  let secondaryText: string | null = null;
-  if (snapshot.resetFieldName !== null) {
-    const resetField = result.fields.find((f) => f.name === snapshot.resetFieldName);
-    if (
-      resetField?.status === FieldStatus.OK &&
-      resetField.value !== null &&
-      resetField.value !== undefined
-    ) {
-      secondaryText = `↻ ${formatField({
-        type: "timestamp",
-        value: resetField.value,
-        zone: "status",
-        locale,
-        t: tr,
-      })}`;
-    }
-  }
+  const primaryText = facts.valueText;
+  const secondaryText = facts.resetText;
 
   const summaryParts = [displayName, badgeText, primaryText];
   if (secondaryText !== null) summaryParts.push(secondaryText);

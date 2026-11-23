@@ -6,11 +6,10 @@ import type { FieldCategory } from "../readers/fields.js";
 import { clampPercent, type FieldTone } from "./fieldRows.js";
 import type { FieldView } from "./fieldViews.js";
 import {
+  badgeForZone,
   cardBadgeText,
   deriveFieldViews,
   deriveProviderHealth,
-  toCardBadge,
-  toHealthTone,
 } from "./fieldViews.js";
 import type { CardBadgeValue, ProviderTone } from "./providerTypes.js";
 import { structureKey } from "./renderStructure.js";
@@ -97,9 +96,9 @@ export function planProviderCard(options: PlanProviderCardOptions): ProviderCard
 
   const views = isHardError ? [] : deriveFieldViews(defs, result, panelFields, "panel", locale, tr);
   const health = deriveProviderHealth(result, views, tr, defs);
-  const badgeKind: CardBadgeKind = toCardBadge(health);
+  const badgeKind: CardBadgeKind = badgeForZone(health, "card");
   const badgeText = cardBadgeText(health, tr);
-  const healthTone = toHealthTone(health);
+  const healthTone = health.tone;
 
   let bannerKind: BannerKind | null = null;
   let bannerText: string | null = null;

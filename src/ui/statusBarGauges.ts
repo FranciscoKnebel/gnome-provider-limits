@@ -10,7 +10,8 @@ import type { FieldView, StatusBarZonePlan } from "./fieldViews.js";
 import { deriveStatusBarSegments } from "./fieldViews.js";
 import type { MicroMeterSpec } from "./gaugeTypes.js";
 import { sectionKey, structureKey } from "./renderStructure.js";
-import type { StatusBarRenderContext, StatusBarRenderer } from "./statusBar.js";
+import type { StatusBarRenderContext } from "./statusBar.js";
+import { StatusBarRenderer } from "./statusBarRenderer.js";
 import { applyToneClass } from "./tone.js";
 
 const MICRO_GAUGE_SIZE = 14;
@@ -66,20 +67,14 @@ function planGauges(context: StatusBarRenderContext): GaugesPlan {
   };
 }
 
-export class GaugesStatusBarRenderer implements StatusBarRenderer {
+export class GaugesStatusBarRenderer extends StatusBarRenderer<GaugesPlan> {
   private _segments: GaugeSegmentWidgets[] = [];
-  private _context: StatusBarRenderContext | null = null;
-  private _plan: GaugesPlan | null = null;
 
-  constructor(private readonly _parent: St.BoxLayout) {}
-
-  statusKey(context: StatusBarRenderContext): string {
-    return this._currentPlan(context).key;
+  protected plan(context: StatusBarRenderContext): GaugesPlan {
+    return planGauges(context);
   }
 
-  build(context: StatusBarRenderContext): void {
-    const plan = this._currentPlan(context);
-
+  protected build(plan: GaugesPlan): void {
     if (plan.kind === "placeholder") {
       if (!plan.hasEnabled) return;
       const placeholder = new St.Label({
@@ -88,7 +83,7 @@ export class GaugesStatusBarRenderer implements StatusBarRenderer {
         y_align: Clutter.ActorAlign.CENTER,
       });
       placeholder.accessible_name = _("Refreshing…");
-      this._parent.add_child(placeholder);
+      this.parent.add_child(placeholder);
       return;
     }
 
@@ -141,13 +136,12 @@ export class GaugesStatusBarRenderer implements StatusBarRenderer {
         return valueLabel;
       });
 
-      this._parent.add_child(segment);
+      this.parent.add_child(segment);
       this._segments.push(segmentWidgets);
     }
   }
 
-  update(context: StatusBarRenderContext): void {
-    const plan = this._currentPlan(context);
+  protected update(plan: GaugesPlan): void {
     if (plan.kind === "placeholder") return;
 
     plan.segments.forEach((segmentPlan, index) => {
@@ -167,22 +161,7 @@ export class GaugesStatusBarRenderer implements StatusBarRenderer {
     });
   }
 
-  dispose(): void {
-    let child = this._parent.get_first_child();
-    while (child) {
-      const next = child.get_next_sibling();
-      child.destroy();
-      child = next;
-    }
+  protected onDispose(): void {
     this._segments = [];
-    this._context = null;
-    this._plan = null;
-  }
-
-  private _currentPlan(context: StatusBarRenderContext): GaugesPlan {
-    if (this._context === context && this._plan) return this._plan;
-    this._plan = planGauges(context);
-    this._context = context;
-    return this._plan;
   }
 }

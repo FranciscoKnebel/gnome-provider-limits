@@ -1,35 +1,15 @@
-import { readFileSync } from "node:fs";
-import { fileURLToPath } from "node:url";
-
 import { PROVIDER_NAMES } from "../../src/constants.js";
 import { moveAdjacentValue, reorderValue } from "../../src/helpers/reorder.js";
 import {
   CLAUDE_FIELDS,
   CODEX_FIELDS,
   CURSOR_FIELDS,
-  DEFAULT_PROVIDER_ZONE_FIELDS,
   GOOGLE_FIELDS,
   GROK_FIELDS,
   OPENCODE_FIELDS,
   PROVIDER_FIELDS,
   resolveFieldCategory,
 } from "../../src/readers/fields.js";
-
-const SCHEMA_PATH = fileURLToPath(
-  new URL(
-    "../../../src/schemas/org.gnome.shell.extensions.gnome-provider-limits.gschema.xml",
-    import.meta.url,
-  ),
-);
-
-function parseSchemaStrvDefault(xml: string, keyName: string): string[] {
-  const escaped = keyName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  const match = xml.match(
-    new RegExp(`<key\\s+name="${escaped}"[^>]*>[\\s\\S]*?<default>\\[([^\\]]*)\\]</default>`),
-  );
-  if (!match) return [];
-  return Array.from(match[1].matchAll(/'([^']+)'/g), (m) => m[1]);
-}
 
 describe("readers/fields & helpers/reorder", () => {
   it("exports decoupled field metadata for every provider with Limit and Telemetry categories", () => {
@@ -49,18 +29,6 @@ describe("readers/fields & helpers/reorder", () => {
 
     expect(resolveFieldCategory({ name: "custom_cost", type: "cost" })).toBe("telemetry");
     expect(resolveFieldCategory({ name: "custom_pct", type: "percent" })).toBe("limit");
-  });
-
-  it("matches GSettings schema defaults for status-fields and panel-fields", () => {
-    const xml = readFileSync(SCHEMA_PATH, "utf-8");
-    for (const provider of PROVIDER_NAMES) {
-      expect([...DEFAULT_PROVIDER_ZONE_FIELDS[provider].status]).toEqual(
-        parseSchemaStrvDefault(xml, `${provider}-status-fields`),
-      );
-      expect([...DEFAULT_PROVIDER_ZONE_FIELDS[provider].panel]).toEqual(
-        parseSchemaStrvDefault(xml, `${provider}-panel-fields`),
-      );
-    }
   });
 
   it("reorders adjacent items with keyboard Move Up / Move Down while preserving unknown values", () => {

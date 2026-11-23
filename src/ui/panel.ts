@@ -1,10 +1,10 @@
 import type Gio from "gi://Gio";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
-import { PROVIDER_NAMES, type ProviderName } from "../constants.js";
+import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import type { BaseReader, FieldDef, ReaderResult } from "../readers/base.js";
-import { getProviderFields } from "../readers/fields.js";
+import { resolveFieldDefs } from "../readers/fields.js";
 import { CardsPanelSection } from "./panelCards.js";
 import { CompactPanelSection } from "./panelCompact.js";
 import { GaugesPanelSection } from "./panelGauges.js";
@@ -13,12 +13,6 @@ import { resolvePanelStyle, type PanelStyle, type StyleDispatch } from "./styles
 
 export type { PanelStyle } from "./styles.js";
 export type { PanelStyleSection } from "./panelShell.js";
-
-function resolveFieldDefs(): Readonly<Record<ProviderName, readonly FieldDef[]>> {
-  const defs = {} as Record<ProviderName, readonly FieldDef[]>;
-  for (const name of PROVIDER_NAMES) defs[name] = getProviderFields(name);
-  return defs;
-}
 
 export class PanelWidget extends PopupMenu.PopupMenuSection {
   private readonly _settings: Gio.Settings;
