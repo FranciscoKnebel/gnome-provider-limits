@@ -89,7 +89,7 @@ export function chunkPairs<T>(items: readonly T[]): T[][] {
 export function partitionProviderPanel(
   model: ProviderDisplayModel,
   locale: string,
-  tr: (s: string) => string = (s) => s,
+  tr: (s: string) => string,
 ): PartitionedProviderPanel {
   const groups = classifyPanelViews(model);
   const gauges: RadialGaugeItem[] = [];

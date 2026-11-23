@@ -61,27 +61,30 @@ export class PillsStatusBarRenderer extends StatusBarRenderer<PillsPlan> {
     return planPills(context);
   }
 
-  protected renderPlan(plan: PillsPlan): void {
-    if (plan.kind === "placeholder") {
-      const loadingPill = new St.BoxLayout({
-        style_class: "pl-status-pill pl-status-pill-loading",
-        y_align: Clutter.ActorAlign.CENTER,
-      });
-      const dot = new St.BoxLayout({
-        style_class: "pl-health-dot",
-        y_align: Clutter.ActorAlign.CENTER,
-      });
-      applyHealthToneClass(dot, "idle");
-      loadingPill.add_child(dot);
+  protected override renderPlan(plan: PillsPlan): void {
+    if (
+      this.renderPlaceholder(plan, (placeholder) => {
+        const loadingPill = new St.BoxLayout({
+          style_class: "pl-status-pill pl-status-pill-loading",
+          y_align: Clutter.ActorAlign.CENTER,
+        });
+        const dot = new St.BoxLayout({
+          style_class: "pl-health-dot",
+          y_align: Clutter.ActorAlign.CENTER,
+        });
+        applyHealthToneClass(dot, "idle");
+        loadingPill.add_child(dot);
 
-      const loadingLabel = new St.Label({
-        text: plan.placeholder ?? "",
-        style_class: "pl-status-value pl-status-loading-label",
-        y_align: Clutter.ActorAlign.CENTER,
-      });
-      loadingLabel.accessible_name = plan.placeholderAccessibleText;
-      loadingPill.add_child(loadingLabel);
-      this.parent.add_child(loadingPill);
+        const loadingLabel = new St.Label({
+          text: placeholder.placeholder ?? "",
+          style_class: "pl-status-value pl-status-loading-label",
+          y_align: Clutter.ActorAlign.CENTER,
+        });
+        loadingLabel.accessible_name = placeholder.placeholderAccessibleText;
+        loadingPill.add_child(loadingLabel);
+        return loadingPill;
+      })
+    ) {
       return;
     }
 

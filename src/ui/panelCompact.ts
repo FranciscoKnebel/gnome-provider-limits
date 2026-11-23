@@ -1,5 +1,4 @@
 import Clutter from "gi://Clutter";
-import type Gio from "gi://Gio";
 import St from "gi://St";
 
 import type { ProviderName } from "../constants.js";
@@ -13,7 +12,7 @@ import {
   toggleAllProvidersExpanded,
 } from "./matrixPlan.js";
 import type { MatrixDetailRow, PanelMatrixPlan, ProviderMatrixPlan } from "./matrixPlan.js";
-import type { PanelRenderContext, PanelShell, PanelStyleSection } from "./panelShell.js";
+import { PanelStyleSection, type PanelRenderContext, type PanelShell } from "./panelShell.js";
 import { applyQuietToneClass, applyToneClass } from "./tone.js";
 import { emptyViewContext, type ProviderViewContext } from "./viewContext.js";
 
@@ -42,15 +41,14 @@ export function createExpandAllControl(): ExpandAllControl {
 }
 
 /** Rebuilds the compact panel body from one freshly derived plan. */
-export class CompactPanelSection implements PanelStyleSection {
+export class CompactPanelSection extends PanelStyleSection {
   private _lastRefreshAt: number | null = null;
   private _lastView: ProviderViewContext;
   private _expandedOverrides: Map<ProviderName, boolean> = new Map();
   private readonly _expandAll: ExpandAllControl;
-  readonly shell: PanelShell;
 
-  constructor(_settings: Gio.Settings, shell: PanelShell, expandAll: ExpandAllControl) {
-    this.shell = shell;
+  constructor(shell: PanelShell, expandAll: ExpandAllControl) {
+    super(shell);
     this._expandAll = expandAll;
     bindActivation(expandAll.button, () => this._toggleAllProviders(), {
       pointerSignals: ["clicked"],
@@ -59,11 +57,7 @@ export class CompactPanelSection implements PanelStyleSection {
     this.render({ lastRefreshAt: null, view: this._lastView });
   }
 
-  destroy(): void {
-    this.shell.destroy();
-  }
-
-  render(context: PanelRenderContext): void {
+  override render(context: PanelRenderContext): void {
     this._lastRefreshAt = context.lastRefreshAt;
     this._lastView = context.view;
     const plan = this._buildPlan(context.view);
@@ -77,10 +71,6 @@ export class CompactPanelSection implements PanelStyleSection {
       });
     }
     this._syncToolbar(plan);
-  }
-
-  setRunning(running: boolean): void {
-    this.shell.setRunning(running);
   }
 
   private _buildPlan(view: ProviderViewContext): PanelMatrixPlan {

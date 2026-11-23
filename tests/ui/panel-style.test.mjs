@@ -50,10 +50,8 @@ test("Panel swaps style sections on setting change and forwards render and runni
   }
   const created = [];
   class SectionStub {
-    constructor(settings, fieldDefsOrShell, maybeShell) {
-      this.settings = settings;
-      this.fieldDefs = maybeShell === undefined ? undefined : fieldDefsOrShell;
-      this.shell = maybeShell ?? fieldDefsOrShell;
+    constructor(shell) {
+      this.shell = shell;
       this.rendered = [];
       this.running = null;
       this.destroyed = false;
@@ -73,17 +71,13 @@ test("Panel swaps style sections on setting change and forwards render and runni
   }
   class GaugesStub extends SectionStub {
     constructor(settings, shell) {
-      super(settings, undefined, shell);
+      super(shell);
     }
   }
-  class CardsStub extends SectionStub {
-    constructor(settings, fieldDefs, shell) {
-      super(settings, fieldDefs, shell);
-    }
-  }
+  class CardsStub extends SectionStub {}
   class CompactStub extends SectionStub {
-    constructor(settings, shell, expandAll) {
-      super(settings, undefined, shell);
+    constructor(shell, expandAll) {
+      super(shell);
       this.expandAll = expandAll;
     }
   }

@@ -51,40 +51,32 @@ export interface ProviderDisplayUsage {
   readonly overview: UsageFacts;
 }
 
-/** Identity and result state, shared by every consumer of a snapshot. */
-export interface ProviderIdentityView {
+/** Composed snapshot for renderers that genuinely need several slices at once. */
+export interface ProviderDisplayModel {
+  // Identity and result state.
   readonly provider: ProviderName;
   readonly displayName: string;
   readonly shortDisplayName: string;
   readonly result: ReaderResult;
   readonly status: ReaderStatus;
-}
 
-/** Health, badges and hard-error classification keyed by identity facts. */
-export interface ProviderHealthView extends ProviderIdentityView {
+  // Health, badges and hard-error classification keyed by identity facts.
   readonly isHardError: boolean;
   readonly health: ProviderHealth;
   readonly badges: DisplayBadges;
-}
 
-/** The one derived view set and its single reset model for one provider. */
-export interface FieldRowSet {
+  // The one derived view set and its single reset model.
   readonly statusViews: readonly FieldView[];
   readonly panelViews: readonly FieldView[];
   readonly resets: ReadonlyMap<string, ResetPairing>;
-}
 
-/** Usage facts, meter, diagnostic and human-facing timestamps. */
-export interface UsageSummary {
+  // Usage facts, meter, diagnostic and human-facing timestamps.
   readonly usage: ProviderDisplayUsage;
   readonly meter: GaugeSpec;
   readonly diagnostic: DisplayDiagnostic;
   readonly callout: DisplayCallout | null;
   readonly lastUpdatedText: string | null;
 }
-
-/** Composed snapshot for renderers that genuinely need several slices at once. */
-export interface ProviderDisplayModel extends ProviderHealthView, FieldRowSet, UsageSummary {}
 
 /** Everything deriveDisplayModel needs, with no surrounding provider context. */
 export interface DisplayModelOptions {

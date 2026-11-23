@@ -310,6 +310,7 @@ describe("partitionProviderPanel & chunking", () => {
         "unknown_field",
       ]),
       "en",
+      (s) => s,
     );
 
     expect(partition.gauges.map((g) => g.fieldName)).toEqual([
@@ -345,6 +346,7 @@ describe("partitionProviderPanel & chunking", () => {
     const partition = partitionProviderPanel(
       panelModel(CODEX_FIELDS, result, ["reset_at_primary"]),
       "en",
+      (s) => s,
     );
     expect(partition.gauges.length).toBe(0);
     expect(partition.bentoTiles.map((b) => b.fieldName)).toEqual(["reset_at_primary"]);
@@ -374,6 +376,7 @@ describe("partitionProviderPanel & chunking", () => {
     const partition = partitionProviderPanel(
       panelModel(CLAUDE_FIELDS, result, ["used_percent_session", "has_extra_usage_enabled"]),
       "en",
+      (s) => s,
     );
     expect(partition.gauges[0].errorText).toBe("Probe timeout");
     expect(partition.bentoTiles[0].errorText).toBe("Missing token");

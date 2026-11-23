@@ -1,9 +1,6 @@
 import Clutter from "gi://Clutter";
-import type Gio from "gi://Gio";
 import St from "gi://St";
 
-import type { ProviderName } from "../constants.js";
-import type { FieldDef } from "../readers/base.js";
 import { planPanel } from "./cardPlan.js";
 import type {
   BannerKind,
@@ -13,7 +10,7 @@ import type {
   ProviderCardPlan,
 } from "./cardPlan.js";
 import { clampPercent } from "./fieldRows.js";
-import type { PanelRenderContext, PanelShell, PanelStyleSection } from "./panelShell.js";
+import { PanelStyleSection, type PanelRenderContext } from "./panelShell.js";
 import { applyHealthToneClass, applyToneClass } from "./tone.js";
 
 export function computeBarWidthPx(
@@ -54,22 +51,8 @@ function bannerStyleClass(kind: BannerKind): string {
 }
 
 /** Rebuilds the cards panel body from one freshly derived plan. */
-export class CardsPanelSection implements PanelStyleSection {
-  readonly shell: PanelShell;
-
-  constructor(
-    _settings: Gio.Settings,
-    _fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>,
-    shell: PanelShell,
-  ) {
-    this.shell = shell;
-  }
-
-  destroy(): void {
-    this.shell.destroy();
-  }
-
-  render(context: PanelRenderContext): void {
+export class CardsPanelSection extends PanelStyleSection {
+  override render(context: PanelRenderContext): void {
     const plan = planPanel(context.view, this.shell.isRunning());
     this.shell.clearBody();
 
@@ -78,10 +61,6 @@ export class CardsPanelSection implements PanelStyleSection {
     } else {
       for (const cardPlan of plan.cards) this._addCard(cardPlan);
     }
-  }
-
-  setRunning(running: boolean): void {
-    this.shell.setRunning(running);
   }
 
   private _addCard(plan: ProviderCardPlan): void {

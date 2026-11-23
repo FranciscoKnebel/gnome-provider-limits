@@ -2,10 +2,15 @@ import { test } from "node:test";
 
 import { assert, load } from "../helpers/node-harness.mjs";
 
+function SectionBase(shell) {
+  this.shell = shell;
+}
+
 test("computeBarWidthPx clamps and scales progress fills in the card renderer", () => {
   const { computeBarWidthPx } = load("src/ui/panelCards.ts", "({ computeBarWidthPx })", {
     Clutter: { ActorAlign: { CENTER: 0, START: 1, END: 2 } },
     St: {},
+    PanelStyleSection: SectionBase,
     clampPercent: (value) =>
       typeof value !== "number" || !Number.isFinite(value)
         ? undefined

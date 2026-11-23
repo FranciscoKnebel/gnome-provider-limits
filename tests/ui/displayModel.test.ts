@@ -1,9 +1,9 @@
+import { providerRecord } from "../../src/constants.js";
 import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
 import type { ReaderResult } from "../../src/readers/base.js";
 import { CODEX_FIELDS, PROVIDER_FIELDS } from "../../src/readers/fields.js";
 import { deriveDisplayModel, deriveDisplayModels } from "../../src/ui/displayModel.js";
 import { consumedResetNames, resetDetailText, resetSlotText } from "../../src/ui/resetModel.js";
-import { providerRecord } from "../../src/ui/viewContext.js";
 import { viewContextFromFixture, type ViewFixtureInput } from "./contextFixture.js";
 
 const result: ReaderResult = {

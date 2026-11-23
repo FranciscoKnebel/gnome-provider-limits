@@ -32,6 +32,16 @@ export abstract class StatusBarRenderer<TPlan> {
     clearChildren(this.parent, (child) => child.destroy());
   }
 
+  /** Renders a placeholder when present. Acts as a guard so callers can fall through to segments. */
+  protected renderPlaceholder<TSegment>(
+    plan: ZonePlan<TSegment>,
+    factory: (placeholder: PlaceholderPlan) => St.Widget,
+  ): plan is PlaceholderPlan {
+    if (plan.kind !== "placeholder") return false;
+    if (plan.showPlaceholder) this.parent.add_child(factory(plan));
+    return true;
+  }
+
   protected abstract plan(context: ProviderViewContext): TPlan;
 
   protected abstract renderPlan(plan: TPlan): void;

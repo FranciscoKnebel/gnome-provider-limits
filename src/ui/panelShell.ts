@@ -17,11 +17,23 @@ export interface PanelRenderContext {
   readonly view: ProviderViewContext;
 }
 
-export interface PanelStyleSection {
+/** Base for style sections: owns the shell and its shared lifecycle. */
+export abstract class PanelStyleSection {
   readonly shell: PanelShell;
-  render(context: PanelRenderContext): void;
-  setRunning(running: boolean): void;
-  destroy(): void;
+
+  constructor(shell: PanelShell) {
+    this.shell = shell;
+  }
+
+  abstract render(context: PanelRenderContext): void;
+
+  setRunning(running: boolean): void {
+    this.shell.setRunning(running);
+  }
+
+  destroy(): void {
+    this.shell.destroy();
+  }
 }
 
 interface ShellPlacement {

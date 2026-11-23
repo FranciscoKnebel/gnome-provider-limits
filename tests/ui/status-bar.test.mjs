@@ -20,6 +20,8 @@ function loadViewContext() {
   let derivationInput;
   const api = load("src/ui/viewContext.ts", "({ viewContextFor, resolveViewPhase })", {
     PROVIDER_NAMES,
+    providerRecord: (make) =>
+      Object.fromEntries(PROVIDER_NAMES.map((provider) => [provider, make(provider)])),
     deriveDisplayModels: (input) => {
       derivationInput = input;
       return [];

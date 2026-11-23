@@ -2,9 +2,6 @@ import type Gio from "gi://Gio";
 import type St from "gi://St";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
-import type { ProviderName } from "../constants.js";
-import type { FieldDef } from "../readers/base.js";
-import { PROVIDER_FIELDS } from "../readers/fields.js";
 import { CardsPanelSection } from "./panelCards.js";
 import { CompactPanelSection, createExpandAllControl } from "./panelCompact.js";
 import { GaugesPanelSection } from "./panelGauges.js";
@@ -17,7 +14,6 @@ export type { PanelStyleSection } from "./panelShell.js";
 
 export class PanelWidget extends PopupMenu.PopupMenuSection {
   private readonly _settings: Gio.Settings;
-  private readonly _fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>;
   private readonly _openPreferences: () => void;
   private readonly _onRefresh: () => void;
   private readonly _closeMenu: () => void;
@@ -33,20 +29,15 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
   ) {
     super();
     this._settings = settings;
-    this._fieldDefs = PROVIDER_FIELDS;
     this._openPreferences = openPreferences;
     this._onRefresh = onRefresh;
     this._closeMenu = closeMenu;
     this._sections = {
       gauges: () => new GaugesPanelSection(settings, this._createShell("gauges")),
-      cards: () => new CardsPanelSection(settings, this._fieldDefs, this._createShell("cards")),
+      cards: () => new CardsPanelSection(this._createShell("cards")),
       compact: () => {
         const expandAll = createExpandAllControl();
-        return new CompactPanelSection(
-          settings,
-          this._createShell("compact", [expandAll.button]),
-          expandAll,
-        );
+        return new CompactPanelSection(this._createShell("compact", [expandAll.button]), expandAll);
       },
     };
 

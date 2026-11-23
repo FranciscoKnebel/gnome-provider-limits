@@ -10,7 +10,7 @@ import type { DetailHost } from "./panelGaugesDetail.js";
 import { DetailRenderer } from "./panelGaugesDetail.js";
 import type { OverviewHost } from "./panelGaugesOverview.js";
 import { OverviewRenderer } from "./panelGaugesOverview.js";
-import type { PanelRenderContext, PanelShell, PanelStyleSection } from "./panelShell.js";
+import { PanelStyleSection, type PanelRenderContext, type PanelShell } from "./panelShell.js";
 import { emptyViewContext, type ViewPhase } from "./viewContext.js";
 import { phaseResult } from "./viewMessages.js";
 
@@ -20,16 +20,15 @@ type BodyState =
   | { kind: "detail"; provider: ProviderName };
 
 /** Thin coordinator: owns tab state and delegates rendering to focused renderers. */
-export class GaugesPanelSection implements PanelStyleSection {
+export class GaugesPanelSection extends PanelStyleSection {
   private readonly _overview: OverviewRenderer;
   private readonly _detail: DetailRenderer;
   private _activeTab: CockpitTab = "overview";
   private _enabledProviders: ProviderName[] = [];
   private _lastContext: PanelRenderContext;
-  readonly shell: PanelShell;
 
   constructor(settings: Gio.Settings, shell: PanelShell) {
-    this.shell = shell;
+    super(shell);
     this._lastContext = {
       lastRefreshAt: null,
       view: emptyViewContext("", _),
@@ -50,10 +49,6 @@ export class GaugesPanelSection implements PanelStyleSection {
     this.shell.setFooterKeyHandler((event) => this._handleArrowNavigation(event));
   }
 
-  destroy(): void {
-    this.shell.destroy();
-  }
-
   get activeTab(): CockpitTab {
     return this._activeTab;
   }
@@ -66,7 +61,7 @@ export class GaugesPanelSection implements PanelStyleSection {
     if (focusTabButton) this._overview.focusTabButton(resolved);
   }
 
-  render(context: PanelRenderContext): void {
+  override render(context: PanelRenderContext): void {
     this._lastContext = context;
     const results = context.view.results;
     const locale = context.view.locale;
@@ -100,10 +95,6 @@ export class GaugesPanelSection implements PanelStyleSection {
       (candidate) => candidate.provider === nextState.provider,
     );
     if (model) this._detail.render({ model, locale });
-  }
-
-  setRunning(running: boolean): void {
-    this.shell.setRunning(running);
   }
 
   private _resolveBodyState(

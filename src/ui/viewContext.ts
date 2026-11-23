@@ -1,6 +1,6 @@
 import type Gio from "gi://Gio";
 
-import type { ProviderName } from "../constants.js";
+import { providerRecord, type ProviderName } from "../constants.js";
 import {
   providerDisplayName,
   providerDisplayNameShort,
@@ -26,17 +26,6 @@ export interface ProviderViewContext {
 /** Derivation-only inputs, never exposed to renderers or plan builders. */
 interface ViewDerivationInput extends DisplayModelDerivationInput {
   readonly phase: ViewPhase;
-}
-
-export function providerRecord<T>(make: (provider: ProviderName) => T): Record<ProviderName, T> {
-  return {
-    codex: make("codex"),
-    claude: make("claude"),
-    opencode: make("opencode"),
-    grok: make("grok"),
-    cursor: make("cursor"),
-    google: make("google"),
-  };
 }
 
 /** Empty when nothing is enabled, loading until results arrive, ready otherwise. */

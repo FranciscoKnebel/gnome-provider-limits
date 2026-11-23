@@ -214,7 +214,7 @@ export interface UsageFacts {
 }
 
 export interface UsageProjectionOptions extends UsageViewSelection {
-  readonly t?: (s: string) => string;
+  readonly t: (s: string) => string;
   readonly zone: FieldZone;
   readonly locale: string;
   readonly resetTextFor?: (view: FieldView) => string | null;
@@ -226,7 +226,7 @@ export function projectUsageFacts(
   preferredFieldNames: readonly string[],
   options: UsageProjectionOptions,
 ): UsageFacts {
-  const tr = options.t ?? ((s: string) => s);
+  const tr = options.t;
   if (result.status === ReaderStatus.ERROR || result.status === ReaderStatus.UNAVAILABLE) {
     return {
       valueText: "—",

@@ -1,8 +1,5 @@
-import {
-  providerRecord,
-  type ProviderViewContext,
-  type ViewPhase,
-} from "../../src/ui/viewContext.js";
+import { providerRecord } from "../../src/constants.js";
+import { type ProviderViewContext, type ViewPhase } from "../../src/ui/viewContext.js";
 import { phaseResult, viewMessages } from "../../src/ui/viewMessages.js";
 import type { ViewSurface } from "../../src/ui/viewMessages.js";
 

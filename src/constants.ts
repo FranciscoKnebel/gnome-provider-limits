@@ -1,6 +1,13 @@
 export const PROVIDER_NAMES = ["codex", "claude", "opencode", "grok", "cursor", "google"] as const;
 export type ProviderName = (typeof PROVIDER_NAMES)[number];
 
+/** Build a complete record for every provider from the canonical name list. */
+export function providerRecord<T>(make: (provider: ProviderName) => T): Record<ProviderName, T> {
+  const record = {} as Record<ProviderName, T>;
+  for (const provider of PROVIDER_NAMES) record[provider] = make(provider);
+  return record;
+}
+
 export const DEFAULT_REFRESH_SHORT_INTERVAL_SECONDS = 10;
 export const DEFAULT_REFRESH_LONG_INTERVAL_SECONDS = 120;
 export const DEFAULT_REFRESH_STABLE_READS_THRESHOLD = 3;

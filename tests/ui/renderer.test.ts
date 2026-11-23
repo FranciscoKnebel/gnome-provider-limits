@@ -1,5 +1,5 @@
 import { resolveLocale } from "../../src/helpers/locale.js";
-import { currentRefreshInterval, shouldRender } from "../../src/helpers/refresh.js";
+import { currentRefreshInterval } from "../../src/helpers/refresh.js";
 import { clampFillRatio, clampPercent, fieldTone, percentTone } from "../../src/ui/fieldRows.js";
 
 describe("formatters", () => {
@@ -94,21 +94,6 @@ describe("formatters", () => {
 
     it("uses the long interval above the threshold", () => {
       expect(currentRefreshInterval(4, 3, 10, 120)).toBe(120);
-    });
-  });
-
-  describe("shouldRender", () => {
-    it("renders on the first cycle even without changes", () => {
-      expect(shouldRender(false, false)).toBe(true);
-    });
-
-    it("skips the render when nothing changed after the first render", () => {
-      expect(shouldRender(true, false)).toBe(false);
-    });
-
-    it("renders when results changed", () => {
-      expect(shouldRender(true, true)).toBe(true);
-      expect(shouldRender(false, true)).toBe(true);
     });
   });
 

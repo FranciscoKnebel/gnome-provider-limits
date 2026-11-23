@@ -61,16 +61,18 @@ export class GaugesStatusBarRenderer extends StatusBarRenderer<GaugesPlan> {
     return planGauges(context);
   }
 
-  protected renderPlan(plan: GaugesPlan): void {
-    if (plan.kind === "placeholder") {
-      if (!plan.showPlaceholder) return;
-      const placeholder = new St.Label({
-        text: plan.placeholder ?? "",
-        style_class: "pl-status-placeholder",
-        y_align: Clutter.ActorAlign.CENTER,
-      });
-      placeholder.accessible_name = plan.placeholderAccessibleText;
-      this.parent.add_child(placeholder);
+  protected override renderPlan(plan: GaugesPlan): void {
+    if (
+      this.renderPlaceholder(plan, (placeholder) => {
+        const label = new St.Label({
+          text: placeholder.placeholder ?? "",
+          style_class: "pl-status-placeholder",
+          y_align: Clutter.ActorAlign.CENTER,
+        });
+        label.accessible_name = placeholder.placeholderAccessibleText;
+        return label;
+      })
+    ) {
       return;
     }
 

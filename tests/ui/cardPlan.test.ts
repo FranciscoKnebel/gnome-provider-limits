@@ -1,4 +1,4 @@
-import type { ProviderName } from "../../src/constants.js";
+import { providerRecord, type ProviderName } from "../../src/constants.js";
 import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
 import type { FieldDef, ReaderResult } from "../../src/readers/base.js";
 import {
@@ -20,7 +20,6 @@ import {
 } from "../../src/ui/providerHealth.js";
 import { applyHealthToneClass, applyToneClass } from "../../src/ui/tone.js";
 import {
-  providerRecord,
   resolveViewPhase,
   type ProviderViewContext,
   type ViewPhase,
