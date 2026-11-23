@@ -2,8 +2,8 @@ import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
 import type { ReaderResult } from "../../src/readers/base.js";
 import { CODEX_FIELDS, PROVIDER_FIELDS } from "../../src/readers/fields.js";
 import { deriveDisplayModel, deriveDisplayModels } from "../../src/ui/displayModel.js";
-import { providerRecord } from "../../src/ui/viewContext.js";
-import type { ProviderViewContext } from "../../src/ui/viewContext.js";
+import { providerRecord, withDisplayModels } from "../../src/ui/viewContext.js";
+import type { ProviderViewContextBase } from "../../src/ui/viewContext.js";
 
 const result: ReaderResult = {
   provider: "codex",
@@ -60,7 +60,7 @@ describe("deriveDisplayModel", () => {
   });
 
   it("stays a thin loop over active results", () => {
-    const context: ProviderViewContext = {
+    const base: ProviderViewContextBase = {
       order: ["codex", "claude"],
       activeProviders: ["codex", "claude"],
       results: new Map([
@@ -77,7 +77,8 @@ describe("deriveDisplayModel", () => {
       phase: "ready",
     };
 
-    const models = deriveDisplayModels(context);
+    const models = withDisplayModels(base).models;
+    expect(models).toEqual(deriveDisplayModels(base));
     expect(models.map((model) => model.provider)).toEqual(["codex"]);
     const direct = deriveDisplayModel("codex", result, {
       fieldDefs: CODEX_FIELDS,

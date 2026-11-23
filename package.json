@@ -11,7 +11,7 @@
   },
   "type": "module",
   "scripts": {
-    "build": "tsc -p tsconfig.json",
+    "build": "tsc -p tsconfig.json && npm run build:stylesheet",
     "build:stylesheet": "node scripts/build-stylesheet.mjs",
     "build:tests": "tsc -p tsconfig.test.json",
     "clean": "rm -rf dist src/schemas/gschemas.compiled",

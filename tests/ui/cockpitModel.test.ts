@@ -1,6 +1,7 @@
 import { PROVIDER_NAMES } from "../../src/constants.js";
 import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
 import type { ReaderResult } from "../../src/readers/base.js";
+import type { FieldDef } from "../../src/readers/base.js";
 import {
   CLAUDE_FIELDS,
   CODEX_FIELDS,
@@ -28,10 +29,53 @@ import {
   computeGaugeGeometry,
   cycleTab,
   getAvailableTabs,
+  loadingOverviewRow,
   partitionProviderPanel,
   resolveActiveTab,
 } from "../../src/ui/cockpitModel.js";
 import { deriveDisplayModel } from "../../src/ui/displayModel.js";
+
+function panelModel(
+  fieldDefs: readonly FieldDef[],
+  result: ReaderResult,
+  panelFields: readonly string[],
+  locale = "en",
+) {
+  const model = deriveDisplayModel(result.provider, result, {
+    fieldDefs,
+    statusFields: [],
+    panelFields,
+    displayName: result.provider,
+    shortDisplayName: result.provider,
+    locale,
+    t: (text) => text,
+  });
+  if (!model) throw new Error(`Provider ${result.provider} is disabled`);
+  return model;
+}
+
+function overviewRowFor(options: {
+  provider: ReaderResult["provider"];
+  displayName: string;
+  fieldsDefs: readonly FieldDef[];
+  result: ReaderResult | undefined;
+  statusFieldNames: readonly string[];
+  panelFieldNames: readonly string[];
+  locale: string;
+}) {
+  if (!options.result) return loadingOverviewRow(options.provider, options.displayName);
+  const model = deriveDisplayModel(options.provider, options.result, {
+    fieldDefs: options.fieldsDefs,
+    statusFields: options.statusFieldNames,
+    panelFields: options.panelFieldNames,
+    displayName: options.displayName,
+    shortDisplayName: options.displayName,
+    locale: options.locale,
+    t: (text) => text,
+  });
+  if (!model) throw new Error(`Provider ${options.provider} is disabled`);
+  return buildOverviewRowModel(model);
+}
 import { deriveFieldViews, meterFromViews } from "../../src/ui/fieldViews.js";
 import { clampRatio, extractWindowSuffix } from "../../src/ui/usageSnapshot.js";
 
@@ -272,9 +316,7 @@ describe("partitionProviderPanel & chunking", () => {
     };
 
     const partition = partitionProviderPanel(
-      CODEX_FIELDS,
-      result,
-      [
+      panelModel(CODEX_FIELDS, result, [
         "used_percent_primary",
         "reset_at_primary",
         "used_percent_secondary",
@@ -283,7 +325,7 @@ describe("partitionProviderPanel & chunking", () => {
         "plan_type",
         "limit_reached",
         "unknown_field",
-      ],
+      ]),
       "en",
     );
 
@@ -317,7 +359,10 @@ describe("partitionProviderPanel & chunking", () => {
       fields: [{ name: "reset_at_primary", value: futureEpoch, status: FieldStatus.OK }],
     };
 
-    const partition = partitionProviderPanel(CODEX_FIELDS, result, ["reset_at_primary"], "en");
+    const partition = partitionProviderPanel(
+      panelModel(CODEX_FIELDS, result, ["reset_at_primary"]),
+      "en",
+    );
     expect(partition.gauges.length).toBe(0);
     expect(partition.bentoTiles.map((b) => b.fieldName)).toEqual(["reset_at_primary"]);
   });
@@ -344,9 +389,7 @@ describe("partitionProviderPanel & chunking", () => {
     };
 
     const partition = partitionProviderPanel(
-      CLAUDE_FIELDS,
-      result,
-      ["used_percent_session", "has_extra_usage_enabled"],
+      panelModel(CLAUDE_FIELDS, result, ["used_percent_session", "has_extra_usage_enabled"]),
       "en",
     );
     expect(partition.gauges[0].errorText).toBe("Probe timeout");
@@ -356,7 +399,7 @@ describe("partitionProviderPanel & chunking", () => {
 
 describe("buildOverviewRowModel, tabs & structure keys", () => {
   it("builds loading, OK, Cached (last-known-good), Partial, and Error overview models", () => {
-    const loading = buildOverviewRowModel({
+    const loading = overviewRowFor({
       provider: "codex",
       displayName: "Codex",
       fieldsDefs: CODEX_FIELDS,
@@ -371,7 +414,7 @@ describe("buildOverviewRowModel, tabs & structure keys", () => {
     expect(loading.meter.isError).toBeFalse();
 
     const futureEpoch = Math.floor(Date.now() / 1000) + 1800;
-    const okRow = buildOverviewRowModel({
+    const okRow = overviewRowFor({
       provider: "codex",
       displayName: "Codex",
       fieldsDefs: CODEX_FIELDS,
@@ -393,7 +436,7 @@ describe("buildOverviewRowModel, tabs & structure keys", () => {
     expect(okRow.primaryText).toBe("55%");
     expect(okRow.secondaryText).toContain("↻");
 
-    const cachedRow = buildOverviewRowModel({
+    const cachedRow = overviewRowFor({
       provider: "claude",
       displayName: "Claude",
       fieldsDefs: CLAUDE_FIELDS,
@@ -413,7 +456,7 @@ describe("buildOverviewRowModel, tabs & structure keys", () => {
     expect(cachedRow.badgeText).toBe("Cached");
     expect(cachedRow.tone).toBe("warning");
 
-    const partialRow = buildOverviewRowModel({
+    const partialRow = overviewRowFor({
       provider: "opencode",
       displayName: "OpenCode Go",
       fieldsDefs: OPENCODE_FIELDS,
@@ -432,7 +475,7 @@ describe("buildOverviewRowModel, tabs & structure keys", () => {
     expect(partialRow.badgeText).toBe("Partial");
     expect(partialRow.primaryText).toBe("—");
 
-    const errorRow = buildOverviewRowModel({
+    const errorRow = overviewRowFor({
       provider: "grok",
       displayName: "Grok",
       fieldsDefs: GROK_FIELDS,

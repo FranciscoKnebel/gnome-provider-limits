@@ -19,6 +19,7 @@ function loadProviderSettings() {
 function loadViewContext() {
   return load("src/ui/viewContext.ts", "({ viewContextFor, resolveViewPhase })", {
     PROVIDER_NAMES,
+    deriveDisplayModels: () => [],
     ...loadProviderSettings(),
   });
 }

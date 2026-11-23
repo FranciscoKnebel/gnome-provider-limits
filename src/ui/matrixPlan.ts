@@ -1,9 +1,9 @@
 import type { ProviderName } from "../constants.js";
 import { ReaderStatus } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
-import { deriveDisplayModels } from "./displayModel.js";
-import type { ProviderDisplayViews } from "./displayModel.js";
+import type { FieldRowSet } from "./displayModel.js";
 import type { FieldTone } from "./fieldRows.js";
+import { toDisplayRow } from "./fieldViews.js";
 import { clampFillRatio } from "./usageSnapshot.js";
 import type { ProviderViewContext, ViewPhase } from "./viewContext.js";
 import { viewMessages } from "./viewMessages.js";
@@ -93,34 +93,37 @@ export function toggleAllProvidersExpanded(
   return next;
 }
 
-function groupsFromViews(views: ProviderDisplayViews, tr: (s: string) => string): MatrixRowGroup[] {
-  const toDetailRow = (view: ProviderDisplayViews["limit"][number]): MatrixDetailRow => ({
-    name: view.name,
-    labelText: tr(view.label),
-    valueText: view.valueText,
-    microBar:
-      view.type === "percent" && view.category === "limit" && view.ratio !== null
-        ? formatSegmentedBar(view.ratio, 8)
-        : null,
-    ...(view.tone ? { tone: view.tone } : {}),
-    ...(view.errorText ? { errorText: view.errorText } : {}),
-    accessibleText: view.accessibleText,
-    category: view.category,
-  });
+function groupsFromViews(rows: FieldRowSet, tr: (s: string) => string): MatrixRowGroup[] {
+  const toDetailRow = (view: FieldRowSet["panelViews"][number]): MatrixDetailRow => {
+    const row = toDisplayRow(view, tr);
+    return {
+      name: row.name,
+      labelText: row.labelText,
+      valueText: row.valueText,
+      microBar:
+        view.type === "percent" && row.category === "limit" && view.ratio !== null
+          ? formatSegmentedBar(view.ratio, 8)
+          : null,
+      ...(row.tone ? { tone: row.tone } : {}),
+      ...(row.errorText ? { errorText: row.errorText } : {}),
+      accessibleText: row.accessibleText,
+      category: row.category,
+    };
+  };
 
   const groups: MatrixRowGroup[] = [];
-  if (views.limit.length > 0) {
+  if (rows.groupedViews.limit.length > 0) {
     groups.push({
       category: "limit",
       title: tr("Limits"),
-      rows: views.limit.map(toDetailRow),
+      rows: rows.groupedViews.limit.map(toDetailRow),
     });
   }
-  if (views.telemetry.length > 0) {
+  if (rows.groupedViews.telemetry.length > 0) {
     groups.push({
       category: "telemetry",
       title: tr("Telemetry"),
-      rows: views.telemetry.map(toDetailRow),
+      rows: rows.groupedViews.telemetry.map(toDetailRow),
     });
   }
   return groups;
@@ -152,7 +155,7 @@ export function planPanelMatrix(
     const result = context.results.get(provider);
     return result !== undefined && result.status !== ReaderStatus.DISABLED;
   });
-  const models = deriveDisplayModels(context);
+  const models = context.models;
   const enabledCount = activeProviders.length;
   const providers: ProviderMatrixPlan[] = [];
 
@@ -164,7 +167,7 @@ export function planPanelMatrix(
     const fiveSegmentBar = facts.fillRatio !== null ? formatSegmentedBar(facts.fillRatio, 5) : "";
     const errorText = model.diagnostic.errorText;
     const detailText = model.diagnostic.detailText;
-    const groups = expanded && errorText === null ? groupsFromViews(model.groupedViews, tr) : [];
+    const groups = expanded && errorText === null ? groupsFromViews(model, tr) : [];
     const lastUpdatedText = expanded && errorText === null ? model.lastUpdatedText : null;
 
     const accessibleParts = [model.displayName];

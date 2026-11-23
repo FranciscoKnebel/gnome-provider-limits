@@ -39,23 +39,21 @@ export function fieldTone(fieldName: string, value: unknown): FieldTone | undefi
   return percentTone(value);
 }
 
-export type FieldDefSource = readonly FieldDef[] | undefined;
-
 export function getFieldRows(
-  reader: FieldDefSource,
+  fieldDefs: readonly FieldDef[] | undefined,
   result: ReaderResult,
   fieldNames: readonly string[],
   zone: "status" | "panel",
   locale: string,
   t?: (s: string) => string,
 ): FieldRow[] {
-  const fieldDefs = reader ?? [];
-  if (fieldDefs.length === 0) return [];
+  const defs = fieldDefs ?? [];
+  if (defs.length === 0) return [];
 
   const rows: FieldRow[] = [];
 
   for (const fieldName of fieldNames) {
-    const fieldDef = fieldDefs.find((f) => f.name === fieldName);
+    const fieldDef = defs.find((f) => f.name === fieldName);
     if (!fieldDef) continue;
 
     const field = result.fields.find((f) => f.name === fieldName);

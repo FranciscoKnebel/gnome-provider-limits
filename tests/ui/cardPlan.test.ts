@@ -8,8 +8,13 @@ import {
   OPENCODE_FIELDS,
   PROVIDER_FIELDS,
 } from "../../src/readers/fields.js";
-import { computeBarWidthPx, planPanel, planProviderCard } from "../../src/ui/cardPlan.js";
-import { deriveDisplayModels } from "../../src/ui/displayModel.js";
+import {
+  cardFromModel,
+  computeBarWidthPx,
+  planPanel,
+  type ProviderCardPlan,
+} from "../../src/ui/cardPlan.js";
+import { deriveDisplayModel, deriveDisplayModels } from "../../src/ui/displayModel.js";
 import { clampPercent, getFieldRows } from "../../src/ui/fieldRows.js";
 import { deriveFieldViews } from "../../src/ui/fieldViews.js";
 import type { ProviderTone } from "../../src/ui/providerHealth.js";
@@ -25,16 +30,39 @@ import { applyHealthToneClass, applyToneClass } from "../../src/ui/tone.js";
 import {
   providerRecord,
   resolveViewPhase,
+  withDisplayModels,
   type ProviderViewContext,
+  type ProviderViewContextBase,
   type ViewPhase,
 } from "../../src/ui/viewContext.js";
+
+function cardFor(options: {
+  provider: ProviderName;
+  fieldDefs: readonly FieldDef[];
+  displayName: string;
+  result: ReaderResult;
+  panelFields: readonly string[];
+  locale: string;
+}): ProviderCardPlan {
+  const model = deriveDisplayModel(options.provider, options.result, {
+    fieldDefs: options.fieldDefs,
+    statusFields: [],
+    panelFields: options.panelFields,
+    displayName: options.displayName,
+    shortDisplayName: options.displayName,
+    locale: options.locale,
+    t: (text) => text,
+  });
+  if (!model) throw new Error(`Provider ${options.provider} is disabled`);
+  return cardFromModel(model, options.panelFields, options.locale, (text) => text);
+}
 
 function segmentsContext(
   results: ReadonlyMap<ProviderName, ReaderResult>,
   statusFields: (provider: ProviderName) => readonly string[],
 ): ProviderViewContext {
   const order: readonly ProviderName[] = ["codex", "claude", "opencode", "grok"];
-  return {
+  const base: ProviderViewContextBase = {
     order,
     results,
     locale: "en",
@@ -47,6 +75,7 @@ function segmentsContext(
     t: (text) => text,
     phase: resolveViewPhase(order, results),
   };
+  return withDisplayModels(base);
 }
 
 function panelContext(options: {
@@ -58,8 +87,7 @@ function panelContext(options: {
   phase?: ViewPhase;
 }): ProviderViewContext {
   const name = (provider: ProviderName) => options.displayName?.(provider) ?? provider;
-  const phase = options.phase ?? resolveViewPhase(options.providers, options.results);
-  return {
+  const base: ProviderViewContextBase = {
     order: options.providers,
     results: options.results,
     fieldDefs: options.fieldDefs ?? providerRecord((provider) => PROVIDER_FIELDS[provider]),
@@ -70,8 +98,9 @@ function panelContext(options: {
     panelFields: providerRecord(options.panelFields),
     locale: "en",
     t: (text) => text,
-    phase,
+    phase: options.phase ?? resolveViewPhase(options.providers, options.results),
   };
+  return withDisplayModels(base);
 }
 
 function toneOf(
@@ -236,8 +265,8 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       ).toBe("critical");
     });
 
-    it("reports error and empty health through planProviderCard", () => {
-      const errorCard = planProviderCard({
+    it("reports error and empty health through the card plan", () => {
+      const errorCard = cardFor({
         provider: "codex",
         fieldDefs: PROVIDER_FIELDS["codex"],
         displayName: "Codex",
@@ -253,7 +282,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       });
       expect(errorCard.healthTone).toBe("error");
 
-      const emptyCard = planProviderCard({
+      const emptyCard = cardFor({
         provider: "codex",
         fieldDefs: PROVIDER_FIELDS["codex"],
         displayName: "Codex",
@@ -390,7 +419,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
     });
   });
 
-  describe("planProviderCard & planPanel", () => {
+  describe("cardFromModel & planPanel", () => {
     it("pairs percent fields with companion reset_at fields and separates limit vs telemetry rows", () => {
       const now = Date.now();
       const result: ReaderResult = {
@@ -406,7 +435,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         ],
       };
 
-      const card = planProviderCard({
+      const card = cardFor({
         provider: "opencode",
         fieldDefs: PROVIDER_FIELDS["opencode"],
         displayName: "OpenCode Go",
@@ -435,7 +464,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
 
     it("keeps standalone reset_at fields in limitMetaRows when companion percent is not configured", () => {
       const now = Date.now();
-      const card = planProviderCard({
+      const card = cardFor({
         provider: "codex",
         fieldDefs: PROVIDER_FIELDS["codex"],
         displayName: "Codex",
@@ -455,7 +484,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
 
     it("consumes a shared reset_at field only once when both used and remaining % are configured", () => {
       const now = Date.now();
-      const card = planProviderCard({
+      const card = cardFor({
         provider: "codex",
         fieldDefs: PROVIDER_FIELDS["codex"],
         displayName: "Codex",
@@ -484,7 +513,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
     });
 
     it("plans diagnostic banners for PARTIAL, ERROR, and UNAVAILABLE states", () => {
-      const partialCard = planProviderCard({
+      const partialCard = cardFor({
         provider: "claude",
         fieldDefs: PROVIDER_FIELDS["claude"],
         displayName: "Claude",
@@ -503,7 +532,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       expect(partialCard.bannerText).toContain("Last-Known-Good");
       expect(partialCard.limitProgressRows).toHaveSize(1);
 
-      const errorCard = planProviderCard({
+      const errorCard = cardFor({
         provider: "codex",
         fieldDefs: PROVIDER_FIELDS["codex"],
         displayName: "Codex",
@@ -523,7 +552,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       expect(errorCard.limitProgressRows).toEqual([]);
       expect(errorCard.lastUpdatedText).toBeNull();
 
-      const unavailableCard = planProviderCard({
+      const unavailableCard = cardFor({
         provider: "grok",
         fieldDefs: PROVIDER_FIELDS["grok"],
         displayName: "Grok",

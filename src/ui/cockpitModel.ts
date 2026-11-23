@@ -1,9 +1,9 @@
 import type { ProviderName } from "../constants.js";
 import { formatField } from "../formatters.js";
-import type { FieldDef, ReaderResult } from "../readers/base.js";
 import { GAUGE_END_ANGLE, GAUGE_START_ANGLE, GAUGE_SWEEP_ANGLE, TONE_RGB } from "./cairoDrawing.js";
-import { deriveDisplayModel } from "./displayModel.js";
+import type { FieldRowSet, ProviderDisplayModel } from "./displayModel.js";
 import { fieldTone, type FieldTone } from "./fieldRows.js";
+import { toDisplayRow } from "./fieldViews.js";
 import type { GaugeGeometry, GaugeTone, MicroMeterSpec } from "./gaugeTypes.js";
 import type { Presentation } from "./providerHealth.js";
 import { clampRatio } from "./usageSnapshot.js";
@@ -115,61 +115,43 @@ export function chunkPairs<T>(items: readonly T[]): T[][] {
 }
 
 export function partitionProviderPanel(
-  fieldsDefs: readonly FieldDef[],
-  result: ReaderResult,
-  panelFieldNames: readonly string[],
+  rows: FieldRowSet,
   locale: string,
-  t?: (s: string) => string,
+  tr: (s: string) => string = (s) => s,
 ): PartitionedProviderPanel {
-  const tr = t ?? ((s: string) => s);
-  const provider = result.provider;
-  const model = deriveDisplayModel(provider, result, {
-    fieldDefs: fieldsDefs,
-    statusFields: [],
-    panelFields: panelFieldNames,
-    displayName: provider,
-    shortDisplayName: provider,
-    locale,
-    t: tr,
-  });
-  const views = model?.panelViews ?? [];
-  const consumedResets = model?.consumedResets ?? new Set<string>();
-
   const gauges: RadialGaugeItem[] = [];
   const bentoTiles: BentoTileItem[] = [];
 
-  for (const view of views) {
-    if (consumedResets.has(view.name)) continue;
-    const translatedLabel = tr(view.label);
+  for (const view of rows.panelViews) {
+    if (rows.consumedResets.has(view.name)) continue;
+    const row = toDisplayRow(view, tr);
 
     if (view.type === "percent") {
-      const geometry = computeGaugeGeometry(view.name, view.hasValue ? view.value : null, locale);
-      const accessibleParts = [`${translatedLabel}: ${geometry.centerText}`];
-      if (view.resetText !== null) accessibleParts.push(view.resetText);
+      const geometry = computeGaugeGeometry(row.name, view.hasValue ? view.value : null, locale);
+      const accessibleParts = [`${row.labelText}: ${geometry.centerText}`];
+      if (row.reset.text !== null) accessibleParts.push(row.reset.text);
 
-      const gauge: RadialGaugeItem = {
-        fieldName: view.name,
-        label: view.label,
-        translatedLabel,
+      gauges.push({
+        fieldName: row.name,
+        label: row.label,
+        translatedLabel: row.labelText,
         geometry,
-        resetText: view.resetText,
-        hasResetSlot: view.hasResetSlot,
+        resetText: row.reset.text,
+        hasResetSlot: row.reset.hasSlot,
         accessibleText: accessibleParts.join(", "),
-        ...(view.errorText ? { errorText: view.errorText } : {}),
-      };
-      gauges.push(gauge);
+        ...(row.errorText ? { errorText: row.errorText } : {}),
+      });
       continue;
     }
 
-    const tile: BentoTileItem = {
-      fieldName: view.name,
-      label: view.label,
-      translatedLabel,
-      valueText: view.valueText,
-      accessibleText: view.accessibleText,
-      ...(view.errorText ? { errorText: view.errorText } : {}),
-    };
-    bentoTiles.push(tile);
+    bentoTiles.push({
+      fieldName: row.name,
+      label: row.label,
+      translatedLabel: row.labelText,
+      valueText: row.valueText,
+      accessibleText: row.accessibleText,
+      ...(row.errorText ? { errorText: row.errorText } : {}),
+    });
   }
 
   return {
@@ -180,7 +162,7 @@ export function partitionProviderPanel(
   };
 }
 
-function loadingOverviewRow(provider: ProviderName, displayName: string): OverviewRowModel {
+export function loadingOverviewRow(provider: ProviderName, displayName: string): OverviewRowModel {
   return {
     provider,
     displayName,
@@ -202,47 +184,14 @@ function loadingOverviewRow(provider: ProviderName, displayName: string): Overvi
   };
 }
 
-export function buildOverviewRowModel(options: {
-  provider: ProviderName;
-  displayName: string;
-  fieldsDefs: readonly FieldDef[];
-  result: ReaderResult | undefined;
-  statusFieldNames: readonly string[];
-  panelFieldNames: readonly string[];
-  locale: string;
-  t?: (s: string) => string;
-}): OverviewRowModel {
-  const {
-    provider,
-    displayName,
-    fieldsDefs,
-    result,
-    statusFieldNames,
-    panelFieldNames,
-    locale,
-    t,
-  } = options;
-  const tr = t ?? ((s: string) => s);
-
-  const model = result
-    ? deriveDisplayModel(provider, result, {
-        fieldDefs: fieldsDefs,
-        statusFields: statusFieldNames,
-        panelFields: panelFieldNames,
-        displayName,
-        shortDisplayName: displayName,
-        locale,
-        t: tr,
-      })
-    : undefined;
-  if (!model) return loadingOverviewRow(provider, displayName);
-
+export function buildOverviewRowModel(model: ProviderDisplayModel): OverviewRowModel {
+  const { provider, displayName } = model;
   const badgeKind: OverviewBadgeKind = model.badges.overview;
   const badgeText = model.badges.overviewText;
   const meter = model.meter;
 
   if (badgeKind === "error") {
-    const errSummary = result?.lastError ?? tr("Error");
+    const errSummary = model.diagnostic.errorText ?? "Error";
     return {
       provider,
       displayName,

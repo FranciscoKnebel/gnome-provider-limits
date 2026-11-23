@@ -8,11 +8,13 @@ import {
   resolveActiveProviders,
 } from "../helpers/provider-settings.js";
 import type { BaseReader, FieldDef, ReaderResult } from "../readers/base.js";
+import { deriveDisplayModels } from "./displayModel.js";
+import type { ProviderDisplayModel } from "./displayModel.js";
 
 export type ViewPhase = "empty" | "loading" | "ready";
 
-/** The one immutable snapshot passed to every plan builder and renderer. */
-export interface ProviderViewContext {
+/** The base snapshot: everything needed to derive one canonical model set. */
+export interface ProviderViewContextBase {
   readonly order: readonly ProviderName[];
   readonly results: ReadonlyMap<ProviderName, ReaderResult>;
   readonly fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>;
@@ -24,6 +26,11 @@ export interface ProviderViewContext {
   readonly locale: string;
   readonly t: (text: string) => string;
   readonly phase: ViewPhase;
+}
+
+/** The one immutable snapshot passed to every plan builder and renderer. */
+export interface ProviderViewContext extends ProviderViewContextBase {
+  readonly models: readonly ProviderDisplayModel[];
 }
 
 export function providerRecord<T>(make: (provider: ProviderName) => T): Record<ProviderName, T> {
@@ -47,6 +54,33 @@ export function resolveViewPhase(
   return "ready";
 }
 
+/** Attach the single canonical model set to a base snapshot. */
+export function withDisplayModels(base: ProviderViewContextBase): ProviderViewContext {
+  return { ...base, models: deriveDisplayModels(base) };
+}
+
+/** A genuine empty-phase snapshot for renderers before their first real render. */
+export function emptyViewContext(
+  fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>,
+  locale: string,
+  t: (text: string) => string,
+): ProviderViewContext {
+  return {
+    order: [],
+    results: new Map(),
+    fieldDefs,
+    activeProviders: [],
+    displayNames: providerRecord(() => ""),
+    shortDisplayNames: providerRecord(() => ""),
+    statusFields: providerRecord(() => []),
+    panelFields: providerRecord(() => []),
+    locale,
+    t,
+    phase: "empty",
+    models: [],
+  };
+}
+
 /** Build the one canonical context from settings, readers and fresh results. */
 export function viewContextFor(
   settings: Gio.Settings,
@@ -59,7 +93,7 @@ export function viewContextFor(
   const order = normalizeProvidersOrder(settings.get_strv("providers-order"));
   const activeProviders = resolveActiveProviders(settings, readers, results);
 
-  return {
+  const base: ProviderViewContextBase = {
     order,
     results,
     fieldDefs,
@@ -72,4 +106,6 @@ export function viewContextFor(
     t,
     phase: resolveViewPhase(activeProviders, results),
   };
+
+  return withDisplayModels(base);
 }

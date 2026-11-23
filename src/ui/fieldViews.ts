@@ -33,6 +33,41 @@ function usedPercentOf(fieldName: string, value: unknown): number | null {
   return fieldName.startsWith("remaining_percent") ? 100 - value : value;
 }
 
+/** Reset facts that every row projection can carry, independent of panel style. */
+export interface DisplayRowReset {
+  readonly name: string | null;
+  readonly text: string | null;
+  readonly hasSlot: boolean;
+}
+
+/** The style-neutral projection of a FieldView, shared by every plan builder. */
+export interface DisplayRow {
+  readonly name: string;
+  readonly label: string;
+  readonly labelText: string;
+  readonly valueText: string;
+  readonly accessibleText: string;
+  readonly category: FieldCategory;
+  readonly tone?: FieldTone;
+  readonly errorText?: string;
+  readonly reset: DisplayRowReset;
+}
+
+/** Single FieldView-to-row projection; plan builders add only style-specific fields. */
+export function toDisplayRow(view: FieldView, t: (s: string) => string): DisplayRow {
+  return {
+    name: view.name,
+    label: view.label,
+    labelText: t(view.label),
+    valueText: view.valueText,
+    accessibleText: view.accessibleText,
+    category: view.category,
+    ...(view.tone ? { tone: view.tone } : {}),
+    ...(view.errorText ? { errorText: view.errorText } : {}),
+    reset: { name: view.resetName, text: view.resetText, hasSlot: view.hasResetSlot },
+  };
+}
+
 export function deriveFieldViews(
   defs: readonly FieldDef[],
   result: ReaderResult,

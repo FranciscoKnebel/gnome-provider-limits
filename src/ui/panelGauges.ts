@@ -13,7 +13,7 @@ import { DetailRenderer } from "./panelGaugesDetail.js";
 import type { OverviewHost } from "./panelGaugesOverview.js";
 import { OverviewRenderer } from "./panelGaugesOverview.js";
 import type { PanelRenderContext, PanelShell, PanelStyleSection } from "./panelShell.js";
-import { viewContextFor, type ViewPhase } from "./viewContext.js";
+import { emptyViewContext, type ViewPhase } from "./viewContext.js";
 import { viewMessages } from "./viewMessages.js";
 
 type BodyState =
@@ -39,10 +39,7 @@ export class GaugesPanelSection implements PanelStyleSection {
     this.shell = shell;
     this._lastContext = {
       lastRefreshAt: null,
-      view: viewContextFor(
-        settings,
-        new Map(),
-        new Map(),
+      view: emptyViewContext(
         fieldDefs,
         resolveLocale(
           settings.get_string("language"),
@@ -110,12 +107,18 @@ export class GaugesPanelSection implements PanelStyleSection {
     }
 
     if (nextState.kind === "overview") {
-      this._overview.render({ enabledProviders, results, locale });
+      this._overview.render({
+        models: context.view.models,
+        enabledProviders,
+        displayNames: context.view.displayNames,
+      });
       return;
     }
 
-    const result = results.get(nextState.provider);
-    if (result) this._detail.render({ provider: nextState.provider, result, locale });
+    const model = context.view.models.find(
+      (candidate) => candidate.provider === nextState.provider,
+    );
+    if (model) this._detail.render({ model, locale });
   }
 
   setRunning(running: boolean): void {

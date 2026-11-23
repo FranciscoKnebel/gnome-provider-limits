@@ -1,12 +1,12 @@
 import { type ProviderName } from "../constants.js";
-import type { FieldDef, ReaderResult, ReaderStatus } from "../readers/base.js";
+import { formatField } from "../formatters.js";
+import type { ReaderStatus } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
-import { deriveDisplayModel, deriveDisplayModels } from "./displayModel.js";
 import type { ProviderDisplayModel } from "./displayModel.js";
 import { clampPercent, type FieldTone } from "./fieldRows.js";
-import type { FieldView } from "./fieldViews.js";
+import { toDisplayRow, type DisplayRow } from "./fieldViews.js";
 import type { Presentation, ProviderTone } from "./providerHealth.js";
-import { providerRecord, type ProviderViewContext, type ViewPhase } from "./viewContext.js";
+import type { ProviderViewContext, ViewPhase } from "./viewContext.js";
 import { viewMessages } from "./viewMessages.js";
 
 export type CardBadgeKind = Presentation["cardBadge"];
@@ -69,72 +69,78 @@ export function computeBarWidthPx(
   return Math.min(effectiveTrack, Math.max(4, Math.round((effectiveTrack * clamped) / 100)));
 }
 
-export interface PlanProviderCardOptions {
-  provider: ProviderName;
-  displayName: string;
-  result: ReaderResult;
-  panelFields: readonly string[];
-  fieldDefs: readonly FieldDef[];
-  locale: string;
-  t?: (s: string) => string;
+function keyValueRow(row: DisplayRow): CardKeyValueRow {
+  return {
+    kind: "kv",
+    name: row.name,
+    category: row.category,
+    label: row.labelText,
+    valueText: row.valueText,
+    accessibleText: row.accessibleText,
+    ...(row.tone ? { tone: row.tone } : {}),
+    ...(row.errorText ? { errorText: row.errorText } : {}),
+  };
 }
 
-function cardFromModel(model: ProviderDisplayModel, tr: (s: string) => string): ProviderCardPlan {
+/** Pure card projection from one canonical model; the only card derivation. */
+export function cardFromModel(
+  model: ProviderDisplayModel,
+  panelFields: readonly string[],
+  locale: string,
+  t: (s: string) => string,
+): ProviderCardPlan {
   const limitProgressRows: CardProgressRow[] = [];
   const limitMetaRows: CardKeyValueRow[] = [];
   const telemetryRows: CardKeyValueRow[] = [];
+  const configured = new Set(panelFields);
 
-  const toKeyValueRow = (row: FieldView): CardKeyValueRow => {
-    const kvRow: CardKeyValueRow = {
-      kind: "kv",
-      name: row.name,
-      category: row.category ?? "telemetry",
-      label: tr(row.label),
-      valueText: row.valueText,
-      accessibleText: row.accessibleText ?? `${tr(row.label)}: ${row.valueText}`,
-    };
-    if (row.tone) kvRow.tone = row.tone;
-    if (row.errorText) kvRow.errorText = row.errorText;
-    return kvRow;
-  };
+  for (const view of model.groupedViews.limit) {
+    if (!configured.has(view.name) || model.consumedResets.has(view.name)) continue;
+    const row = toDisplayRow(view, t);
 
-  for (const row of model.groupedViews.limit) {
-    const rowName = row.name;
-    if (model.consumedResets.has(rowName)) continue;
+    if (view.type === "percent") {
+      const pairedReset = view.resetName === null ? undefined : model.resetPairs.get(view.name);
+      let resetText: string | undefined;
+      let errorText = row.errorText;
+      let accessibleText = row.accessibleText;
 
-    const translatedLabel = tr(row.label);
-    const defaultAccessible = row.accessibleText ?? `${translatedLabel}: ${row.valueText}`;
-
-    if (row.type === "percent") {
-      const pairedReset = model.resetPairs.get(rowName);
-      const resetText = pairedReset
-        ? `${tr(pairedReset.label)}: ${pairedReset.valueText}`
-        : undefined;
-      const errorText = row.errorText ?? pairedReset?.errorText;
-      const accessibleText = resetText ? `${defaultAccessible}, ${resetText}` : defaultAccessible;
+      if (pairedReset) {
+        const resetValueText = pairedReset.hasValue
+          ? formatField({
+              type: "timestamp",
+              value: pairedReset.value,
+              zone: "panel",
+              locale,
+              t,
+            })
+          : pairedReset.valueText;
+        resetText = `${t(pairedReset.label)}: ${resetValueText}`;
+        errorText = errorText ?? pairedReset.errorText;
+        accessibleText = `${row.accessibleText}, ${resetText}`;
+      }
 
       const progressRow: CardProgressRow = {
         kind: "progress",
-        name: rowName,
-        label: translatedLabel,
+        name: row.name,
+        label: row.labelText,
         valueText: row.valueText,
-        fillPercent: row.fillPercent ?? 0,
-        hasValue: row.fillPercent !== undefined,
+        fillPercent: view.fillPercent ?? 0,
+        hasValue: view.fillPercent !== undefined,
         accessibleText,
+        ...(row.tone ? { tone: row.tone } : {}),
+        ...(resetText ? { resetText } : {}),
+        ...(errorText ? { errorText } : {}),
       };
-      if (row.tone) progressRow.tone = row.tone;
-      if (resetText) progressRow.resetText = resetText;
-      if (errorText) progressRow.errorText = errorText;
       limitProgressRows.push(progressRow);
       continue;
     }
 
-    limitMetaRows.push(toKeyValueRow(row));
+    limitMetaRows.push(keyValueRow(row));
   }
 
-  for (const row of model.groupedViews.telemetry) {
-    if (model.consumedResets.has(row.name)) continue;
-    telemetryRows.push(toKeyValueRow(row));
+  for (const view of model.groupedViews.telemetry) {
+    if (!configured.has(view.name) || model.consumedResets.has(view.name)) continue;
+    telemetryRows.push(keyValueRow(toDisplayRow(view, t)));
   }
 
   return {
@@ -153,27 +159,11 @@ function cardFromModel(model: ProviderDisplayModel, tr: (s: string) => string): 
   };
 }
 
-export function planProviderCard(options: PlanProviderCardOptions): ProviderCardPlan {
-  const tr = options.t ?? ((s: string) => s);
-  const model = deriveDisplayModel(options.provider, options.result, {
-    fieldDefs: options.fieldDefs,
-    statusFields: [],
-    panelFields: options.panelFields,
-    displayName: options.displayName,
-    shortDisplayName: options.displayName,
-    locale: options.locale,
-    t: tr,
-  });
-  if (!model) throw new Error(`Provider ${options.provider} is disabled`);
-  return cardFromModel(model, tr);
-}
-
 export function planPanel(context: ProviderViewContext, running: boolean): PanelPlan {
-  const tr = context.t;
   const message = viewMessages({
     phase: context.phase,
     surface: "cards",
-    t: tr,
+    t: context.t,
     running,
   });
 
@@ -186,11 +176,9 @@ export function planPanel(context: ProviderViewContext, running: boolean): Panel
     };
   }
 
-  const cardContext: ProviderViewContext = {
-    ...context,
-    statusFields: providerRecord(() => []),
-  };
-  const cards = deriveDisplayModels(cardContext).map((model) => cardFromModel(model, tr));
+  const cards = context.models.map((model) =>
+    cardFromModel(model, context.panelFields[model.provider], context.locale, context.t),
+  );
 
   return {
     phase: "ready",

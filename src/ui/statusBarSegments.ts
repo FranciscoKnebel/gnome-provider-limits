@@ -1,6 +1,5 @@
 import type { ProviderName } from "../constants.js";
 import type { FieldDef, ReaderResult } from "../readers/base.js";
-import { deriveDisplayModels } from "./displayModel.js";
 import type { FieldView } from "./fieldViews.js";
 import type { MicroMeterSpec } from "./gaugeTypes.js";
 import type { ProviderHealth } from "./providerHealth.js";
@@ -28,7 +27,7 @@ export type StatusBarZonePlan<TSegment> =
   | { readonly kind: "segments"; readonly segments: readonly TSegment[] };
 
 export function deriveStatusBarSegments(context: ProviderViewContext): StatusBarProviderSegment[] {
-  return deriveDisplayModels(context).map((model) => ({
+  return context.models.map((model) => ({
     provider: model.provider,
     displayName: model.shortDisplayName,
     result: model.result,

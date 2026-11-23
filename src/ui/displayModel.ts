@@ -15,7 +15,7 @@ import {
   overviewBadgeText,
   statusBadgeText,
 } from "./providerHealth.js";
-import type { ProviderViewContext } from "./viewContext.js";
+import type { ProviderViewContextBase } from "./viewContext.js";
 
 export type DisplayBannerKind = "warning" | "error";
 
@@ -44,27 +44,43 @@ export interface ProviderDisplayViews {
   readonly telemetry: readonly FieldView[];
 }
 
-export interface ProviderDisplayModel {
+/** Identity and result state, shared by every consumer of a snapshot. */
+export interface ProviderIdentityView {
   readonly provider: ProviderName;
   readonly displayName: string;
   readonly shortDisplayName: string;
   readonly result: ReaderResult;
   readonly status: ReaderStatus;
+}
+
+/** Health, badges and hard-error classification keyed by identity facts. */
+export interface ProviderHealthView extends ProviderIdentityView {
   readonly isHardError: boolean;
   readonly health: ProviderHealth;
   readonly badges: DisplayBadges;
+}
+
+/** All derived field rows and their reset pairings for one provider. */
+export interface FieldRowSet {
   readonly statusViews: readonly FieldView[];
   readonly panelViews: readonly FieldView[];
   readonly headerViews: readonly FieldView[];
-  readonly meter: MicroMeterSpec;
   readonly groupedViews: ProviderDisplayViews;
   readonly resetPairs: ReadonlyMap<string, FieldView>;
   readonly consumedResets: ReadonlySet<string>;
+}
+
+/** Usage facts, meter, diagnostic and human-facing timestamps. */
+export interface UsageSummary {
   readonly usage: ProviderDisplayUsage;
   readonly summaryText: string;
-  readonly lastUpdatedText: string | null;
+  readonly meter: MicroMeterSpec;
   readonly diagnostic: DisplayDiagnostic;
+  readonly lastUpdatedText: string | null;
 }
+
+/** Composed snapshot for renderers that genuinely need several slices at once. */
+export interface ProviderDisplayModel extends ProviderHealthView, FieldRowSet, UsageSummary {}
 
 /** Everything deriveDisplayModel needs, with no surrounding provider context. */
 export interface DisplayModelOptions {
@@ -186,7 +202,7 @@ export function deriveDisplayModel(
       ? tr("Last updated: %s").replace("%s", formatAbsoluteTimestamp(result.lastUpdated, locale))
       : null;
 
-  const model: ProviderDisplayModel = {
+  return {
     provider,
     displayName: options.displayName,
     shortDisplayName: options.shortDisplayName,
@@ -212,12 +228,10 @@ export function deriveDisplayModel(
       detailText: result.status === ReaderStatus.PARTIAL ? (result.lastError ?? null) : null,
     },
   };
-
-  return model;
 }
 
 /** Thin loop over the active results, delegating all assembly to deriveDisplayModel. */
-export function deriveDisplayModels(context: ProviderViewContext): ProviderDisplayModel[] {
+export function deriveDisplayModels(context: ProviderViewContextBase): ProviderDisplayModel[] {
   const models: ProviderDisplayModel[] = [];
 
   for (const provider of context.activeProviders) {

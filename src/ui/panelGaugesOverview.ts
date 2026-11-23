@@ -10,8 +10,9 @@ import { providerDisplayName } from "../helpers/provider-settings.js";
 import type { FieldDef, ReaderResult } from "../readers/base.js";
 import { ReaderStatus } from "../readers/base.js";
 import { disposeCairoContext, drawMiniCapsule, isCairoContext } from "./cairoDrawing.js";
-import { buildOverviewRowModel, getAvailableTabs } from "./cockpitModel.js";
+import { buildOverviewRowModel, getAvailableTabs, loadingOverviewRow } from "./cockpitModel.js";
 import type { CockpitTab, OverviewBadgeKind, OverviewRowModel } from "./cockpitModel.js";
+import type { ProviderDisplayModel } from "./displayModel.js";
 import type { PanelShell } from "./panelShell.js";
 import { applyToneClass } from "./tone.js";
 
@@ -147,30 +148,25 @@ class TabBarRenderer {
 }
 
 interface OverviewRowsContext {
+  readonly models: readonly ProviderDisplayModel[];
   readonly enabledProviders: readonly ProviderName[];
-  readonly results: ReadonlyMap<ProviderName, ReaderResult>;
-  readonly locale: string;
+  readonly displayNames: Readonly<Record<ProviderName, string>>;
 }
 
-/** Rebuilds the overview body rows and their mini bars. */
+/** Rebuilds the overview body rows and their mini bars from canonical models. */
 class OverviewRowsRenderer {
   constructor(private readonly host: OverviewHost) {}
 
   render(context: OverviewRowsContext): void {
-    const models = context.enabledProviders.map((provider) =>
-      buildOverviewRowModel({
-        provider,
-        displayName: providerDisplayName(this.host.settings, provider),
-        fieldsDefs: this.host.fieldDefs[provider],
-        result: context.results.get(provider),
-        statusFieldNames: this.host.settings.get_strv(`${provider}-status-fields`),
-        panelFieldNames: this.host.settings.get_strv(`${provider}-panel-fields`),
-        locale: context.locale,
-        t: this.host.translate,
-      }),
-    );
-
-    for (const model of models) this._addRow(model);
+    const byProvider = new Map(context.models.map((model) => [model.provider, model]));
+    for (const provider of context.enabledProviders) {
+      const model = byProvider.get(provider);
+      this._addRow(
+        model
+          ? buildOverviewRowModel(model)
+          : loadingOverviewRow(provider, context.displayNames[provider]),
+      );
+    }
   }
 
   private _addRow(model: OverviewRowModel): void {

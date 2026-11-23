@@ -6,11 +6,12 @@ import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import type { ProviderName } from "../constants.js";
 import { formatAbsoluteTimestamp } from "../formatters.js";
 import { gettext as _ } from "../helpers/gettext.js";
-import type { FieldDef, ReaderResult } from "../readers/base.js";
+import type { FieldDef } from "../readers/base.js";
 import { ReaderStatus } from "../readers/base.js";
 import { disposeCairoContext, drawRadialGauge, isCairoContext } from "./cairoDrawing.js";
 import { partitionProviderPanel } from "./cockpitModel.js";
 import type { BentoTileItem, PartitionedProviderPanel, RadialGaugeItem } from "./cockpitModel.js";
+import type { ProviderDisplayModel } from "./displayModel.js";
 import type { PanelShell } from "./panelShell.js";
 import { applyToneClass } from "./tone.js";
 
@@ -30,8 +31,7 @@ export interface DetailHost {
 }
 
 interface DetailRenderContext {
-  readonly provider: ProviderName;
-  readonly result: ReaderResult;
+  readonly model: ProviderDisplayModel;
   readonly locale: string;
 }
 
@@ -56,7 +56,8 @@ export class DetailRenderer {
   }
 
   private _derivePlan(context: DetailRenderContext): DetailRenderPlan {
-    const { provider, result, locale } = context;
+    const { model, locale } = context;
+    const { result } = model;
     const isError =
       result.status === ReaderStatus.ERROR || result.status === ReaderStatus.UNAVAILABLE;
 
@@ -77,13 +78,7 @@ export class DetailRenderer {
 
     const partition: PartitionedProviderPanel = isError
       ? { gauges: [], gaugeRows: [], bentoTiles: [], bentoRows: [] }
-      : partitionProviderPanel(
-          this._host.fieldDefs[provider],
-          result,
-          this._host.settings.get_strv(`${provider}-panel-fields`),
-          locale,
-          this._host.translate,
-        );
+      : partitionProviderPanel(model, locale, this._host.translate);
 
     const lastUpdatedText =
       !isError && Number.isFinite(result.lastUpdated)

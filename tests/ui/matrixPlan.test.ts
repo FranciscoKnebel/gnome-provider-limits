@@ -20,7 +20,9 @@ import {
 import { clampFillRatio } from "../../src/ui/usageSnapshot.js";
 import {
   resolveViewPhase,
+  withDisplayModels,
   type ProviderViewContext,
+  type ProviderViewContextBase,
   type ViewPhase,
 } from "../../src/ui/viewContext.js";
 
@@ -64,7 +66,7 @@ function segmentsContext(
   results: ReadonlyMap<ProviderName, ReaderResult>,
   statusFields: Readonly<Record<ProviderName, readonly string[]>>,
 ): ProviderViewContext {
-  return {
+  const base: ProviderViewContextBase = {
     order: PROVIDER_NAMES,
     results,
     locale: "en",
@@ -77,6 +79,7 @@ function segmentsContext(
     t: (text) => text,
     phase: resolveViewPhase(PROVIDER_NAMES, results),
   };
+  return withDisplayModels(base);
 }
 
 function matrixContext(options: {
@@ -87,7 +90,7 @@ function matrixContext(options: {
   fieldDefs?: Readonly<Record<ProviderName, readonly FieldDef[]>>;
   phase?: ViewPhase;
 }): ProviderViewContext {
-  return {
+  const base: ProviderViewContextBase = {
     order: PROVIDER_NAMES,
     results: options.results,
     fieldDefs: options.fieldDefs ?? PROVIDER_FIELDS,
@@ -100,6 +103,7 @@ function matrixContext(options: {
     t: (text) => text,
     phase: options.phase ?? resolveViewPhase(options.activeProviders, options.results),
   };
+  return withDisplayModels(base);
 }
 
 function makeClassTracker(): {

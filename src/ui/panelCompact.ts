@@ -17,7 +17,7 @@ import type { MatrixDetailRow, PanelMatrixPlan, ProviderMatrixPlan } from "./mat
 import type { PanelRenderContext, PanelShell, PanelStyleSection } from "./panelShell.js";
 import { applyQuietToneClass, applyToneClass } from "./tone.js";
 import { clampFillRatio } from "./usageSnapshot.js";
-import { viewContextFor, type ProviderViewContext } from "./viewContext.js";
+import { emptyViewContext, type ProviderViewContext } from "./viewContext.js";
 
 interface CompactToolbarControls {
   readonly titleLabel: St.Label;
@@ -36,21 +36,14 @@ export class CompactPanelSection implements PanelStyleSection {
 
   constructor(
     settings: Gio.Settings,
-    readers: Map<ProviderName, BaseReader>,
+    _readers: Map<ProviderName, BaseReader>,
     fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>,
     shell: PanelShell,
   ) {
     this._settings = settings;
     this.shell = shell;
     this._controls = this._buildToolbar();
-    this._lastView = viewContextFor(
-      settings,
-      readers,
-      new Map(),
-      fieldDefs,
-      this._currentLocale(),
-      _,
-    );
+    this._lastView = emptyViewContext(fieldDefs, this._currentLocale(), _);
     this.render({ lastRefreshAt: null, view: this._lastView });
   }
 
