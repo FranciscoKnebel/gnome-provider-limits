@@ -3,7 +3,7 @@ import { formatField } from "../formatters.js";
 import { FieldStatus, ReaderStatus } from "../readers/base.js";
 import type { FieldDef, ReaderResult } from "../readers/base.js";
 import { GAUGE_END_ANGLE, GAUGE_START_ANGLE, GAUGE_SWEEP_ANGLE, TONE_RGB } from "./cairoDrawing.js";
-import type { FieldTone } from "./fieldRows.js";
+import { fieldTone, type FieldTone } from "./fieldRows.js";
 import {
   deriveFieldViews,
   deriveProviderHealth,
@@ -12,24 +12,13 @@ import {
 } from "./fieldViews.js";
 import type { GaugeGeometry, GaugeTone, MicroMeterSpec, RgbTuple } from "./gaugeTypes.js";
 import type { OverviewBadgeValue } from "./providerTypes.js";
+import { structureKey } from "./renderStructure.js";
 import {
   clampRatio,
   deriveUsageSnapshot,
-  extractWindowSuffix,
-  fieldTone,
   isLimitReached,
   selectPercentField,
-  usageStructureKey,
 } from "./usageSnapshot.js";
-
-export { clampRatio, extractWindowSuffix };
-export type { GaugeGeometry, GaugeTone, MicroMeterSpec, RgbTuple } from "./gaugeTypes.js";
-export {
-  disposeCairoContext,
-  drawMiniCapsule,
-  drawRadialGauge,
-  isCairoContext,
-} from "./cairoDrawing.js";
 
 export type CockpitTab = "overview" | ProviderName;
 
@@ -425,7 +414,7 @@ export function providerDetailStructureKey(options: {
     b.errorText === undefined ? 0 : 1,
   ]);
 
-  return usageStructureKey([
+  return structureKey([
     options.provider,
     options.displayName,
     options.status,

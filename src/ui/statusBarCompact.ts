@@ -6,9 +6,9 @@ import { gettext as _ } from "../helpers/gettext.js";
 import { ReaderStatus } from "../readers/base.js";
 import { deriveStatusBarSegments, statusBadgeText, toAttention } from "./fieldViews.js";
 import type { ProviderAttention } from "./providerTypes.js";
+import { structureKey } from "./renderStructure.js";
 import type { StatusBarRenderContext, StatusBarRenderer } from "./statusBar.js";
 import { applyStatusAttentionClass } from "./tone.js";
-import { usageStructureKey } from "./usageSnapshot.js";
 
 interface CompactPooledSegment {
   box: St.BoxLayout;
@@ -40,7 +40,7 @@ function planCompact(context: StatusBarRenderContext): CompactPlan {
       state: "empty",
       placeholderText: null,
       badges: [],
-      key: usageStructureKey(["empty", context.locale]),
+      key: structureKey(["empty", context.locale]),
     };
   }
 
@@ -83,7 +83,7 @@ function planCompact(context: StatusBarRenderContext): CompactPlan {
       state: "loading",
       placeholderText: "…",
       badges: [],
-      key: usageStructureKey(["loading", context.locale]),
+      key: structureKey(["loading", context.locale]),
     };
   }
 
@@ -91,7 +91,7 @@ function planCompact(context: StatusBarRenderContext): CompactPlan {
     state: "ready",
     placeholderText: null,
     badges,
-    key: usageStructureKey(["ready", context.locale, ...badges.map((badge) => badge.key)]),
+    key: structureKey(["ready", context.locale, ...badges.map((badge) => badge.key)]),
   };
 }
 

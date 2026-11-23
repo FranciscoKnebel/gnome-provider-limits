@@ -6,22 +6,12 @@ import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
 import type { ProviderName } from "../constants.js";
 import { providerDisplayName } from "../helpers/provider-settings.js";
-import type { BaseReader, ReaderResult } from "../readers/base.js";
+import type { FieldDef, ReaderResult } from "../readers/base.js";
 import { ReaderStatus } from "../readers/base.js";
-import { PROVIDER_FIELDS } from "../readers/fields.js";
-import {
-  buildOverviewRowModel,
-  disposeCairoContext,
-  drawMiniCapsule,
-  getAvailableTabs,
-  isCairoContext,
-} from "./cockpitModel.js";
-import type {
-  CockpitTab,
-  MicroMeterSpec,
-  OverviewBadgeKind,
-  OverviewRowModel,
-} from "./cockpitModel.js";
+import { disposeCairoContext, drawMiniCapsule, isCairoContext } from "./cairoDrawing.js";
+import { buildOverviewRowModel, getAvailableTabs } from "./cockpitModel.js";
+import type { CockpitTab, OverviewBadgeKind, OverviewRowModel } from "./cockpitModel.js";
+import type { MicroMeterSpec } from "./gaugeTypes.js";
 import type { PanelShell } from "./panelShell.js";
 import { structureKey } from "./renderStructure.js";
 import { applyToneClass } from "./tone.js";
@@ -90,7 +80,7 @@ interface OverviewRowWidgets {
 
 export interface OverviewHost {
   readonly settings: Gio.Settings;
-  readonly readers: Map<ProviderName, BaseReader>;
+  readonly fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>;
   readonly shell: PanelShell;
   readonly translate: (message: string) => string;
   selectTab(tab: CockpitTab, focusTabButton?: boolean): void;
@@ -247,8 +237,7 @@ export class OverviewRenderer {
     locale: string,
   ): void {
     const models = enabledProviders.map((provider) => {
-      const reader = this._host.readers.get(provider);
-      const fieldsDefs = reader?.FIELDS ?? PROVIDER_FIELDS[provider];
+      const fieldsDefs = this._host.fieldDefs[provider];
       return buildOverviewRowModel({
         provider,
         displayName: providerDisplayName(this._host.settings, provider),

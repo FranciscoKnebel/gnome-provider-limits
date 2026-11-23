@@ -7,7 +7,7 @@ import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { resolveLocale } from "../helpers/locale.js";
 import { normalizeProvidersOrder } from "../helpers/provider-settings.js";
-import type { BaseReader, ReaderResult } from "../readers/base.js";
+import type { BaseReader, FieldDef, ReaderResult } from "../readers/base.js";
 import { ReaderStatus } from "../readers/base.js";
 import { cycleTab, resolveActiveTab } from "./cockpitModel.js";
 import type { CockpitTab } from "./cockpitModel.js";
@@ -35,14 +35,19 @@ export class GaugesPanelSection implements PanelStyleSection {
   private _emptyKey: string | null = null;
   readonly shell: PanelShell;
 
-  constructor(settings: Gio.Settings, readers: Map<ProviderName, BaseReader>, shell: PanelShell) {
+  constructor(
+    settings: Gio.Settings,
+    readers: Map<ProviderName, BaseReader>,
+    fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>,
+    shell: PanelShell,
+  ) {
     this._settings = settings;
     this._readers = readers;
     this.shell = shell;
 
     const host: OverviewHost & DetailHost = {
       settings,
-      readers,
+      fieldDefs,
       shell,
       translate: _,
       selectTab: (tab, focusTabButton) => this.selectTab(tab, focusTabButton),

@@ -10,7 +10,6 @@ import { resolveLocale } from "../helpers/locale.js";
 import { normalizeProvidersOrder, providerDisplayName } from "../helpers/provider-settings.js";
 import type { BaseReader, FieldDef, ReaderResult } from "../readers/base.js";
 import {
-  clampFillRatio,
   planPanelMatrix,
   resolveProviderExpanded,
   toggleAllProvidersExpanded,
@@ -18,6 +17,7 @@ import {
 import type { MatrixDetailRow, PanelMatrixPlan, ProviderMatrixPlan } from "./matrixPlan.js";
 import type { PanelShell, PanelStyleSection } from "./panelShell.js";
 import { applyQuietToneClass, applyToneClass } from "./tone.js";
+import { clampFillRatio } from "./usageSnapshot.js";
 
 interface CompactToolbarControls {
   readonly titleLabel: St.Label;
@@ -55,7 +55,7 @@ interface ProviderSectionWidgets {
 
 export class CompactPanelSection implements PanelStyleSection {
   private _settings: Gio.Settings;
-  private _readers: Map<ProviderName, BaseReader>;
+  private readonly _fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>;
   private _running = false;
   private _lastResults: Map<ProviderName, ReaderResult> = new Map();
   private _lastRefreshAt: number | null = null;
@@ -67,9 +67,14 @@ export class CompactPanelSection implements PanelStyleSection {
   private _structureKey: string | null = null;
   readonly shell: PanelShell;
 
-  constructor(settings: Gio.Settings, readers: Map<ProviderName, BaseReader>, shell: PanelShell) {
+  constructor(
+    settings: Gio.Settings,
+    _readers: Map<ProviderName, BaseReader>,
+    fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>,
+    shell: PanelShell,
+  ) {
     this._settings = settings;
-    this._readers = readers;
+    this._fieldDefs = fieldDefs;
     this.shell = shell;
     this._controls = this._buildToolbar();
     this.render(new Map(), null);
@@ -121,7 +126,6 @@ export class CompactPanelSection implements PanelStyleSection {
     const displayNames = {} as Record<ProviderName, string>;
     const statusFields = {} as Record<ProviderName, readonly string[]>;
     const panelFields = {} as Record<ProviderName, readonly string[]>;
-    const fieldDefs: Partial<Record<ProviderName, readonly FieldDef[]>> = {};
 
     for (const name of PROVIDER_NAMES) {
       const enabled = this._settings.get_boolean(`${name}-enabled`);
@@ -130,9 +134,6 @@ export class CompactPanelSection implements PanelStyleSection {
       displayNames[name] = providerDisplayName(this._settings, name);
       statusFields[name] = this._settings.get_strv(`${name}-status-fields`);
       panelFields[name] = this._settings.get_strv(`${name}-panel-fields`);
-
-      const reader = this._readers.get(name);
-      if (reader) fieldDefs[name] = reader.FIELDS;
     }
 
     return planPanelMatrix({
@@ -143,7 +144,7 @@ export class CompactPanelSection implements PanelStyleSection {
       statusFields,
       panelFields,
       expandedOverrides: this._expandedOverrides,
-      fieldDefs,
+      fieldDefs: this._fieldDefs,
       locale,
       t: _,
     });

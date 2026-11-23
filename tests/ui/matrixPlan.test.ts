@@ -9,7 +9,6 @@ import type {
 import { deriveStatusBarSegments, toAttention } from "../../src/ui/fieldViews.js";
 import {
   areAllProvidersExpanded,
-  clampFillRatio,
   formatSegmentedBar,
   planPanelMatrix,
   resolveProviderExpanded,
@@ -21,6 +20,7 @@ import {
   applyStatusAttentionClass,
   applyToneClass,
 } from "../../src/ui/tone.js";
+import { clampFillRatio } from "../../src/ui/usageSnapshot.js";
 
 const SHORT_LABELS: Record<ProviderName, string> = {
   codex: "codex",
@@ -262,6 +262,7 @@ describe("matrixPlan", () => {
         panelFields: PANEL_FIELDS,
         expandedOverrides: new Map(),
         locale: "en",
+        fieldDefs: PROVIDER_FIELDS,
       });
       expect(emptyPlan.state).toBe("empty");
       expect(emptyPlan.messageText).toContain("No providers enabled");
@@ -276,6 +277,7 @@ describe("matrixPlan", () => {
         panelFields: PANEL_FIELDS,
         expandedOverrides: new Map(),
         locale: "en",
+        fieldDefs: PROVIDER_FIELDS,
       });
       expect(loadingPlan.state).toBe("loading");
       expect(loadingPlan.messageText).toContain("Reading provider limits");
@@ -320,6 +322,7 @@ describe("matrixPlan", () => {
         panelFields: PANEL_FIELDS,
         expandedOverrides: new Map(),
         locale: "en",
+        fieldDefs: PROVIDER_FIELDS,
       });
 
       expect(plan.state).toBe("ready");
@@ -418,7 +421,7 @@ describe("matrixPlan", () => {
         statusFields: { ...STATUS_FIELDS, grok: [] },
         panelFields: { ...PANEL_FIELDS, grok: ["remaining_percent_credits", "limit_reached"] },
         expandedOverrides: new Map(),
-        fieldDefs: { grok: customDefs },
+        fieldDefs: { ...PROVIDER_FIELDS, grok: customDefs },
         locale: "en",
       });
 
@@ -443,7 +446,7 @@ describe("matrixPlan", () => {
           ["codex", true],
           ["claude", true],
         ]),
-        fieldDefs: { grok: customDefs },
+        fieldDefs: { ...PROVIDER_FIELDS, grok: customDefs },
         locale: "en",
       });
 
@@ -487,6 +490,7 @@ describe("matrixPlan", () => {
         panelFields: PANEL_FIELDS,
         expandedOverrides: new Map(),
         locale: "en",
+        fieldDefs: PROVIDER_FIELDS,
       });
       const second = planPanelMatrix({
         order: PROVIDER_NAMES,
@@ -497,6 +501,7 @@ describe("matrixPlan", () => {
         panelFields: PANEL_FIELDS,
         expandedOverrides: new Map(),
         locale: "en",
+        fieldDefs: PROVIDER_FIELDS,
       });
 
       expect(first.key).toBe(second.key);

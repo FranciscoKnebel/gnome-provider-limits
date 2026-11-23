@@ -796,9 +796,10 @@ test("Panel swaps style sections on setting change and forwards render and runni
   }
   const created = [];
   class SectionStub {
-    constructor(settings, readers, shell) {
+    constructor(settings, readers, fieldDefs, shell) {
       this.settings = settings;
       this.readers = readers;
+      this.fieldDefs = fieldDefs;
       this.shell = shell;
       this.rendered = [];
       this.running = null;
@@ -828,6 +829,8 @@ test("Panel swaps style sections on setting change and forwards render and runni
     CompactPanelSection: CompactStub,
     PanelShell: ShellStub,
     resolvePanelStyle,
+    PROVIDER_NAMES: ["codex", "claude", "opencode", "grok", "cursor", "google"],
+    getProviderFields: () => [],
     _: (message) => message,
   });
 
@@ -891,6 +894,19 @@ test("Panel swaps style sections on setting change and forwards render and runni
   panel.destroy();
   assert.equal(created[2].destroyed, true);
   assert.equal(listeners.size, 0);
+});
+
+test("setScrollViewChild uses add_actor when set_child is unavailable", () => {
+  const { setScrollViewChild } = load("src/helpers/scroll.ts", "({ setScrollViewChild })");
+  const actor = {};
+
+  const modernCalls = [];
+  setScrollViewChild({ set_child: (child) => modernCalls.push(child) }, actor);
+  assert.deepEqual(modernCalls, [actor]);
+
+  const legacyCalls = [];
+  setScrollViewChild({ add_actor: (child) => legacyCalls.push(child) }, actor);
+  assert.deepEqual(legacyCalls, [actor]);
 });
 
 test("PanelShell footer actors persist and focus scrolling is wired for every panel style", () => {
@@ -1015,6 +1031,7 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
     },
     PopupMenu: { PopupBaseMenuItem: Actor, PopupMenuSection: MenuSectionStub },
     ensureActorVisibleInScrollView: (scroll, row) => focusCalls.push([scroll, row]),
+    setScrollViewChild: (scroll, actor) => scroll.set_child(actor),
     formatTimestampTemplate: (_pattern, at, locale) => (at === null ? "" : `${at}:${locale}`),
     resolveLocale: (setting, messages, lang) => setting || messages || lang || "en",
   });

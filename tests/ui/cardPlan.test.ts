@@ -11,18 +11,18 @@ import {
   getProviderFields,
   resolveFieldCategory,
 } from "../../src/readers/fields.js";
-import {
-  computeBarWidthPx,
-  computeProviderHealthTone,
-  planPanel,
-  planProviderCard,
-} from "../../src/ui/cardPlan.js";
+import { computeBarWidthPx, planPanel, planProviderCard } from "../../src/ui/cardPlan.js";
 import { clampPercent, getFieldRows } from "../../src/ui/fieldRows.js";
 import type {
   StatusBarProviderSegment,
   StatusBarSegmentsContext,
 } from "../../src/ui/fieldViews.js";
-import { deriveStatusBarSegments } from "../../src/ui/fieldViews.js";
+import {
+  deriveFieldViews,
+  deriveProviderHealth,
+  deriveProviderState,
+  deriveStatusBarSegments,
+} from "../../src/ui/fieldViews.js";
 import { applyHealthToneClass, applyToneClass } from "../../src/ui/tone.js";
 
 function segmentsContext(
@@ -151,43 +151,67 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
     });
   });
 
-  describe("computeProviderHealthTone & computeBarWidthPx", () => {
+  describe("provider health derivation & computeBarWidthPx", () => {
     it("prioritizes hard errors, critical limits, partial state, warnings, ok, and idle", () => {
-      expect(computeProviderHealthTone(ReaderStatus.DISABLED, [])).toBe("idle");
-      expect(computeProviderHealthTone(ReaderStatus.ERROR, [])).toBe("error");
-      expect(computeProviderHealthTone(ReaderStatus.UNAVAILABLE, [])).toBe("error");
-      expect(
-        computeProviderHealthTone(ReaderStatus.PARTIAL, [
-          { label: "Used %", valueText: "85%", tone: "critical" },
-        ]),
-      ).toBe("critical");
-      expect(
-        computeProviderHealthTone(ReaderStatus.PARTIAL, [
-          { label: "Used %", valueText: "60%", tone: "warning" },
-        ]),
-      ).toBe("partial");
-      expect(
-        computeProviderHealthTone(ReaderStatus.OK, [
-          { label: "Used %", valueText: "20%", tone: "ok" },
-          { label: "Weekly %", valueText: "65%", tone: "warning" },
-        ]),
-      ).toBe("warning");
-      expect(
-        computeProviderHealthTone(ReaderStatus.OK, [{ label: "Plan", valueText: "plus" }]),
-      ).toBe("ok");
-      expect(computeProviderHealthTone(ReaderStatus.OK, [{ label: "Plan", valueText: "—" }])).toBe(
-        "idle",
+      expect(deriveProviderState(ReaderStatus.DISABLED, [], false, false).tone).toBe("idle");
+      expect(deriveProviderState(ReaderStatus.ERROR, [], false, false).tone).toBe("error");
+      expect(deriveProviderState(ReaderStatus.UNAVAILABLE, [], false, false).tone).toBe("error");
+      expect(deriveProviderState(ReaderStatus.PARTIAL, ["critical"], true, false).tone).toBe(
+        "critical",
       );
+      expect(deriveProviderState(ReaderStatus.PARTIAL, ["warning"], true, false).tone).toBe(
+        "partial",
+      );
+      expect(deriveProviderState(ReaderStatus.OK, ["ok", "warning"], true, false).tone).toBe(
+        "warning",
+      );
+      expect(deriveProviderState(ReaderStatus.OK, [], true, false).tone).toBe("ok");
+      expect(deriveProviderState(ReaderStatus.OK, [], false, false).tone).toBe("idle");
     });
 
-    it("derives urgency from result percent fields even if status bar only shows timestamps", () => {
-      const tone = computeProviderHealthTone(
-        ReaderStatus.OK,
-        [{ label: "Reset at", valueText: "2h" }],
-        [{ name: "used_percent_primary", value: 92, status: FieldStatus.OK }],
-        CODEX_FIELDS,
-      );
-      expect(tone).toBe("critical");
+    it("derives urgency from result percent fields even when status views only show timestamps", () => {
+      const result: ReaderResult = {
+        provider: "codex",
+        status: ReaderStatus.OK,
+        lastUpdated: 1_700_000_000_000,
+        fields: [{ name: "used_percent_primary", value: 92, status: FieldStatus.OK }],
+      };
+      const views = deriveFieldViews(CODEX_FIELDS, result, ["reset_at_primary"], "status", "en");
+      expect(views.every((view) => view.type !== "percent")).toBeTrue();
+      expect(deriveProviderHealth(result, views, undefined, CODEX_FIELDS).tone).toBe("critical");
+    });
+
+    it("reports error and empty health through planProviderCard", () => {
+      const errorCard = planProviderCard({
+        provider: "codex",
+        fieldDefs: PROVIDER_FIELDS["codex"],
+        displayName: "Codex",
+        result: {
+          provider: "codex",
+          status: ReaderStatus.ERROR,
+          lastUpdated: Date.now(),
+          lastError: "Run codex login.",
+          fields: [],
+        },
+        panelFields: [],
+        locale: "en",
+      });
+      expect(errorCard.healthTone).toBe("error");
+
+      const emptyCard = planProviderCard({
+        provider: "codex",
+        fieldDefs: PROVIDER_FIELDS["codex"],
+        displayName: "Codex",
+        result: {
+          provider: "codex",
+          status: ReaderStatus.OK,
+          lastUpdated: Date.now(),
+          fields: [],
+        },
+        panelFields: [],
+        locale: "en",
+      });
+      expect(emptyCard.healthTone).toBe("idle");
     });
 
     it("computes proportional bar pixel widths with min cap and bounds", () => {
@@ -322,6 +346,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
 
       const card = planProviderCard({
         provider: "opencode",
+        fieldDefs: PROVIDER_FIELDS["opencode"],
         displayName: "OpenCode Go",
         result,
         panelFields: [
@@ -350,6 +375,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       const now = Date.now();
       const card = planProviderCard({
         provider: "codex",
+        fieldDefs: PROVIDER_FIELDS["codex"],
         displayName: "Codex",
         result: {
           provider: "codex",
@@ -369,6 +395,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       const now = Date.now();
       const card = planProviderCard({
         provider: "codex",
+        fieldDefs: PROVIDER_FIELDS["codex"],
         displayName: "Codex",
         result: {
           provider: "codex",
@@ -397,6 +424,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
     it("plans diagnostic banners for PARTIAL, ERROR, and UNAVAILABLE states", () => {
       const partialCard = planProviderCard({
         provider: "claude",
+        fieldDefs: PROVIDER_FIELDS["claude"],
         displayName: "Claude",
         result: {
           provider: "claude",
@@ -415,6 +443,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
 
       const errorCard = planProviderCard({
         provider: "codex",
+        fieldDefs: PROVIDER_FIELDS["codex"],
         displayName: "Codex",
         result: {
           provider: "codex",
@@ -434,6 +463,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
 
       const unavailableCard = planProviderCard({
         provider: "grok",
+        fieldDefs: PROVIDER_FIELDS["grok"],
         displayName: "Grok",
         result: {
           provider: "grok",
@@ -458,6 +488,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         locale: "en",
         getDisplayName: (p) => p,
         getPanelFields: () => [],
+        getFieldDefs: (provider) => PROVIDER_FIELDS[provider],
       });
       expect(disabledPlan.emptyState).toBe("disabled");
       expect(disabledPlan.emptyTitle).toBe("No providers enabled");
@@ -471,6 +502,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         locale: "en",
         getDisplayName: (p) => p,
         getPanelFields: () => [],
+        getFieldDefs: (provider) => PROVIDER_FIELDS[provider],
       });
       expect(loadingPlan.emptyState).toBe("loading");
       expect(loadingPlan.emptyTitle).toBe("Loading provider limits…");
@@ -483,6 +515,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         locale: "en",
         getDisplayName: (p) => p,
         getPanelFields: () => [],
+        getFieldDefs: (provider) => PROVIDER_FIELDS[provider],
       });
       expect(waitingPlan.emptyTitle).toBe("Waiting for provider data…");
       expect(waitingPlan.structureKey).toBe(loadingPlan.structureKey);

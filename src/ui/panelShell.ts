@@ -10,6 +10,7 @@ import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import type { ProviderName } from "../constants.js";
 import { formatTimestampTemplate } from "../formatters.js";
 import { resolveLocale } from "../helpers/locale.js";
+import { setScrollViewChild } from "../helpers/scroll.js";
 import type { ReaderResult } from "../readers/base.js";
 import type { PanelStyle, StyleDispatch } from "./styles.js";
 
@@ -192,7 +193,7 @@ export class PanelShell extends PopupMenu.PopupMenuSection {
     this._scroll.set_policy(St.PolicyType.NEVER, St.PolicyType.AUTOMATIC);
     this.addMenuItem(this._body);
     this.box.remove_child(this._body.actor);
-    this._scroll.set_child(this._body.actor);
+    setScrollViewChild(this._scroll, this._body.actor);
     this.box.add_child(this._scroll);
 
     this._scroll.connect("notify::mapped", () => {

@@ -3,7 +3,6 @@ import { formatAbsoluteTimestamp, formatTimestampTemplate } from "../formatters.
 import { ReaderStatus } from "../readers/base.js";
 import type { FieldDef, ReaderResult } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
-import { PROVIDER_FIELDS } from "../readers/fields.js";
 import type { FieldTone } from "./fieldRows.js";
 import type { FieldView } from "./fieldViews.js";
 import {
@@ -14,9 +13,8 @@ import {
   toAttention,
 } from "./fieldViews.js";
 import type { ProviderAttention } from "./providerTypes.js";
-import { clampFillRatio, deriveUsageSnapshot, usageStructureKey } from "./usageSnapshot.js";
-
-export { clampFillRatio };
+import { structureKey } from "./renderStructure.js";
+import { clampFillRatio, deriveUsageSnapshot } from "./usageSnapshot.js";
 
 export interface MatrixDetailRow {
   readonly name: string;
@@ -71,7 +69,7 @@ export interface PlanPanelMatrixInput {
   readonly statusFields: Readonly<Record<ProviderName, readonly string[]>>;
   readonly panelFields: Readonly<Record<ProviderName, readonly string[]>>;
   readonly expandedOverrides: ReadonlyMap<ProviderName, boolean>;
-  readonly fieldDefs?: Readonly<Partial<Record<ProviderName, readonly FieldDef[]>>>;
+  readonly fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>;
   readonly locale: string;
   readonly t?: (s: string) => string;
 }
@@ -125,13 +123,6 @@ export function resolveStatusAttention(
   return toAttention(healthFromStatusAndTones(status, tones));
 }
 
-function defsFor(
-  provider: ProviderName,
-  custom?: Readonly<Partial<Record<ProviderName, readonly FieldDef[]>>>,
-): readonly FieldDef[] {
-  return custom?.[provider] ?? PROVIDER_FIELDS[provider];
-}
-
 function groupsFromViews(views: readonly FieldView[], tr: (s: string) => string): MatrixRowGroup[] {
   const limitRows: MatrixDetailRow[] = [];
   const telemetryRows: MatrixDetailRow[] = [];
@@ -176,7 +167,7 @@ export function planPanelMatrix(input: PlanPanelMatrixInput): PanelMatrixPlan {
       allExpanded: false,
       canToggleAll: false,
       providers: [],
-      key: usageStructureKey(["empty", input.locale]),
+      key: structureKey(["empty", input.locale]),
     };
   }
 
@@ -197,7 +188,7 @@ export function planPanelMatrix(input: PlanPanelMatrixInput): PanelMatrixPlan {
       allExpanded: false,
       canToggleAll: false,
       providers: [],
-      key: usageStructureKey(["loading", input.locale]),
+      key: structureKey(["loading", input.locale]),
     };
   }
 
@@ -208,7 +199,7 @@ export function planPanelMatrix(input: PlanPanelMatrixInput): PanelMatrixPlan {
     if (!result) continue;
 
     const displayName = input.displayNames[provider] || provider;
-    const defs = defsFor(provider, input.fieldDefs);
+    const defs = input.fieldDefs[provider];
     const expanded = resolveProviderExpanded(provider, enabledCount, input.expandedOverrides);
     const chevron: "▾" | "▸" = expanded ? "▾" : "▸";
     const statusViews = deriveFieldViews(
@@ -316,6 +307,6 @@ export function planPanelMatrix(input: PlanPanelMatrixInput): PanelMatrixPlan {
     allExpanded,
     canToggleAll: providers.length > 0,
     providers,
-    key: usageStructureKey(["ready", input.locale, ...providers.map((p) => p.key)]),
+    key: structureKey(["ready", input.locale, ...providers.map((p) => p.key)]),
   };
 }

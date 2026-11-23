@@ -29,17 +29,16 @@ import {
   buildOverviewRowModel,
   chunkGauges,
   chunkPairs,
-  clampRatio,
   computeGaugeGeometry,
   computeStatusMicroMeter,
   cycleTab,
-  extractWindowSuffix,
   getAvailableTabs,
   partitionProviderPanel,
   providerDetailStructureKey,
   resolveActiveTab,
   toneToRgb,
 } from "../../src/ui/cockpitModel.js";
+import { clampRatio, extractWindowSuffix } from "../../src/ui/usageSnapshot.js";
 
 interface RecordedCairoOp {
   readonly op: string;

@@ -6,9 +6,9 @@ import { ReaderStatus } from "../readers/base.js";
 import type { FieldView } from "./fieldViews.js";
 import { deriveStatusBarSegments } from "./fieldViews.js";
 import type { ProviderTone } from "./providerTypes.js";
+import { structureKey } from "./renderStructure.js";
 import type { StatusBarRenderContext, StatusBarRenderer } from "./statusBar.js";
 import { applyHealthToneClass, applyToneClass } from "./tone.js";
-import { usageStructureKey } from "./usageSnapshot.js";
 
 interface PillWidgets {
   dot: St.BoxLayout;
@@ -59,7 +59,7 @@ function planPills(context: StatusBarRenderContext): PillsPlan {
     loading,
     loadingAccessibleText: context.t("Loading provider limits…"),
     pills,
-    structureKey: usageStructureKey([
+    structureKey: structureKey([
       context.locale,
       loading ? "loading" : "ready",
       ...pills.map((pill) => pill.key),

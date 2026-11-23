@@ -1,21 +1,19 @@
 import { type ProviderName } from "../constants.js";
 import { formatAbsoluteTimestamp } from "../formatters.js";
-import type { FieldDef, FieldResult, ReaderResult } from "../readers/base.js";
-import { FieldStatus, ReaderStatus } from "../readers/base.js";
+import type { FieldDef, ReaderResult } from "../readers/base.js";
+import { ReaderStatus } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
-import { getProviderFields } from "../readers/fields.js";
-import type { FieldRow, FieldTone } from "./fieldRows.js";
+import { clampPercent, type FieldTone } from "./fieldRows.js";
 import type { FieldView } from "./fieldViews.js";
 import {
   cardBadgeText,
   deriveFieldViews,
   deriveProviderHealth,
-  healthFromStatusAndTones,
   toCardBadge,
   toHealthTone,
 } from "./fieldViews.js";
 import type { CardBadgeValue, ProviderTone } from "./providerTypes.js";
-import { clampPercent, collectFieldTones, usageStructureKey } from "./usageSnapshot.js";
+import { structureKey } from "./renderStructure.js";
 
 export type CardBadgeKind = CardBadgeValue;
 export type BannerKind = "warning" | "error";
@@ -69,25 +67,6 @@ export interface PanelPlan {
   structureKey: string;
 }
 
-export function computeProviderHealthTone(
-  status: ReaderStatus,
-  rows: readonly FieldRow[],
-  fields?: readonly FieldResult[],
-  fieldDefs?: readonly FieldDef[],
-): ProviderTone {
-  const hasUsableField =
-    rows.some((row) => row.valueText !== "—") ||
-    (fields?.some((field) => field.status === FieldStatus.OK) ?? false);
-  return toHealthTone(
-    healthFromStatusAndTones(
-      status,
-      collectFieldTones(rows, fields, fieldDefs),
-      undefined,
-      hasUsableField,
-    ),
-  );
-}
-
 export function computeBarWidthPx(
   trackWidth: number,
   fillPercent: number,
@@ -104,15 +83,14 @@ export interface PlanProviderCardOptions {
   displayName: string;
   result: ReaderResult;
   panelFields: readonly string[];
-  fieldDefs?: readonly FieldDef[];
+  fieldDefs: readonly FieldDef[];
   locale: string;
   t?: (s: string) => string;
 }
 
 export function planProviderCard(options: PlanProviderCardOptions): ProviderCardPlan {
   const tr = options.t ?? ((s: string) => s);
-  const { provider, displayName, result, panelFields, locale } = options;
-  const defs = options.fieldDefs ?? getProviderFields(provider);
+  const { provider, displayName, result, panelFields, fieldDefs: defs, locale } = options;
 
   const isHardError =
     result.status === ReaderStatus.ERROR || result.status === ReaderStatus.UNAVAILABLE;
@@ -249,7 +227,7 @@ export interface PlanPanelOptions {
   locale: string;
   getDisplayName: (provider: ProviderName) => string;
   getPanelFields: (provider: ProviderName) => readonly string[];
-  getFieldDefs?: (provider: ProviderName) => readonly FieldDef[] | undefined;
+  getFieldDefs: (provider: ProviderName) => readonly FieldDef[];
   t?: (s: string) => string;
 }
 
@@ -261,9 +239,7 @@ export function planPanel(options: PlanPanelOptions): PanelPlan {
     const result = options.results.get(provider);
     if (!result || result.status === ReaderStatus.DISABLED) continue;
 
-    const fieldDefs = options.getFieldDefs
-      ? options.getFieldDefs(provider)
-      : getProviderFields(provider);
+    const fieldDefs = options.getFieldDefs(provider);
     cards.push(
       planProviderCard({
         provider,
@@ -284,7 +260,7 @@ export function planPanel(options: PlanPanelOptions): PanelPlan {
         emptyTitle: tr("No providers enabled"),
         emptySubtitle: tr("Enable a provider in Settings to monitor usage limits."),
         cards: [],
-        structureKey: usageStructureKey([options.locale, "empty:disabled"]),
+        structureKey: structureKey([options.locale, "empty:disabled"]),
       };
     }
 
@@ -295,7 +271,7 @@ export function planPanel(options: PlanPanelOptions): PanelPlan {
         : tr("Waiting for provider data…"),
       emptySubtitle: null,
       cards: [],
-      structureKey: usageStructureKey([options.locale, "empty:loading"]),
+      structureKey: structureKey([options.locale, "empty:loading"]),
     };
   }
 
@@ -304,6 +280,6 @@ export function planPanel(options: PlanPanelOptions): PanelPlan {
     emptyTitle: null,
     emptySubtitle: null,
     cards,
-    structureKey: usageStructureKey([options.locale, ...cards.map((c) => c.key)]),
+    structureKey: structureKey([options.locale, ...cards.map((c) => c.key)]),
   };
 }

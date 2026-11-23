@@ -4,12 +4,12 @@ import GLib from "gi://GLib";
 import GObject from "gi://GObject";
 import St from "gi://St";
 
-import type { ProviderName } from "../constants.js";
+import { PROVIDER_NAMES, type ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { resolveLocale } from "../helpers/locale.js";
 import { normalizeProvidersOrder, providerDisplayNameShort } from "../helpers/provider-settings.js";
 import type { BaseReader, FieldDef, ReaderResult } from "../readers/base.js";
-import { PROVIDER_FIELDS } from "../readers/fields.js";
+import { getProviderFields } from "../readers/fields.js";
 import { CompactStatusBarRenderer } from "./statusBarCompact.js";
 import { GaugesStatusBarRenderer } from "./statusBarGauges.js";
 import { PillsStatusBarRenderer } from "./statusBarPills.js";
@@ -38,6 +38,12 @@ export interface StatusBarRenderer {
 
 type RendererFactory = (parent: St.BoxLayout) => StatusBarRenderer;
 
+function resolveFieldDefs(): Readonly<Record<ProviderName, readonly FieldDef[]>> {
+  const defs = {} as Record<ProviderName, readonly FieldDef[]>;
+  for (const name of PROVIDER_NAMES) defs[name] = getProviderFields(name);
+  return defs;
+}
+
 const RENDERER_FACTORIES: StyleDispatch<StatusBarStyle, RendererFactory> = {
   pills: (parent) => new PillsStatusBarRenderer(parent),
   gauges: (parent) => new GaugesStatusBarRenderer(parent),
@@ -48,6 +54,7 @@ export const StatusBarWidget = GObject.registerClass(
   class StatusBarWidget extends St.BoxLayout {
     declare _settings: Gio.Settings;
     declare _readers: Map<ProviderName, BaseReader>;
+    declare _fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>;
     declare _structureKey: string | null;
     declare _style: StatusBarStyle | null;
     declare _renderer: StatusBarRenderer | null;
@@ -59,6 +66,7 @@ export const StatusBarWidget = GObject.registerClass(
       });
       this._settings = settings;
       this._readers = readers;
+      this._fieldDefs = resolveFieldDefs();
       this._structureKey = null;
       this._style = null;
       this._renderer = null;
@@ -106,7 +114,7 @@ export const StatusBarWidget = GObject.registerClass(
         hasEnabledProviders: hasEnabledReaders,
         shortDisplayName: (name) => providerDisplayNameShort(this._settings, name),
         statusFields: (name) => this._settings.get_strv(`${name}-status-fields`),
-        fieldDefs: (name) => this._readers.get(name)?.FIELDS ?? PROVIDER_FIELDS[name],
+        fieldDefs: (name) => this._fieldDefs[name],
         isEnabled: (name) => this._settings.get_boolean(`${name}-enabled`),
         t: _,
       };

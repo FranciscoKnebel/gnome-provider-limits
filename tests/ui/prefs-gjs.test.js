@@ -48,17 +48,53 @@ function findWidget(widget, predicate) {
 }
 
 export async function run() {
+  const results = [];
+
+  // Test 0: the scroll helper supports legacy ScrollViews without set_child.
+  try {
+    const scrollUrl = GLib.Uri.resolve_relative(
+      import.meta.url,
+      "../../dist/helpers/scroll.js",
+      GLib.UriFlags.NONE,
+    );
+    const { setScrollViewChild } = await import(scrollUrl);
+    const actor = {};
+
+    const legacyCalls = [];
+    const legacyScrollView = { add_actor: (child) => legacyCalls.push(["add_actor", child]) };
+    setScrollViewChild(legacyScrollView, actor);
+    assertEqual(legacyCalls.length, 1, "legacy ScrollView receives one child");
+    assertEqual(legacyCalls[0][0], "add_actor", "legacy ScrollView uses add_actor");
+    assertEqual(legacyCalls[0][1], actor, "the original actor is added");
+
+    const modernCalls = [];
+    const modernScrollView = { set_child: (child) => modernCalls.push(child) };
+    setScrollViewChild(modernScrollView, actor);
+    assertEqual(modernCalls.length, 1, "modern ScrollView receives one child");
+    assertEqual(modernCalls[0], actor, "the original actor becomes the child");
+    results.push({
+      name: "setScrollViewChild supports legacy and modern ScrollView",
+      passed: true,
+    });
+  } catch (e) {
+    results.push({
+      name: "setScrollViewChild supports legacy and modern ScrollView",
+      passed: false,
+      error: messageOf(e),
+    });
+  }
+
   let Gtk;
   let Adw;
   try {
     Gtk = (await import("gi://Gtk?version=4.0")).default;
     Adw = (await import("gi://Adw?version=1")).default;
   } catch (e) {
-    return skipResult(`Gtk/Adw typelibs unavailable: ${messageOf(e)}`);
+    return [...results, ...skipResult(`Gtk/Adw typelibs unavailable: ${messageOf(e)}`)];
   }
 
   if (!Gtk.init_check()) {
-    return skipResult("Gtk.init_check() failed (no display available)");
+    return [...results, ...skipResult("Gtk.init_check() failed (no display available)")];
   }
   Adw.init();
 
@@ -81,8 +117,6 @@ export async function run() {
   );
   const { configureTranslations } = await import(gettextUrl);
   configureTranslations("/nonexistent-locale-path", "en");
-
-  const results = [];
 
   // Test 1: ProviderLimitsPreferencesPage can be constructed
   try {
