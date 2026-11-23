@@ -398,15 +398,10 @@ export const StatusBarWidget = GObject.registerClass(
     // Style 3: Compact Tabular Minimalist (Fork 3)
     // ========================================================================
     private _renderCompact(results: Map<ProviderName, ReaderResult>): void {
-      const rawOrder =
-        typeof this._settings.get_strv === "function"
-          ? this._settings.get_strv("providers-order")
-          : PROVIDER_NAMES;
+      const rawOrder = this._settings.get_strv("providers-order");
       const order = normalizeProvidersOrder(rawOrder);
       const locale = resolveLocale(
-        typeof this._settings.get_string === "function"
-          ? this._settings.get_string("language")
-          : "",
+        this._settings.get_string("language"),
         GLib.getenv("LC_MESSAGES"),
         GLib.getenv("LANG"),
       );
@@ -417,20 +412,11 @@ export const StatusBarWidget = GObject.registerClass(
       const fieldDefs: Partial<Record<ProviderName, readonly FieldDef[]>> = {};
 
       for (const name of PROVIDER_NAMES) {
-        const enabled =
-          typeof this._settings.get_boolean === "function"
-            ? this._settings.get_boolean(`${name}-enabled`)
-            : this._readers.has(name) || results.has(name);
+        const enabled = this._settings.get_boolean(`${name}-enabled`);
         if (enabled) enabledProviders.add(name);
 
-        shortLabels[name] =
-          typeof this._settings.get_string === "function"
-            ? providerDisplayNameShort(this._settings, name)
-            : name;
-        statusFields[name] =
-          typeof this._settings.get_strv === "function"
-            ? this._settings.get_strv(`${name}-status-fields`)
-            : [];
+        shortLabels[name] = providerDisplayNameShort(this._settings, name);
+        statusFields[name] = this._settings.get_strv(`${name}-status-fields`);
 
         const reader = this._readers.get(name);
         fieldDefs[name] = reader?.FIELDS ?? PROVIDER_FIELDS[name];

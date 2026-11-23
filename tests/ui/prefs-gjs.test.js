@@ -73,7 +73,7 @@ export async function run() {
     GLib.UriFlags.NONE,
   );
   const { ProviderLimitsPreferencesPage } = await import(mainPageUrl);
-  const { ProviderPage } = await import(providerPageUrl);
+  const { ProviderExpanderRow } = await import(providerPageUrl);
   const gettextUrl = GLib.Uri.resolve_relative(
     import.meta.url,
     "../../dist/helpers/gettext.js",
@@ -122,9 +122,9 @@ export async function run() {
     });
   }
 
-  // Test 2: ProviderPage can be constructed for each provider with the configured title
+  // Test 2: ProviderExpanderRow can be constructed for each provider with the configured title
   for (const provider of Object.keys(PROVIDER_DISPLAY_NAMES)) {
-    const name = `ProviderPage is constructable for ${provider}`;
+    const name = `ProviderExpanderRow is constructable for ${provider}`;
     try {
       const displayName = PROVIDER_DISPLAY_NAMES[provider];
       const settings = new MockSettings({
@@ -136,16 +136,16 @@ export async function run() {
         [`${provider}-panel-fields`]: [],
         language: "en",
       });
-      const page = new ProviderPage(settings, provider);
-      assertNotNull(page, "ProviderPage should be created");
-      assertEqual(page.title, displayName, "page title should match the display name setting");
+      const row = new ProviderExpanderRow(settings, provider);
+      assertNotNull(row, "ProviderExpanderRow should be created");
+      assertEqual(row.title, displayName, "row title should match the display name setting");
       results.push({ name, passed: true });
     } catch (e) {
       results.push({ name, passed: false, error: String(e) });
     }
   }
 
-  // Test 3: Settings bindings propagate to the page title
+  // Test 3: Settings bindings propagate to the row title
   try {
     const settings = new MockSettings({
       "codex-enabled": true,
@@ -157,17 +157,17 @@ export async function run() {
       language: "",
     });
 
-    const page = new ProviderPage(settings, "codex");
-    assertNotNull(page, "page should exist");
+    const row = new ProviderExpanderRow(settings, "codex");
+    assertNotNull(row, "row should exist");
 
     let titleChanged = false;
-    page.connect("notify::title", () => {
+    row.connect("notify::title", () => {
       titleChanged = true;
     });
 
     settings.set_string("codex-display-name", "New Name");
 
-    assertEqual(page.title, "New Name", "title should follow the display name setting");
+    assertEqual(row.title, "New Name", "title should follow the display name setting");
     assertEqual(titleChanged, true, "changing the setting should notify the title");
     results.push({ name: "Settings binding triggers title change", passed: true });
   } catch (e) {
@@ -208,7 +208,7 @@ export async function run() {
       "codex-panel-fields": [],
       language: "en",
     });
-    const page = new ProviderPage(settings, "codex");
+    const page = new ProviderExpanderRow(settings, "codex");
     const rows = findAllWidgets(
       page,
       (w) => w instanceof Adw.ActionRow && w.title === "Used % (5h window)",

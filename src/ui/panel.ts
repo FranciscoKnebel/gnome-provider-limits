@@ -41,19 +41,15 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
 
     this._ensureSection();
 
-    if (typeof this._settings.connect === "function") {
-      this._styleChangedId = this._settings.connect("changed::panel-style", () => {
-        this._switchSection();
-      });
-    }
+    this._styleChangedId = this._settings.connect("changed::panel-style", () => {
+      this._switchSection();
+    });
   }
 
   private _resolveStyle(): PanelStyle {
-    if (typeof this._settings.get_string === "function") {
-      const styleSetting = this._settings.get_string("panel-style");
-      if (styleSetting === "cards" || styleSetting === "compact" || styleSetting === "gauges") {
-        return styleSetting;
-      }
+    const styleSetting = this._settings.get_string("panel-style");
+    if (styleSetting === "cards" || styleSetting === "compact" || styleSetting === "gauges") {
+      return styleSetting;
     }
     return "gauges";
   }

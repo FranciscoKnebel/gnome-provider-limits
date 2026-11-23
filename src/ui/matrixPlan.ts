@@ -227,8 +227,7 @@ export function planStatusBar(input: PlanStatusBarInput): StatusBarPlan {
       continue;
     }
 
-    const fakeReader = { FIELDS: defs };
-    const rows = getFieldRows(fakeReader as never, result, configured, "status", input.locale, tr);
+    const rows = getFieldRows(defs, result, configured, "status", input.locale, tr);
     const joined = rows.map((r) => r.valueText).join("·");
     const prefix = result.status === ReaderStatus.PARTIAL ? "~" : "";
     const metricsText = joined ? `${prefix}${joined}` : prefix;

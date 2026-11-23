@@ -110,9 +110,8 @@ export class CardsPanelSection extends PopupMenu.PopupMenuSection {
     this._scroll.set_policy(St.PolicyType.NEVER, St.PolicyType.AUTOMATIC);
     this.addMenuItem(this._body);
     this.box.remove_child(this._body.actor);
-    const scroll = this._scroll as St.ScrollView & { add_actor?: (actor: Clutter.Actor) => void };
-    if (typeof scroll.set_child === "function") scroll.set_child(this._body.actor);
-    else scroll.add_actor?.(this._body.actor);
+    const scroll = this._scroll as St.ScrollView;
+    scroll.set_child(this._body.actor);
     this.box.add_child(this._scroll);
     this._scroll.connect("notify::mapped", () => {
       if (!this._scroll.mapped) return;

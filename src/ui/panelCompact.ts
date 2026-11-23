@@ -105,12 +105,8 @@ export class CompactPanelSection extends PopupMenu.PopupMenuSection {
     this._scroll.set_policy(St.PolicyType.NEVER, St.PolicyType.AUTOMATIC);
     this.addMenuItem(this._body);
     this.box.remove_child(this._body.actor);
-    // add_actor is the GNOME 45 API; set_child replaced it in newer Shells.
-    const scroll = this._scroll as St.ScrollView & {
-      add_actor?: (actor: Clutter.Actor) => void;
-    };
-    if (typeof scroll.set_child === "function") scroll.set_child(this._body.actor);
-    else scroll.add_actor?.(this._body.actor);
+    const scroll = this._scroll as St.ScrollView;
+    scroll.set_child(this._body.actor);
     this.box.add_child(this._scroll);
 
     this._scroll.connect("notify::mapped", () => {
@@ -170,17 +166,14 @@ export class CompactPanelSection extends PopupMenu.PopupMenuSection {
 
   private _currentLocale(): string {
     return resolveLocale(
-      typeof this._settings.get_string === "function" ? this._settings.get_string("language") : "",
+      this._settings.get_string("language"),
       GLib.getenv("LC_MESSAGES"),
       GLib.getenv("LANG"),
     );
   }
 
   private _buildPlan(results: Map<ProviderName, ReaderResult>): PanelMatrixPlan {
-    const rawOrder =
-      typeof this._settings.get_strv === "function"
-        ? this._settings.get_strv("providers-order")
-        : PROVIDER_NAMES;
+    const rawOrder = this._settings.get_strv("providers-order");
     const order = normalizeProvidersOrder(rawOrder);
     const locale = this._currentLocale();
 
@@ -191,24 +184,12 @@ export class CompactPanelSection extends PopupMenu.PopupMenuSection {
     const fieldDefs: Partial<Record<ProviderName, readonly FieldDef[]>> = {};
 
     for (const name of PROVIDER_NAMES) {
-      const enabled =
-        typeof this._settings.get_boolean === "function"
-          ? this._settings.get_boolean(`${name}-enabled`)
-          : this._readers.has(name) || results.has(name);
+      const enabled = this._settings.get_boolean(`${name}-enabled`);
       if (enabled) enabledProviders.add(name);
 
-      displayNames[name] =
-        typeof this._settings.get_string === "function"
-          ? providerDisplayName(this._settings, name)
-          : name;
-      statusFields[name] =
-        typeof this._settings.get_strv === "function"
-          ? this._settings.get_strv(`${name}-status-fields`)
-          : [];
-      panelFields[name] =
-        typeof this._settings.get_strv === "function"
-          ? this._settings.get_strv(`${name}-panel-fields`)
-          : [];
+      displayNames[name] = providerDisplayName(this._settings, name);
+      statusFields[name] = this._settings.get_strv(`${name}-status-fields`);
+      panelFields[name] = this._settings.get_strv(`${name}-panel-fields`);
 
       const reader = this._readers.get(name);
       if (reader) fieldDefs[name] = reader.FIELDS;
