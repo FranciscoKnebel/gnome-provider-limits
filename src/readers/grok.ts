@@ -5,7 +5,7 @@ import { gettext as _ } from "../helpers/gettext.js";
 import { HttpClient, TokenError } from "../helpers/http.js";
 import { logWarn } from "../helpers/log.js";
 import { BaseReader, FieldStatus, type FieldResult, type ReaderResult } from "./base.js";
-import { GROK_FIELDS, type FieldName } from "./fields.js";
+import { type FieldName } from "./fields.js";
 import { type GrokUsage, normalizeGrokUsagePayload, parseGrokAuth } from "./grokParser.js";
 
 const GROK_BASE_URL = "https://cli-chat-proxy.grok.com/v1";
@@ -16,10 +16,6 @@ export class GrokReader extends BaseReader<"grok"> {
   private _http: HttpClient | null = null;
   private _destroyed = false;
   private _cancellable = new Gio.Cancellable();
-
-  override get FIELDS() {
-    return GROK_FIELDS;
-  }
 
   override destroy(): void {
     this._destroyed = true;

@@ -21,7 +21,7 @@ import {
   type PanelRenderContext,
   type PanelShell,
 } from "./panelShell.js";
-import { applyQuietToneClass, applyToneClass } from "./tone.js";
+import { applyToneClass } from "./tone.js";
 import { emptyViewContext, type ProviderViewContext } from "./viewContext.js";
 import { matrixMessages } from "./viewMessages.js";
 
@@ -198,7 +198,9 @@ export class CompactPanelSection extends PanelStyleSection {
         style_class: "provider-limits-status-badge",
         y_align: Clutter.ActorAlign.CENTER,
       });
-      applyQuietToneClass(badgeLabel, model.status === ReaderStatus.PARTIAL ? "warning" : "error");
+      applyToneClass(badgeLabel, model.status === ReaderStatus.PARTIAL ? "warning" : "error", {
+        quiet: true,
+      });
       leftTitleBox.add_child(badgeLabel);
     }
 
@@ -214,7 +216,7 @@ export class CompactPanelSection extends PanelStyleSection {
         style_class: "provider-limits-micro-bar",
         y_align: Clutter.ActorAlign.CENTER,
       });
-      applyQuietToneClass(fiveSegLabel, headerTone);
+      applyToneClass(fiveSegLabel, headerTone, { quiet: true });
       rightSummaryBox.add_child(fiveSegLabel);
     }
 
@@ -224,7 +226,7 @@ export class CompactPanelSection extends PanelStyleSection {
       x_align: Clutter.ActorAlign.END,
       y_align: Clutter.ActorAlign.CENTER,
     });
-    applyQuietToneClass(summaryLabel, headerTone);
+    applyToneClass(summaryLabel, headerTone, { quiet: true });
     rightSummaryBox.add_child(summaryLabel);
 
     topLine.add_child(leftTitleBox);
@@ -370,7 +372,7 @@ export class CompactPanelSection extends PanelStyleSection {
         style_class: "provider-limits-micro-bar",
         y_align: Clutter.ActorAlign.CENTER,
       });
-      applyQuietToneClass(microBarLabel, view.tone);
+      applyToneClass(microBarLabel, view.tone, { quiet: true });
       line.add_child(microBarLabel);
     }
 

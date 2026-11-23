@@ -16,7 +16,7 @@ import {
   type CursorAuth,
   type CursorUsage,
 } from "./cursorParser.js";
-import { CURSOR_FIELDS, type FieldName } from "./fields.js";
+import { type FieldName } from "./fields.js";
 
 const CURSOR_EXCHANGE_URL = `${CURSOR_BACKEND_URL}/auth/exchange_user_api_key`;
 const CURSOR_USAGE_URL = `${CURSOR_BACKEND_URL}/aiserver.v1.DashboardService/GetCurrentPeriodUsage`;
@@ -37,10 +37,6 @@ export class CursorReader extends BaseReader<"cursor"> {
   private _http: HttpClient | null = null;
   private _destroyed = false;
   private _cancellable: Gio.Cancellable | null = null;
-
-  override get FIELDS() {
-    return CURSOR_FIELDS;
-  }
 
   override destroy(): void {
     this._destroyed = true;

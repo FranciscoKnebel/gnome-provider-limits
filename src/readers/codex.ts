@@ -18,7 +18,6 @@ import {
   parseCodexLogBody,
   summarizeCodexResetCredits,
 } from "./codexParser.js";
-import { CODEX_FIELDS } from "./fields.js";
 
 const CODEX_ALL_PATHS_FAILED = "Codex: all paths failed. Run `codex login`.";
 const CODEX_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
@@ -30,10 +29,6 @@ export class CodexReader extends BaseReader<"codex"> {
   private _http: HttpClient | null = null;
   private _cancellable: Gio.Cancellable | null = null;
   private _destroyed = false;
-
-  override get FIELDS() {
-    return CODEX_FIELDS;
-  }
 
   async read(_options?: ReadOptions): Promise<ReaderResult> {
     this._cancellable?.cancel();

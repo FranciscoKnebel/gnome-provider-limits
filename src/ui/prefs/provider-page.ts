@@ -4,7 +4,7 @@ import GLib from "gi://GLib";
 import GObject from "gi://GObject";
 import Gtk from "gi://Gtk?version=4.0";
 
-import type { ProviderName } from "../../constants.js";
+import { AUTH_FILE_PROVIDERS, type ProviderName } from "../../constants.js";
 import { formatField } from "../../formatters.js";
 import { resolveLocale } from "../../helpers/locale.js";
 import {
@@ -25,9 +25,6 @@ import {
   unbindSettings,
 } from "./shared.js";
 import type { SettingsBinding } from "./shared.js";
-
-/** Providers whose configured path points at an existing login file, not an executable. */
-const AUTH_FILE_PROVIDERS: ReadonlySet<ProviderName> = new Set(["grok", "cursor", "google"]);
 
 const SAMPLE_VALUES: Record<Exclude<FieldType, "timestamp">, unknown> = {
   percent: 42,

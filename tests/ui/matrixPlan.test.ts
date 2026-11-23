@@ -14,11 +14,7 @@ import {
   deriveSeverity,
   worstFieldTone,
 } from "../../src/ui/providerHealth.js";
-import {
-  applyQuietToneClass,
-  applyStatusAttentionClass,
-  applyToneClass,
-} from "../../src/ui/tone.js";
+import { applyStatusAttentionClass, applyToneClass } from "../../src/ui/tone.js";
 import {
   resolveViewPhase,
   type ProviderViewContext,
@@ -513,14 +509,14 @@ describe("matrixPlan", () => {
       applyToneClass(target, undefined);
       expect(target.classes.size).toBe(0);
 
-      applyQuietToneClass(target, "ok");
+      applyToneClass(target, "ok", { quiet: true });
       expect(target.classes.size).toBe(0);
-      applyQuietToneClass(target, "warning");
+      applyToneClass(target, "warning", { quiet: true });
       expect(target.classes.has("usage-warning")).toBeTrue();
-      applyQuietToneClass(target, "critical");
+      applyToneClass(target, "critical", { quiet: true });
       expect(target.classes.has("usage-critical")).toBeTrue();
       expect(target.classes.has("usage-warning")).toBeFalse();
-      applyQuietToneClass(target, "error");
+      applyToneClass(target, "error", { quiet: true });
       expect(target.classes.has("provider-limits-error")).toBeTrue();
 
       const seg = makeClassTracker();

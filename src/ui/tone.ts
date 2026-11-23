@@ -44,11 +44,27 @@ const ATTENTION_STYLE: Readonly<Record<StatusAttention, AttentionStyle>> = {
   error: { segment: "status-critical-accent", value: "provider-limits-error" },
 };
 
-export function applyToneClass(target: ToneClassTarget, tone: FieldTone | undefined): void {
-  for (const styleClass of USAGE_TONE_CLASSES) {
+export interface ToneClassOptions {
+  readonly quiet?: boolean;
+}
+
+export function applyToneClass(
+  target: ToneClassTarget,
+  tone: FieldTone | "error" | undefined,
+  options?: ToneClassOptions,
+): void {
+  const quiet = options?.quiet === true;
+  for (const styleClass of quiet ? EXTENDED_TONE_CLASSES : USAGE_TONE_CLASSES) {
     target.remove_style_class_name(styleClass);
   }
-  if (tone) target.add_style_class_name(`usage-${tone}`);
+
+  if (quiet) {
+    if (tone === "warning") target.add_style_class_name("usage-warning");
+    else if (tone === "critical") target.add_style_class_name("usage-critical");
+    else if (tone === "error") target.add_style_class_name("provider-limits-error");
+  } else if (tone && tone !== "error") {
+    target.add_style_class_name(`usage-${tone}`);
+  }
 }
 
 export function applyHealthToneClass(target: ToneClassTarget, tone: HealthTone): void {
@@ -56,18 +72,6 @@ export function applyHealthToneClass(target: ToneClassTarget, tone: HealthTone):
     target.remove_style_class_name(styleClass);
   }
   target.add_style_class_name(`tone-${tone}`);
-}
-
-export function applyQuietToneClass(
-  target: ToneClassTarget,
-  tone: FieldTone | "error" | undefined,
-): void {
-  for (const styleClass of EXTENDED_TONE_CLASSES) {
-    target.remove_style_class_name(styleClass);
-  }
-  if (tone === "warning") target.add_style_class_name("usage-warning");
-  else if (tone === "critical") target.add_style_class_name("usage-critical");
-  else if (tone === "error") target.add_style_class_name("provider-limits-error");
 }
 
 export function applyStatusAttentionClass(

@@ -11,7 +11,7 @@ import {
   type Env,
 } from "../helpers/paths.js";
 import { BaseReader, FieldStatus, type FieldResult, type ReaderResult } from "./base.js";
-import { GOOGLE_FIELDS, type FieldName } from "./fields.js";
+import { type FieldName } from "./fields.js";
 import {
   GOOGLE_CLOUDCODE_DAILY_URL,
   GOOGLE_OAUTH_TOKEN_URL,
@@ -75,10 +75,6 @@ export class GoogleReader extends BaseReader<"google"> {
   private _http: HttpClient | null = null;
   private _destroyed = false;
   private _cancellable: Gio.Cancellable | null = null;
-
-  override get FIELDS() {
-    return GOOGLE_FIELDS;
-  }
 
   override destroy(): void {
     this._destroyed = true;

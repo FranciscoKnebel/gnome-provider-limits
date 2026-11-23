@@ -77,14 +77,6 @@ export interface ReadOptions {
 export abstract class BaseReader<P extends ProviderName = ProviderName> {
   protected _lastGood: ReaderResult | null = null;
 
-  /**
-   * The field declarations this reader may emit. fields.ts is the single
-   * source of truth; every concrete reader overrides this with its slice.
-   */
-  get FIELDS(): readonly FieldDef<FieldName<P>>[] {
-    return [];
-  }
-
   constructor(
     protected readonly settings: Gio.Settings,
     protected readonly providerName: P,

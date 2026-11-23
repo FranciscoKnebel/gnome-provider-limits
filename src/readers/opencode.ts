@@ -7,7 +7,6 @@ import { resolveOpenCodeDataDir } from "../helpers/paths.js";
 import { querySqlite } from "../helpers/sqlite.js";
 import type { FieldResult, ReadOptions, ReaderResult } from "./base.js";
 import { BaseReader, FieldStatus } from "./base.js";
-import { OPENCODE_FIELDS } from "./fields.js";
 import {
   type OpenCodeDbRow,
   type OpenCodeDiskTelemetry,
@@ -29,10 +28,6 @@ export class OpenCodeReader extends BaseReader<"opencode"> {
   private _http: HttpClient | null = null;
   private _cancellable: Gio.Cancellable | null = null;
   private _destroyed = false;
-
-  override get FIELDS() {
-    return OPENCODE_FIELDS;
-  }
 
   override destroy(): void {
     this._destroyed = true;
