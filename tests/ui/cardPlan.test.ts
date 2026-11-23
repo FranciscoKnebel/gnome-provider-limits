@@ -13,10 +13,7 @@ import {
 } from "../../src/readers/fields.js";
 import { computeBarWidthPx, planPanel, planProviderCard } from "../../src/ui/cardPlan.js";
 import { clampPercent, getFieldRows } from "../../src/ui/fieldRows.js";
-import type {
-  StatusBarProviderSegment,
-  StatusBarSegmentsContext,
-} from "../../src/ui/fieldViews.js";
+import type { StatusBarProviderSegment } from "../../src/ui/fieldViews.js";
 import {
   deriveFieldViews,
   deriveProviderHealth,
@@ -24,18 +21,25 @@ import {
 } from "../../src/ui/fieldViews.js";
 import type { ProviderTone } from "../../src/ui/providerTypes.js";
 import { applyHealthToneClass, applyToneClass } from "../../src/ui/tone.js";
+import type { ProviderViewContext } from "../../src/ui/viewContext.js";
 
 function segmentsContext(
   results: ReadonlyMap<ProviderName, ReaderResult>,
   statusFields: (provider: ProviderName) => readonly string[],
-): StatusBarSegmentsContext {
+): ProviderViewContext {
+  const order: readonly ProviderName[] = ["codex", "claude", "opencode", "grok"];
   return {
-    order: ["codex", "claude", "opencode", "grok"],
+    order,
     results,
     locale: "en",
     statusFields,
+    panelFields: () => [],
+    displayName: (provider) => provider.toUpperCase(),
     shortDisplayName: (provider) => provider.toUpperCase(),
-    fieldDefs: (provider) => getProviderFields(provider),
+    fieldDefs: PROVIDER_FIELDS,
+    isEnabled: () => true,
+    hasEnabledProviders: results.size > 0,
+    activeProviders: order,
     t: (text) => text,
   };
 }
@@ -66,37 +70,44 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       ]);
     });
 
-    it("resolves field categories from name and type", () => {
-      expect(resolveFieldCategory({ name: "plan_type", type: "text" })).toBe("telemetry");
-      expect(resolveFieldCategory({ name: "used_percent_primary", type: "percent" })).toBe("limit");
-      expect(resolveFieldCategory({ name: "limit_reached", type: "bool" })).toBe("limit");
-      expect(resolveFieldCategory({ name: "total_cost", type: "cost" })).toBe("telemetry");
+    it("reads field categories directly from the declaration", () => {
+      expect(resolveFieldCategory({ name: "plan_type", type: "text", category: "telemetry" })).toBe(
+        "telemetry",
+      );
+      expect(
+        resolveFieldCategory({ name: "used_percent_primary", type: "percent", category: "limit" }),
+      ).toBe("limit");
+      expect(resolveFieldCategory({ name: "limit_reached", type: "bool", category: "limit" })).toBe(
+        "limit",
+      );
+      expect(
+        resolveFieldCategory({ name: "total_cost", type: "cost", category: "telemetry" }),
+      ).toBe("telemetry");
     });
 
-    it("computes companion reset field names for percent fields", () => {
+    it("reads companion reset field names directly from the declaration", () => {
       expect(
         companionResetFieldName({
           name: "used_percent_primary",
           type: "percent",
-          windowGroup: "primary",
+          resetField: "reset_at_primary",
         }),
       ).toBe("reset_at_primary");
       expect(
         companionResetFieldName({
           name: "used_percent_weekly",
           type: "percent",
+          resetField: "reset_at_weekly",
         }),
       ).toBe("reset_at_weekly");
       expect(
         companionResetFieldName({
           name: "remaining_percent_credits",
           type: "percent",
+          resetField: "reset_at_credits",
         }),
       ).toBe("reset_at_credits");
-      expect(companionResetFieldName({ name: "used_percent", type: "percent" })).toBe("reset_at");
-      expect(companionResetFieldName({ name: "remaining_percent", type: "percent" })).toBe(
-        "reset_at",
-      );
+      expect(companionResetFieldName({ name: "used_percent", type: "percent" })).toBeNull();
       expect(companionResetFieldName({ name: "custom_ratio", type: "percent" })).toBeNull();
       expect(companionResetFieldName({ name: "reset_at_weekly", type: "timestamp" })).toBeNull();
     });
@@ -530,7 +541,14 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       expect(waitingPlan.structureKey).toBe(loadingPlan.structureKey);
 
       const customDefs: readonly FieldDef[] = [
-        { name: "used_percent_primary", label: "Used %", type: "percent", defaultZone: "panel" },
+        {
+          name: "used_percent_primary",
+          label: "Used %",
+          type: "percent",
+          defaultZone: "panel",
+          category: "limit",
+          resetField: "reset_at_primary",
+        },
       ];
       const firstActive = planPanel({
         order: ["codex"],

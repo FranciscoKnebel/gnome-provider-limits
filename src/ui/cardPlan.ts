@@ -1,18 +1,12 @@
 import { type ProviderName } from "../constants.js";
-import { formatAbsoluteTimestamp } from "../formatters.js";
-import type { FieldDef, ReaderResult } from "../readers/base.js";
-import { ReaderStatus } from "../readers/base.js";
+import type { FieldDef, ReaderResult, ReaderStatus } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
 import { clampPercent, type FieldTone } from "./fieldRows.js";
-import type { FieldView } from "./fieldViews.js";
-import {
-  badgeForZone,
-  cardBadgeText,
-  deriveFieldViews,
-  deriveProviderHealth,
-} from "./fieldViews.js";
+import type { FieldView, ProviderDisplayModel } from "./fieldViews.js";
+import { deriveDisplayModels } from "./fieldViews.js";
 import type { Presentation, ProviderTone } from "./providerTypes.js";
 import { structureKey } from "./renderStructure.js";
+import type { ProviderViewContext } from "./viewContext.js";
 
 export type CardBadgeKind = Presentation["cardBadge"];
 export type BannerKind = "warning" | "error";
@@ -87,72 +81,46 @@ export interface PlanProviderCardOptions {
   t?: (s: string) => string;
 }
 
-export function planProviderCard(options: PlanProviderCardOptions): ProviderCardPlan {
-  const tr = options.t ?? ((s: string) => s);
-  const { provider, displayName, result, panelFields, fieldDefs: defs, locale } = options;
+export interface PlanPanelOptions {
+  order: readonly ProviderName[];
+  results: ReadonlyMap<ProviderName, ReaderResult>;
+  hasEnabledProviders: boolean;
+  running: boolean;
+  locale: string;
+  getDisplayName: (provider: ProviderName) => string;
+  getPanelFields: (provider: ProviderName) => readonly string[];
+  getFieldDefs: (provider: ProviderName) => readonly FieldDef[];
+  t?: (s: string) => string;
+}
 
-  const isHardError =
-    result.status === ReaderStatus.ERROR || result.status === ReaderStatus.UNAVAILABLE;
-
-  const views = isHardError ? [] : deriveFieldViews(defs, result, panelFields, "panel", locale, tr);
-  const health = deriveProviderHealth(result.status, {
-    result,
-    views,
-    fieldDefs: defs,
-    t: tr,
-  });
-  const badgeKind: CardBadgeKind = badgeForZone(health, "card");
-  const badgeText = cardBadgeText(health, tr);
-  const healthTone = health.tone;
-
-  let bannerKind: BannerKind | null = null;
-  let bannerText: string | null = null;
-  if (result.status === ReaderStatus.ERROR) {
-    bannerKind = "error";
-    bannerText = result.lastError ?? tr("Error");
-  } else if (result.status === ReaderStatus.UNAVAILABLE) {
-    bannerKind = "error";
-    bannerText = result.lastError ?? tr("Unavailable");
-  } else if (result.status === ReaderStatus.PARTIAL && result.lastError) {
-    bannerKind = "warning";
-    bannerText = result.lastError;
-  }
-
-  const lastUpdatedText =
-    !isHardError && Number.isFinite(result.lastUpdated)
-      ? tr("Last updated: %s").replace("%s", formatAbsoluteTimestamp(result.lastUpdated, locale))
-      : null;
-
-  const rowsByName = new Map<string, FieldView>();
-  for (const row of views) {
-    rowsByName.set(row.name, row);
-  }
-
-  const pairedResets = new Map<string, FieldView>();
-  const consumedResetNames = new Set<string>();
-  for (const row of views) {
-    if (row.type !== "percent" || row.resetName === null) continue;
-    if (consumedResetNames.has(row.resetName)) continue;
-    const resetRow = rowsByName.get(row.resetName);
-    if (resetRow) {
-      pairedResets.set(row.name, resetRow);
-      consumedResetNames.add(row.resetName);
-    }
-  }
-
+function cardFromModel(model: ProviderDisplayModel, tr: (s: string) => string): ProviderCardPlan {
   const limitProgressRows: CardProgressRow[] = [];
   const limitMetaRows: CardKeyValueRow[] = [];
   const telemetryRows: CardKeyValueRow[] = [];
 
-  for (const row of views) {
+  const toKeyValueRow = (row: FieldView): CardKeyValueRow => {
+    const kvRow: CardKeyValueRow = {
+      kind: "kv",
+      name: row.name,
+      category: row.category ?? "telemetry",
+      label: tr(row.label),
+      valueText: row.valueText,
+      accessibleText: row.accessibleText ?? `${tr(row.label)}: ${row.valueText}`,
+    };
+    if (row.tone) kvRow.tone = row.tone;
+    if (row.errorText) kvRow.errorText = row.errorText;
+    return kvRow;
+  };
+
+  for (const row of model.groupedViews.limit) {
     const rowName = row.name;
-    if (consumedResetNames.has(rowName)) continue;
+    if (model.consumedResets.has(rowName)) continue;
 
     const translatedLabel = tr(row.label);
     const defaultAccessible = row.accessibleText ?? `${translatedLabel}: ${row.valueText}`;
 
     if (row.type === "percent") {
-      const pairedReset = pairedResets.get(rowName);
+      const pairedReset = model.resetPairs.get(rowName);
       const resetText = pairedReset
         ? `${tr(pairedReset.label)}: ${pairedReset.valueText}`
         : undefined;
@@ -175,87 +143,72 @@ export function planProviderCard(options: PlanProviderCardOptions): ProviderCard
       continue;
     }
 
-    const kvRow: CardKeyValueRow = {
-      kind: "kv",
-      name: rowName,
-      category: row.category ?? "telemetry",
-      label: translatedLabel,
-      valueText: row.valueText,
-      accessibleText: defaultAccessible,
-    };
-    if (row.tone) kvRow.tone = row.tone;
-    if (row.errorText) kvRow.errorText = row.errorText;
-
-    if (kvRow.category === "limit") {
-      limitMetaRows.push(kvRow);
-    } else {
-      telemetryRows.push(kvRow);
-    }
+    limitMetaRows.push(toKeyValueRow(row));
   }
 
-  const key = JSON.stringify([
-    provider,
-    displayName,
-    result.status,
-    badgeKind,
-    locale,
-    bannerKind ?? "",
-    lastUpdatedText === null ? 0 : 1,
-    limitProgressRows.map((r) => [r.name, r.resetText ? 1 : 0, r.errorText ? 1 : 0]),
-    limitMetaRows.map((r) => [r.name, r.errorText ? 1 : 0]),
-    telemetryRows.map((r) => [r.name, r.errorText ? 1 : 0]),
-  ]);
+  for (const row of model.groupedViews.telemetry) {
+    if (model.consumedResets.has(row.name)) continue;
+    telemetryRows.push(toKeyValueRow(row));
+  }
 
   return {
-    provider,
-    displayName,
-    status: result.status,
-    healthTone,
-    badgeKind,
-    badgeText,
-    lastUpdatedText,
-    bannerKind,
-    bannerText,
+    provider: model.provider,
+    displayName: model.displayName,
+    status: model.status,
+    healthTone: model.tone,
+    badgeKind: model.badges.card,
+    badgeText: model.badges.cardText,
+    lastUpdatedText: model.lastUpdatedText,
+    bannerKind: model.diagnostic.bannerKind,
+    bannerText: model.diagnostic.bannerText,
     limitProgressRows,
     limitMetaRows,
     telemetryRows,
-    key,
+    key: model.structureKey,
   };
 }
 
-export interface PlanPanelOptions {
-  order: readonly ProviderName[];
-  results: ReadonlyMap<ProviderName, ReaderResult>;
-  hasEnabledProviders: boolean;
-  running: boolean;
-  locale: string;
-  getDisplayName: (provider: ProviderName) => string;
-  getPanelFields: (provider: ProviderName) => readonly string[];
-  getFieldDefs: (provider: ProviderName) => readonly FieldDef[];
-  t?: (s: string) => string;
+export function planProviderCard(options: PlanProviderCardOptions): ProviderCardPlan {
+  const tr = options.t ?? ((s: string) => s);
+  const context: ProviderViewContext = {
+    order: [options.provider],
+    results: new Map([[options.provider, options.result]]),
+    locale: options.locale,
+    fieldDefs: { [options.provider]: options.fieldDefs } as Readonly<
+      Record<ProviderName, readonly FieldDef[]>
+    >,
+    displayName: () => options.displayName,
+    shortDisplayName: () => options.displayName,
+    statusFields: () => [],
+    panelFields: () => options.panelFields,
+    isEnabled: () => true,
+    hasEnabledProviders: true,
+    activeProviders: [options.provider],
+    t: tr,
+  };
+  const model = deriveDisplayModels(context)[0];
+  return cardFromModel(model, tr);
 }
 
 export function planPanel(options: PlanPanelOptions): PanelPlan {
   const tr = options.t ?? ((s: string) => s);
-  const cards: ProviderCardPlan[] = [];
-
-  for (const provider of options.order) {
-    const result = options.results.get(provider);
-    if (!result || result.status === ReaderStatus.DISABLED) continue;
-
-    const fieldDefs = options.getFieldDefs(provider);
-    cards.push(
-      planProviderCard({
-        provider,
-        displayName: options.getDisplayName(provider),
-        result,
-        panelFields: options.getPanelFields(provider),
-        fieldDefs,
-        locale: options.locale,
-        t: tr,
-      }),
-    );
-  }
+  const context: ProviderViewContext = {
+    order: options.order,
+    results: options.results,
+    locale: options.locale,
+    fieldDefs: Object.fromEntries(
+      options.order.map((provider) => [provider, options.getFieldDefs(provider)]),
+    ) as Readonly<Record<ProviderName, readonly FieldDef[]>>,
+    displayName: options.getDisplayName,
+    shortDisplayName: options.getDisplayName,
+    statusFields: () => [],
+    panelFields: options.getPanelFields,
+    isEnabled: () => true,
+    hasEnabledProviders: options.hasEnabledProviders,
+    activeProviders: options.order,
+    t: tr,
+  };
+  const cards = deriveDisplayModels(context).map((model) => cardFromModel(model, tr));
 
   if (cards.length === 0) {
     if (!options.hasEnabledProviders) {

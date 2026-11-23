@@ -45,9 +45,23 @@ describe("formatters", () => {
         label: "Used %",
         type: "percent",
         defaultZone: "panel",
+        category: "limit",
+        resetField: "reset_at",
       },
-      { name: "reset_at", label: "Reset at", type: "timestamp", defaultZone: "panel" },
-      { name: "plan_type", label: "Plan", type: "text", defaultZone: "panel" },
+      {
+        name: "reset_at",
+        label: "Reset at",
+        type: "timestamp",
+        defaultZone: "panel",
+        category: "limit",
+      },
+      {
+        name: "plan_type",
+        label: "Plan",
+        type: "text",
+        defaultZone: "panel",
+        category: "telemetry",
+      },
     ];
 
     const sampleResult: ReaderResult = {
@@ -262,6 +276,8 @@ describe("formatters", () => {
           label: "Remaining %",
           type: "percent",
           defaultZone: "panel",
+          category: "limit",
+          resetField: "reset_at",
         },
       ];
       const high = getFieldRows(

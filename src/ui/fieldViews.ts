@@ -1,5 +1,5 @@
 import type { ProviderName } from "../constants.js";
-import { formatField } from "../formatters.js";
+import { formatAbsoluteTimestamp, formatField } from "../formatters.js";
 import type { FieldDef, FieldResult, FieldType, FieldZone, ReaderResult } from "../readers/base.js";
 import { FieldStatus, ReaderStatus } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
@@ -14,7 +14,9 @@ import type {
   ProviderTone,
 } from "./providerTypes.js";
 import { PRESENTATION } from "./providerTypes.js";
+import { structureKey } from "./renderStructure.js";
 import { clampFillRatio, extractWindowSuffix } from "./usageSnapshot.js";
+import type { ProviderViewContext } from "./viewContext.js";
 
 export interface FieldView {
   readonly name: string;
@@ -377,49 +379,269 @@ export interface StatusBarProviderSegment {
   readonly health: ProviderHealth;
 }
 
-export interface StatusBarSegmentsContext {
-  readonly order: readonly ProviderName[];
-  readonly results: ReadonlyMap<ProviderName, ReaderResult>;
-  readonly locale: string;
-  readonly statusFields: (provider: ProviderName) => readonly string[];
-  readonly shortDisplayName: (provider: ProviderName) => string;
-  readonly fieldDefs: (provider: ProviderName) => readonly FieldDef[];
-  readonly t: (s: string) => string;
+export type DisplayBannerKind = "warning" | "error";
+
+export interface DisplayDiagnostic {
+  readonly bannerKind: DisplayBannerKind | null;
+  readonly bannerText: string | null;
+  readonly errorText: string | null;
+  readonly detailText: string | null;
 }
 
-export function deriveStatusBarSegments(
-  context: StatusBarSegmentsContext,
-): StatusBarProviderSegment[] {
-  const segments: StatusBarProviderSegment[] = [];
-  for (const provider of context.order) {
+export interface DisplayBadges {
+  readonly card: Presentation["cardBadge"];
+  readonly cardText: string;
+  readonly overview: Presentation["overviewBadge"];
+  readonly overviewText: string;
+  readonly status: string;
+}
+
+export interface ProviderDisplayUsage {
+  readonly header: UsageFacts;
+  readonly overview: UsageFacts;
+}
+
+export interface ProviderDisplayViews {
+  readonly limit: readonly FieldView[];
+  readonly telemetry: readonly FieldView[];
+}
+
+export interface ProviderDisplayModel {
+  readonly provider: ProviderName;
+  readonly displayName: string;
+  readonly shortDisplayName: string;
+  readonly result: ReaderResult;
+  readonly status: ReaderStatus;
+  readonly isHardError: boolean;
+  readonly state: ProviderState;
+  readonly tone: ProviderTone;
+  readonly attention: ProviderAttention;
+  readonly worstTone: FieldTone | undefined;
+  readonly hasUsableField: boolean;
+  readonly lastKnownGood: boolean;
+  readonly stateTag: string | null;
+  readonly stateAccessibleText: string | null;
+  readonly badges: DisplayBadges;
+  readonly statusViews: readonly FieldView[];
+  readonly panelViews: readonly FieldView[];
+  readonly headerViews: readonly FieldView[];
+  readonly groupedViews: ProviderDisplayViews;
+  readonly resetPairs: ReadonlyMap<string, FieldView>;
+  readonly consumedResets: ReadonlySet<string>;
+  readonly usage: ProviderDisplayUsage;
+  readonly summaryText: string;
+  readonly lastUpdatedText: string | null;
+  readonly diagnostic: DisplayDiagnostic;
+  readonly structureKey: string;
+}
+
+function groupViewsByCategory(views: readonly FieldView[]): ProviderDisplayViews {
+  const limit: FieldView[] = [];
+  const telemetry: FieldView[] = [];
+  for (const view of views) {
+    if (view.category === "telemetry") telemetry.push(view);
+    else limit.push(view);
+  }
+  return { limit, telemetry };
+}
+
+function pairResetViews(views: readonly FieldView[]): {
+  pairs: Map<string, FieldView>;
+  consumed: Set<string>;
+} {
+  const byName = new Map<string, FieldView>();
+  for (const view of views) byName.set(view.name, view);
+
+  const pairs = new Map<string, FieldView>();
+  const consumed = new Set<string>();
+  for (const view of views) {
+    if (view.type !== "percent" || view.resetName === null) continue;
+    if (consumed.has(view.resetName)) continue;
+    const reset = byName.get(view.resetName);
+    if (!reset) continue;
+    pairs.set(view.name, reset);
+    consumed.add(view.resetName);
+  }
+  return { pairs, consumed };
+}
+
+function modelStructureKey(
+  context: ProviderViewContext,
+  model: Omit<ProviderDisplayModel, "structureKey">,
+  statusFields: readonly string[],
+  panelFields: readonly string[],
+): string {
+  const parts: string[] = [
+    model.provider,
+    model.displayName,
+    model.shortDisplayName,
+    model.status,
+    context.locale,
+    model.badges.card,
+    model.badges.cardText,
+    model.badges.overview,
+    model.badges.overviewText,
+    model.badges.status ? "1" : "0",
+    model.diagnostic.bannerKind ?? "",
+    model.diagnostic.errorText !== null ? "1" : "0",
+    model.diagnostic.detailText !== null ? "1" : "0",
+    model.lastUpdatedText === null ? "0" : "1",
+    statusFields.join(","),
+    panelFields.join(","),
+    ...model.statusViews.map((view) => [view.name, view.type, view.category].join(":")),
+    ...model.panelViews.map((view) =>
+      [
+        view.name,
+        view.type,
+        view.category,
+        view.resetName ?? "",
+        view.hasResetSlot ? "1" : "0",
+        view.errorText ? "1" : "0",
+        view.resetText ? "1" : "0",
+      ].join(":"),
+    ),
+  ];
+  return structureKey(parts);
+}
+
+export function deriveDisplayModels(context: ProviderViewContext): ProviderDisplayModel[] {
+  const models: ProviderDisplayModel[] = [];
+
+  for (const provider of context.activeProviders) {
     const result = context.results.get(provider);
     if (!result || result.status === ReaderStatus.DISABLED) continue;
-    const fieldDefs = context.fieldDefs(provider);
+
+    const fieldDefs = context.fieldDefs[provider];
     const statusFields = context.statusFields(provider);
-    const views = deriveFieldViews(
-      fieldDefs,
+    const panelFields = context.panelFields(provider);
+    const isHardError =
+      result.status === ReaderStatus.ERROR || result.status === ReaderStatus.UNAVAILABLE;
+
+    const statusViews = isHardError
+      ? []
+      : deriveFieldViews(fieldDefs, result, statusFields, "status", context.locale, context.t);
+    const panelViews = isHardError
+      ? []
+      : deriveFieldViews(fieldDefs, result, panelFields, "panel", context.locale, context.t);
+    const headerViews = isHardError
+      ? []
+      : deriveFieldViews(
+          fieldDefs,
+          result,
+          [...statusFields, ...panelFields],
+          "status",
+          context.locale,
+          context.t,
+        );
+
+    const health = deriveProviderHealth(result.status, {
       result,
-      statusFields,
-      "status",
-      context.locale,
-      context.t,
-    );
-    segments.push({
-      provider,
-      displayName: context.shortDisplayName(provider),
-      result,
+      views: headerViews,
       fieldDefs,
-      statusFields,
-      views,
-      health: deriveProviderHealth(result.status, {
-        result,
-        views,
-        fieldDefs,
+      t: context.t,
+    });
+
+    const badges: DisplayBadges = {
+      card: badgeForZone(health, "card"),
+      cardText: cardBadgeText(health, context.t),
+      overview: badgeForZone(health, "overview"),
+      overviewText: overviewBadgeText(health, context.t),
+      status: statusBadgeText(health, context.t),
+    };
+
+    const { pairs, consumed } = pairResetViews(panelViews);
+    const searchOrder = [...statusFields, ...panelFields];
+
+    const usage: ProviderDisplayUsage = {
+      header: projectUsageFacts(result, headerViews, statusFields, {
+        limitOnly: true,
+        requireFiniteValue: true,
         t: context.t,
       }),
+      overview: projectUsageFacts(result, headerViews, searchOrder, { t: context.t }),
+    };
+
+    let bannerKind: DisplayBannerKind | null = null;
+    let bannerText: string | null = null;
+    if (result.status === ReaderStatus.ERROR) {
+      bannerKind = "error";
+      bannerText = result.lastError ?? context.t("Error");
+    } else if (result.status === ReaderStatus.UNAVAILABLE) {
+      bannerKind = "error";
+      bannerText = result.lastError ?? context.t("Unavailable");
+    } else if (result.status === ReaderStatus.PARTIAL && result.lastError) {
+      bannerKind = "warning";
+      bannerText = result.lastError;
+    }
+
+    const lastUpdatedText =
+      !isHardError && Number.isFinite(result.lastUpdated)
+        ? context
+            .t("Last updated: %s")
+            .replace("%s", formatAbsoluteTimestamp(result.lastUpdated, context.locale))
+        : null;
+
+    const partialModel: Omit<ProviderDisplayModel, "structureKey"> = {
+      provider,
+      displayName: context.displayName(provider),
+      shortDisplayName: context.shortDisplayName(provider),
+      result,
+      status: result.status,
+      isHardError,
+      state: health.state,
+      tone: health.tone,
+      attention: health.attention,
+      worstTone: health.worstTone,
+      hasUsableField: health.hasUsableField,
+      lastKnownGood: health.lastKnownGood,
+      stateTag: health.stateTag,
+      stateAccessibleText: health.stateAccessibleText,
+      badges,
+      statusViews,
+      panelViews,
+      headerViews,
+      groupedViews: groupViewsByCategory(panelViews),
+      resetPairs: pairs,
+      consumedResets: consumed,
+      usage,
+      summaryText: usage.header.summaryText,
+      lastUpdatedText,
+      diagnostic: {
+        bannerKind,
+        bannerText,
+        errorText: isHardError ? (result.lastError ?? context.t("Error")) : null,
+        detailText: result.status === ReaderStatus.PARTIAL ? (result.lastError ?? null) : null,
+      },
+    };
+
+    models.push({
+      ...partialModel,
+      structureKey: modelStructureKey(context, partialModel, statusFields, panelFields),
     });
   }
-  return segments;
+
+  return models;
+}
+
+export function deriveStatusBarSegments(context: ProviderViewContext): StatusBarProviderSegment[] {
+  return deriveDisplayModels(context).map((model) => ({
+    provider: model.provider,
+    displayName: model.shortDisplayName,
+    result: model.result,
+    fieldDefs: context.fieldDefs[model.provider],
+    statusFields: context.statusFields(model.provider),
+    views: model.statusViews,
+    health: {
+      state: model.state,
+      tone: model.tone,
+      attention: model.attention,
+      worstTone: model.worstTone,
+      hasUsableField: model.hasUsableField,
+      lastKnownGood: model.lastKnownGood,
+      stateTag: model.stateTag,
+      stateAccessibleText: model.stateAccessibleText,
+    },
+  }));
 }
 
 export type StatusBarZonePlan<TSegment> =

@@ -1,37 +1,91 @@
-import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { assert } from "../helpers/node-harness.mjs";
+import { assert, load } from "../helpers/node-harness.mjs";
 
-test("review findings stay consolidated in shared helpers and field lookup", () => {
-  const statusBar = readFileSync("src/ui/statusBar.ts", "utf8");
-  const panel = readFileSync("src/ui/panel.ts", "utf8");
-  const fields = readFileSync("src/readers/fields.ts", "utf8");
-  const shell = readFileSync("src/ui/panelShell.ts", "utf8");
-  const compactPanel = readFileSync("src/ui/panelCompact.ts", "utf8");
-  const overview = readFileSync("src/ui/panelGaugesOverview.ts", "utf8");
-  const renderers = [
-    readFileSync("src/ui/statusBarPills.ts", "utf8"),
-    readFileSync("src/ui/statusBarGauges.ts", "utf8"),
-    readFileSync("src/ui/statusBarCompact.ts", "utf8"),
-  ];
+const {
+  CLAUDE_FIELDS,
+  CODEX_FIELDS,
+  CURSOR_FIELDS,
+  GOOGLE_FIELDS,
+  GROK_FIELDS,
+  OPENCODE_FIELDS,
+  PROVIDER_FIELDS,
+  companionResetFieldName,
+  getProviderFields,
+  resolveFieldCategory,
+} = load(
+  "src/readers/fields.ts",
+  "({ CLAUDE_FIELDS, CODEX_FIELDS, CURSOR_FIELDS, GOOGLE_FIELDS, GROK_FIELDS, OPENCODE_FIELDS, PROVIDER_FIELDS, companionResetFieldName, getProviderFields, resolveFieldCategory })",
+);
 
-  assert.match(fields, /export const PROVIDER_FIELDS/);
-  assert.match(fields, /export function getProviderFields/);
-  assert.doesNotMatch(fields, /resolveFieldDefs/);
-  for (const source of [statusBar, panel]) {
-    assert.match(source, /import\s*\{\s*PROVIDER_FIELDS\s*\}\s*from\s*"\.\.\/readers\/fields\.js"/);
-    assert.doesNotMatch(source, /resolveFieldDefs/);
+test("provider field lookup returns the shared declarations with required metadata", () => {
+  assert.strictEqual(PROVIDER_FIELDS.codex, CODEX_FIELDS);
+  assert.strictEqual(PROVIDER_FIELDS.claude, CLAUDE_FIELDS);
+  assert.strictEqual(PROVIDER_FIELDS.opencode, OPENCODE_FIELDS);
+  assert.strictEqual(PROVIDER_FIELDS.grok, GROK_FIELDS);
+  assert.strictEqual(PROVIDER_FIELDS.cursor, CURSOR_FIELDS);
+  assert.strictEqual(PROVIDER_FIELDS.google, GOOGLE_FIELDS);
+
+  for (const [provider, defs] of Object.entries(PROVIDER_FIELDS)) {
+    assert.ok(defs.length > 0, `${provider} has fields`);
+    assert.strictEqual(getProviderFields(provider), defs, `${provider} lookup is shared`);
+    for (const def of defs) {
+      assert.ok(
+        def.category === "limit" || def.category === "telemetry",
+        `${provider}.${def.name} declares a category`,
+      );
+      assert.strictEqual(
+        resolveFieldCategory(def),
+        def.category,
+        `${provider}.${def.name} resolves from its declaration`,
+      );
+    }
   }
-  assert.doesNotMatch(statusBar, /statusKey|_structureKey/);
-  for (const source of renderers) {
-    assert.match(source, /extends StatusBarRenderer/);
-    assert.doesNotMatch(source, /_planFor|private _context|statusKey\(/);
+});
+
+test("percent fields declare a reset name and other fields do not", () => {
+  for (const [provider, defs] of Object.entries(PROVIDER_FIELDS)) {
+    for (const def of defs) {
+      if (def.type === "percent") {
+        assert.ok(
+          typeof def.resetField === "string" && def.resetField.length > 0,
+          `${provider}.${def.name} declares a resetField`,
+        );
+        assert.strictEqual(
+          companionResetFieldName(def),
+          def.resetField,
+          `${provider}.${def.name} reset resolves from its declaration`,
+        );
+      } else {
+        assert.strictEqual(
+          companionResetFieldName(def),
+          null,
+          `${provider}.${def.name} has no companion reset`,
+        );
+      }
+    }
   }
-  for (const source of [shell, compactPanel, overview]) {
-    assert.match(source, /from "\.\.\/helpers\/keyboard\.js"/);
-    assert.doesNotMatch(source, /KEY_KP_Enter/);
-  }
-  assert.doesNotMatch(compactPanel, /_bindButtonActivate/);
-  assert.doesNotMatch(shell, /_bindActivation\(/);
+});
+
+test("lookup ignores field names when reading declared metadata", () => {
+  assert.strictEqual(
+    resolveFieldCategory({
+      name: "used_percent_synthetic",
+      type: "percent",
+      category: "telemetry",
+    }),
+    "telemetry",
+  );
+  assert.strictEqual(
+    companionResetFieldName({
+      name: "used_percent_synthetic",
+      type: "percent",
+      resetField: "custom_reset",
+    }),
+    "custom_reset",
+  );
+  assert.strictEqual(
+    companionResetFieldName({ name: "used_percent_primary", type: "percent" }),
+    null,
+  );
 });

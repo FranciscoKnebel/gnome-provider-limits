@@ -1,20 +1,14 @@
 import type { ProviderName } from "../constants.js";
-import { formatAbsoluteTimestamp, formatTimestampTemplate } from "../formatters.js";
 import { ReaderStatus } from "../readers/base.js";
 import type { FieldDef, ReaderResult } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
 import type { FieldTone } from "./fieldRows.js";
-import type { FieldView } from "./fieldViews.js";
-import {
-  deriveFieldViews,
-  deriveProviderHealth,
-  projectUsageFacts,
-  statusBadgeText,
-  toAttention,
-} from "./fieldViews.js";
+import type { ProviderDisplayViews } from "./fieldViews.js";
+import { deriveDisplayModels, deriveProviderHealth, toAttention } from "./fieldViews.js";
 import type { ProviderAttention } from "./providerTypes.js";
 import { structureKey } from "./renderStructure.js";
 import { clampFillRatio } from "./usageSnapshot.js";
+import type { ProviderViewContext } from "./viewContext.js";
 
 export interface MatrixDetailRow {
   readonly name: string;
@@ -123,41 +117,55 @@ export function resolveStatusAttention(
   return toAttention(deriveProviderHealth(status, { tones }));
 }
 
-function groupsFromViews(views: readonly FieldView[], tr: (s: string) => string): MatrixRowGroup[] {
-  const limitRows: MatrixDetailRow[] = [];
-  const telemetryRows: MatrixDetailRow[] = [];
-
-  for (const view of views) {
-    const row: MatrixDetailRow = {
-      name: view.name,
-      labelText: tr(view.label),
-      valueText: view.valueText,
-      microBar:
-        view.type === "percent" && view.category === "limit" && view.ratio !== null
-          ? formatSegmentedBar(view.ratio, 8)
-          : null,
-      ...(view.tone ? { tone: view.tone } : {}),
-      ...(view.errorText ? { errorText: view.errorText } : {}),
-      accessibleText: view.accessibleText,
-      category: view.category,
-    };
-    if (view.category === "telemetry") telemetryRows.push(row);
-    else limitRows.push(row);
-  }
+function groupsFromViews(views: ProviderDisplayViews, tr: (s: string) => string): MatrixRowGroup[] {
+  const toDetailRow = (view: ProviderDisplayViews["limit"][number]): MatrixDetailRow => ({
+    name: view.name,
+    labelText: tr(view.label),
+    valueText: view.valueText,
+    microBar:
+      view.type === "percent" && view.category === "limit" && view.ratio !== null
+        ? formatSegmentedBar(view.ratio, 8)
+        : null,
+    ...(view.tone ? { tone: view.tone } : {}),
+    ...(view.errorText ? { errorText: view.errorText } : {}),
+    accessibleText: view.accessibleText,
+    category: view.category,
+  });
 
   const groups: MatrixRowGroup[] = [];
-  if (limitRows.length > 0) {
-    groups.push({ category: "limit", title: tr("Limits"), rows: limitRows });
+  if (views.limit.length > 0) {
+    groups.push({
+      category: "limit",
+      title: tr("Limits"),
+      rows: views.limit.map(toDetailRow),
+    });
   }
-  if (telemetryRows.length > 0) {
-    groups.push({ category: "telemetry", title: tr("Telemetry"), rows: telemetryRows });
+  if (views.telemetry.length > 0) {
+    groups.push({
+      category: "telemetry",
+      title: tr("Telemetry"),
+      rows: views.telemetry.map(toDetailRow),
+    });
   }
   return groups;
 }
 
+function groupStructure(groups: readonly MatrixRowGroup[]): string[] {
+  return groups.map((group) =>
+    [
+      group.category,
+      ...group.rows.map((row) =>
+        [row.name, row.microBar !== null ? "1" : "0", row.errorText !== undefined ? "1" : "0"].join(
+          ":",
+        ),
+      ),
+    ].join("|"),
+  );
+}
+
 export function planPanelMatrix(input: PlanPanelMatrixInput): PanelMatrixPlan {
   const tr = input.t ?? ((s: string) => s);
-  const enabledInOrder = input.order.filter((p) => input.enabledProviders.has(p));
+  const enabledInOrder = input.order.filter((provider) => input.enabledProviders.has(provider));
 
   if (enabledInOrder.length === 0) {
     const msg = tr("No providers enabled. Open Settings to enable a provider.");
@@ -171,14 +179,10 @@ export function planPanelMatrix(input: PlanPanelMatrixInput): PanelMatrixPlan {
     };
   }
 
-  const activeProviders: ProviderName[] = [];
-  const providers: ProviderMatrixPlan[] = [];
-
-  for (const provider of enabledInOrder) {
+  const activeProviders = enabledInOrder.filter((provider) => {
     const result = input.results.get(provider);
-    if (!result || result.status === ReaderStatus.DISABLED) continue;
-    activeProviders.push(provider);
-  }
+    return result !== undefined && result.status !== ReaderStatus.DISABLED;
+  });
 
   if (activeProviders.length === 0 && input.results.size === 0) {
     const msg = tr("Reading provider limits…");
@@ -192,98 +196,55 @@ export function planPanelMatrix(input: PlanPanelMatrixInput): PanelMatrixPlan {
     };
   }
 
+  const context: ProviderViewContext = {
+    order: input.order,
+    results: input.results,
+    locale: input.locale,
+    fieldDefs: input.fieldDefs,
+    displayName: (provider) => input.displayNames[provider] || provider,
+    shortDisplayName: (provider) => input.displayNames[provider] || provider,
+    statusFields: (provider) => input.statusFields[provider] ?? [],
+    panelFields: (provider) => input.panelFields[provider] ?? [],
+    isEnabled: (provider) => input.enabledProviders.has(provider),
+    hasEnabledProviders: enabledInOrder.length > 0,
+    activeProviders,
+    t: tr,
+  };
+  const models = deriveDisplayModels(context);
   const enabledCount = activeProviders.length;
+  const providers: ProviderMatrixPlan[] = [];
 
-  for (const provider of activeProviders) {
-    const result = input.results.get(provider);
-    if (!result) continue;
-
-    const displayName = input.displayNames[provider] || provider;
-    const defs = input.fieldDefs[provider];
-    const expanded = resolveProviderExpanded(provider, enabledCount, input.expandedOverrides);
+  for (const model of models) {
+    const expanded = resolveProviderExpanded(model.provider, enabledCount, input.expandedOverrides);
     const chevron: "▾" | "▸" = expanded ? "▾" : "▸";
-    const statusFieldNames = input.statusFields[provider] ?? [];
-    const headerFieldNames = [...statusFieldNames, ...(input.panelFields[provider] ?? [])];
-    const headerViews = deriveFieldViews(
-      defs,
-      result,
-      headerFieldNames,
-      "status",
-      input.locale,
-      tr,
-    );
-    const statusBadge = statusBadgeText(
-      deriveProviderHealth(result.status, {
-        result,
-        views: headerViews,
-        fieldDefs: defs,
-        t: tr,
-      }),
-      tr,
-    );
-
-    const facts = projectUsageFacts(result, headerViews, statusFieldNames, {
-      limitOnly: true,
-      requireFiniteValue: true,
-      t: tr,
-    });
+    const statusBadge = model.badges.status;
+    const facts = model.usage.header;
     const fiveSegmentBar = facts.fillRatio !== null ? formatSegmentedBar(facts.fillRatio, 5) : "";
+    const errorText = model.diagnostic.errorText;
+    const detailText = model.diagnostic.detailText;
+    const groups = expanded && errorText === null ? groupsFromViews(model.groupedViews, tr) : [];
+    const lastUpdatedText = expanded && errorText === null ? model.lastUpdatedText : null;
 
-    const errorText =
-      result.status === ReaderStatus.ERROR || result.status === ReaderStatus.UNAVAILABLE
-        ? (result.lastError ?? tr("Error"))
-        : null;
-    const detailText = result.status === ReaderStatus.PARTIAL ? (result.lastError ?? null) : null;
-
-    const groups =
-      expanded && errorText === null
-        ? groupsFromViews(
-            deriveFieldViews(
-              defs,
-              result,
-              input.panelFields[provider] ?? [],
-              "panel",
-              input.locale,
-              tr,
-            ),
-            tr,
-          )
-        : [];
-
-    const lastUpdatedText =
-      expanded && errorText === null && Number.isFinite(result.lastUpdated)
-        ? formatTimestampTemplate(tr("Last updated: %s"), result.lastUpdated, input.locale) ||
-          formatAbsoluteTimestamp(result.lastUpdated, input.locale)
-        : null;
-
-    const accessibleParts = [displayName];
+    const accessibleParts = [model.displayName];
     if (statusBadge) accessibleParts.push(statusBadge);
     if (facts.summaryText) accessibleParts.push(facts.summaryText);
     const headerAccessibleName = accessibleParts.join(" ");
 
-    const groupStructure = groups.map((g) => [
-      g.category,
-      g.rows.map((r) => [r.name, r.microBar !== null ? 1 : 0, r.errorText !== undefined ? 1 : 0]),
-    ]);
-
-    const providerKey = JSON.stringify([
-      provider,
-      displayName,
-      result.status,
-      input.locale,
-      expanded ? 1 : 0,
-      statusBadge ? 1 : 0,
-      fiveSegmentBar ? 1 : 0,
-      detailText !== null ? 1 : 0,
-      errorText !== null ? 1 : 0,
-      lastUpdatedText !== null ? 1 : 0,
-      groupStructure,
+    const providerKey = structureKey([
+      model.structureKey,
+      expanded ? "1" : "0",
+      statusBadge ? "1" : "0",
+      fiveSegmentBar ? "1" : "0",
+      detailText !== null ? "1" : "0",
+      errorText !== null ? "1" : "0",
+      lastUpdatedText !== null ? "1" : "0",
+      ...groupStructure(groups),
     ]);
 
     providers.push({
-      provider,
-      displayName,
-      status: result.status,
+      provider: model.provider,
+      displayName: model.displayName,
+      status: model.status,
       expanded,
       chevron,
       statusBadge,
@@ -312,6 +273,6 @@ export function planPanelMatrix(input: PlanPanelMatrixInput): PanelMatrixPlan {
     allExpanded,
     canToggleAll: providers.length > 0,
     providers,
-    key: structureKey(["ready", input.locale, ...providers.map((p) => p.key)]),
+    key: structureKey(["ready", input.locale, ...providers.map((provider) => provider.key)]),
   };
 }

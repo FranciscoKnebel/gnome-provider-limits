@@ -615,43 +615,14 @@ export function getProviderFields(provider: ProviderName): readonly FieldDef[] {
   return PROVIDER_FIELDS[provider];
 }
 
-const CATEGORY_BY_NAME = new Map<string, FieldCategory>();
-const RESET_BY_NAME = new Map<string, string>();
-for (const fields of Object.values(PROVIDER_FIELDS)) {
-  for (const def of fields) {
-    CATEGORY_BY_NAME.set(def.name, def.category ?? "limit");
-    if (def.resetField) RESET_BY_NAME.set(def.name, def.resetField);
-  }
-}
-
-const GENERIC_RESET_BY_NAME: Readonly<Record<string, string>> = {
-  used_percent: "reset_at",
-  remaining_percent: "reset_at",
-};
-
-type FieldMetaInput = Pick<FieldDef, "name" | "type"> &
-  Partial<Pick<FieldDef, "category" | "resetField">>;
-
-function declaredCategory(def: FieldMetaInput): FieldCategory | undefined {
-  return def.category === "limit" || def.category === "telemetry" ? def.category : undefined;
-}
-
-function declaredReset(def: FieldMetaInput): string | undefined {
-  return typeof def.resetField === "string" ? def.resetField : undefined;
-}
-
-export function resolveFieldCategory(def: Pick<FieldDef, "name" | "type">): FieldCategory {
-  return (
-    declaredCategory(def) ??
-    CATEGORY_BY_NAME.get(def.name) ??
-    (def.type === "cost" || def.type === "tokens" ? "telemetry" : "limit")
-  );
+export function resolveFieldCategory(
+  def: Pick<FieldDef, "name" | "type" | "category">,
+): FieldCategory {
+  return def.category;
 }
 
 export function companionResetFieldName(
-  def: Pick<FieldDef, "name" | "type"> & { windowGroup?: string },
+  def: Pick<FieldDef, "name" | "type"> & Partial<Pick<FieldDef, "resetField">>,
 ): string | null {
-  return (
-    declaredReset(def) ?? RESET_BY_NAME.get(def.name) ?? GENERIC_RESET_BY_NAME[def.name] ?? null
-  );
+  return def.resetField ?? null;
 }

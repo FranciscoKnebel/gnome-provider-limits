@@ -7,9 +7,9 @@ import { ReaderStatus } from "../readers/base.js";
 import { deriveStatusBarSegments, statusBadgeText, toAttention } from "./fieldViews.js";
 import type { ProviderAttention } from "./providerTypes.js";
 import { structureKey } from "./renderStructure.js";
-import type { StatusBarRenderContext } from "./statusBar.js";
 import { StatusBarRenderer } from "./statusBarRenderer.js";
 import { applyStatusAttentionClass } from "./tone.js";
+import type { ProviderViewContext } from "./viewContext.js";
 
 interface CompactPooledSegment {
   box: St.BoxLayout;
@@ -33,10 +33,10 @@ interface CompactPlan {
   key: string;
 }
 
-function planCompact(context: StatusBarRenderContext): CompactPlan {
+function planCompact(context: ProviderViewContext): CompactPlan {
   const tr = (text: string) => context.t(text);
 
-  if (!context.order.some((name) => context.isEnabled(name))) {
+  if (context.activeProviders.length === 0) {
     return {
       state: "empty",
       placeholderText: null,
@@ -100,7 +100,7 @@ export class CompactStatusBarRenderer extends StatusBarRenderer<CompactPlan> {
   private _segments: CompactPooledSegment[] = [];
   private _placeholder: St.Label | null = null;
 
-  protected plan(context: StatusBarRenderContext): CompactPlan {
+  protected plan(context: ProviderViewContext): CompactPlan {
     return planCompact(context);
   }
 

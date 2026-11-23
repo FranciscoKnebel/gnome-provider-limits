@@ -28,8 +28,12 @@ describe("readers/fields & helpers/reorder", () => {
       }
     }
 
-    expect(resolveFieldCategory({ name: "custom_cost", type: "cost" })).toBe("telemetry");
-    expect(resolveFieldCategory({ name: "custom_pct", type: "percent" })).toBe("limit");
+    expect(resolveFieldCategory({ name: "custom_cost", type: "cost", category: "telemetry" })).toBe(
+      "telemetry",
+    );
+    expect(resolveFieldCategory({ name: "custom_pct", type: "percent", category: "limit" })).toBe(
+      "limit",
+    );
   });
 
   it("carries category and companion reset explicitly on every field definition", () => {
@@ -63,6 +67,25 @@ describe("readers/fields & helpers/reorder", () => {
         }
       }
     }
+  });
+
+  it("reads category and reset metadata only from the declaration, never from the name", () => {
+    expect(
+      resolveFieldCategory({
+        name: "used_percent_synthetic",
+        type: "percent",
+        category: "telemetry",
+      }),
+    ).toBe("telemetry");
+    expect(
+      companionResetFieldName({
+        name: "used_percent_primary",
+        type: "percent",
+        resetField: "custom_reset",
+      }),
+    ).toBe("custom_reset");
+    expect(companionResetFieldName({ name: "used_percent_primary", type: "percent" })).toBeNull();
+    expect(companionResetFieldName({ name: "used_percent", type: "percent" })).toBeNull();
   });
 
   it("reorders adjacent items with keyboard Move Up / Move Down while preserving unknown values", () => {

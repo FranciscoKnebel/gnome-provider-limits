@@ -4,11 +4,14 @@ import GLib from "gi://GLib";
 import St from "gi://St";
 import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
-import { PROVIDER_NAMES, type ProviderName } from "../constants.js";
+import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { bindActivation } from "../helpers/keyboard.js";
 import { resolveLocale } from "../helpers/locale.js";
-import { normalizeProvidersOrder, providerDisplayName } from "../helpers/provider-settings.js";
+import {
+  readProviderViewSettings,
+  type ProviderViewSettings,
+} from "../helpers/provider-settings.js";
 import type { BaseReader, FieldDef, ReaderResult } from "../readers/base.js";
 import {
   planPanelMatrix,
@@ -65,10 +68,10 @@ export class CompactPanelSection
   implements PanelStyleSection
 {
   private _settings: Gio.Settings;
-  private readonly _fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>;
   private _running = false;
   private _lastResults: Map<ProviderName, ReaderResult> = new Map();
   private _lastRefreshAt: number | null = null;
+  private _lastView: ProviderViewSettings;
   private _expandedOverrides: Map<ProviderName, boolean> = new Map();
   private _controls: CompactToolbarControls;
 
@@ -78,16 +81,16 @@ export class CompactPanelSection
 
   constructor(
     settings: Gio.Settings,
-    _readers: Map<ProviderName, BaseReader>,
+    readers: Map<ProviderName, BaseReader>,
     fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>,
     shell: PanelShell,
   ) {
     super();
     this._settings = settings;
-    this._fieldDefs = fieldDefs;
     this.shell = shell;
     this._controls = this._buildToolbar();
-    this.render({ results: new Map(), lastRefreshAt: null });
+    this._lastView = readProviderViewSettings(settings, readers, new Map(), fieldDefs);
+    this.render({ results: new Map(), lastRefreshAt: null, view: this._lastView });
   }
 
   destroy(): void {
@@ -97,7 +100,8 @@ export class CompactPanelSection
   protected plan(context: PanelRenderContext): CompactRenderPlan {
     this._lastResults = context.results;
     this._lastRefreshAt = context.lastRefreshAt;
-    const matrixPlan = this._buildPlan(context.results);
+    this._lastView = context.view;
+    const matrixPlan = this._buildPlan(context.results, context.view);
     return { ...matrixPlan, lastRefreshAt: context.lastRefreshAt };
   }
 
@@ -128,51 +132,40 @@ export class CompactPanelSection
     );
   }
 
-  private _buildPlan(results: Map<ProviderName, ReaderResult>): PanelMatrixPlan {
-    const rawOrder = this._settings.get_strv("providers-order");
-    const order = normalizeProvidersOrder(rawOrder);
-    const locale = this._currentLocale();
-
-    const enabledProviders = new Set<ProviderName>();
-    const displayNames = {} as Record<ProviderName, string>;
-    const statusFields = {} as Record<ProviderName, readonly string[]>;
-    const panelFields = {} as Record<ProviderName, readonly string[]>;
-
-    for (const name of PROVIDER_NAMES) {
-      const enabled = this._settings.get_boolean(`${name}-enabled`);
-      if (enabled) enabledProviders.add(name);
-
-      displayNames[name] = providerDisplayName(this._settings, name);
-      statusFields[name] = this._settings.get_strv(`${name}-status-fields`);
-      panelFields[name] = this._settings.get_strv(`${name}-panel-fields`);
-    }
-
+  private _buildPlan(
+    results: Map<ProviderName, ReaderResult>,
+    view: ProviderViewSettings,
+  ): PanelMatrixPlan {
     return planPanelMatrix({
-      order,
-      enabledProviders,
+      order: view.order,
+      enabledProviders: new Set(view.activeProviders),
       results,
-      displayNames,
-      statusFields,
-      panelFields,
+      displayNames: view.displayNames,
+      statusFields: view.statusFieldNames,
+      panelFields: view.panelFieldNames,
       expandedOverrides: this._expandedOverrides,
-      fieldDefs: this._fieldDefs,
-      locale,
+      fieldDefs: view.fieldDefs,
+      locale: this._currentLocale(),
       t: _,
     });
   }
 
   private _toggleProvider(provider: ProviderName, forceState?: boolean): void {
-    const plan = this._buildPlan(this._lastResults);
+    const plan = this._buildPlan(this._lastResults, this._lastView);
     const enabledCount = plan.providers.length;
     const current = resolveProviderExpanded(provider, enabledCount, this._expandedOverrides);
     const next = forceState ?? !current;
     if (next === current) return;
     this._expandedOverrides.set(provider, next);
-    this.render({ results: this._lastResults, lastRefreshAt: this._lastRefreshAt });
+    this.render({
+      results: this._lastResults,
+      lastRefreshAt: this._lastRefreshAt,
+      view: this._lastView,
+    });
   }
 
   private _toggleAllProviders(): void {
-    const plan = this._buildPlan(this._lastResults);
+    const plan = this._buildPlan(this._lastResults, this._lastView);
     if (!plan.canToggleAll) return;
     const providers = plan.providers.map((p) => p.provider);
     this._expandedOverrides = toggleAllProvidersExpanded(
@@ -180,7 +173,11 @@ export class CompactPanelSection
       providers.length,
       this._expandedOverrides,
     );
-    this.render({ results: this._lastResults, lastRefreshAt: this._lastRefreshAt });
+    this.render({
+      results: this._lastResults,
+      lastRefreshAt: this._lastRefreshAt,
+      view: this._lastView,
+    });
   }
 
   /** The compact toolbar is owned here; the shell only supplies the shared footer actors. */

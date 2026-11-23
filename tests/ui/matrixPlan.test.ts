@@ -2,10 +2,7 @@ import { PROVIDER_NAMES, type ProviderName } from "../../src/constants.js";
 import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
 import type { FieldDef, ReaderResult } from "../../src/readers/base.js";
 import { PROVIDER_FIELDS } from "../../src/readers/fields.js";
-import type {
-  StatusBarProviderSegment,
-  StatusBarSegmentsContext,
-} from "../../src/ui/fieldViews.js";
+import type { StatusBarProviderSegment } from "../../src/ui/fieldViews.js";
 import { deriveStatusBarSegments, toAttention } from "../../src/ui/fieldViews.js";
 import {
   areAllProvidersExpanded,
@@ -21,6 +18,7 @@ import {
   applyToneClass,
 } from "../../src/ui/tone.js";
 import { clampFillRatio } from "../../src/ui/usageSnapshot.js";
+import type { ProviderViewContext } from "../../src/ui/viewContext.js";
 
 const SHORT_LABELS: Record<ProviderName, string> = {
   codex: "codex",
@@ -61,14 +59,19 @@ const PANEL_FIELDS: Record<ProviderName, readonly string[]> = {
 function segmentsContext(
   results: ReadonlyMap<ProviderName, ReaderResult>,
   statusFields: Readonly<Record<ProviderName, readonly string[]>>,
-): StatusBarSegmentsContext {
+): ProviderViewContext {
   return {
     order: PROVIDER_NAMES,
     results,
     locale: "en",
     statusFields: (provider) => statusFields[provider] ?? [],
+    panelFields: () => [],
+    displayName: (provider) => DISPLAY_NAMES[provider] || provider,
     shortDisplayName: (provider) => SHORT_LABELS[provider] || provider,
-    fieldDefs: (provider) => PROVIDER_FIELDS[provider],
+    fieldDefs: PROVIDER_FIELDS,
+    isEnabled: () => true,
+    hasEnabledProviders: results.size > 0,
+    activeProviders: PROVIDER_NAMES,
     t: (text) => text,
   };
 }
@@ -359,18 +362,22 @@ describe("matrixPlan", () => {
           label: "Remaining % (credits)",
           type: "percent",
           defaultZone: "status",
+          category: "limit",
+          resetField: "reset_at_credits",
         },
         {
           name: "reset_at_credits",
           label: "Reset at (credits)",
           type: "timestamp",
           defaultZone: "status",
+          category: "limit",
         },
         {
           name: "limit_reached",
           label: "Limit reached",
           type: "bool",
           defaultZone: "panel",
+          category: "limit",
         },
       ];
 

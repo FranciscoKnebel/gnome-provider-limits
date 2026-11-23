@@ -7,7 +7,7 @@ import St from "gi://St";
 import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { resolveLocale } from "../helpers/locale.js";
-import { normalizeProvidersOrder, providerDisplayNameShort } from "../helpers/provider-settings.js";
+import { readProviderViewSettings } from "../helpers/provider-settings.js";
 import type { BaseReader, FieldDef, ReaderResult } from "../readers/base.js";
 import { PROVIDER_FIELDS } from "../readers/fields.js";
 import { CompactStatusBarRenderer } from "./statusBarCompact.js";
@@ -15,21 +15,10 @@ import { GaugesStatusBarRenderer } from "./statusBarGauges.js";
 import { PillsStatusBarRenderer } from "./statusBarPills.js";
 import { StatusBarRenderer } from "./statusBarRenderer.js";
 import { resolveStatusBarStyle, type StatusBarStyle, type StyleDispatch } from "./styles.js";
+import type { ProviderViewContext } from "./viewContext.js";
 
 export type { StatusBarStyle } from "./styles.js";
 export type { StatusBarRenderer } from "./statusBarRenderer.js";
-
-export interface StatusBarRenderContext {
-  readonly order: readonly ProviderName[];
-  readonly results: ReadonlyMap<ProviderName, ReaderResult>;
-  readonly locale: string;
-  readonly hasEnabledProviders: boolean;
-  shortDisplayName(name: ProviderName): string;
-  statusFields(name: ProviderName): readonly string[];
-  fieldDefs(name: ProviderName): readonly FieldDef[];
-  isEnabled(name: ProviderName): boolean;
-  t(text: string): string;
-}
 
 type RendererFactory = (parent: St.BoxLayout) => StatusBarRenderer;
 
@@ -73,26 +62,20 @@ export const StatusBarWidget = GObject.registerClass(
       this._renderer?.render(context);
     }
 
-    private _createContext(results: Map<ProviderName, ReaderResult>): StatusBarRenderContext {
-      const order = normalizeProvidersOrder(this._settings.get_strv("providers-order"));
+    private _createContext(results: Map<ProviderName, ReaderResult>): ProviderViewContext {
+      const view = readProviderViewSettings(
+        this._settings,
+        this._readers,
+        results,
+        this._fieldDefs,
+      );
       const locale = resolveLocale(
         this._settings.get_string("language"),
         GLib.getenv("LC_MESSAGES"),
         GLib.getenv("LANG"),
       );
-      const hasEnabledReaders = this._readers.size > 0;
 
-      return {
-        order,
-        results,
-        locale,
-        hasEnabledProviders: hasEnabledReaders,
-        shortDisplayName: (name) => providerDisplayNameShort(this._settings, name),
-        statusFields: (name) => this._settings.get_strv(`${name}-status-fields`),
-        fieldDefs: (name) => this._fieldDefs[name],
-        isEnabled: (name) => this._settings.get_boolean(`${name}-enabled`),
-        t: _,
-      };
+      return { ...view, locale, t: _ };
     }
   },
 );

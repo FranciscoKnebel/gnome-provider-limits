@@ -1,6 +1,6 @@
 import type St from "gi://St";
 
-import type { StatusBarRenderContext } from "./statusBar.js";
+import type { ProviderViewContext } from "./viewContext.js";
 
 /** Minimal contract for a plan that drives incremental rendering. */
 export interface RenderPlan {
@@ -49,7 +49,7 @@ export type StatusBarPlan = RenderPlan;
 /** Status-bar specialization that owns the children of a single box layout. */
 export abstract class StatusBarRenderer<
   TPlan extends StatusBarPlan = StatusBarPlan,
-> extends PlanRenderer<TPlan, StatusBarRenderContext> {
+> extends PlanRenderer<TPlan, ProviderViewContext> {
   constructor(protected readonly parent: St.BoxLayout) {
     super();
   }

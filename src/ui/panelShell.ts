@@ -12,6 +12,7 @@ import { formatTimestampTemplate } from "../formatters.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { bindActivation } from "../helpers/keyboard.js";
 import { resolveLocale } from "../helpers/locale.js";
+import type { ProviderViewSettings } from "../helpers/provider-settings.js";
 import { setScrollViewChild } from "../helpers/scroll.js";
 import type { ReaderResult } from "../readers/base.js";
 import type { PanelStyle, StyleDispatch } from "./styles.js";
@@ -20,6 +21,7 @@ import type { PanelStyle, StyleDispatch } from "./styles.js";
 export interface PanelRenderContext {
   readonly results: Map<ProviderName, ReaderResult>;
   readonly lastRefreshAt: number | null;
+  readonly view: ProviderViewSettings;
 }
 
 export interface PanelStyleSection {

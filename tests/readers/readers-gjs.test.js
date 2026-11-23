@@ -15,7 +15,8 @@ export async function run() {
   const { CodexReader } = await import(`${readersDir}/codex.js`);
   const { ClaudeReader } = await import(`${readersDir}/claude.js`);
   const { OpenCodeReader } = await import(`${readersDir}/opencode.js`);
-  const { getProviderFields, PROVIDER_FIELDS } = await import(`${readersDir}/fields.js`);
+  const { getProviderFields, PROVIDER_FIELDS, resolveFieldCategory, companionResetFieldName } =
+    await import(`${readersDir}/fields.js`);
 
   // ---------- BaseReader ----------
   // Test via a concrete anonymous subclass
@@ -86,6 +87,50 @@ export async function run() {
     results.push({ name: "opencode fields in registry", passed: true });
   } catch (e) {
     results.push({ name: "opencode fields in registry", passed: false, error: String(e) });
+  }
+
+  // ---------- Field metadata is declared, not recovered from names ----------
+  try {
+    const telemetryNames = new Set([
+      "plan_type",
+      "has_extra_usage_enabled",
+      "extra_usage_disabled_reason",
+      "total_cost",
+      "sessions_count",
+      "usage_source",
+      "prepaid_balance",
+      "unified_billing",
+      "remaining_credits",
+      "spend_limit_used",
+    ]);
+    for (const [provider, defs] of Object.entries(PROVIDER_FIELDS)) {
+      for (const def of defs) {
+        const expected = telemetryNames.has(def.name) ? "telemetry" : "limit";
+        assertEqual(def.category, expected, `${provider}.${def.name} category`);
+        assertEqual(
+          resolveFieldCategory(def),
+          expected,
+          `${provider}.${def.name} resolved category`,
+        );
+        if (def.type === "percent") {
+          assertNotNull(def.resetField, `${provider}.${def.name} resetField`);
+          assertEqual(
+            companionResetFieldName(def),
+            def.resetField,
+            `${provider}.${def.name} reset`,
+          );
+        } else {
+          assertEqual(def.resetField, undefined, `${provider}.${def.name} has no resetField`);
+        }
+      }
+    }
+    results.push({ name: "field metadata is declared explicitly", passed: true });
+  } catch (e) {
+    results.push({
+      name: "field metadata is declared explicitly",
+      passed: false,
+      error: String(e) + "\n" + e.stack,
+    });
   }
 
   // ---------- CodexReader._parsePayload ----------

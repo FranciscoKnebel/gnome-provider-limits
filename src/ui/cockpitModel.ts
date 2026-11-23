@@ -4,18 +4,12 @@ import { ReaderStatus } from "../readers/base.js";
 import type { FieldDef, ReaderResult } from "../readers/base.js";
 import { GAUGE_END_ANGLE, GAUGE_START_ANGLE, GAUGE_SWEEP_ANGLE, TONE_RGB } from "./cairoDrawing.js";
 import { fieldTone, type FieldTone } from "./fieldRows.js";
-import {
-  badgeForZone,
-  deriveFieldViews,
-  deriveProviderHealth,
-  overviewBadgeText,
-  projectUsageFacts,
-  selectUsageView,
-} from "./fieldViews.js";
+import { deriveFieldViews, deriveDisplayModels, selectUsageView } from "./fieldViews.js";
 import type { GaugeGeometry, GaugeTone, MicroMeterSpec, RgbTuple } from "./gaugeTypes.js";
 import type { Presentation } from "./providerTypes.js";
 import { structureKey } from "./renderStructure.js";
 import { clampRatio } from "./usageSnapshot.js";
+import type { ProviderViewContext } from "./viewContext.js";
 
 export type CockpitTab = "overview" | ProviderName;
 
@@ -182,13 +176,24 @@ export function partitionProviderPanel(
   t?: (s: string) => string,
 ): PartitionedProviderPanel {
   const tr = t ?? ((s: string) => s);
-  const views = deriveFieldViews(fieldsDefs, result, panelFieldNames, "panel", locale, tr);
-  const consumedResets = new Set<string>();
-  for (const view of views) {
-    if (view.type === "percent" && view.hasResetSlot && view.resetName !== null) {
-      consumedResets.add(view.resetName);
-    }
-  }
+  const provider = result.provider as ProviderName;
+  const context: ProviderViewContext = {
+    order: [provider],
+    results: new Map([[provider, result]]),
+    locale,
+    fieldDefs: { [provider]: fieldsDefs } as Readonly<Record<ProviderName, readonly FieldDef[]>>,
+    displayName: () => provider,
+    shortDisplayName: () => provider,
+    statusFields: () => [],
+    panelFields: () => panelFieldNames,
+    isEnabled: () => true,
+    hasEnabledProviders: true,
+    activeProviders: [provider],
+    t: tr,
+  };
+  const model = deriveDisplayModels(context)[0];
+  const views = model?.panelViews ?? [];
+  const consumedResets = model?.consumedResets ?? new Set<string>();
 
   const gauges: RadialGaugeItem[] = [];
   const bentoTiles: BentoTileItem[] = [];
@@ -279,17 +284,47 @@ export function buildOverviewRowModel(options: {
     };
   }
 
-  const searchOrder = [...statusFieldNames, ...panelFieldNames];
-  const overviewViews = deriveFieldViews(fieldsDefs, result, searchOrder, "status", locale, tr);
-  const health = deriveProviderHealth(result.status, {
-    result,
-    views: overviewViews,
-    fieldDefs: fieldsDefs,
+  const context: ProviderViewContext = {
+    order: [provider],
+    results: new Map([[provider, result]]),
+    locale,
+    fieldDefs: { [result.provider]: fieldsDefs } as Readonly<
+      Record<ProviderName, readonly FieldDef[]>
+    >,
+    displayName: () => displayName,
+    shortDisplayName: () => displayName,
+    statusFields: () => statusFieldNames,
+    panelFields: () => panelFieldNames,
+    isEnabled: () => true,
+    hasEnabledProviders: true,
+    activeProviders: [provider],
     t: tr,
-  });
-  const badgeKind: OverviewBadgeKind = badgeForZone(health, "overview");
-  const badgeText = overviewBadgeText(health, tr);
+  };
+  const model = deriveDisplayModels(context)[0];
+  if (!model) {
+    return {
+      provider,
+      displayName,
+      badgeKind: "loading",
+      badgeText: "…",
+      meter: {
+        ratio: 0,
+        hasValue: false,
+        startAngle: GAUGE_START_ANGLE,
+        endAngle: GAUGE_START_ANGLE,
+        tone: "neutral",
+        rgb: TONE_RGB.neutral,
+        isError: false,
+      },
+      primaryText: "…",
+      secondaryText: null,
+      tone: undefined,
+      accessibleText: `${displayName}: …`,
+    };
+  }
 
+  const badgeKind: OverviewBadgeKind = model.badges.overview;
+  const badgeText = model.badges.overviewText;
   const meter = computeStatusMicroMeter(fieldsDefs, result, statusFieldNames, locale);
 
   if (badgeKind === "error") {
@@ -307,8 +342,8 @@ export function buildOverviewRowModel(options: {
     };
   }
 
-  const facts = projectUsageFacts(result, overviewViews, searchOrder, { t: tr });
-  const resolvedTone = health.hasUsableField ? health.worstTone : undefined;
+  const facts = model.usage.overview;
+  const resolvedTone = model.hasUsableField ? model.worstTone : undefined;
   const primaryText = facts.valueText;
   const secondaryText = facts.resetText;
 
@@ -363,15 +398,16 @@ export function providerDetailStructureKey(options: {
   hasTimestamp: boolean;
   partition: PartitionedProviderPanel;
 }): string {
-  const gaugeKeys = options.partition.gauges.map((g) => [
-    g.fieldName,
-    g.hasResetSlot ? 1 : 0,
-    g.errorText === undefined ? 0 : 1,
-  ]);
-  const bentoKeys = options.partition.bentoTiles.map((b) => [
-    b.fieldName,
-    b.errorText === undefined ? 0 : 1,
-  ]);
+  const gaugeKeys = options.partition.gauges.map((gauge) =>
+    [
+      gauge.fieldName,
+      gauge.hasResetSlot ? "1" : "0",
+      gauge.errorText === undefined ? "0" : "1",
+    ].join(":"),
+  );
+  const bentoKeys = options.partition.bentoTiles.map((tile) =>
+    [tile.fieldName, tile.errorText === undefined ? "0" : "1"].join(":"),
+  );
 
   return structureKey([
     options.provider,
@@ -380,7 +416,7 @@ export function providerDetailStructureKey(options: {
     options.locale,
     options.hasCallout ? "1" : "0",
     options.hasTimestamp ? "1" : "0",
-    JSON.stringify(gaugeKeys),
-    JSON.stringify(bentoKeys),
+    ...gaugeKeys,
+    ...bentoKeys,
   ]);
 }

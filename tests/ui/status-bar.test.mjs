@@ -2,6 +2,89 @@ import { test } from "node:test";
 
 import { assert, load } from "../helpers/node-harness.mjs";
 
+const PROVIDER_NAMES = ["codex", "claude", "opencode", "grok", "cursor", "google"];
+
+function loadProviderSettings() {
+  return load(
+    "src/helpers/provider-settings.ts",
+    "({ resolveActiveProviders, readProviderViewSettings })",
+    {
+      PROVIDER_NAMES,
+      DEFAULT_PROVIDERS_ORDER: PROVIDER_NAMES,
+      ReaderStatus: { DISABLED: "disabled", OK: "ok" },
+    },
+  );
+}
+
+function settingsWith(values) {
+  return {
+    get_strv: (key) => values[key] ?? [],
+    get_boolean: (key) => values[key] === true,
+    get_string: (key) => values[key] ?? "",
+  };
+}
+
+test("active providers have one canonical selector across rendering paths", () => {
+  const { resolveActiveProviders } = loadProviderSettings();
+  const settings = settingsWith({
+    "providers-order": ["claude", "codex"],
+    "claude-enabled": true,
+  });
+  const readers = new Map([["codex", {}]]);
+  const results = new Map([
+    ["claude", { status: "disabled" }],
+    ["google", { status: "ok" }],
+  ]);
+
+  assert.deepEqual(Array.from(resolveActiveProviders(settings, readers, results)), [
+    "codex",
+    "google",
+  ]);
+  assert.deepEqual(Array.from(resolveActiveProviders(settings, new Map(), results)), ["google"]);
+  assert.deepEqual(Array.from(resolveActiveProviders(settingsWith({}), new Map(), new Map())), []);
+});
+
+test("the view snapshot exposes one consistent set of provider settings", () => {
+  const { resolveActiveProviders, readProviderViewSettings } = loadProviderSettings();
+  const settings = settingsWith({
+    "providers-order": ["opencode", "codex"],
+    "codex-enabled": true,
+    "codex-display-name": "Codex Pro",
+    "codex-display-name-short": "CX",
+    "codex-status-fields": ["used_percent_primary"],
+    "codex-panel-fields": ["reset_at_primary"],
+  });
+  const readers = new Map();
+  const results = new Map([["opencode", { status: "ok" }]]);
+  const fieldDefs = { codex: [{ name: "used_percent_primary" }] };
+  const view = readProviderViewSettings(settings, readers, results, fieldDefs);
+
+  assert.deepEqual(
+    Array.from(view.activeProviders),
+    Array.from(resolveActiveProviders(settings, readers, results)),
+  );
+  assert.deepEqual(Array.from(view.activeProviders), ["opencode", "codex"]);
+  assert.equal(view.hasEnabledProviders, true);
+  assert.equal(view.isEnabled("codex"), true);
+  assert.equal(view.isEnabled("claude"), false);
+  assert.equal(view.displayName("codex"), "Codex Pro");
+  assert.equal(view.displayNames.codex, "Codex Pro");
+  assert.equal(view.shortDisplayName("codex"), "CX");
+  assert.deepEqual(view.statusFields("codex"), ["used_percent_primary"]);
+  assert.deepEqual(view.statusFieldNames.codex, ["used_percent_primary"]);
+  assert.deepEqual(view.panelFields("codex"), ["reset_at_primary"]);
+  assert.equal(view.fieldDefsFor("codex"), fieldDefs.codex);
+  assert.equal(view.fieldDefs, fieldDefs);
+  assert.deepEqual(Array.from(view.order), [
+    "opencode",
+    "codex",
+    "claude",
+    "grok",
+    "cursor",
+    "google",
+  ]);
+});
+
 test("status bar renderer plans once per render and owns structure rebuilds", () => {
   const destroyed = [];
   const parent = {

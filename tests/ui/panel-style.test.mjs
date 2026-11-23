@@ -65,6 +65,7 @@ test("Panel swaps style sections on setting change and forwards render and runni
   class CompactStub extends SectionStub {}
 
   const { resolvePanelStyle } = load("src/ui/styles.ts", "({ resolvePanelStyle })");
+  const view = { marker: "provider-view-settings" };
   const K = load("src/ui/panel.ts", "PanelWidget", {
     PopupMenu: { PopupMenuSection: Section },
     GaugesPanelSection: GaugesStub,
@@ -72,6 +73,7 @@ test("Panel swaps style sections on setting change and forwards render and runni
     CompactPanelSection: CompactStub,
     PanelShell: ShellStub,
     resolvePanelStyle,
+    readProviderViewSettings: () => view,
     PROVIDER_FIELDS: {},
     _: (message) => message,
   });
@@ -107,6 +109,7 @@ test("Panel swaps style sections on setting change and forwards render and runni
   assert.equal(created[0].rendered.length, 1);
   assert.equal(created[0].rendered[0].results, results);
   assert.equal(created[0].rendered[0].lastRefreshAt, 100);
+  assert.equal(created[0].rendered[0].view, view, "the canonical view snapshot is forwarded");
   panel.setRunning(true);
   assert.equal(created[0].running, true);
 

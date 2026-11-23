@@ -8,9 +8,9 @@ import type { FieldView } from "./fieldViews.js";
 import { deriveStatusBarSegments } from "./fieldViews.js";
 import type { ProviderTone } from "./providerTypes.js";
 import { structureKey } from "./renderStructure.js";
-import type { StatusBarRenderContext } from "./statusBar.js";
 import { StatusBarRenderer } from "./statusBarRenderer.js";
 import { applyHealthToneClass, applyToneClass } from "./tone.js";
+import type { ProviderViewContext } from "./viewContext.js";
 
 interface PillWidgets {
   dot: St.BoxLayout;
@@ -36,7 +36,7 @@ interface PillsPlan {
   pills: readonly PillPlan[];
 }
 
-function planPills(context: StatusBarRenderContext): PillsPlan {
+function planPills(context: ProviderViewContext): PillsPlan {
   const pills: PillPlan[] = deriveStatusBarSegments(context).map((segment) => ({
     provider: segment.provider,
     displayName: segment.displayName,
@@ -72,7 +72,7 @@ function planPills(context: StatusBarRenderContext): PillsPlan {
 export class PillsStatusBarRenderer extends StatusBarRenderer<PillsPlan> {
   private _pills: PillWidgets[] = [];
 
-  protected plan(context: StatusBarRenderContext): PillsPlan {
+  protected plan(context: ProviderViewContext): PillsPlan {
     return planPills(context);
   }
 

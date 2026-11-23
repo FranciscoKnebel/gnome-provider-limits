@@ -3,6 +3,7 @@ import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
 import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
+import { readProviderViewSettings } from "../helpers/provider-settings.js";
 import type { BaseReader, FieldDef, ReaderResult } from "../readers/base.js";
 import { PROVIDER_FIELDS } from "../readers/fields.js";
 import { CardsPanelSection } from "./panelCards.js";
@@ -106,7 +107,8 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
 
   render(results: Map<ProviderName, ReaderResult>, lastRefreshAt: number | null): void {
     const section = this._ensureSection();
-    section.render({ results, lastRefreshAt });
+    const view = readProviderViewSettings(this._settings, this._readers, results, this._fieldDefs);
+    section.render({ results, lastRefreshAt, view });
   }
 
   setRunning(running: boolean): void {

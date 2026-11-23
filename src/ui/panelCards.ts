@@ -6,7 +6,6 @@ import St from "gi://St";
 import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { resolveLocale } from "../helpers/locale.js";
-import { normalizeProvidersOrder, providerDisplayName } from "../helpers/provider-settings.js";
 import type { BaseReader, FieldDef } from "../readers/base.js";
 import { computeBarWidthPx, planPanel } from "./cardPlan.js";
 import type {
@@ -76,8 +75,6 @@ export class CardsPanelSection
   implements PanelStyleSection
 {
   private _settings: Gio.Settings;
-  private _readers: Map<ProviderName, BaseReader>;
-  private readonly _fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>;
   private _running = false;
   private _cards: CardWidgets[] = [];
   private _emptyState: PanelEmptyState = "none";
@@ -86,14 +83,12 @@ export class CardsPanelSection
 
   constructor(
     settings: Gio.Settings,
-    readers: Map<ProviderName, BaseReader>,
+    _readers: Map<ProviderName, BaseReader>,
     fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>,
     shell: PanelShell,
   ) {
     super();
     this._settings = settings;
-    this._readers = readers;
-    this._fieldDefs = fieldDefs;
     this.shell = shell;
   }
 
@@ -102,24 +97,22 @@ export class CardsPanelSection
   }
 
   protected plan(context: PanelRenderContext): CardsRenderPlan {
-    const order = normalizeProvidersOrder(this._settings.get_strv("providers-order"));
+    const view = context.view;
     const locale = resolveLocale(
       this._settings.get_string("language"),
       GLib.getenv("LC_MESSAGES"),
       GLib.getenv("LANG"),
     );
-    const hasEnabledProviders =
-      this._readers.size > 0 || order.some((name) => this._settings.get_boolean(`${name}-enabled`));
 
     const panel = planPanel({
-      order,
-      results: context.results,
-      hasEnabledProviders,
+      order: view.order,
+      results: view.results,
+      hasEnabledProviders: view.hasEnabledProviders,
       running: this._running,
       locale,
-      getDisplayName: (name) => providerDisplayName(this._settings, name),
-      getPanelFields: (name) => this._settings.get_strv(`${name}-panel-fields`),
-      getFieldDefs: (name) => this._fieldDefs[name],
+      getDisplayName: view.displayName,
+      getPanelFields: view.panelFields,
+      getFieldDefs: view.fieldDefsFor,
       t: _,
     });
 

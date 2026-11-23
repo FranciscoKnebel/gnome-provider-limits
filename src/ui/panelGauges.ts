@@ -5,9 +5,8 @@ import GLib from "gi://GLib";
 import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { resolveLocale } from "../helpers/locale.js";
-import { normalizeProvidersOrder } from "../helpers/provider-settings.js";
+import { readProviderViewSettings } from "../helpers/provider-settings.js";
 import type { BaseReader, FieldDef, ReaderResult } from "../readers/base.js";
-import { ReaderStatus } from "../readers/base.js";
 import { cycleTab, resolveActiveTab } from "./cockpitModel.js";
 import type { CockpitTab } from "./cockpitModel.js";
 import type { DetailHost } from "./panelGaugesDetail.js";
@@ -57,25 +56,28 @@ function emptyStateText(state: EmptyState): { title: string; subtitle: string } 
 /** Thin coordinator: owns tab state and delegates rendering to focused renderers. */
 export class GaugesPanelSection implements PanelStyleSection {
   private readonly _settings: Gio.Settings;
-  private readonly _readers: Map<ProviderName, BaseReader>;
   private readonly _overview: OverviewRenderer;
   private readonly _detail: DetailRenderer;
   private _running = false;
   private _activeTab: CockpitTab = "overview";
   private _enabledProviders: ProviderName[] = [];
-  private _lastContext: PanelRenderContext = { results: new Map(), lastRefreshAt: null };
+  private _lastContext: PanelRenderContext;
   private _state: BodyState = { kind: "none" };
   readonly shell: PanelShell;
 
   constructor(
     settings: Gio.Settings,
-    readers: Map<ProviderName, BaseReader>,
+    _readers: Map<ProviderName, BaseReader>,
     fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>,
     shell: PanelShell,
   ) {
     this._settings = settings;
-    this._readers = readers;
     this.shell = shell;
+    this._lastContext = {
+      results: new Map(),
+      lastRefreshAt: null,
+      view: readProviderViewSettings(settings, new Map(), new Map(), fieldDefs),
+    };
 
     const host: OverviewHost & DetailHost = {
       settings,
@@ -113,18 +115,13 @@ export class GaugesPanelSection implements PanelStyleSection {
     this._lastContext = context;
     const results = context.results;
 
-    const order = normalizeProvidersOrder(this._settings.get_strv("providers-order"));
     const locale = resolveLocale(
       this._settings.get_string("language"),
       GLib.getenv("LC_MESSAGES"),
       GLib.getenv("LANG"),
     );
 
-    const enabledProviders = order.filter((name) => {
-      const result = results.get(name);
-      if (result) return result.status !== ReaderStatus.DISABLED;
-      return this._readers.has(name) || this._settings.get_boolean(`${name}-enabled`);
-    });
+    const enabledProviders = [...context.view.activeProviders];
 
     this._enabledProviders = enabledProviders;
     this._activeTab = resolveActiveTab(this._activeTab, enabledProviders);

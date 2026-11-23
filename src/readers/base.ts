@@ -28,7 +28,7 @@ export interface FieldDef {
   readonly type: FieldType;
   readonly description?: string;
   readonly defaultZone: FieldZone;
-  readonly category?: FieldCategory;
+  readonly category: FieldCategory;
   readonly resetField?: string;
 }
 

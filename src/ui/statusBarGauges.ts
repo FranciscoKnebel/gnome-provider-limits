@@ -10,9 +10,9 @@ import type { FieldView, StatusBarZonePlan } from "./fieldViews.js";
 import { deriveStatusBarSegments } from "./fieldViews.js";
 import type { MicroMeterSpec } from "./gaugeTypes.js";
 import { sectionKey, structureKey } from "./renderStructure.js";
-import type { StatusBarRenderContext } from "./statusBar.js";
 import { StatusBarRenderer } from "./statusBarRenderer.js";
 import { applyToneClass } from "./tone.js";
+import type { ProviderViewContext } from "./viewContext.js";
 
 const MICRO_GAUGE_SIZE = 14;
 
@@ -33,7 +33,7 @@ interface GaugeSegmentWidgets {
   values: St.Label[];
 }
 
-function planGauges(context: StatusBarRenderContext): GaugesPlan {
+function planGauges(context: ProviderViewContext): GaugesPlan {
   if (context.results.size === 0) {
     return {
       kind: "placeholder",
@@ -75,7 +75,7 @@ function planGauges(context: StatusBarRenderContext): GaugesPlan {
 export class GaugesStatusBarRenderer extends StatusBarRenderer<GaugesPlan> {
   private _segments: GaugeSegmentWidgets[] = [];
 
-  protected plan(context: StatusBarRenderContext): GaugesPlan {
+  protected plan(context: ProviderViewContext): GaugesPlan {
     return planGauges(context);
   }
 
