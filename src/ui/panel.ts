@@ -41,6 +41,7 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
   private readonly _closeMenu: () => void;
   private _currentStyle: PanelStyle | null = null;
   private _currentSection: PanelStyleSection | null = null;
+  private _currentShell: PanelShell | null = null;
 
   constructor(
     settings: Gio.Settings,
@@ -80,12 +81,10 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
   }
 
   private _switchSection(spec: PanelStyleSpec): PanelStyleSection {
-    let running = false;
-    if (this._currentSection) {
-      running = this._currentSection.shell.isRunning();
-      this._currentSection.destroy();
-      this._currentSection = null;
-    }
+    const running = this._currentShell?.isRunning() ?? false;
+    this._currentShell?.destroy();
+    this._currentShell = null;
+    this._currentSection = null;
 
     this._currentStyle = spec.id;
     const section = SECTION_FACTORIES[spec.id]({
@@ -93,8 +92,9 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
       createShell: (extraControls) => this._createShell(spec, extraControls),
     });
     this._currentSection = section;
+    this._currentShell = section.shell;
     this.addMenuItem(section.shell);
-    section.setRunning(running);
+    section.shell.setRunning(running);
     return section;
   }
 
@@ -105,14 +105,13 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
   }
 
   setRunning(running: boolean): void {
-    this._currentSection?.setRunning(running);
+    this._currentShell?.setRunning(running);
   }
 
   override destroy(): void {
-    if (this._currentSection) {
-      this._currentSection.destroy();
-      this._currentSection = null;
-    }
+    this._currentShell?.destroy();
+    this._currentShell = null;
+    this._currentSection = null;
     super.destroy();
   }
 }

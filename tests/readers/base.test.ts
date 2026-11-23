@@ -4,16 +4,12 @@ import {
   BaseReader,
   FieldStatus,
   ReaderStatus,
-  type FieldDef,
   type FieldResult,
   type ReaderResult,
 } from "../../src/readers/base.js";
+import type { FieldName, PercentFieldKey, WindowKey } from "../../src/readers/fields.js";
 
 class TestReader extends BaseReader {
-  get FIELDS(): readonly FieldDef[] {
-    return [];
-  }
-
   async read(): Promise<ReaderResult> {
     return this._okResult([], []);
   }
@@ -24,7 +20,7 @@ class TestReader extends BaseReader {
     status: FieldStatus,
     error?: string | null,
   ): FieldResult<T> {
-    return this._makeField(name, value, status, error);
+    return this._makeField(name as FieldName, value, status, error);
   }
 
   testMakePercentFieldPair(
@@ -32,7 +28,7 @@ class TestReader extends BaseReader {
     usedPct: number | null | undefined,
     status: FieldStatus,
   ): [FieldResult, FieldResult] {
-    return this._makePercentFieldPair(key, usedPct, status);
+    return this._makePercentFieldPair(key as PercentFieldKey, usedPct, status);
   }
 
   testMakeWindowFields(
@@ -45,7 +41,7 @@ class TestReader extends BaseReader {
       | null
       | undefined,
   ): FieldResult[] {
-    return this._makeWindowFields(key, data);
+    return this._makeWindowFields(key as WindowKey, data);
   }
 
   testOkResult(fields: readonly FieldResult[], pathsTried: readonly string[]): ReaderResult {
@@ -354,6 +350,28 @@ describe("BaseReader", () => {
     it("uses providerName as default prefix", () => {
       const result = reader.testClassifyResult([], ["p1"]);
       expect(result.lastError).toContain("codex");
+    });
+  });
+
+  describe("type-level field contract", () => {
+    class CodexContractReader extends BaseReader<"codex"> {
+      async read(): Promise<ReaderResult> {
+        return this._okResult([], []);
+      }
+
+      declared(): FieldResult {
+        return this._makeField("used_percent_primary", 1, FieldStatus.OK);
+      }
+
+      undeclared(): FieldResult {
+        // @ts-expect-error undeclared names are rejected without runtime checks
+        return this._makeField("not_declared_by_codex", 1, FieldStatus.OK);
+      }
+    }
+
+    it("accepts only names declared in PROVIDER_FIELDS", () => {
+      const contractReader = new CodexContractReader({} as Gio.Settings, "codex");
+      expect(contractReader.declared().name).toBe("used_percent_primary");
     });
   });
 });

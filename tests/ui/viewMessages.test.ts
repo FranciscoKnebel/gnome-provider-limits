@@ -1,7 +1,7 @@
 import { providerRecord } from "../../src/constants.js";
 import { STYLE_REGISTRY, type StyleSpec } from "../../src/ui/styles.js";
 import { type ProviderViewContext, type ViewPhase } from "../../src/ui/viewContext.js";
-import { phaseResult, viewMessages } from "../../src/ui/viewMessages.js";
+import { phaseResult } from "../../src/ui/viewMessages.js";
 import type { PanelSurface, StatusBarSurface, ViewSurface } from "../../src/ui/viewMessages.js";
 
 const PANEL_SURFACES: readonly PanelSurface[] = ["cards", "matrix", "cockpit"];
@@ -22,7 +22,7 @@ function specFor(surface: ViewSurface): StyleSpec<string> {
 }
 
 function message(phase: ViewPhase, surface: ViewSurface, running = false) {
-  return viewMessages({ phase, spec: specFor(surface), running, t: (text) => text });
+  return specFor(surface).messages(phase, running, (text) => text);
 }
 
 function view(phase: ViewPhase): ProviderViewContext {
@@ -105,12 +105,7 @@ describe("viewMessages", () => {
   });
 
   it("translates mapped text through the supplied translator", () => {
-    const result = viewMessages({
-      phase: "empty",
-      spec: specFor("matrix"),
-      running: false,
-      t: (text) => `T:${text}`,
-    });
+    const result = specFor("matrix").messages("empty", false, (text) => `T:${text}`);
     expect(result.title).toBe("T:No providers enabled. Open Settings to enable a provider.");
   });
 });

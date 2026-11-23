@@ -1,7 +1,7 @@
 import type { ProviderName } from "../constants.js";
 import type { ReaderStatus } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
-import { classifyPanelViews, type ProviderDisplayModel } from "./displayModel.js";
+import type { ProviderDisplayModel } from "./displayModel.js";
 import { clampFillRatio, type FieldTone } from "./fieldRows.js";
 import { STYLE_REGISTRY } from "./styles.js";
 import type { ProviderViewContext, ViewPhase } from "./viewContext.js";
@@ -113,7 +113,7 @@ function groupsFromViews(
     };
   };
 
-  const classified = classifyPanelViews(model, { includeConsumedResets: true });
+  const classified = model.facts.viewsIncludingConsumedResets;
   const groups: MatrixRowGroup[] = [];
   if (classified.limit.all.length > 0) {
     groups.push({

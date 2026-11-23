@@ -53,20 +53,10 @@ test("Panel swaps style sections on setting change and forwards render and runni
     constructor(shell) {
       this.shell = shell;
       this.rendered = [];
-      this.running = null;
-      this.destroyed = false;
       created.push(this);
     }
     render(context) {
       this.rendered.push(context);
-    }
-    setRunning(running) {
-      this.running = running;
-      this.shell.setRunning(running);
-    }
-    destroy() {
-      this.destroyed = true;
-      this.shell.destroy();
     }
   }
   class GaugesStub extends SectionStub {
@@ -136,25 +126,24 @@ test("Panel swaps style sections on setting change and forwards render and runni
   assert.equal(created[0].shell.locale, "en", "the view locale reaches the shell timestamp");
   assert.equal(created[0].rendered[0].view, view, "the canonical view snapshot is forwarded");
   panel.setRunning(true);
-  assert.equal(created[0].running, true);
+  assert.equal(created[0].shell.running, true);
 
   style = "cards";
   fireStyleChange();
   assert.equal(created.length, 2);
   assert.ok(created[1] instanceof CardsStub);
-  assert.equal(created[0].destroyed, true);
   assert.equal(created[0].shell.destroyed, true);
   assert.equal(created[1].shell.options.style.id, "cards");
   assert.equal(created[1].rendered.length, 1);
   assert.equal(created[1].rendered[0].lastRefreshAt, 100);
   assert.equal(created[1].shell.lastRefreshAt, 100);
-  assert.equal(created[1].running, true);
+  assert.equal(created[1].shell.running, true);
 
   style = "compact";
   fireStyleChange();
   assert.equal(created.length, 3);
   assert.ok(created[2] instanceof CompactStub);
-  assert.equal(created[1].destroyed, true);
+  assert.equal(created[1].shell.destroyed, true);
   assert.equal(created[2].shell.options.style.id, "compact");
 
   style = "not-a-style";
@@ -164,6 +153,6 @@ test("Panel swaps style sections on setting change and forwards render and runni
   assert.equal(created[3].shell.options.style.id, "gauges");
 
   panel.destroy();
-  assert.equal(created[2].destroyed, true);
+  assert.equal(created[2].shell.destroyed, true);
   assert.equal(listeners.size, 0);
 });

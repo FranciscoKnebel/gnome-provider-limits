@@ -4,26 +4,20 @@ import GLib from "gi://GLib";
 import { gettext as _ } from "../helpers/gettext.js";
 import { HttpClient, TokenError } from "../helpers/http.js";
 import { logWarn } from "../helpers/log.js";
-import {
-  BaseReader,
-  FieldStatus,
-  type FieldDef,
-  type FieldResult,
-  type ReaderResult,
-} from "./base.js";
-import { GROK_FIELDS } from "./fields.js";
+import { BaseReader, FieldStatus, type FieldResult, type ReaderResult } from "./base.js";
+import { GROK_FIELDS, type FieldName } from "./fields.js";
 import { type GrokUsage, normalizeGrokUsagePayload, parseGrokAuth } from "./grokParser.js";
 
 const GROK_BASE_URL = "https://cli-chat-proxy.grok.com/v1";
 
 Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish");
 
-export class GrokReader extends BaseReader {
+export class GrokReader extends BaseReader<"grok"> {
   private _http: HttpClient | null = null;
   private _destroyed = false;
   private _cancellable = new Gio.Cancellable();
 
-  override get FIELDS(): readonly FieldDef[] {
+  override get FIELDS() {
     return GROK_FIELDS;
   }
 
@@ -120,7 +114,7 @@ export class GrokReader extends BaseReader {
   }
 
   private _fieldsFromUsage(usage: GrokUsage, plan: string | null): FieldResult[] {
-    const optionalField = (name: string, value: unknown) =>
+    const optionalField = (name: FieldName<"grok">, value: unknown) =>
       this._makeField(name, value, value !== null ? FieldStatus.OK : FieldStatus.UNAVAILABLE);
     return [
       ...this._makeWindowFields("credits", {

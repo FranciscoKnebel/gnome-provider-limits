@@ -11,14 +11,13 @@ import {
 import { deriveDisplayModel } from "../../src/ui/displayModel.js";
 import { deriveFieldViews } from "../../src/ui/fieldViews.js";
 import { cardFromModel, planPanel, type ProviderCardPlan } from "../../src/ui/panelCards.js";
-import type { ProviderTone } from "../../src/ui/providerHealth.js";
 import {
   deriveProviderHealth,
-  deriveState,
-  deriveTone,
+  deriveSeverity,
+  TONE_BY_SEVERITY,
   worstFieldTone,
 } from "../../src/ui/providerHealth.js";
-import { applyHealthToneClass, applyToneClass } from "../../src/ui/tone.js";
+import { applyHealthToneClass, applyToneClass, type HealthTone } from "../../src/ui/tone.js";
 import {
   resolveViewPhase,
   type ProviderViewContext,
@@ -96,9 +95,9 @@ function toneOf(
   tones: readonly ("ok" | "warning" | "critical" | undefined)[],
   hasUsableField: boolean,
   lastKnownGood = false,
-): ProviderTone {
+): HealthTone {
   const worst = worstFieldTone(tones);
-  return deriveTone(deriveState(status, worst, hasUsableField, lastKnownGood), worst);
+  return TONE_BY_SEVERITY[deriveSeverity(status, worst, hasUsableField, lastKnownGood)];
 }
 
 describe("Fork 1 Quick Settings cards & progress bars view-model", () => {

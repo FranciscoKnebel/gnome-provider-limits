@@ -17,13 +17,6 @@ export interface EmptyPresentation {
   readonly showPlaceholder: boolean;
 }
 
-export interface ViewMessagesOptions {
-  readonly phase: ViewPhase;
-  readonly spec: StyleSpec<string>;
-  readonly running: boolean;
-  readonly t: (s: string) => string;
-}
-
 export type PhaseResult =
   | {
       readonly kind: "placeholder";
@@ -31,11 +24,6 @@ export type PhaseResult =
       readonly message: EmptyPresentation;
     }
   | { readonly kind: "ready" };
-
-/** The spec that owns a surface owns its phase-to-copy mapping. */
-export function viewMessages(options: ViewMessagesOptions): EmptyPresentation {
-  return options.spec.messages(options.phase, options.running, options.t);
-}
 
 function hasNothingToShow(message: EmptyPresentation): boolean {
   return (
@@ -53,12 +41,7 @@ export function phaseResult(
   spec: StyleSpec<string>,
   running: boolean,
 ): PhaseResult {
-  const message = viewMessages({
-    phase: view.phase,
-    spec,
-    running,
-    t: view.t,
-  });
+  const message = spec.messages(view.phase, running, view.t);
   if (view.phase === "ready" || hasNothingToShow(message)) return { kind: "ready" };
   return { kind: "placeholder", phase: view.phase, message };
 }

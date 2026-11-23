@@ -1,3 +1,4 @@
+import { clampFillRatio } from "./fieldRows.js";
 import type { GaugeSpec, GaugeTone, RadialGaugeGeometry, RgbTuple } from "./gaugeTypes.js";
 
 export const CAIRO_LINE_CAP_ROUND = 1;
@@ -12,11 +13,6 @@ export const TONE_RGB: Record<GaugeTone, RgbTuple> = {
   critical: [0xe0 / 255, 0x1b / 255, 0x24 / 255],
   neutral: [0x88 / 255, 0x88 / 255, 0x90 / 255],
 };
-
-function clampGaugeRatio(ratio: number): number {
-  if (!Number.isFinite(ratio)) return 0;
-  return Math.min(1, Math.max(0, ratio));
-}
 
 /** The single fill-math home: ratio, sweep angles and color for every gauge surface. */
 export function gaugeArc(
@@ -34,7 +30,7 @@ export function gaugeArc(
       isError: false,
     };
   }
-  const clamped = clampGaugeRatio(ratio);
+  const clamped = clampFillRatio(ratio);
   return {
     ratio: clamped,
     hasValue: true,

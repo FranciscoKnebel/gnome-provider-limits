@@ -1,6 +1,6 @@
 import { providerRecord } from "../../src/constants.js";
 import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
-import type { ReaderResult } from "../../src/readers/base.js";
+import type { FieldDef, ReaderResult } from "../../src/readers/base.js";
 import { CODEX_FIELDS, PROVIDER_FIELDS } from "../../src/readers/fields.js";
 import { deriveDisplayModel, deriveDisplayModels } from "../../src/ui/displayModel.js";
 import { consumedResetNames, resetDetailText, resetSlotText } from "../../src/ui/resetModel.js";
@@ -99,7 +99,7 @@ describe("deriveDisplayModel owns diagnostics and reset pairing", () => {
   function modelFor(
     result: ReaderResult,
     panelFields: readonly string[],
-    fieldDefs = CODEX_FIELDS,
+    fieldDefs: readonly FieldDef[] = CODEX_FIELDS,
   ) {
     const model = deriveDisplayModel(result.provider, result, {
       fieldDefs,

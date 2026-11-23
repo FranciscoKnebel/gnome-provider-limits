@@ -4,10 +4,9 @@ import St from "gi://St";
 import type { ProviderName } from "../constants.js";
 import { ReaderStatus } from "../readers/base.js";
 import type { FieldView } from "./fieldViews.js";
-import type { ProviderTone } from "./providerHealth.js";
 import { StatusBarRenderer, type ZonePlan } from "./statusBarRenderer.js";
 import { STYLE_REGISTRY } from "./styles.js";
-import { applyHealthToneClass, applyToneClass } from "./tone.js";
+import { applyHealthToneClass, applyToneClass, type HealthTone } from "./tone.js";
 import type { ProviderViewContext } from "./viewContext.js";
 import { phaseResult } from "./viewMessages.js";
 
@@ -21,7 +20,7 @@ interface PillPlan {
   provider: ProviderName;
   displayName: string;
   isPartial: boolean;
-  healthTone: ProviderTone;
+  healthTone: HealthTone;
   stateTag: string | null;
   stateAccessibleText: string | null;
   rows: readonly PillRowPlan[];

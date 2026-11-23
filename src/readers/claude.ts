@@ -5,7 +5,7 @@ import { HttpClient, HttpError, TokenError } from "../helpers/http.js";
 import { logWarn } from "../helpers/log.js";
 import { resolveClaudeConfigDir } from "../helpers/paths.js";
 import { runSubprocess } from "../helpers/subprocess.js";
-import type { FieldDef, FieldResult, ReadOptions, ReaderResult } from "./base.js";
+import type { FieldResult, ReadOptions, ReaderResult } from "./base.js";
 import { BaseReader, FieldStatus } from "./base.js";
 import {
   type ClaudeUsagePayload,
@@ -27,13 +27,13 @@ const CLI_PROBE_TIMEOUT_SECONDS = 15;
 
 Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish");
 
-export class ClaudeReader extends BaseReader {
+export class ClaudeReader extends BaseReader<"claude"> {
   private _http: HttpClient | null = null;
   private _cancellable: Gio.Cancellable | null = null;
   private _destroyed = false;
   private _lastCliFailureAt: number | null = null;
 
-  override get FIELDS(): readonly FieldDef[] {
+  override get FIELDS() {
     return CLAUDE_FIELDS;
   }
 

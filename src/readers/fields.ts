@@ -3,7 +3,7 @@ import type { FieldDef } from "./base.js";
 
 export type { FieldCategory } from "./base.js";
 
-export const CODEX_FIELDS: readonly FieldDef[] = [
+export const CODEX_FIELDS = [
   {
     name: "used_percent_primary",
     label: "Used % (5h window)",
@@ -104,9 +104,9 @@ export const CODEX_FIELDS: readonly FieldDef[] = [
     defaultZone: "panel",
     category: "limit",
   },
-];
+] as const satisfies readonly FieldDef[];
 
-export const CLAUDE_FIELDS: readonly FieldDef[] = [
+export const CLAUDE_FIELDS = [
   {
     name: "used_percent_session",
     label: "Used % (session 5h)",
@@ -211,9 +211,9 @@ export const CLAUDE_FIELDS: readonly FieldDef[] = [
     defaultZone: "panel",
     category: "telemetry",
   },
-];
+] as const satisfies readonly FieldDef[];
 
-export const OPENCODE_FIELDS: readonly FieldDef[] = [
+export const OPENCODE_FIELDS = [
   {
     name: "used_percent_rolling",
     label: "Used % (rolling 5h)",
@@ -324,9 +324,9 @@ export const OPENCODE_FIELDS: readonly FieldDef[] = [
     defaultZone: "panel",
     category: "telemetry",
   },
-];
+] as const satisfies readonly FieldDef[];
 
-export const GROK_FIELDS: readonly FieldDef[] = [
+export const GROK_FIELDS = [
   {
     name: "used_percent_credits",
     label: "Used % (credits)",
@@ -381,9 +381,9 @@ export const GROK_FIELDS: readonly FieldDef[] = [
     defaultZone: "panel",
     category: "telemetry",
   },
-];
+] as const satisfies readonly FieldDef[];
 
-export const CURSOR_FIELDS: readonly FieldDef[] = [
+export const CURSOR_FIELDS = [
   {
     name: "used_percent_credits",
     label: "Used % (credits)",
@@ -480,9 +480,9 @@ export const CURSOR_FIELDS: readonly FieldDef[] = [
     defaultZone: "panel",
     category: "telemetry",
   },
-];
+] as const satisfies readonly FieldDef[];
 
-export const GOOGLE_FIELDS: readonly FieldDef[] = [
+export const GOOGLE_FIELDS = [
   {
     name: "used_percent_session",
     label: "Used % (session 5h)",
@@ -600,13 +600,31 @@ export const GOOGLE_FIELDS: readonly FieldDef[] = [
     defaultZone: "panel",
     category: "telemetry",
   },
-];
+] as const satisfies readonly FieldDef[];
 
-export const PROVIDER_FIELDS: Record<ProviderName, readonly FieldDef[]> = {
+export const PROVIDER_FIELDS = {
   codex: CODEX_FIELDS,
   claude: CLAUDE_FIELDS,
   opencode: OPENCODE_FIELDS,
   grok: GROK_FIELDS,
   cursor: CURSOR_FIELDS,
   google: GOOGLE_FIELDS,
-};
+} as const satisfies Record<ProviderName, readonly FieldDef[]>;
+
+/** Field names are a type-level union sourced from the declarations above. */
+export type FieldName<P extends ProviderName = ProviderName> =
+  (typeof PROVIDER_FIELDS)[P][number]["name"];
+
+type Suffix<T extends string, Prefix extends string> = T extends `${Prefix}${infer K}` ? K : never;
+
+/** Window keys reconstruct only names that actually exist in the declaration. */
+export type PercentFieldKey<P extends ProviderName = ProviderName> = Suffix<
+  FieldName<P>,
+  "used_percent_"
+>;
+export type ResetFieldKey<P extends ProviderName = ProviderName> = Suffix<
+  FieldName<P>,
+  "reset_at_"
+>;
+export type WindowKey<P extends ProviderName = ProviderName> = PercentFieldKey<P> &
+  ResetFieldKey<P>;

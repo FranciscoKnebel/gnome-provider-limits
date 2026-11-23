@@ -1,6 +1,6 @@
 import type { ProviderName } from "../constants.js";
 import { GAUGE_END_ANGLE, emptyMeter, gaugeArc } from "./cairoDrawing.js";
-import { classifyPanelViews, type ProviderDisplayModel } from "./displayModel.js";
+import type { ProviderDisplayModel } from "./displayModel.js";
 import type { FieldTone } from "./fieldRows.js";
 import type { FieldView } from "./fieldViews.js";
 import type { GaugeSpec, GaugeTone, RadialGaugeGeometry } from "./gaugeTypes.js";
@@ -87,7 +87,7 @@ export function partitionProviderPanel(
   locale: string,
   tr: (s: string) => string,
 ): PartitionedProviderPanel {
-  const groups = classifyPanelViews(model);
+  const groups = model.facts.views;
   const gauges: RadialGaugeItem[] = [];
   const bentoTiles: BentoTileItem[] = [];
 

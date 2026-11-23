@@ -3,19 +3,35 @@ import { FieldStatus, isLimitReached, ReaderStatus } from "../readers/base.js";
 import type { FieldTone } from "./fieldRows.js";
 import { fieldTone } from "./fieldRows.js";
 import type { FieldView } from "./fieldViews.js";
+import type { HealthTone, StatusAttention } from "./tone.js";
 
 export type ProviderState = "idle" | "ok" | "partial" | "cached" | "error" | "unavailable";
 
-export type ProviderTone = "ok" | "warning" | "critical" | "partial" | "error" | "idle";
-export type ProviderAttention = "quiet" | "partial" | "warning" | "critical" | "error";
+/**
+ * The one ordered severity value. Every surface vocabulary is a lookup over
+ * this value, so state, tone and attention cannot drift from each other.
+ */
+export const PROVIDER_SEVERITIES = [
+  "idle",
+  "ok",
+  "warning",
+  "partial",
+  "partial-warning",
+  "cached",
+  "cached-warning",
+  "critical",
+  "error",
+  "unavailable",
+] as const;
+export type ProviderSeverity = (typeof PROVIDER_SEVERITIES)[number];
 
 export interface ProviderHealth {
+  readonly severity: ProviderSeverity;
   readonly state: ProviderState;
-  readonly tone: ProviderTone;
-  readonly attention: ProviderAttention;
+  readonly tone: HealthTone;
+  readonly attention: StatusAttention;
   readonly worstTone: FieldTone | undefined;
   readonly hasUsableField: boolean;
-  readonly lastKnownGood: boolean;
   readonly stateTag: string | null;
   readonly stateAccessibleText: string | null;
 }
@@ -69,6 +85,45 @@ export const PRESENTATION: Readonly<Record<ProviderState, Presentation>> = {
   },
 };
 
+export const STATE_BY_SEVERITY: Readonly<Record<ProviderSeverity, ProviderState>> = {
+  idle: "idle",
+  ok: "ok",
+  warning: "ok",
+  partial: "partial",
+  "partial-warning": "partial",
+  cached: "cached",
+  "cached-warning": "cached",
+  critical: "ok",
+  error: "error",
+  unavailable: "unavailable",
+};
+
+export const TONE_BY_SEVERITY: Readonly<Record<ProviderSeverity, HealthTone>> = {
+  idle: "idle",
+  ok: "ok",
+  warning: "warning",
+  partial: "partial",
+  "partial-warning": "partial",
+  cached: "partial",
+  "cached-warning": "partial",
+  critical: "critical",
+  error: "error",
+  unavailable: "error",
+};
+
+export const ATTENTION_BY_SEVERITY: Readonly<Record<ProviderSeverity, StatusAttention>> = {
+  idle: "quiet",
+  ok: "quiet",
+  warning: "warning",
+  partial: "partial",
+  "partial-warning": "warning",
+  cached: "partial",
+  "cached-warning": "warning",
+  critical: "critical",
+  error: "error",
+  unavailable: "error",
+};
+
 const TONE_SEVERITY: Record<FieldTone, number> = {
   ok: 1,
   warning: 2,
@@ -106,39 +161,24 @@ export function isLastKnownGood(result: ReaderResult): boolean {
   return result.status === ReaderStatus.PARTIAL && result.fromCache;
 }
 
-export function deriveState(
+/** The single derivation: all surface vocabularies are lookups over this value. */
+export function deriveSeverity(
   status: ReaderStatus,
   worstTone: FieldTone | undefined,
   hasUsableField: boolean,
   lastKnownGood: boolean,
-): ProviderState {
+): ProviderSeverity {
   if (status === ReaderStatus.ERROR) return "error";
   if (status === ReaderStatus.UNAVAILABLE) return "unavailable";
   if (status === ReaderStatus.DISABLED) return "idle";
   if (status === ReaderStatus.PARTIAL && worstTone !== "critical") {
+    if (worstTone === "warning") return lastKnownGood ? "cached-warning" : "partial-warning";
     return lastKnownGood ? "cached" : "partial";
   }
-  if (worstTone === "warning" || worstTone === "critical" || hasUsableField) return "ok";
+  if (worstTone === "critical") return "critical";
+  if (worstTone === "warning") return "warning";
+  if (hasUsableField) return "ok";
   return "idle";
-}
-
-export function deriveTone(state: ProviderState, worstTone: FieldTone | undefined): ProviderTone {
-  if (state === "error" || state === "unavailable") return "error";
-  if (state === "idle") return "idle";
-  if (state === "partial" || state === "cached") return "partial";
-  return worstTone === "warning" || worstTone === "critical" ? worstTone : "ok";
-}
-
-export function deriveAttention(
-  state: ProviderState,
-  worstTone: FieldTone | undefined,
-): ProviderAttention {
-  if (state === "error" || state === "unavailable") return "error";
-  if (state === "idle") return "quiet";
-  if (state === "partial" || state === "cached") {
-    return worstTone === "warning" ? "warning" : "partial";
-  }
-  return worstTone === "warning" || worstTone === "critical" ? worstTone : "quiet";
 }
 
 function localizedStateText(
@@ -175,30 +215,17 @@ export function deriveProviderHealth(
   const hasUsableField =
     views.some((view) => view.hasValue) ||
     result.fields.some((field) => field.status === FieldStatus.OK);
-  const lastKnownGood = isLastKnownGood(result);
-  const state = deriveState(status, worstTone, hasUsableField, lastKnownGood);
+  const severity = deriveSeverity(status, worstTone, hasUsableField, isLastKnownGood(result));
 
   return {
-    state,
-    tone: deriveTone(state, worstTone),
-    attention: deriveAttention(state, worstTone),
+    severity,
+    state: STATE_BY_SEVERITY[severity],
+    tone: TONE_BY_SEVERITY[severity],
+    attention: ATTENTION_BY_SEVERITY[severity],
     worstTone,
     hasUsableField,
-    lastKnownGood,
     ...localizedStateText(status, tr),
   };
-}
-
-export type BadgeZone = "card" | "overview";
-
-export function badgeForZone(health: ProviderHealth, zone: "card"): Presentation["cardBadge"];
-export function badgeForZone(
-  health: ProviderHealth,
-  zone: "overview",
-): Presentation["overviewBadge"];
-export function badgeForZone(health: ProviderHealth, zone: BadgeZone): string {
-  const presentation = PRESENTATION[health.state];
-  return zone === "card" ? presentation.cardBadge : presentation.overviewBadge;
 }
 
 export function cardBadgeText(health: ProviderHealth, t: (s: string) => string): string {

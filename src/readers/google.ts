@@ -10,14 +10,8 @@ import {
   resolveGooglePrimaryAuthPaths,
   type Env,
 } from "../helpers/paths.js";
-import {
-  BaseReader,
-  FieldStatus,
-  type FieldDef,
-  type FieldResult,
-  type ReaderResult,
-} from "./base.js";
-import { GOOGLE_FIELDS } from "./fields.js";
+import { BaseReader, FieldStatus, type FieldResult, type ReaderResult } from "./base.js";
+import { GOOGLE_FIELDS, type FieldName } from "./fields.js";
 import {
   GOOGLE_CLOUDCODE_DAILY_URL,
   GOOGLE_OAUTH_TOKEN_URL,
@@ -77,12 +71,12 @@ interface CandidateQuotaOutcome {
   endpointUsed: string;
 }
 
-export class GoogleReader extends BaseReader {
+export class GoogleReader extends BaseReader<"google"> {
   private _http: HttpClient | null = null;
   private _destroyed = false;
   private _cancellable: Gio.Cancellable | null = null;
 
-  override get FIELDS(): readonly FieldDef[] {
+  override get FIELDS() {
     return GOOGLE_FIELDS;
   }
 
@@ -539,7 +533,7 @@ export class GoogleReader extends BaseReader {
     plan: string | null,
     endpointUsed: string,
   ): FieldResult[] {
-    const optionalField = <T>(name: string, value: T | null) =>
+    const optionalField = <T>(name: FieldName<"google">, value: T | null) =>
       this._makeField(name, value, value !== null ? FieldStatus.OK : FieldStatus.UNAVAILABLE);
     return [
       ...this._makeWindowFields("session", {

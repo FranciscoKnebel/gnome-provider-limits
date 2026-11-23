@@ -5,13 +5,7 @@ import { gettext as _ } from "../helpers/gettext.js";
 import { HttpClient, TokenError } from "../helpers/http.js";
 import { logWarn } from "../helpers/log.js";
 import { expandHomePath, resolveCursorAuthPaths } from "../helpers/paths.js";
-import {
-  BaseReader,
-  FieldStatus,
-  type FieldDef,
-  type FieldResult,
-  type ReaderResult,
-} from "./base.js";
+import { BaseReader, FieldStatus, type FieldResult, type ReaderResult } from "./base.js";
 import {
   CURSOR_BACKEND_URL,
   normalizeCursorUsagePayload,
@@ -22,7 +16,7 @@ import {
   type CursorAuth,
   type CursorUsage,
 } from "./cursorParser.js";
-import { CURSOR_FIELDS } from "./fields.js";
+import { CURSOR_FIELDS, type FieldName } from "./fields.js";
 
 const CURSOR_EXCHANGE_URL = `${CURSOR_BACKEND_URL}/auth/exchange_user_api_key`;
 const CURSOR_USAGE_URL = `${CURSOR_BACKEND_URL}/aiserver.v1.DashboardService/GetCurrentPeriodUsage`;
@@ -39,12 +33,12 @@ function makeRpcHeaders(token: string): Record<string, string> {
   };
 }
 
-export class CursorReader extends BaseReader {
+export class CursorReader extends BaseReader<"cursor"> {
   private _http: HttpClient | null = null;
   private _destroyed = false;
   private _cancellable: Gio.Cancellable | null = null;
 
-  override get FIELDS(): readonly FieldDef[] {
+  override get FIELDS() {
     return CURSOR_FIELDS;
   }
 
@@ -299,7 +293,7 @@ export class CursorReader extends BaseReader {
     plan: string | null,
     resetAtCredits: number | null,
   ): FieldResult[] {
-    const optionalField = <T>(name: string, value: T | null) =>
+    const optionalField = <T>(name: FieldName<"cursor">, value: T | null) =>
       this._makeField(name, value, value !== null ? FieldStatus.OK : FieldStatus.UNAVAILABLE);
     return [
       ...this._makeWindowFields("credits", {

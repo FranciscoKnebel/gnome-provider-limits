@@ -5,7 +5,7 @@ import { HttpClient, HttpError, TokenError } from "../helpers/http.js";
 import { logWarn } from "../helpers/log.js";
 import { resolveCodexHome } from "../helpers/paths.js";
 import { querySqlite } from "../helpers/sqlite.js";
-import type { FieldDef, FieldResult, ReadOptions, ReaderResult } from "./base.js";
+import type { FieldResult, ReadOptions, ReaderResult } from "./base.js";
 import { BaseReader, FieldStatus } from "./base.js";
 import {
   codexWindowMinutes,
@@ -26,12 +26,12 @@ const CODEX_RESET_CREDITS_URL = "https://chatgpt.com/backend-api/wham/rate-limit
 
 Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish");
 
-export class CodexReader extends BaseReader {
+export class CodexReader extends BaseReader<"codex"> {
   private _http: HttpClient | null = null;
   private _cancellable: Gio.Cancellable | null = null;
   private _destroyed = false;
 
-  override get FIELDS(): readonly FieldDef[] {
+  override get FIELDS() {
     return CODEX_FIELDS;
   }
 

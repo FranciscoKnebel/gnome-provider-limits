@@ -144,7 +144,7 @@ function buildFieldMatrixGroup(
   const statusKey = `${provider}-status-fields`;
   const panelKey = `${provider}-panel-fields`;
   const available = PROVIDER_FIELDS[provider];
-  const availableNames = available.map((field) => field.name);
+  const availableNames: readonly string[] = available.map((field) => field.name);
 
   const group = new Adw.PreferencesGroup({
     title: _("Field Matrix"),

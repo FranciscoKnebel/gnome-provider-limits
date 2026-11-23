@@ -3,10 +3,9 @@ import St from "gi://St";
 
 import type { ProviderName } from "../constants.js";
 import { ReaderStatus } from "../readers/base.js";
-import type { ProviderAttention } from "./providerHealth.js";
 import { StatusBarRenderer, type ZonePlan } from "./statusBarRenderer.js";
 import { STYLE_REGISTRY } from "./styles.js";
-import { applyStatusAttentionClass } from "./tone.js";
+import { applyStatusAttentionClass, type StatusAttention } from "./tone.js";
 import type { ProviderViewContext } from "./viewContext.js";
 import { phaseResult } from "./viewMessages.js";
 
@@ -14,7 +13,7 @@ interface CompactBadgePlan {
   provider: ProviderName;
   shortLabel: string;
   metricsText: string;
-  attention: ProviderAttention;
+  attention: StatusAttention;
   accessibleText: string;
 }
 

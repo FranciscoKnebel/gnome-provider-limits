@@ -1,5 +1,6 @@
 import { PROVIDER_NAMES } from "../../src/constants.js";
 import { moveAdjacentValue, reorderValue } from "../../src/helpers/reorder.js";
+import type { FieldDef } from "../../src/readers/base.js";
 import {
   CLAUDE_FIELDS,
   CODEX_FIELDS,
@@ -45,7 +46,8 @@ describe("readers/fields & helpers/reorder", () => {
     ]);
 
     for (const provider of PROVIDER_NAMES) {
-      for (const def of PROVIDER_FIELDS[provider]) {
+      const defs: readonly FieldDef[] = PROVIDER_FIELDS[provider];
+      for (const def of defs) {
         const expectedCategory = telemetryNames.has(def.name) ? "telemetry" : "limit";
         expect(def.category).toBe(expectedCategory);
 

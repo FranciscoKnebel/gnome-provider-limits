@@ -1,14 +1,14 @@
 import type { ProviderName } from "../constants.js";
 import type { ReaderStatus } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
-import { classifyPanelViews, type ProviderDisplayModel } from "./displayModel.js";
+import type { ProviderDisplayModel } from "./displayModel.js";
 import { clampPercent } from "./fieldRows.js";
 import type { FieldTone } from "./fieldRows.js";
 import type { FieldView } from "./fieldViews.js";
-import type { ProviderTone } from "./providerHealth.js";
 import type { Presentation } from "./providerHealth.js";
 import { resetDetailText, type ResetPairing } from "./resetModel.js";
 import { STYLE_REGISTRY } from "./styles.js";
+import type { HealthTone } from "./tone.js";
 import type { ProviderViewContext, ViewPhase } from "./viewContext.js";
 import { phaseResult } from "./viewMessages.js";
 
@@ -54,7 +54,7 @@ export interface ProviderCardPlan {
   provider: ProviderName;
   displayName: string;
   status: ReaderStatus;
-  healthTone: ProviderTone;
+  healthTone: HealthTone;
   badgeKind: CardBadgeKind;
   badgeText: string;
   lastUpdatedText: string | null;
@@ -118,8 +118,8 @@ export function cardFromModel(
   locale: string,
   t: (s: string) => string,
 ): ProviderCardPlan {
-  const groups = classifyPanelViews(model);
   const facts = model.facts;
+  const groups = facts.views;
   const limitProgressRows: CardProgressRow[] = [];
   const limitMetaRows: CardKeyValueRow[] = [];
   const telemetryRows: CardKeyValueRow[] = [];

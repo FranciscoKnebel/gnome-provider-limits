@@ -26,14 +26,6 @@ export abstract class PanelStyleSection {
   }
 
   abstract render(context: PanelRenderContext): void;
-
-  setRunning(running: boolean): void {
-    this.shell.setRunning(running);
-  }
-
-  destroy(): void {
-    this.shell.destroy();
-  }
 }
 
 export interface PanelShellOptions {

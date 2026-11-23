@@ -1,6 +1,7 @@
 import type Gio from "gi://Gio";
 
 import type { ProviderName } from "../constants.js";
+import type { FieldName, PercentFieldKey, WindowKey } from "./fields.js";
 
 export const LAST_GOOD_MAX_AGE_MS = 30 * 60 * 1000;
 
@@ -24,8 +25,8 @@ export type FieldZone = "status" | "panel";
 
 export type FieldCategory = "limit" | "telemetry";
 
-export interface FieldDef {
-  readonly name: string;
+export interface FieldDef<TName extends string = string> {
+  readonly name: TName;
   readonly label: string;
   readonly type: FieldType;
   readonly description?: string;
@@ -34,8 +35,8 @@ export interface FieldDef {
   readonly resetField?: string;
 }
 
-export interface FieldResult<T = unknown> {
-  readonly name: string;
+export interface FieldResult<T = unknown, TName extends string = string> {
+  readonly name: TName;
   readonly value: T | null;
   readonly status: FieldStatus;
   readonly error?: string | null;
@@ -64,74 +65,58 @@ export interface ReadOptions {
   force?: boolean;
 }
 
-export abstract class BaseReader {
+export abstract class BaseReader<P extends ProviderName = ProviderName> {
   protected _lastGood: ReaderResult | null = null;
 
   /**
    * The field declarations this reader may emit. fields.ts is the single
    * source of truth; every concrete reader overrides this with its slice.
    */
-  get FIELDS(): readonly FieldDef[] {
+  get FIELDS(): readonly FieldDef<FieldName<P>>[] {
     return [];
   }
 
   constructor(
     protected readonly settings: Gio.Settings,
-    protected readonly providerName: ProviderName,
+    protected readonly providerName: P,
   ) {}
 
   abstract read(options?: ReadOptions): Promise<ReaderResult>;
 
   destroy(): void {}
 
-  protected _assertDeclared(name: string): void {
-    if (this.FIELDS.length === 0) return;
-    if (!this.FIELDS.some((def) => def.name === name)) {
-      throw new Error(`${this.providerName}: undeclared field '${name}'.`);
-    }
-  }
-
-  /** Fail loudly when an emitted set drifts from the declared contract. */
-  protected _assertFieldContract(fields: readonly FieldResult[]): void {
-    if (this.FIELDS.length === 0) return;
-    const declared = new Set(this.FIELDS.map((def) => def.name));
-    const emitted = new Set<string>();
-    for (const field of fields) {
-      this._assertDeclared(field.name);
-      emitted.add(field.name);
-    }
-    for (const name of declared) {
-      if (!emitted.has(name)) {
-        throw new Error(`${this.providerName}: declared field '${name}' was not emitted.`);
-      }
-    }
-  }
-
-  protected _makeField<T>(
-    name: string,
+  protected _makeField<T, Name extends FieldName<P>>(
+    name: Name,
     value: T | null | undefined,
     status: FieldStatus,
     error?: string | null,
-  ): FieldResult<T> {
-    this._assertDeclared(name);
+  ): FieldResult<T, Name> {
     return { name, value: value ?? null, status, error: error ?? null };
   }
 
   protected _makePercentFieldPair(
-    key: string,
+    key: PercentFieldKey<P>,
     usedPct: number | null | undefined,
     status: FieldStatus,
   ): [FieldResult, FieldResult] {
     const hasUsedPct = typeof usedPct === "number" && Number.isFinite(usedPct);
     const fieldStatus = hasUsedPct ? status : FieldStatus.UNAVAILABLE;
     return [
-      this._makeField(`used_percent_${key}`, hasUsedPct ? usedPct : null, fieldStatus),
-      this._makeField(`remaining_percent_${key}`, hasUsedPct ? 100 - usedPct : null, fieldStatus),
+      this._makeField(
+        `used_percent_${key}` as FieldName<P>,
+        hasUsedPct ? usedPct : null,
+        fieldStatus,
+      ),
+      this._makeField(
+        `remaining_percent_${key}` as FieldName<P>,
+        hasUsedPct ? 100 - usedPct : null,
+        fieldStatus,
+      ),
     ];
   }
 
   protected _makeWindowFields(
-    key: string,
+    key: WindowKey<P>,
     data:
       | {
           used_percent?: number | null;
@@ -146,8 +131,12 @@ export abstract class BaseReader {
         : FieldStatus.UNAVAILABLE;
     const resetStatus = data?.reset_at != null ? FieldStatus.OK : FieldStatus.UNAVAILABLE;
     return [
-      ...this._makePercentFieldPair(key, data?.used_percent ?? null, percentStatus),
-      this._makeField(`reset_at_${key}`, data?.reset_at ?? null, resetStatus),
+      ...this._makePercentFieldPair(
+        key as PercentFieldKey<P>,
+        data?.used_percent ?? null,
+        percentStatus,
+      ),
+      this._makeField(`reset_at_${key}` as FieldName<P>, data?.reset_at ?? null, resetStatus),
     ];
   }
 
@@ -231,7 +220,6 @@ export abstract class BaseReader {
     prefix?: string,
     partialError?: string,
   ): ReaderResult {
-    this._assertFieldContract(fields);
     const hasAny = fields.some((f) => f.status === FieldStatus.OK);
     if (!hasAny) {
       return this._errorResult(`${prefix ?? this.providerName}: no usable fields.`, pathsTried);

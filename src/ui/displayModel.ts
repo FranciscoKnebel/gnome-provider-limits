@@ -9,10 +9,10 @@ import type { GaugeSpec } from "./gaugeTypes.js";
 import type { ProviderHealth } from "./providerHealth.js";
 import type { Presentation } from "./providerHealth.js";
 import {
-  badgeForZone,
   cardBadgeText,
   deriveProviderHealth,
   overviewBadgeText,
+  PRESENTATION,
   statusBadgeText,
 } from "./providerHealth.js";
 import {
@@ -72,6 +72,8 @@ export interface ProviderDisplayFacts {
   readonly meter: GaugeSpec;
   readonly diagnostic: DisplayDiagnostic;
   readonly callout: DisplayCallout | null;
+  readonly views: ClassifiedPanelViews;
+  readonly viewsIncludingConsumedResets: ClassifiedPanelViews;
   readonly lastUpdatedText: string | null;
   readonly isHardError: boolean;
 }
@@ -108,18 +110,19 @@ interface MutableClassifiedGroup {
   keyValue: FieldView[];
 }
 
-export function classifyPanelViews(
-  model: ProviderDisplayModel,
-  options: { readonly includeConsumedResets?: boolean } = {},
+function classifyPanelViews(
+  panelViews: readonly FieldView[],
+  resets: ReadonlyMap<string, ResetPairing>,
+  includeConsumedResets: boolean,
 ): ClassifiedPanelViews {
-  const consumed = consumedResetNames(model.resets);
+  const consumed = consumedResetNames(resets);
   const limit: MutableClassifiedGroup = { all: [], progress: [], keyValue: [] };
   const telemetry: MutableClassifiedGroup = { all: [], progress: [], keyValue: [] };
   const all: FieldView[] = [];
   const progress: FieldView[] = [];
   const keyValue: FieldView[] = [];
-  for (const view of model.panelViews) {
-    if (!options.includeConsumedResets && consumed.has(view.name)) continue;
+  for (const view of panelViews) {
+    if (!includeConsumedResets && consumed.has(view.name)) continue;
     const group = view.category === "telemetry" ? telemetry : limit;
     group.all.push(view);
     all.push(view);
@@ -182,24 +185,25 @@ function deriveDisplayFacts(
   },
 ): ProviderDisplayFacts {
   const { result } = model;
-  const { fieldDefs, statusFields, locale, t: tr, views, hardError } = derivation;
+  const { fieldDefs, statusFields, locale, t: tr, views: allViews, hardError } = derivation;
 
   const resetTextFor = (view: FieldView): string | null => {
     const pairing = model.resets.get(view.name);
     return pairing ? resetSlotText(pairing, "status", locale, tr) : null;
   };
 
-  const health = deriveProviderHealth(result.status, { result, views, fieldDefs, t: tr });
+  const health = deriveProviderHealth(result.status, { result, views: allViews, fieldDefs, t: tr });
+  const presentation = PRESENTATION[health.state];
   const badges: DisplayBadges = {
-    card: badgeForZone(health, "card"),
+    card: presentation.cardBadge,
     cardText: cardBadgeText(health, tr),
-    overview: badgeForZone(health, "overview"),
+    overview: presentation.overviewBadge,
     overviewText: overviewBadgeText(health, tr),
     status: statusBadgeText(health, tr),
   };
 
   const usage: ProviderDisplayUsage = {
-    header: projectUsageFacts(result, views, statusFields, {
+    header: projectUsageFacts(result, allViews, statusFields, {
       limitOnly: true,
       requireFiniteValue: true,
       t: tr,
@@ -207,13 +211,15 @@ function deriveDisplayFacts(
     }),
     overview: projectUsageFacts(
       result,
-      views,
+      allViews,
       [...new Set([...statusFields, ...derivation.panelFields])],
       { t: tr, resetTextFor },
     ),
   };
 
   const { diagnostic, callout } = deriveDiagnostics(result, hardError, tr);
+  const views = classifyPanelViews(model.panelViews, model.resets, false);
+  const viewsIncludingConsumedResets = classifyPanelViews(model.panelViews, model.resets, true);
   const lastUpdatedText =
     !hardError && Number.isFinite(result.lastUpdated)
       ? tr("Last updated: %s").replace("%s", formatAbsoluteTimestamp(result.lastUpdated, locale))
@@ -228,6 +234,8 @@ function deriveDisplayFacts(
       : meterFromViews([...model.statusViews, ...model.panelViews]),
     diagnostic,
     callout,
+    views,
+    viewsIncludingConsumedResets,
     lastUpdatedText,
     isHardError: hardError,
   };

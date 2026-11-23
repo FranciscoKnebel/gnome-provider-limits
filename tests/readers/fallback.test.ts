@@ -5,7 +5,6 @@ import {
   FieldStatus,
   LAST_GOOD_MAX_AGE_MS,
   ReaderStatus,
-  type FieldDef,
   type FieldResult,
   type ReaderResult,
 } from "../../src/readers/base.js";
@@ -24,10 +23,6 @@ import {
 import { openCodePartialError } from "../../src/readers/opencodeParser.js";
 
 class LastGoodTestReader extends BaseReader {
-  get FIELDS(): readonly FieldDef[] {
-    return [];
-  }
-
   async read(): Promise<ReaderResult> {
     return this._errorResult("nope", []);
   }
