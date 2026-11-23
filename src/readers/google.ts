@@ -536,22 +536,50 @@ export class GoogleReader extends BaseReader<"google"> {
     const optionalField = <T>(name: FieldName<"google">, value: T | null) =>
       this._makeField(name, value, value !== null ? FieldStatus.OK : FieldStatus.UNAVAILABLE);
     return [
-      ...this._makeWindowFields("session", {
-        used_percent: usage.session?.usedPercent ?? null,
-        reset_at: usage.session?.resetAt ?? null,
-      }),
-      ...this._makeWindowFields("weekly", {
-        used_percent: usage.weekly?.usedPercent ?? null,
-        reset_at: usage.weekly?.resetAt ?? null,
-      }),
-      ...this._makeWindowFields("3p_session", {
-        used_percent: usage.thirdPartySession?.usedPercent ?? null,
-        reset_at: usage.thirdPartySession?.resetAt ?? null,
-      }),
-      ...this._makeWindowFields("3p_weekly", {
-        used_percent: usage.thirdPartyWeekly?.usedPercent ?? null,
-        reset_at: usage.thirdPartyWeekly?.resetAt ?? null,
-      }),
+      ...this._makeWindowFields(
+        {
+          used: "used_percent_session",
+          remaining: "remaining_percent_session",
+          reset: "reset_at_session",
+        },
+        {
+          used_percent: usage.session?.usedPercent ?? null,
+          reset_at: usage.session?.resetAt ?? null,
+        },
+      ),
+      ...this._makeWindowFields(
+        {
+          used: "used_percent_weekly",
+          remaining: "remaining_percent_weekly",
+          reset: "reset_at_weekly",
+        },
+        {
+          used_percent: usage.weekly?.usedPercent ?? null,
+          reset_at: usage.weekly?.resetAt ?? null,
+        },
+      ),
+      ...this._makeWindowFields(
+        {
+          used: "used_percent_3p_session",
+          remaining: "remaining_percent_3p_session",
+          reset: "reset_at_3p_session",
+        },
+        {
+          used_percent: usage.thirdPartySession?.usedPercent ?? null,
+          reset_at: usage.thirdPartySession?.resetAt ?? null,
+        },
+      ),
+      ...this._makeWindowFields(
+        {
+          used: "used_percent_3p_weekly",
+          remaining: "remaining_percent_3p_weekly",
+          reset: "reset_at_3p_weekly",
+        },
+        {
+          used_percent: usage.thirdPartyWeekly?.usedPercent ?? null,
+          reset_at: usage.thirdPartyWeekly?.resetAt ?? null,
+        },
+      ),
       optionalField("limit_reached", usage.limitReached),
       optionalField("plan_type", plan),
       this._makeField("usage_source", hostFromEndpoint(endpointUsed), FieldStatus.OK),

@@ -1,7 +1,7 @@
 import type Gio from "gi://Gio";
 
 import type { ProviderName } from "../constants.js";
-import type { FieldName, PercentFieldKey, WindowKey } from "./fields.js";
+import type { FieldName } from "./fields.js";
 
 export const LAST_GOOD_MAX_AGE_MS = 30 * 60 * 1000;
 
@@ -33,6 +33,17 @@ export interface FieldDef<TName extends string = string> {
   readonly defaultZone: FieldZone;
   readonly category: FieldCategory;
   readonly resetField?: string;
+}
+
+/** Full typed names for the two fields of a used/remaining percent pair. */
+export interface PercentFieldNames<P extends ProviderName> {
+  readonly used: FieldName<P>;
+  readonly remaining: FieldName<P>;
+}
+
+/** Full typed names for a percent pair plus its companion reset timestamp. */
+export interface WindowFieldNames<P extends ProviderName> extends PercentFieldNames<P> {
+  readonly reset: FieldName<P>;
 }
 
 export interface FieldResult<T = unknown, TName extends string = string> {
@@ -95,28 +106,20 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
   }
 
   protected _makePercentFieldPair(
-    key: PercentFieldKey<P>,
+    names: PercentFieldNames<P>,
     usedPct: number | null | undefined,
     status: FieldStatus,
   ): [FieldResult, FieldResult] {
     const hasUsedPct = typeof usedPct === "number" && Number.isFinite(usedPct);
     const fieldStatus = hasUsedPct ? status : FieldStatus.UNAVAILABLE;
     return [
-      this._makeField(
-        `used_percent_${key}` as FieldName<P>,
-        hasUsedPct ? usedPct : null,
-        fieldStatus,
-      ),
-      this._makeField(
-        `remaining_percent_${key}` as FieldName<P>,
-        hasUsedPct ? 100 - usedPct : null,
-        fieldStatus,
-      ),
+      this._makeField(names.used, hasUsedPct ? usedPct : null, fieldStatus),
+      this._makeField(names.remaining, hasUsedPct ? 100 - usedPct : null, fieldStatus),
     ];
   }
 
   protected _makeWindowFields(
-    key: WindowKey<P>,
+    names: WindowFieldNames<P>,
     data:
       | {
           used_percent?: number | null;
@@ -131,12 +134,8 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
         : FieldStatus.UNAVAILABLE;
     const resetStatus = data?.reset_at != null ? FieldStatus.OK : FieldStatus.UNAVAILABLE;
     return [
-      ...this._makePercentFieldPair(
-        key as PercentFieldKey<P>,
-        data?.used_percent ?? null,
-        percentStatus,
-      ),
-      this._makeField(`reset_at_${key}` as FieldName<P>, data?.reset_at ?? null, resetStatus),
+      ...this._makePercentFieldPair(names, data?.used_percent ?? null, percentStatus),
+      this._makeField(names.reset, data?.reset_at ?? null, resetStatus),
     ];
   }
 

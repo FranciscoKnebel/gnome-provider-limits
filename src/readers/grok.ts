@@ -117,10 +117,17 @@ export class GrokReader extends BaseReader<"grok"> {
     const optionalField = (name: FieldName<"grok">, value: unknown) =>
       this._makeField(name, value, value !== null ? FieldStatus.OK : FieldStatus.UNAVAILABLE);
     return [
-      ...this._makeWindowFields("credits", {
-        used_percent: usage.usedPercent,
-        reset_at: usage.resetAt,
-      }),
+      ...this._makeWindowFields(
+        {
+          used: "used_percent_credits",
+          remaining: "remaining_percent_credits",
+          reset: "reset_at_credits",
+        },
+        {
+          used_percent: usage.usedPercent,
+          reset_at: usage.resetAt,
+        },
+      ),
       optionalField("prepaid_balance", usage.prepaidBalance),
       optionalField("unified_billing", usage.unifiedBilling),
       optionalField("plan_type", plan),

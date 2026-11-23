@@ -5,38 +5,10 @@ import type { FieldTone } from "./fieldRows.js";
 import type { FieldView } from "./fieldViews.js";
 import type { GaugeSpec, GaugeTone, RadialGaugeGeometry } from "./gaugeTypes.js";
 import type { Presentation } from "./providerHealth.js";
-import { resetSlotText } from "./resetModel.js";
 
 export type CockpitTab = "overview" | ProviderName;
 
 export type OverviewBadgeKind = Presentation["overviewBadge"];
-
-export interface RadialGaugeItem {
-  readonly fieldName: string;
-  readonly label: string;
-  readonly translatedLabel: string;
-  readonly geometry: RadialGaugeGeometry;
-  readonly resetText: string | null;
-  readonly hasResetSlot: boolean;
-  readonly errorText?: string;
-  readonly accessibleText: string;
-}
-
-export interface BentoTileItem {
-  readonly fieldName: string;
-  readonly label: string;
-  readonly translatedLabel: string;
-  readonly valueText: string;
-  readonly errorText?: string;
-  readonly accessibleText: string;
-}
-
-export interface PartitionedProviderPanel {
-  readonly gauges: readonly RadialGaugeItem[];
-  readonly gaugeRows: readonly (readonly RadialGaugeItem[])[];
-  readonly bentoTiles: readonly BentoTileItem[];
-  readonly bentoRows: readonly (readonly BentoTileItem[])[];
-}
 
 export interface OverviewRowModel {
   readonly provider: ProviderName;
@@ -80,53 +52,6 @@ export function chunkPairs<T>(items: readonly T[]): T[][] {
     rows.push(items.slice(i, i + 2));
   }
   return rows;
-}
-
-export function partitionProviderPanel(
-  model: ProviderDisplayModel,
-  locale: string,
-  tr: (s: string) => string,
-): PartitionedProviderPanel {
-  const groups = model.facts.views;
-  const gauges: RadialGaugeItem[] = [];
-  const bentoTiles: BentoTileItem[] = [];
-
-  for (const view of groups.progress) {
-    const pairing = model.resets.get(view.name);
-    const resetText = pairing ? resetSlotText(pairing, "panel", locale, tr) : null;
-    const geometry = computeGaugeGeometry(view);
-    const accessibleParts = [`${view.labelText}: ${geometry.centerText}`];
-    if (resetText !== null) accessibleParts.push(resetText);
-
-    gauges.push({
-      fieldName: view.name,
-      label: view.label,
-      translatedLabel: view.labelText,
-      geometry,
-      resetText,
-      hasResetSlot: resetText !== null,
-      accessibleText: accessibleParts.join(", "),
-      ...(view.errorText ? { errorText: view.errorText } : {}),
-    });
-  }
-
-  for (const view of groups.keyValue) {
-    bentoTiles.push({
-      fieldName: view.name,
-      label: view.label,
-      translatedLabel: view.labelText,
-      valueText: view.valueText,
-      accessibleText: view.accessibleText,
-      ...(view.errorText ? { errorText: view.errorText } : {}),
-    });
-  }
-
-  return {
-    gauges,
-    gaugeRows: chunkGauges(gauges),
-    bentoTiles,
-    bentoRows: chunkPairs(bentoTiles),
-  };
 }
 
 export function loadingOverviewRow(provider: ProviderName, displayName: string): OverviewRowModel {

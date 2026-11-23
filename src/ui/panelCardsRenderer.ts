@@ -1,17 +1,22 @@
 import Clutter from "gi://Clutter";
 import St from "gi://St";
 
+import type { ProviderDisplayModel } from "./displayModel.js";
+import type { FieldView } from "./fieldViews.js";
 import {
   computeBarWidthPx,
+  progressResetPresentation,
   type BannerKind,
   type CardBadgeKind,
-  type CardKeyValueRow,
-  type CardProgressRow,
-  type ProviderCardPlan,
-  planPanel,
 } from "./panelCards.js";
 import { PanelStyleSection, type PanelRenderContext } from "./panelShell.js";
 import { applyHealthToneClass, applyToneClass } from "./tone.js";
+import {
+  cardsMessages,
+  cardsRunningMessages,
+  phaseResult,
+  type Translate,
+} from "./viewMessages.js";
 
 interface ProgressRowWidgets {
   track: St.BoxLayout;
@@ -39,23 +44,37 @@ function bannerStyleClass(kind: BannerKind): string {
     : "pl-diagnostic-banner pl-banner-error";
 }
 
-/** Rebuilds the cards panel body from one freshly derived plan. */
+/** Rebuilds the cards panel body from the canonical models and their facts. */
 export class CardsPanelSection extends PanelStyleSection {
+  private _running = false;
+
+  override setRunning(running: boolean): void {
+    this._running = running;
+  }
+
   override render(context: PanelRenderContext): void {
-    const plan = planPanel(context.view, this.shell.isRunning());
+    const messages = this._running ? cardsRunningMessages : cardsMessages;
+    const phase = phaseResult(context.view, messages);
     this.shell.clearBody();
 
-    if (plan.phase !== "ready" && plan.emptyTitle) {
-      this.shell.addEmptyStateRow(plan.emptyTitle, plan.emptySubtitle ?? undefined);
+    if (phase.kind === "placeholder") {
+      if (phase.message.title) {
+        this.shell.addEmptyStateRow(phase.message.title, phase.message.subtitle || undefined);
+      }
     } else {
-      for (const cardPlan of plan.cards) this._addCard(cardPlan);
+      for (const model of context.view.models) {
+        this._addCard(model, context.view.locale, context.view.t);
+      }
     }
   }
 
-  private _addCard(plan: ProviderCardPlan): void {
+  private _addCard(model: ProviderDisplayModel, locale: string, t: Translate): void {
+    const facts = model.facts;
+    const displayName = model.displayName;
+    const badgeText = facts.badges.cardText;
     const host = this.shell.addStaticRow();
     host.add_style_class_name("pl-card-host");
-    host.accessible_name = `${plan.displayName} (${plan.badgeText})`;
+    host.accessible_name = `${displayName} (${badgeText})`;
 
     const card = new St.BoxLayout({
       vertical: true,
@@ -70,7 +89,7 @@ export class CardsPanelSection extends PanelStyleSection {
 
     const leftHeader = new St.BoxLayout({
       style_class: "pl-card-header-left",
-      x_expand: plan.lastUpdatedText === null,
+      x_expand: facts.lastUpdatedText === null,
       y_align: Clutter.ActorAlign.CENTER,
     });
 
@@ -78,64 +97,66 @@ export class CardsPanelSection extends PanelStyleSection {
       style_class: "pl-health-dot",
       y_align: Clutter.ActorAlign.CENTER,
     });
-    applyHealthToneClass(healthDot, plan.healthTone);
+    applyHealthToneClass(healthDot, facts.health.tone);
     leftHeader.add_child(healthDot);
 
     const titleLabel = new St.Label({
-      text: plan.displayName,
+      text: displayName,
       style_class: "provider-limits-panel-header pl-card-title",
       y_align: Clutter.ActorAlign.CENTER,
     });
-    titleLabel.accessible_name = plan.displayName;
+    titleLabel.accessible_name = displayName;
     leftHeader.add_child(titleLabel);
 
     const badgeLabel = new St.Label({
-      text: plan.badgeText,
-      style_class: badgeStyleClass(plan.badgeKind),
+      text: badgeText,
+      style_class: badgeStyleClass(facts.badges.card),
       y_align: Clutter.ActorAlign.CENTER,
     });
-    badgeLabel.accessible_name = plan.badgeText;
+    badgeLabel.accessible_name = badgeText;
     leftHeader.add_child(badgeLabel);
 
     header.add_child(leftHeader);
 
-    if (plan.lastUpdatedText !== null) {
+    if (facts.lastUpdatedText !== null) {
       const lastUpdatedLabel = new St.Label({
-        text: plan.lastUpdatedText,
+        text: facts.lastUpdatedText,
         style_class: "provider-limits-dim pl-card-updated",
         x_expand: true,
         x_align: Clutter.ActorAlign.END,
         y_align: Clutter.ActorAlign.CENTER,
       });
-      lastUpdatedLabel.accessible_name = plan.lastUpdatedText;
+      lastUpdatedLabel.accessible_name = facts.lastUpdatedText;
       header.add_child(lastUpdatedLabel);
     }
 
     card.add_child(header);
 
-    if (plan.bannerKind !== null && plan.bannerText !== null) {
+    if (facts.diagnostic.bannerKind !== null && facts.diagnostic.bannerText !== null) {
       const bannerBox = new St.BoxLayout({
-        style_class: bannerStyleClass(plan.bannerKind),
+        style_class: bannerStyleClass(facts.diagnostic.bannerKind),
         x_expand: true,
       });
       const bannerLabel = new St.Label({
-        text: plan.bannerText,
+        text: facts.diagnostic.bannerText,
         style_class: "pl-diagnostic-text",
         x_expand: true,
         x_align: Clutter.ActorAlign.START,
       });
       bannerLabel.clutter_text.line_wrap = true;
-      bannerLabel.accessible_name = plan.bannerText;
+      bannerLabel.accessible_name = facts.diagnostic.bannerText;
       bannerBox.add_child(bannerLabel);
       card.add_child(bannerBox);
     }
 
-    for (const row of plan.limitProgressRows) this._buildProgressRow(card, row);
-    for (const row of plan.limitMetaRows) this._buildKeyValueRow(card, row);
+    for (const view of facts.views.limit.progress) {
+      this._buildProgressRow(card, view, model.resets, locale, t);
+    }
+    for (const view of facts.views.limit.keyValue) this._buildKeyValueRow(card, view);
 
     if (
-      plan.telemetryRows.length > 0 &&
-      (plan.limitProgressRows.length > 0 || plan.limitMetaRows.length > 0)
+      facts.views.telemetry.keyValue.length > 0 &&
+      (facts.views.limit.progress.length > 0 || facts.views.limit.keyValue.length > 0)
     ) {
       card.add_child(
         new St.BoxLayout({
@@ -145,13 +166,31 @@ export class CardsPanelSection extends PanelStyleSection {
       );
     }
 
-    for (const row of plan.telemetryRows) this._buildKeyValueRow(card, row);
+    for (const view of facts.views.telemetry.keyValue) this._buildKeyValueRow(card, view);
 
     host.add_child(card);
     this.shell.addBodyItem(host);
   }
 
-  private _buildProgressRow(parent: St.BoxLayout, row: CardProgressRow): void {
+  private _buildProgressRow(
+    parent: St.BoxLayout,
+    view: FieldView,
+    resets: ProviderDisplayModel["resets"],
+    locale: string,
+    t: Translate,
+  ): void {
+    const { resetText, accessibleText, errorText } = progressResetPresentation(
+      view,
+      resets.get(view.name),
+      locale,
+      t,
+    );
+    const label = view.labelText;
+    const valueText = view.valueText;
+    const tone = view.tone;
+    const fillPercent = view.fillPercent ?? 0;
+    const hasValue = view.fillPercent !== undefined;
+
     const container = new St.BoxLayout({
       vertical: true,
       x_expand: true,
@@ -164,20 +203,20 @@ export class CardsPanelSection extends PanelStyleSection {
     });
 
     const labelWidget = new St.Label({
-      text: row.label,
+      text: label,
       style_class: "provider-limits-field-label pl-progress-label",
       x_expand: true,
       x_align: Clutter.ActorAlign.START,
     });
-    labelWidget.accessible_name = row.label;
+    labelWidget.accessible_name = label;
 
     const valueWidget = new St.Label({
-      text: row.valueText,
+      text: valueText,
       style_class: "provider-limits-field-value pl-progress-value",
       x_align: Clutter.ActorAlign.END,
     });
-    valueWidget.accessible_name = row.accessibleText;
-    applyToneClass(valueWidget, row.tone);
+    valueWidget.accessible_name = accessibleText;
+    applyToneClass(valueWidget, tone);
 
     top.add_child(labelWidget);
     top.add_child(valueWidget);
@@ -192,38 +231,38 @@ export class CardsPanelSection extends PanelStyleSection {
       x_align: Clutter.ActorAlign.START,
       y_expand: true,
     });
-    applyToneClass(fill, row.tone);
+    applyToneClass(fill, tone);
     track.add_child(fill);
     container.add_child(track);
 
-    if (row.resetText) {
+    if (resetText) {
       const resetLabel = new St.Label({
-        text: row.resetText,
+        text: resetText,
         style_class: "provider-limits-dim pl-progress-meta",
         x_expand: true,
         x_align: Clutter.ActorAlign.START,
       });
-      resetLabel.accessible_name = row.resetText;
+      resetLabel.accessible_name = resetText;
       container.add_child(resetLabel);
     }
 
-    if (row.errorText) {
+    if (errorText) {
       const errorLabel = new St.Label({
-        text: row.errorText,
+        text: errorText,
         style_class: "provider-limits-error pl-field-error",
         x_expand: true,
         x_align: Clutter.ActorAlign.START,
       });
       errorLabel.clutter_text.line_wrap = true;
-      errorLabel.accessible_name = row.errorText;
+      errorLabel.accessible_name = errorText;
       container.add_child(errorLabel);
     }
 
     const widgets: ProgressRowWidgets = {
       track,
       fill,
-      fillPercent: row.fillPercent,
-      hasValue: row.hasValue,
+      fillPercent,
+      hasValue,
     };
 
     this._syncProgressFill(widgets);
@@ -249,7 +288,13 @@ export class CardsPanelSection extends PanelStyleSection {
     }
   }
 
-  private _buildKeyValueRow(parent: St.BoxLayout, row: CardKeyValueRow): void {
+  private _buildKeyValueRow(parent: St.BoxLayout, view: FieldView): void {
+    const label = view.labelText;
+    const valueText = view.valueText;
+    const accessibleText = view.accessibleText;
+    const tone = view.tone;
+    const errorText = view.errorText;
+
     const container = new St.BoxLayout({
       vertical: true,
       x_expand: true,
@@ -262,34 +307,34 @@ export class CardsPanelSection extends PanelStyleSection {
     });
 
     const labelWidget = new St.Label({
-      text: row.label,
+      text: label,
       style_class: "provider-limits-field-label pl-kv-label",
       x_expand: true,
       x_align: Clutter.ActorAlign.START,
     });
-    labelWidget.accessible_name = row.label;
+    labelWidget.accessible_name = label;
 
     const valueWidget = new St.Label({
-      text: row.valueText,
+      text: valueText,
       style_class: "provider-limits-field-value pl-kv-value",
       x_align: Clutter.ActorAlign.END,
     });
-    valueWidget.accessible_name = row.accessibleText;
-    applyToneClass(valueWidget, row.tone);
+    valueWidget.accessible_name = accessibleText;
+    applyToneClass(valueWidget, tone);
 
     line.add_child(labelWidget);
     line.add_child(valueWidget);
     container.add_child(line);
 
-    if (row.errorText) {
+    if (errorText) {
       const errorLabel = new St.Label({
-        text: row.errorText,
+        text: errorText,
         style_class: "provider-limits-error pl-field-error",
         x_expand: true,
         x_align: Clutter.ActorAlign.START,
       });
       errorLabel.clutter_text.line_wrap = true;
-      errorLabel.accessible_name = row.errorText;
+      errorLabel.accessible_name = errorText;
       container.add_child(errorLabel);
     }
 

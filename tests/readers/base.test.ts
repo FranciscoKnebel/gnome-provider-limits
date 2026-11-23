@@ -5,9 +5,23 @@ import {
   FieldStatus,
   ReaderStatus,
   type FieldResult,
+  type PercentFieldNames,
   type ReaderResult,
+  type WindowFieldNames,
 } from "../../src/readers/base.js";
-import type { FieldName, PercentFieldKey, WindowKey } from "../../src/readers/fields.js";
+import type { FieldName } from "../../src/readers/fields.js";
+
+const PRIMARY_NAMES = {
+  used: "used_percent_primary",
+  remaining: "remaining_percent_primary",
+  reset: "reset_at_primary",
+} as const;
+
+const SECONDARY_NAMES = {
+  used: "used_percent_secondary",
+  remaining: "remaining_percent_secondary",
+  reset: "reset_at_secondary",
+} as const;
 
 class TestReader extends BaseReader {
   async read(): Promise<ReaderResult> {
@@ -24,15 +38,15 @@ class TestReader extends BaseReader {
   }
 
   testMakePercentFieldPair(
-    key: string,
+    names: PercentFieldNames<"codex">,
     usedPct: number | null | undefined,
     status: FieldStatus,
   ): [FieldResult, FieldResult] {
-    return this._makePercentFieldPair(key as PercentFieldKey, usedPct, status);
+    return this._makePercentFieldPair(names, usedPct, status);
   }
 
   testMakeWindowFields(
-    key: string,
+    names: WindowFieldNames<"codex">,
     data:
       | {
           used_percent?: number | null;
@@ -41,7 +55,7 @@ class TestReader extends BaseReader {
       | null
       | undefined,
   ): FieldResult[] {
-    return this._makeWindowFields(key as WindowKey, data);
+    return this._makeWindowFields(names, data);
   }
 
   testOkResult(fields: readonly FieldResult[], pathsTried: readonly string[]): ReaderResult {
@@ -148,20 +162,24 @@ describe("BaseReader", () => {
 
   describe("_makePercentFieldPair", () => {
     it("creates used_percent and remaining_percent fields", () => {
-      const [used, remaining] = reader.testMakePercentFieldPair("weekly", 30, FieldStatus.OK);
+      const [used, remaining] = reader.testMakePercentFieldPair(
+        SECONDARY_NAMES,
+        30,
+        FieldStatus.OK,
+      );
 
-      expect(used.name).toBe("used_percent_weekly");
+      expect(used.name).toBe("used_percent_secondary");
       expect(used.value).toBe(30);
       expect(used.status).toBe(FieldStatus.OK);
 
-      expect(remaining.name).toBe("remaining_percent_weekly");
+      expect(remaining.name).toBe("remaining_percent_secondary");
       expect(remaining.value).toBe(70);
       expect(remaining.status).toBe(FieldStatus.OK);
     });
 
     it("handles null usedPct", () => {
       const [used, remaining] = reader.testMakePercentFieldPair(
-        "daily",
+        PRIMARY_NAMES,
         null,
         FieldStatus.UNAVAILABLE,
       );
@@ -173,7 +191,7 @@ describe("BaseReader", () => {
 
     it("handles undefined usedPct", () => {
       const [used, remaining] = reader.testMakePercentFieldPair(
-        "session",
+        PRIMARY_NAMES,
         undefined,
         FieldStatus.UNAVAILABLE,
       );
@@ -183,17 +201,17 @@ describe("BaseReader", () => {
     });
 
     it("computes remaining as 100 - used at boundaries", () => {
-      const [, zero] = reader.testMakePercentFieldPair("full", 100, FieldStatus.OK);
+      const [, zero] = reader.testMakePercentFieldPair(PRIMARY_NAMES, 100, FieldStatus.OK);
       expect(zero.value).toBe(0);
 
-      const [, all] = reader.testMakePercentFieldPair("empty", 0, FieldStatus.OK);
+      const [, all] = reader.testMakePercentFieldPair(PRIMARY_NAMES, 0, FieldStatus.OK);
       expect(all.value).toBe(100);
     });
   });
 
   describe("_makeWindowFields", () => {
     it("creates OK fields when data is provided", () => {
-      const fields = reader.testMakeWindowFields("primary", {
+      const fields = reader.testMakeWindowFields(PRIMARY_NAMES, {
         used_percent: 25,
         reset_at: 1700000000,
       });
@@ -209,7 +227,7 @@ describe("BaseReader", () => {
     });
 
     it("handles null data with UNAVAILABLE status", () => {
-      const fields = reader.testMakeWindowFields("secondary", null);
+      const fields = reader.testMakeWindowFields(SECONDARY_NAMES, null);
 
       expect(fields).toHaveSize(3);
       fields.forEach((f) => {
@@ -219,7 +237,7 @@ describe("BaseReader", () => {
     });
 
     it("handles undefined data", () => {
-      const fields = reader.testMakeWindowFields("secondary", undefined);
+      const fields = reader.testMakeWindowFields(SECONDARY_NAMES, undefined);
 
       expect(fields).toHaveSize(3);
       fields.forEach((f) => {
@@ -228,7 +246,7 @@ describe("BaseReader", () => {
     });
 
     it("handles missing optional fields in data", () => {
-      const fields = reader.testMakeWindowFields("primary", {});
+      const fields = reader.testMakeWindowFields(PRIMARY_NAMES, {});
 
       expect(fields[0].value).toBeNull();
       expect(fields[1].value).toBeNull();
@@ -239,7 +257,7 @@ describe("BaseReader", () => {
     });
 
     it("handles string reset_at", () => {
-      const fields = reader.testMakeWindowFields("window", {
+      const fields = reader.testMakeWindowFields(PRIMARY_NAMES, {
         reset_at: "1700000000",
       });
 

@@ -1,17 +1,18 @@
-import type { ViewPhase } from "./viewContext.js";
-import type { EmptyPresentation, PanelSurface, StatusBarSurface } from "./viewMessages.js";
+import type Gio from "gi://Gio";
+import type St from "gi://St";
 
-export const STATUS_BAR_STYLES = ["pills", "gauges", "compact"] as const;
-export type StatusBarStyle = (typeof STATUS_BAR_STYLES)[number];
+import { CardsPanelSection } from "./panelCardsRenderer.js";
+import { CompactPanelSection, createExpandAllControl } from "./panelCompact.js";
+import { GaugesPanelSection } from "./panelGauges.js";
+import type { PanelShell, PanelStyleSection } from "./panelShell.js";
+import { CompactStatusBarRenderer } from "./statusBarCompact.js";
+import { GaugesStatusBarRenderer } from "./statusBarGauges.js";
+import { PillsStatusBarRenderer } from "./statusBarPills.js";
+import type { StatusBarSectionRenderer } from "./statusBarRenderer.js";
+import { STYLE_CATALOG, type PanelStyle, type StatusBarStyle } from "./styleCatalog.js";
+import type { PanelSurface, StatusBarSurface } from "./viewMessages.js";
 
-export const PANEL_STYLES = ["gauges", "cards", "compact"] as const;
-export type PanelStyle = (typeof PANEL_STYLES)[number];
-
-export const DEFAULT_STATUS_BAR_STYLE: StatusBarStyle = "pills";
-export const DEFAULT_PANEL_STYLE: PanelStyle = "gauges";
-
-export type Translate = (text: string) => string;
-export type PhaseMessages = (phase: ViewPhase, running: boolean, t: Translate) => EmptyPresentation;
+export type { PanelStyle, StatusBarStyle } from "./styleCatalog.js";
 
 export type PointerSignal = "clicked" | "button-release-event";
 
@@ -36,126 +37,43 @@ export interface FooterSpec {
   readonly buttonControls?: boolean;
 }
 
+export interface PanelSectionHost {
+  readonly settings: Gio.Settings;
+  readonly createShell: (extraControls?: readonly St.Widget[]) => PanelShell;
+}
+
+export type PanelSectionFactory = (host: PanelSectionHost) => PanelStyleSection;
+export type StatusBarRendererFactory = (parent: St.BoxLayout) => StatusBarSectionRenderer;
+
 export interface StyleSpec<Id extends string> {
-  /** Stable settings value and registry key. */
   readonly id: Id;
-  /** Raw gettext key; translated by the preferences page at point of use. */
   readonly label: string;
-  readonly messages: PhaseMessages;
+  readonly surface: PanelSurface | StatusBarSurface;
 }
 
 export interface PanelStyleSpec extends StyleSpec<PanelStyle> {
   readonly surface: PanelSurface;
   readonly shellPlacement: ShellPlacement;
   readonly footer: FooterSpec;
+  readonly factory: PanelSectionFactory;
 }
 
 export interface StatusBarStyleSpec extends StyleSpec<StatusBarStyle> {
   readonly surface: StatusBarSurface;
+  readonly factory: StatusBarRendererFactory;
 }
-
-const EMPTY_PRESENTATION: EmptyPresentation = {
-  title: "",
-  subtitle: "",
-  placeholder: "",
-  accessibleText: "",
-  showPlaceholder: false,
-};
-
-function withTitle(t: Translate, title: string, subtitle = ""): EmptyPresentation {
-  return { ...EMPTY_PRESENTATION, title: t(title), subtitle: subtitle ? t(subtitle) : "" };
-}
-
-function withPlaceholder(
-  t: Translate,
-  accessibleText: string,
-  placeholder = "…",
-): EmptyPresentation {
-  return {
-    ...EMPTY_PRESENTATION,
-    placeholder,
-    accessibleText: t(accessibleText),
-    showPlaceholder: true,
-  };
-}
-
-const CARD_MESSAGES: PhaseMessages = (phase, running, t) => {
-  if (phase === "ready") return EMPTY_PRESENTATION;
-  if (phase === "empty") {
-    return withTitle(
-      t,
-      "No providers enabled",
-      "Enable a provider in Settings to monitor usage limits.",
-    );
-  }
-  return withTitle(t, running ? "Loading provider limits…" : "Waiting for provider data…");
-};
-
-const MATRIX_MESSAGES: PhaseMessages = (phase, _running, t) => {
-  if (phase === "ready") return EMPTY_PRESENTATION;
-  return withTitle(
-    t,
-    phase === "empty"
-      ? "No providers enabled. Open Settings to enable a provider."
-      : "Reading provider limits…",
-  );
-};
-
-const COCKPIT_MESSAGES: PhaseMessages = (phase, _running, t) => {
-  if (phase === "ready") return EMPTY_PRESENTATION;
-  if (phase === "empty") {
-    return withTitle(
-      t,
-      "No providers enabled",
-      "Enable a provider in Settings to monitor usage limits.",
-    );
-  }
-  return {
-    title: t("Reading provider limits…"),
-    subtitle: t("Waiting for initial refresh to complete."),
-    placeholder: "…",
-    accessibleText: t("Refreshing…"),
-    showPlaceholder: true,
-  };
-};
-
-const PILLS_MESSAGES: PhaseMessages = (phase, _running, t) =>
-  phase === "loading" ? withPlaceholder(t, "Loading provider limits…") : EMPTY_PRESENTATION;
-
-const STATUS_GAUGES_MESSAGES: PhaseMessages = (phase, _running, t) => {
-  if (phase === "ready") return EMPTY_PRESENTATION;
-  if (phase === "empty") {
-    return withTitle(
-      t,
-      "No providers enabled",
-      "Enable a provider in Settings to monitor usage limits.",
-    );
-  }
-  return {
-    title: t("Reading provider limits…"),
-    subtitle: t("Waiting for initial refresh to complete."),
-    placeholder: "…",
-    accessibleText: t("Refreshing…"),
-    showPlaceholder: true,
-  };
-};
-
-const STATUS_COMPACT_MESSAGES: PhaseMessages = (phase, _running, t) =>
-  phase === "loading" ? withPlaceholder(t, "Reading provider limits…") : EMPTY_PRESENTATION;
 
 export interface StyleRegistry {
   readonly panel: Readonly<Record<PanelStyle, PanelStyleSpec>>;
   readonly statusBar: Readonly<Record<StatusBarStyle, StatusBarStyleSpec>>;
 }
 
-/** The one registry for both bars: ids, labels, factories, placement, footer and phase copy. */
+/** The one shell-facing registry: catalog metadata, factories and CSS strings together. */
 export const STYLE_REGISTRY: StyleRegistry = {
   panel: {
     gauges: {
-      id: "gauges",
-      label: "Tabbed cockpit & gauges",
-      surface: "cockpit",
-      messages: COCKPIT_MESSAGES,
+      ...STYLE_CATALOG.panel.gauges,
+      factory: ({ settings, createShell }) => new GaugesPanelSection(settings, createShell()),
       shellPlacement: {
         shellClass: "pl-cockpit-panel",
         scrollClass: "pl-cockpit-scroll",
@@ -173,10 +91,8 @@ export const STYLE_REGISTRY: StyleRegistry = {
       },
     },
     cards: {
-      id: "cards",
-      label: "Quick settings cards",
-      surface: "cards",
-      messages: CARD_MESSAGES,
+      ...STYLE_CATALOG.panel.cards,
+      factory: ({ createShell }) => new CardsPanelSection(createShell()),
       shellPlacement: {
         shellClass: null,
         scrollClass: "pl-panel-scroll",
@@ -196,10 +112,11 @@ export const STYLE_REGISTRY: StyleRegistry = {
       },
     },
     compact: {
-      id: "compact",
-      label: "Collapsible matrix HUD",
-      surface: "matrix",
-      messages: MATRIX_MESSAGES,
+      ...STYLE_CATALOG.panel.compact,
+      factory: ({ createShell }) => {
+        const expandAll = createExpandAllControl();
+        return new CompactPanelSection(createShell([expandAll.button]), expandAll);
+      },
       shellPlacement: {
         shellClass: null,
         scrollClass: undefined,
@@ -219,38 +136,16 @@ export const STYLE_REGISTRY: StyleRegistry = {
   },
   statusBar: {
     pills: {
-      id: "pills",
-      label: "Capsule pills",
-      surface: "pills",
-      messages: PILLS_MESSAGES,
+      ...STYLE_CATALOG.statusBar.pills,
+      factory: (parent) => new PillsStatusBarRenderer(parent),
     },
     gauges: {
-      id: "gauges",
-      label: "Micro-ring gauges",
-      surface: "gauges",
-      messages: STATUS_GAUGES_MESSAGES,
+      ...STYLE_CATALOG.statusBar.gauges,
+      factory: (parent) => new GaugesStatusBarRenderer(parent),
     },
     compact: {
-      id: "compact",
-      label: "Compact text",
-      surface: "compact",
-      messages: STATUS_COMPACT_MESSAGES,
+      ...STYLE_CATALOG.statusBar.compact,
+      factory: (parent) => new CompactStatusBarRenderer(parent),
     },
   },
 };
-
-export function isPanelStyle(value: string): value is PanelStyle {
-  return Object.hasOwn(STYLE_REGISTRY.panel, value);
-}
-
-export function isStatusBarStyle(value: string): value is StatusBarStyle {
-  return Object.hasOwn(STYLE_REGISTRY.statusBar, value);
-}
-
-export function resolveStatusBarStyle(value: string): StatusBarStyle {
-  return isStatusBarStyle(value) ? value : DEFAULT_STATUS_BAR_STYLE;
-}
-
-export function resolvePanelStyle(value: string): PanelStyle {
-  return isPanelStyle(value) ? value : DEFAULT_PANEL_STYLE;
-}

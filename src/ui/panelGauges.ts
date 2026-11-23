@@ -11,9 +11,8 @@ import { DetailRenderer } from "./panelGaugesDetail.js";
 import type { OverviewHost } from "./panelGaugesOverview.js";
 import { OverviewRenderer } from "./panelGaugesOverview.js";
 import { PanelStyleSection, type PanelRenderContext, type PanelShell } from "./panelShell.js";
-import { STYLE_REGISTRY } from "./styles.js";
 import { emptyViewContext, type ViewPhase } from "./viewContext.js";
-import { phaseResult } from "./viewMessages.js";
+import { cockpitMessages, phaseResult } from "./viewMessages.js";
 
 type BodyState =
   | { kind: "empty"; phase: ViewPhase }
@@ -76,11 +75,7 @@ export class GaugesPanelSection extends PanelStyleSection {
     const nextState = this._resolveBodyState(context.view.phase, results);
 
     if (nextState.kind === "empty") {
-      const phase = phaseResult(
-        { ...context.view, phase: nextState.phase },
-        STYLE_REGISTRY.panel.gauges,
-        false,
-      );
+      const phase = phaseResult({ ...context.view, phase: nextState.phase }, cockpitMessages);
       if (phase.kind === "placeholder") {
         this.shell.addEmptyStateRow(phase.message.title, phase.message.subtitle);
       }

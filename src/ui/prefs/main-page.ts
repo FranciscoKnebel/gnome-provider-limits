@@ -8,10 +8,10 @@ import {
   DEFAULT_STATUS_BAR_STYLE,
   PANEL_STYLES,
   STATUS_BAR_STYLES,
-  STYLE_REGISTRY,
+  STYLE_CATALOG,
   isPanelStyle,
   isStatusBarStyle,
-} from "../styles.js";
+} from "../styleCatalog.js";
 import { gettext as _ } from "./gettext.js";
 import { bindSetting, unbindSettings } from "./shared.js";
 import type { SettingsBinding } from "./shared.js";
@@ -136,7 +136,7 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
       });
 
       const statusStyleValues = STATUS_BAR_STYLES.map((style) =>
-        _(STYLE_REGISTRY.statusBar[style].label),
+        _(STYLE_CATALOG.statusBar[style].label),
       );
       const statusStyleRow = new Adw.ComboRow({
         title: _("Status bar style"),
@@ -154,7 +154,7 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
       );
       group.add(statusStyleRow);
 
-      const panelStyleValues = PANEL_STYLES.map((style) => _(STYLE_REGISTRY.panel[style].label));
+      const panelStyleValues = PANEL_STYLES.map((style) => _(STYLE_CATALOG.panel[style].label));
       const panelStyleRow = new Adw.ComboRow({
         title: _("Dropdown panel style"),
         subtitle: _("Visual presentation of details in the dropdown panel."),

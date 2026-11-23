@@ -198,16 +198,32 @@ export class CodexReader extends BaseReader<"codex"> {
     const fields: FieldResult[] = [];
 
     const windows = [
-      { key: "primary", data: rl.primary },
-      { key: "secondary", data: rl.secondary },
+      {
+        names: {
+          used: "used_percent_primary",
+          remaining: "remaining_percent_primary",
+          reset: "reset_at_primary",
+          minutes: "window_minutes_primary",
+        },
+        data: rl.primary,
+      },
+      {
+        names: {
+          used: "used_percent_secondary",
+          remaining: "remaining_percent_secondary",
+          reset: "reset_at_secondary",
+          minutes: "window_minutes_secondary",
+        },
+        data: rl.secondary,
+      },
     ] as const;
 
-    for (const { key, data } of windows) {
-      fields.push(...this._makeWindowFields(key, data));
+    for (const { names, data } of windows) {
+      fields.push(...this._makeWindowFields(names, data));
       const minutes = codexWindowMinutes(data ?? null);
       fields.push(
         this._makeField(
-          `window_minutes_${key}`,
+          names.minutes,
           minutes,
           typeof minutes === "number" && Number.isFinite(minutes)
             ? FieldStatus.OK

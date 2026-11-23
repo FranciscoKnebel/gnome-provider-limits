@@ -614,17 +614,3 @@ export const PROVIDER_FIELDS = {
 /** Field names are a type-level union sourced from the declarations above. */
 export type FieldName<P extends ProviderName = ProviderName> =
   (typeof PROVIDER_FIELDS)[P][number]["name"];
-
-type Suffix<T extends string, Prefix extends string> = T extends `${Prefix}${infer K}` ? K : never;
-
-/** Window keys reconstruct only names that actually exist in the declaration. */
-export type PercentFieldKey<P extends ProviderName = ProviderName> = Suffix<
-  FieldName<P>,
-  "used_percent_"
->;
-export type ResetFieldKey<P extends ProviderName = ProviderName> = Suffix<
-  FieldName<P>,
-  "reset_at_"
->;
-export type WindowKey<P extends ProviderName = ProviderName> = PercentFieldKey<P> &
-  ResetFieldKey<P>;

@@ -229,18 +229,35 @@ export class ClaudeReader extends BaseReader<"claude"> {
     const fields: FieldResult[] = [];
 
     const windows = [
-      { key: "session", data: payload.five_hour },
-      { key: "weekly", data: payload.seven_day },
+      {
+        names: {
+          used: "used_percent_session",
+          remaining: "remaining_percent_session",
+          reset: "reset_at_session",
+        },
+        data: payload.five_hour,
+      },
+      {
+        names: {
+          used: "used_percent_weekly",
+          remaining: "remaining_percent_weekly",
+          reset: "reset_at_weekly",
+        },
+        data: payload.seven_day,
+      },
     ] as const;
 
-    for (const { key, data } of windows) {
-      fields.push(...this._makeWindowFields(key, data));
+    for (const { names, data } of windows) {
+      fields.push(...this._makeWindowFields(names, data));
     }
 
     const sonnet = payload.seven_day_sonnet;
     fields.push(
       ...this._makePercentFieldPair(
-        "sonnet",
+        {
+          used: "used_percent_sonnet",
+          remaining: "remaining_percent_sonnet",
+        },
         sonnet?.used_percent,
         sonnet ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
       ),
@@ -249,7 +266,7 @@ export class ClaudeReader extends BaseReader<"claude"> {
     const opus = payload.seven_day_opus;
     fields.push(
       ...this._makePercentFieldPair(
-        "opus",
+        { used: "used_percent_opus", remaining: "remaining_percent_opus" },
         opus?.used_percent,
         opus ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
       ),

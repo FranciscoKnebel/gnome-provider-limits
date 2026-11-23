@@ -6,7 +6,6 @@ import { clampFillRatio, type FieldTone } from "../../src/ui/fieldRows.js";
 import {
   areAllProvidersExpanded,
   formatSegmentedBar,
-  planPanelMatrix,
   resolveProviderExpanded,
   toggleAllProvidersExpanded,
 } from "../../src/ui/matrixPlan.js";
@@ -25,6 +24,7 @@ import {
   type ProviderViewContext,
   type ViewPhase,
 } from "../../src/ui/viewContext.js";
+import { matrixMessages, phaseResult } from "../../src/ui/viewMessages.js";
 import { viewContextFromFixture, type ViewFixtureInput } from "./contextFixture.js";
 
 const SHORT_LABELS: Record<ProviderName, string> = {
@@ -295,26 +295,33 @@ describe("matrixPlan", () => {
     });
   });
 
-  describe("planPanelMatrix", () => {
-    it("returns empty and loading messages appropriately", () => {
-      const emptyPlan = planPanelMatrix(
+  describe("matrix phase and provider details from models", () => {
+    it("returns empty and loading messages from the phase copy", () => {
+      const empty = phaseResult(
         matrixContext({ activeProviders: [], results: new Map(), phase: "empty" }),
-        new Map(),
+        matrixMessages,
       );
-      expect(emptyPlan.phase).toBe("empty");
-      expect(emptyPlan.messageText).toContain("No providers enabled");
-      expect(emptyPlan.canToggleAll).toBeFalse();
+      expect(empty.kind).toBe("placeholder");
+      if (empty.kind === "placeholder") {
+        expect(empty.phase).toBe("empty");
+        expect(empty.message.title).toContain("No providers enabled");
+      }
 
-      const loadingPlan = planPanelMatrix(
-        matrixContext({ activeProviders: ["codex"], results: new Map(), phase: "loading" }),
-        new Map(),
-      );
-      expect(loadingPlan.phase).toBe("loading");
-      expect(loadingPlan.messageText).toContain("Reading provider limits");
-      expect(loadingPlan.canToggleAll).toBeFalse();
+      const loadingContext = matrixContext({
+        activeProviders: ["codex"],
+        results: new Map(),
+        phase: "loading",
+      });
+      const loading = phaseResult(loadingContext, matrixMessages);
+      expect(loading.kind).toBe("placeholder");
+      if (loading.kind === "placeholder") {
+        expect(loading.phase).toBe("loading");
+        expect(loading.message.title).toContain("Reading provider limits");
+      }
+      expect(loadingContext.models.length).toBe(0);
     });
 
-    it("splits expanded detail rows into Limits and Telemetry with micro-bars only on Limit percentages", () => {
+    it("classifies expanded detail views into Limits and Telemetry with micro-bars only on Limit percentages", () => {
       const results = new Map<ProviderName, ReaderResult>([
         [
           "opencode",
@@ -344,36 +351,31 @@ describe("matrixPlan", () => {
         ],
       ]);
 
-      const plan = planPanelMatrix(
-        matrixContext({ activeProviders: ["opencode"], results }),
-        new Map(),
-      );
+      const context = matrixContext({ activeProviders: ["opencode"], results });
+      expect(phaseResult(context, matrixMessages).kind).toBe("ready");
+      expect(context.models).toHaveSize(1);
 
-      expect(plan.phase).toBe("ready");
-      expect(plan.allExpanded).toBeTrue();
-      expect(plan.providers).toHaveSize(1);
+      const model = context.models[0];
+      const facts = model.facts;
+      expect(
+        resolveProviderExpanded(model.provider, context.activeProviders.length, new Map()),
+      ).toBeTrue();
+      expect(facts.badges.status).toBe("(partial)");
+      expect(facts.usage.header.fillRatio).toBe(0.75);
+      expect(formatSegmentedBar(facts.usage.header.fillRatio ?? 0, 5)).toBe("▰▰▰▰▱");
+      expect(facts.usage.header.tone).toBe("warning");
+      expect(facts.diagnostic.detailText).toBe("Showing recent cached limits");
+      expect(facts.lastUpdatedText).toContain("Last updated:");
 
-      const oc = plan.providers[0];
-      expect(oc.expanded).toBeTrue();
-      expect(oc.chevron).toBe("▾");
-      expect(oc.statusBadge).toBe("(partial)");
-      expect(oc.fillRatio).toBe(0.75);
-      expect(oc.fiveSegmentBar).toBe("▰▰▰▰▱");
-      expect(oc.headerTone).toBe("warning");
-      expect(oc.detailText).toBe("Showing recent cached limits");
-      expect(oc.lastUpdatedText).toContain("Last updated:");
-
-      expect(oc.groups).toHaveSize(2);
-      expect(oc.groups[0].category).toBe("limit");
-      expect(oc.groups[0].title).toBe("Limits");
-      expect(oc.groups[0].rows[0].microBar).toBe("▰▰▰▰▱▱▱▱");
-      expect(oc.groups[0].rows[0].tone).toBe("warning");
-
-      expect(oc.groups[1].category).toBe("telemetry");
-      expect(oc.groups[1].title).toBe("Telemetry");
-      expect(oc.groups[1].rows[0].microBar).toBeNull();
-      expect(oc.groups[1].rows[1].valueText).toBe("—");
-      expect(oc.groups[1].rows[1].errorText).toBe("db locked");
+      const classified = facts.viewsIncludingConsumedResets;
+      expect(classified.limit.all.length).toBeGreaterThan(0);
+      expect(classified.telemetry.all.length).toBeGreaterThan(0);
+      expect(classified.limit.all[0].type).toBe("percent");
+      expect(formatSegmentedBar(classified.limit.all[0].ratio ?? 0, 8)).toBe("▰▰▰▰▱▱▱▱");
+      expect(classified.limit.all[0].tone).toBe("warning");
+      expect(classified.telemetry.all[0].type).toBe("cost");
+      expect(classified.telemetry.all[1].valueText).toBe("—");
+      expect(classified.telemetry.all[1].errorText).toBe("db locked");
     });
 
     it("normalizes remaining_percent, limit_reached, empty statusFields fallback, and collapsed groups", () => {
@@ -444,51 +446,43 @@ describe("matrixPlan", () => {
         ],
       ]);
 
-      const collapsedPlan = planPanelMatrix(
-        matrixContext({
-          activeProviders: ["codex", "claude", "grok"],
-          results,
-          statusFields: { ...STATUS_FIELDS, grok: [] },
-          panelFields: { ...PANEL_FIELDS, grok: ["remaining_percent_credits", "limit_reached"] },
-          fieldDefs: { ...PROVIDER_FIELDS, grok: customDefs },
-        }),
-        new Map(),
-      );
+      const collapsedContext = matrixContext({
+        activeProviders: ["codex", "claude", "grok"],
+        results,
+        statusFields: { ...STATUS_FIELDS, grok: [] },
+        panelFields: { ...PANEL_FIELDS, grok: ["remaining_percent_credits", "limit_reached"] },
+        fieldDefs: { ...PROVIDER_FIELDS, grok: customDefs },
+      });
+      const noOverrides = new Map<ProviderName, boolean>();
+      expect(areAllProvidersExpanded(collapsedContext.activeProviders, 3, noOverrides)).toBeFalse();
+      const grokCollapsed = collapsedContext.models.find((model) => model.provider === "grok");
+      expect(resolveProviderExpanded("grok", 3, noOverrides)).toBeFalse();
+      expect(grokCollapsed?.facts.usage.header.fillRatio).toBe(1);
+      expect(grokCollapsed?.facts.usage.header.tone).toBe("critical");
+      expect(grokCollapsed?.facts.usage.header.summaryText).toContain("30%");
 
-      expect(collapsedPlan.allExpanded).toBeFalse();
-      const grokCollapsed = collapsedPlan.providers.find((p) => p.provider === "grok");
-      expect(grokCollapsed?.expanded).toBeFalse();
-      expect(grokCollapsed?.chevron).toBe("▸");
-      expect(grokCollapsed?.groups).toEqual([]);
-      expect(grokCollapsed?.fillRatio).toBe(1);
-      expect(grokCollapsed?.headerTone).toBe("critical");
-      expect(grokCollapsed?.primarySummary).toContain("30%");
+      const overrides = new Map<ProviderName, boolean>([
+        ["grok", true],
+        ["codex", true],
+        ["claude", true],
+      ]);
+      const expandedContext = matrixContext({
+        activeProviders: ["codex", "claude", "grok"],
+        results,
+        statusFields: { ...STATUS_FIELDS, grok: [] },
+        panelFields: { ...PANEL_FIELDS, grok: ["remaining_percent_credits", "limit_reached"] },
+        fieldDefs: { ...PROVIDER_FIELDS, grok: customDefs },
+      });
+      const grokExpanded = expandedContext.models.find((model) => model.provider === "grok");
+      expect(resolveProviderExpanded("grok", 3, overrides)).toBeTrue();
+      expect(grokExpanded?.facts.viewsIncludingConsumedResets.limit.all[1].tone).toBe("critical");
 
-      const expandedPlan = planPanelMatrix(
-        matrixContext({
-          activeProviders: ["codex", "claude", "grok"],
-          results,
-          statusFields: { ...STATUS_FIELDS, grok: [] },
-          panelFields: { ...PANEL_FIELDS, grok: ["remaining_percent_credits", "limit_reached"] },
-          fieldDefs: { ...PROVIDER_FIELDS, grok: customDefs },
-        }),
-        new Map<ProviderName, boolean>([
-          ["grok", true],
-          ["codex", true],
-          ["claude", true],
-        ]),
-      );
+      const codexExpanded = expandedContext.models.find((model) => model.provider === "codex");
+      expect(codexExpanded?.facts.diagnostic.errorText).toBe("Codex login required");
 
-      const grokExpanded = expandedPlan.providers.find((p) => p.provider === "grok");
-      expect(grokExpanded?.groups[0].rows[1].tone).toBe("critical");
-
-      const codexExpanded = expandedPlan.providers.find((p) => p.provider === "codex");
-      expect(codexExpanded?.errorText).toBe("Codex login required");
-      expect(codexExpanded?.groups).toEqual([]);
-
-      const claudeExpanded = expandedPlan.providers.find((p) => p.provider === "claude");
-      expect(claudeExpanded?.primarySummary).toBe("(unavailable)");
-      expect(claudeExpanded?.errorText).toBe("Error");
+      const claudeExpanded = expandedContext.models.find((model) => model.provider === "claude");
+      expect(claudeExpanded?.facts.usage.header.summaryText).toBe("(unavailable)");
+      expect(claudeExpanded?.facts.diagnostic.errorText).toBe("Error");
     });
   });
 

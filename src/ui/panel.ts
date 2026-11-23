@@ -2,37 +2,13 @@ import type Gio from "gi://Gio";
 import type St from "gi://St";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
-import { CardsPanelSection } from "./panelCardsRenderer.js";
-import { CompactPanelSection, createExpandAllControl } from "./panelCompact.js";
-import { GaugesPanelSection } from "./panelGauges.js";
 import { PanelShell, type PanelStyleSection } from "./panelShell.js";
-import {
-  STYLE_REGISTRY,
-  resolvePanelStyle,
-  type PanelStyle,
-  type PanelStyleSpec,
-} from "./styles.js";
+import { resolvePanelStyle, type PanelStyle } from "./styleCatalog.js";
+import { STYLE_REGISTRY, type PanelStyleSpec } from "./styles.js";
 import type { ProviderViewContext } from "./viewContext.js";
 
-export type { PanelStyle } from "./styles.js";
+export type { PanelStyle } from "./styleCatalog.js";
 export type { PanelStyleSection } from "./panelShell.js";
-
-interface SectionHost {
-  readonly settings: Gio.Settings;
-  readonly createShell: (extraControls?: readonly St.Widget[]) => PanelShell;
-}
-
-type SectionFactory = (host: SectionHost) => PanelStyleSection;
-
-/** The consumer-side mapping from a spec id to its concrete section. */
-const SECTION_FACTORIES: Record<PanelStyle, SectionFactory> = {
-  gauges: ({ settings, createShell }) => new GaugesPanelSection(settings, createShell()),
-  cards: ({ createShell }) => new CardsPanelSection(createShell()),
-  compact: ({ createShell }) => {
-    const expandAll = createExpandAllControl();
-    return new CompactPanelSection(createShell([expandAll.button]), expandAll);
-  },
-};
 
 export class PanelWidget extends PopupMenu.PopupMenuSection {
   private readonly _settings: Gio.Settings;
@@ -87,7 +63,7 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     this._currentSection = null;
 
     this._currentStyle = spec.id;
-    const section = SECTION_FACTORIES[spec.id]({
+    const section = spec.factory({
       settings: this._settings,
       createShell: (extraControls) => this._createShell(spec, extraControls),
     });
@@ -95,6 +71,7 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     this._currentShell = section.shell;
     this.addMenuItem(section.shell);
     section.shell.setRunning(running);
+    section.setRunning(running);
     return section;
   }
 
@@ -106,6 +83,7 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
 
   setRunning(running: boolean): void {
     this._currentShell?.setRunning(running);
+    this._currentSection?.setRunning(running);
   }
 
   override destroy(): void {

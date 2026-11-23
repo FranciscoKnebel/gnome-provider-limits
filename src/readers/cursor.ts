@@ -296,12 +296,27 @@ export class CursorReader extends BaseReader<"cursor"> {
     const optionalField = <T>(name: FieldName<"cursor">, value: T | null) =>
       this._makeField(name, value, value !== null ? FieldStatus.OK : FieldStatus.UNAVAILABLE);
     return [
-      ...this._makeWindowFields("credits", {
-        used_percent: usage.usedPercentCredits,
-        reset_at: resetAtCredits,
-      }),
-      ...this._makePercentFieldPair("auto", usage.usedPercentAuto, FieldStatus.OK),
-      ...this._makePercentFieldPair("api", usage.usedPercentApi, FieldStatus.OK),
+      ...this._makeWindowFields(
+        {
+          used: "used_percent_credits",
+          remaining: "remaining_percent_credits",
+          reset: "reset_at_credits",
+        },
+        {
+          used_percent: usage.usedPercentCredits,
+          reset_at: resetAtCredits,
+        },
+      ),
+      ...this._makePercentFieldPair(
+        { used: "used_percent_auto", remaining: "remaining_percent_auto" },
+        usage.usedPercentAuto,
+        FieldStatus.OK,
+      ),
+      ...this._makePercentFieldPair(
+        { used: "used_percent_api", remaining: "remaining_percent_api" },
+        usage.usedPercentApi,
+        FieldStatus.OK,
+      ),
       optionalField("remaining_credits", usage.remainingCredits),
       optionalField("spend_limit_used", usage.spendLimitUsed),
       optionalField("limit_reached", usage.limitReached),

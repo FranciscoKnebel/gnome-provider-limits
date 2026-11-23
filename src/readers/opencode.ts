@@ -173,15 +173,36 @@ export class OpenCodeReader extends BaseReader<"opencode"> {
     const fields: FieldResult[] = [];
 
     const windows = [
-      { key: "rolling", data: usage?.rolling },
-      { key: "weekly", data: usage?.weekly },
-      { key: "monthly", data: usage?.monthly },
+      {
+        names: {
+          used: "used_percent_rolling",
+          remaining: "remaining_percent_rolling",
+          reset: "reset_at_rolling",
+        },
+        data: usage?.rolling,
+      },
+      {
+        names: {
+          used: "used_percent_weekly",
+          remaining: "remaining_percent_weekly",
+          reset: "reset_at_weekly",
+        },
+        data: usage?.weekly,
+      },
+      {
+        names: {
+          used: "used_percent_monthly",
+          remaining: "remaining_percent_monthly",
+          reset: "reset_at_monthly",
+        },
+        data: usage?.monthly,
+      },
     ] as const;
 
-    for (const { key, data } of windows) {
+    for (const { names, data } of windows) {
       fields.push(
         ...this._makeWindowFields(
-          key,
+          names,
           data ? { used_percent: data.percent, reset_at: data.reset_at } : null,
         ),
       );

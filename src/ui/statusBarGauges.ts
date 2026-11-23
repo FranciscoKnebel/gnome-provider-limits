@@ -1,84 +1,32 @@
 import Clutter from "gi://Clutter";
 import St from "gi://St";
 
-import type { ProviderName } from "../constants.js";
-import { ReaderStatus } from "../readers/base.js";
 import { connectRepaint, drawMicroRing } from "./cairoDrawing.js";
-import type { FieldView } from "./fieldViews.js";
-import type { GaugeSpec } from "./gaugeTypes.js";
-import { StatusBarRenderer, type ZonePlan } from "./statusBarRenderer.js";
-import { STYLE_REGISTRY } from "./styles.js";
+import { StatusBarRenderer } from "./statusBarRenderer.js";
 import { applyToneClass } from "./tone.js";
 import type { ProviderViewContext } from "./viewContext.js";
-import { phaseResult } from "./viewMessages.js";
+import { phaseResult, statusGaugesMessages } from "./viewMessages.js";
 
 const MICRO_GAUGE_SIZE = 14;
 
-interface GaugeRowPlan {
-  readonly view: FieldView;
-  readonly valueText: string;
-  readonly accessibleText: string;
-}
-
-interface GaugeSegmentPlan {
-  provider: ProviderName;
-  displayName: string;
-  status: ReaderStatus;
-  meter: GaugeSpec;
-  rows: readonly GaugeRowPlan[];
-}
-
-type GaugesPlan = ZonePlan<GaugeSegmentPlan>;
-
-function planGauges(context: ProviderViewContext): GaugesPlan {
-  const phase = phaseResult(context, STYLE_REGISTRY.statusBar.gauges, false);
-  if (phase.kind === "placeholder") {
-    return {
-      kind: "placeholder",
-      phase: phase.phase,
-      placeholder: phase.message.placeholder,
-      placeholderAccessibleText: phase.message.accessibleText,
-      showPlaceholder: phase.message.showPlaceholder,
-    };
-  }
-
-  const segments: GaugeSegmentPlan[] = context.models.map((model) => ({
-    provider: model.provider,
-    displayName: model.shortDisplayName,
-    status: model.result.status,
-    meter: model.facts.meter,
-    rows: model.statusViews.map((view) => ({
-      view,
-      valueText: view.valueText,
-      accessibleText: view.accessibleText,
-    })),
-  }));
-
-  return { kind: "segments", segments };
-}
-
-/** Rebuilds the micro-gauge status bar from one freshly derived plan. */
-export class GaugesStatusBarRenderer extends StatusBarRenderer<GaugesPlan> {
-  protected plan(context: ProviderViewContext): GaugesPlan {
-    return planGauges(context);
-  }
-
-  protected override renderPlan(plan: GaugesPlan): void {
+/** Rebuilds the micro-gauge status bar from one freshly derived view. */
+export class GaugesStatusBarRenderer extends StatusBarRenderer {
+  protected override renderView(context: ProviderViewContext): void {
     if (
-      this.renderPlaceholder(plan, (placeholder) => {
+      this.renderPlaceholder(phaseResult(context, statusGaugesMessages), (message) => {
         const label = new St.Label({
-          text: placeholder.placeholder ?? "",
+          text: message.placeholder,
           style_class: "pl-status-placeholder",
           y_align: Clutter.ActorAlign.CENTER,
         });
-        label.accessible_name = placeholder.placeholderAccessibleText;
+        label.accessible_name = message.accessibleText;
         return label;
       })
     ) {
       return;
     }
 
-    for (const segmentPlan of plan.segments) {
+    for (const model of context.models) {
       const segment = new St.BoxLayout({
         style_class: "pl-micro-gauge-segment",
         y_align: Clutter.ActorAlign.CENTER,
@@ -90,24 +38,24 @@ export class GaugesStatusBarRenderer extends StatusBarRenderer<GaugesPlan> {
         style_class: "pl-micro-gauge-canvas",
         y_align: Clutter.ActorAlign.CENTER,
       });
-      connectRepaint(gaugeArea, drawMicroRing, segmentPlan.meter);
+      connectRepaint(gaugeArea, drawMicroRing, model.facts.meter);
       segment.add_child(gaugeArea);
 
       const nameLabel = new St.Label({
-        text: segmentPlan.displayName,
+        text: model.shortDisplayName,
         style_class: "provider-limits-provider-label",
         y_align: Clutter.ActorAlign.CENTER,
       });
       segment.add_child(nameLabel);
 
-      for (const row of segmentPlan.rows) {
+      for (const view of model.statusViews) {
         const valueLabel = new St.Label({
-          text: row.valueText,
+          text: view.valueText,
           style_class: "pl-status-value",
           y_align: Clutter.ActorAlign.CENTER,
         });
-        valueLabel.accessible_name = row.accessibleText;
-        applyToneClass(valueLabel, row.view.tone);
+        valueLabel.accessible_name = view.accessibleText;
+        applyToneClass(valueLabel, view.tone);
         segment.add_child(valueLabel);
       }
 

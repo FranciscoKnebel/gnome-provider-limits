@@ -1,92 +1,48 @@
 import Clutter from "gi://Clutter";
 import St from "gi://St";
 
-import type { ProviderName } from "../constants.js";
 import { ReaderStatus } from "../readers/base.js";
-import { StatusBarRenderer, type ZonePlan } from "./statusBarRenderer.js";
-import { STYLE_REGISTRY } from "./styles.js";
-import { applyStatusAttentionClass, type StatusAttention } from "./tone.js";
+import { StatusBarRenderer } from "./statusBarRenderer.js";
+import { applyStatusAttentionClass } from "./tone.js";
 import type { ProviderViewContext } from "./viewContext.js";
-import { phaseResult } from "./viewMessages.js";
+import { phaseResult, statusCompactMessages } from "./viewMessages.js";
 
-interface CompactBadgePlan {
-  provider: ProviderName;
-  shortLabel: string;
-  metricsText: string;
-  attention: StatusAttention;
-  accessibleText: string;
-}
-
-type CompactPlan = ZonePlan<CompactBadgePlan>;
-
-function planCompact(context: ProviderViewContext): CompactPlan {
-  const phase = phaseResult(context, STYLE_REGISTRY.statusBar.compact, false);
-  if (phase.kind === "placeholder") {
-    return {
-      kind: "placeholder",
-      phase: phase.phase,
-      placeholder: phase.message.placeholder,
-      placeholderAccessibleText: phase.message.accessibleText,
-      showPlaceholder: phase.message.showPlaceholder,
-    };
-  }
-
-  const segments: CompactBadgePlan[] = context.models.map((model) => {
-    const { health, badges } = model.facts;
-    const shortLabel = model.shortDisplayName || model.provider;
-    const badgeWord = badges.status;
-
-    if (health.state === "error" || health.state === "unavailable") {
-      return {
-        provider: model.provider,
-        shortLabel,
-        metricsText: "!",
-        attention: health.attention,
-        accessibleText: `${shortLabel} ${badgeWord}`.trim(),
-      };
-    }
-
-    const joined = model.statusViews.map((view) => view.valueText).join("·");
-    const prefix = model.result.status === ReaderStatus.PARTIAL ? "~" : "";
-    const metricsText = joined ? `${prefix}${joined}` : prefix;
-    const spokenRows = model.statusViews.map((view) => view.accessibleText).join(", ");
-    const headerPart = badgeWord ? `${shortLabel} ${badgeWord}` : shortLabel;
-    const accessibleText = spokenRows ? `${headerPart}: ${spokenRows}` : headerPart;
-
-    return {
-      provider: model.provider,
-      shortLabel,
-      metricsText,
-      attention: health.attention,
-      accessibleText,
-    };
-  });
-
-  return { kind: "segments", segments };
-}
-
-/** Rebuilds the compact status bar from one freshly derived plan. */
-export class CompactStatusBarRenderer extends StatusBarRenderer<CompactPlan> {
-  protected plan(context: ProviderViewContext): CompactPlan {
-    return planCompact(context);
-  }
-
-  protected override renderPlan(plan: CompactPlan): void {
+/** Rebuilds the compact status bar from one freshly derived view. */
+export class CompactStatusBarRenderer extends StatusBarRenderer {
+  protected override renderView(context: ProviderViewContext): void {
     if (
-      this.renderPlaceholder(plan, (placeholder) => {
+      this.renderPlaceholder(phaseResult(context, statusCompactMessages), (message) => {
         const label = new St.Label({
-          text: placeholder.placeholder ?? "",
+          text: message.placeholder,
           style_class: "provider-limits-status-placeholder provider-limits-tnum",
           y_align: Clutter.ActorAlign.CENTER,
         });
-        label.accessible_name = placeholder.placeholderAccessibleText;
+        label.accessible_name = message.accessibleText;
         return label;
       })
     ) {
       return;
     }
 
-    plan.segments.forEach((badge, index) => {
+    context.models.forEach((model, index) => {
+      const { health, badges } = model.facts;
+      const shortLabel = model.shortDisplayName || model.provider;
+      const badgeWord = badges.status;
+      let metricsText: string;
+      let accessibleText: string;
+
+      if (health.state === "error" || health.state === "unavailable") {
+        metricsText = "!";
+        accessibleText = `${shortLabel} ${badgeWord}`.trim();
+      } else {
+        const joined = model.statusViews.map((view) => view.valueText).join("·");
+        const prefix = model.result.status === ReaderStatus.PARTIAL ? "~" : "";
+        metricsText = joined ? `${prefix}${joined}` : prefix;
+        const spokenRows = model.statusViews.map((view) => view.accessibleText).join(", ");
+        const headerPart = badgeWord ? `${shortLabel} ${badgeWord}` : shortLabel;
+        accessibleText = spokenRows ? `${headerPart}: ${spokenRows}` : headerPart;
+      }
+
       const segment = new St.BoxLayout({
         style_class:
           index > 0
@@ -94,28 +50,28 @@ export class CompactStatusBarRenderer extends StatusBarRenderer<CompactPlan> {
             : "provider-limits-status-segment",
         y_align: Clutter.ActorAlign.CENTER,
       });
-      segment.accessible_name = badge.accessibleText;
+      segment.accessible_name = accessibleText;
 
       const nameLabel = new St.Label({
-        text: badge.shortLabel,
+        text: shortLabel,
         style_class: "provider-limits-provider-label",
         y_align: Clutter.ActorAlign.CENTER,
       });
-      nameLabel.accessible_name = badge.shortLabel;
+      nameLabel.accessible_name = shortLabel;
       segment.add_child(nameLabel);
 
       let metricsLabel: St.Label | null = null;
-      if (badge.metricsText) {
+      if (metricsText) {
         metricsLabel = new St.Label({
-          text: badge.metricsText,
+          text: metricsText,
           style_class: "provider-limits-status-metrics provider-limits-tnum",
           y_align: Clutter.ActorAlign.CENTER,
         });
-        metricsLabel.accessible_name = badge.accessibleText;
+        metricsLabel.accessible_name = accessibleText;
         segment.add_child(metricsLabel);
       }
 
-      applyStatusAttentionClass(segment, metricsLabel ?? nameLabel, badge.attention);
+      applyStatusAttentionClass(segment, metricsLabel ?? nameLabel, health.attention);
       this.parent.add_child(segment);
     });
   }

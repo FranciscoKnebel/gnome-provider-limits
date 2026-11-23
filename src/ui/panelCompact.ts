@@ -5,16 +5,19 @@ import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { bindActivation } from "../helpers/keyboard.js";
 import { ReaderStatus } from "../readers/base.js";
+import type { ProviderDisplayModel } from "./displayModel.js";
 import { clampFillRatio } from "./fieldRows.js";
+import type { FieldView, UsageFacts } from "./fieldViews.js";
 import {
-  planPanelMatrix,
+  areAllProvidersExpanded,
+  formatSegmentedBar,
   resolveProviderExpanded,
   toggleAllProvidersExpanded,
 } from "./matrixPlan.js";
-import type { MatrixDetailRow, PanelMatrixPlan, ProviderMatrixPlan } from "./matrixPlan.js";
 import { PanelStyleSection, type PanelRenderContext, type PanelShell } from "./panelShell.js";
 import { applyQuietToneClass, applyToneClass } from "./tone.js";
 import { emptyViewContext, type ProviderViewContext } from "./viewContext.js";
+import { matrixMessages, phaseResult } from "./viewMessages.js";
 
 export interface ExpandAllControl {
   readonly button: St.Button;
@@ -40,7 +43,7 @@ export function createExpandAllControl(): ExpandAllControl {
   return { button, label };
 }
 
-/** Rebuilds the compact panel body from one freshly derived plan. */
+/** Rebuilds the compact panel body from the canonical models and their facts. */
 export class CompactPanelSection extends PanelStyleSection {
   private _lastRefreshAt: number | null = null;
   private _lastView: ProviderViewContext;
@@ -60,26 +63,27 @@ export class CompactPanelSection extends PanelStyleSection {
   override render(context: PanelRenderContext): void {
     this._lastRefreshAt = context.lastRefreshAt;
     this._lastView = context.view;
-    const plan = this._buildPlan(context.view);
 
+    const phase = phaseResult(context.view, matrixMessages);
     this.shell.clearBody();
-    if (plan.phase !== "ready") {
-      if (plan.messageText) this.shell.addEmptyStateRow(plan.messageText);
+    if (phase.kind === "placeholder") {
+      this.shell.addEmptyStateRow(phase.message.title);
     } else {
-      plan.providers.forEach((providerPlan, index) => {
-        this._addProviderSection(providerPlan, index > 0);
+      const models = context.view.models;
+      models.forEach((model, index) => {
+        const expanded = resolveProviderExpanded(
+          model.provider,
+          context.view.activeProviders.length,
+          this._expandedOverrides,
+        );
+        this._addProviderSection(model, index > 0, expanded);
       });
     }
-    this._syncToolbar(plan);
-  }
-
-  private _buildPlan(view: ProviderViewContext): PanelMatrixPlan {
-    return planPanelMatrix(view, this._expandedOverrides);
+    this._syncToolbar();
   }
 
   private _toggleProvider(provider: ProviderName, forceState?: boolean): void {
-    const plan = this._buildPlan(this._lastView);
-    const enabledCount = plan.providers.length;
+    const enabledCount = this._lastView.models.length;
     const current = resolveProviderExpanded(provider, enabledCount, this._expandedOverrides);
     const next = forceState ?? !current;
     if (next === current) return;
@@ -88,9 +92,8 @@ export class CompactPanelSection extends PanelStyleSection {
   }
 
   private _toggleAllProviders(): void {
-    const plan = this._buildPlan(this._lastView);
-    if (!plan.canToggleAll) return;
-    const providers = plan.providers.map((p) => p.provider);
+    const providers = this._lastView.models.map((model) => model.provider);
+    if (providers.length === 0) return;
     this._expandedOverrides = toggleAllProvidersExpanded(
       providers,
       providers.length,
@@ -99,29 +102,51 @@ export class CompactPanelSection extends PanelStyleSection {
     this.render({ lastRefreshAt: this._lastRefreshAt, view: this._lastView });
   }
 
-  private _syncToolbar(plan: PanelMatrixPlan): void {
-    this._expandAll.button.visible = plan.canToggleAll;
-    this._expandAll.label.text = plan.allExpanded ? "▴" : "▾";
-    this._expandAll.button.accessible_name = plan.allExpanded ? _("Collapse all") : _("Expand all");
+  private _syncToolbar(): void {
+    const providers = this._lastView.activeProviders;
+    const allExpanded = areAllProvidersExpanded(
+      providers,
+      providers.length,
+      this._expandedOverrides,
+    );
+    this._expandAll.button.visible = this._lastView.models.length > 0;
+    this._expandAll.label.text = allExpanded ? "▴" : "▾";
+    this._expandAll.button.accessible_name = allExpanded ? _("Collapse all") : _("Expand all");
   }
 
-  private _addProviderSection(plan: ProviderMatrixPlan, divided: boolean): void {
+  private _addProviderSection(
+    model: ProviderDisplayModel,
+    divided: boolean,
+    expanded: boolean,
+  ): void {
+    const facts = model.facts;
+    const header = facts.usage.header;
+    const statusBadge = facts.badges.status;
+    const fiveSegmentBar = header.fillRatio !== null ? formatSegmentedBar(header.fillRatio, 5) : "";
+    const headerTone = header.tone;
+    const showRows = facts.diagnostic.errorText === null;
+
+    const accessibleParts = [model.displayName];
+    if (statusBadge) accessibleParts.push(statusBadge);
+    if (header.summaryText) accessibleParts.push(header.summaryText);
+    const headerAccessibleName = accessibleParts.join(" ");
+
     const headerRow = this.shell.addStaticRow();
     headerRow.add_style_class_name("provider-limits-matrix-header");
     if (divided) {
       headerRow.add_style_class_name("provider-limits-matrix-group-divided");
     }
-    headerRow.accessible_name = plan.headerAccessibleName;
-    bindActivation(headerRow, () => this._toggleProvider(plan.provider), {
+    headerRow.accessible_name = headerAccessibleName;
+    bindActivation(headerRow, () => this._toggleProvider(model.provider), {
       pointerSignals: ["button-release-event"],
       onOtherKey: (event) => {
         const symbol = event.get_key_symbol();
         if (symbol === Clutter.KEY_Left) {
-          this._toggleProvider(plan.provider, false);
+          this._toggleProvider(model.provider, false);
           return Clutter.EVENT_STOP;
         }
         if (symbol === Clutter.KEY_Right) {
-          this._toggleProvider(plan.provider, true);
+          this._toggleProvider(model.provider, true);
           return Clutter.EVENT_STOP;
         }
         return Clutter.EVENT_PROPAGATE;
@@ -147,26 +172,26 @@ export class CompactPanelSection extends PanelStyleSection {
     });
 
     const chevronLabel = new St.Label({
-      text: plan.chevron,
+      text: expanded ? "▾" : "▸",
       style_class: "provider-limits-chevron",
       y_align: Clutter.ActorAlign.CENTER,
     });
     leftTitleBox.add_child(chevronLabel);
 
     const titleLabel = new St.Label({
-      text: plan.displayName,
+      text: model.displayName,
       style_class: "provider-limits-panel-header",
       y_align: Clutter.ActorAlign.CENTER,
     });
     leftTitleBox.add_child(titleLabel);
 
-    if (plan.statusBadge) {
+    if (statusBadge) {
       const badgeLabel = new St.Label({
-        text: plan.statusBadge,
+        text: statusBadge,
         style_class: "provider-limits-status-badge",
         y_align: Clutter.ActorAlign.CENTER,
       });
-      applyQuietToneClass(badgeLabel, plan.status === ReaderStatus.PARTIAL ? "warning" : "error");
+      applyQuietToneClass(badgeLabel, model.status === ReaderStatus.PARTIAL ? "warning" : "error");
       leftTitleBox.add_child(badgeLabel);
     }
 
@@ -176,23 +201,23 @@ export class CompactPanelSection extends PanelStyleSection {
       y_align: Clutter.ActorAlign.CENTER,
     });
 
-    if (plan.fiveSegmentBar) {
+    if (fiveSegmentBar) {
       const fiveSegLabel = new St.Label({
-        text: plan.fiveSegmentBar,
+        text: fiveSegmentBar,
         style_class: "provider-limits-micro-bar",
         y_align: Clutter.ActorAlign.CENTER,
       });
-      applyQuietToneClass(fiveSegLabel, plan.headerTone);
+      applyQuietToneClass(fiveSegLabel, headerTone);
       rightSummaryBox.add_child(fiveSegLabel);
     }
 
     const summaryLabel = new St.Label({
-      text: plan.primarySummary,
+      text: header.summaryText,
       style_class: "provider-limits-header-summary provider-limits-tnum",
       x_align: Clutter.ActorAlign.END,
       y_align: Clutter.ActorAlign.CENTER,
     });
-    applyQuietToneClass(summaryLabel, plan.headerTone);
+    applyQuietToneClass(summaryLabel, headerTone);
     rightSummaryBox.add_child(summaryLabel);
 
     topLine.add_child(leftTitleBox);
@@ -210,17 +235,17 @@ export class CompactPanelSection extends PanelStyleSection {
     });
     hairlineTrack.add_child(hairlineFill);
 
-    const fillState = { ratio: plan.fillRatio };
+    const fillState = { ratio: header.fillRatio };
     hairlineTrack.connect("notify::width", () => {
       this._updateHairlineWidth(hairlineTrack, hairlineFill, fillState.ratio);
     });
-    this._syncHairlineBar(hairlineTrack, hairlineFill, plan.fillRatio, plan.headerTone);
+    this._syncHairlineBar(hairlineTrack, hairlineFill, header.fillRatio, headerTone);
 
     headerStack.add_child(hairlineTrack);
     headerRow.add_child(headerStack);
     this.shell.addBodyItem(headerRow);
 
-    if (!plan.expanded) return;
+    if (!expanded) return;
 
     const detailRow = this.shell.addStaticRow();
     detailRow.add_style_class_name("provider-limits-matrix-detail");
@@ -231,59 +256,75 @@ export class CompactPanelSection extends PanelStyleSection {
       style_class: "provider-limits-matrix-table",
     });
 
-    if (plan.detailText !== null) {
+    if (facts.diagnostic.detailText !== null) {
       const detailLabel = new St.Label({
-        text: plan.detailText,
+        text: facts.diagnostic.detailText,
         style_class: "provider-limits-callout-partial",
         x_expand: true,
         x_align: Clutter.ActorAlign.START,
       });
       detailLabel.clutter_text.line_wrap = true;
-      detailLabel.accessible_name = plan.detailText;
+      detailLabel.accessible_name = facts.diagnostic.detailText;
       table.add_child(detailLabel);
     }
 
-    if (plan.errorText !== null) {
+    if (facts.diagnostic.errorText !== null) {
       const errorLabel = new St.Label({
-        text: plan.errorText,
+        text: facts.diagnostic.errorText,
         style_class: "provider-limits-callout-error provider-limits-error",
         x_expand: true,
         x_align: Clutter.ActorAlign.START,
       });
       errorLabel.clutter_text.line_wrap = true;
-      errorLabel.accessible_name = plan.errorText;
+      errorLabel.accessible_name = facts.diagnostic.errorText;
       table.add_child(errorLabel);
     }
 
-    for (const groupPlan of plan.groups) {
-      const heading = new St.Label({
-        text: groupPlan.title,
-        style_class: "provider-limits-group-heading",
-        x_expand: true,
-        x_align: Clutter.ActorAlign.START,
-      });
-      heading.accessible_name = groupPlan.title;
-      table.add_child(heading);
+    if (showRows) {
+      const classified = facts.viewsIncludingConsumedResets;
+      const t = this._lastView.t;
+      if (classified.limit.all.length > 0) {
+        this._addGroup(table, t("Limits"), classified.limit.all);
+      }
+      if (classified.telemetry.all.length > 0) {
+        this._addGroup(table, t("Telemetry"), classified.telemetry.all);
+      }
 
-      for (const rowPlan of groupPlan.rows) this._buildMatrixRow(table, rowPlan);
-    }
-
-    if (plan.lastUpdatedText !== null) {
-      const lastUpdatedLabel = new St.Label({
-        text: plan.lastUpdatedText,
-        style_class: "provider-limits-dim provider-limits-last-updated provider-limits-tnum",
-        x_expand: true,
-        x_align: Clutter.ActorAlign.START,
-      });
-      lastUpdatedLabel.accessible_name = plan.lastUpdatedText;
-      table.add_child(lastUpdatedLabel);
+      if (facts.lastUpdatedText !== null) {
+        const lastUpdatedLabel = new St.Label({
+          text: facts.lastUpdatedText,
+          style_class: "provider-limits-dim provider-limits-last-updated provider-limits-tnum",
+          x_expand: true,
+          x_align: Clutter.ActorAlign.START,
+        });
+        lastUpdatedLabel.accessible_name = facts.lastUpdatedText;
+        table.add_child(lastUpdatedLabel);
+      }
     }
 
     detailRow.add_child(table);
     this.shell.addBodyItem(detailRow);
   }
 
-  private _buildMatrixRow(table: St.BoxLayout, rowPlan: MatrixDetailRow): void {
+  private _addGroup(table: St.BoxLayout, title: string, rows: readonly FieldView[]): void {
+    const heading = new St.Label({
+      text: title,
+      style_class: "provider-limits-group-heading",
+      x_expand: true,
+      x_align: Clutter.ActorAlign.START,
+    });
+    heading.accessible_name = title;
+    table.add_child(heading);
+
+    for (const view of rows) this._buildMatrixRow(table, view);
+  }
+
+  private _buildMatrixRow(table: St.BoxLayout, view: FieldView): void {
+    const microBar =
+      view.type === "percent" && view.category === "limit" && view.ratio !== null
+        ? formatSegmentedBar(view.ratio, 8)
+        : null;
+
     const line = new St.BoxLayout({
       x_expand: true,
       style_class: "provider-limits-matrix-row",
@@ -291,46 +332,46 @@ export class CompactPanelSection extends PanelStyleSection {
     });
 
     const labelLabel = new St.Label({
-      text: rowPlan.labelText,
+      text: view.labelText,
       style_class: "provider-limits-field-label",
       x_expand: true,
       x_align: Clutter.ActorAlign.START,
       y_align: Clutter.ActorAlign.CENTER,
     });
-    labelLabel.accessible_name = rowPlan.labelText;
+    labelLabel.accessible_name = view.labelText;
     line.add_child(labelLabel);
 
-    if (rowPlan.microBar !== null) {
+    if (microBar !== null) {
       const microBarLabel = new St.Label({
-        text: rowPlan.microBar,
+        text: microBar,
         style_class: "provider-limits-micro-bar",
         y_align: Clutter.ActorAlign.CENTER,
       });
-      applyQuietToneClass(microBarLabel, rowPlan.tone);
+      applyQuietToneClass(microBarLabel, view.tone);
       line.add_child(microBarLabel);
     }
 
     const valueLabel = new St.Label({
-      text: rowPlan.valueText,
+      text: view.valueText,
       style_class: "provider-limits-field-value provider-limits-tnum",
       x_align: Clutter.ActorAlign.END,
       y_align: Clutter.ActorAlign.CENTER,
     });
-    valueLabel.accessible_name = rowPlan.accessibleText;
-    applyToneClass(valueLabel, rowPlan.tone);
+    valueLabel.accessible_name = view.accessibleText;
+    applyToneClass(valueLabel, view.tone);
     line.add_child(valueLabel);
 
     table.add_child(line);
 
-    if (rowPlan.errorText) {
+    if (view.errorText) {
       const errorLabel = new St.Label({
-        text: rowPlan.errorText,
+        text: view.errorText,
         style_class: "provider-limits-error provider-limits-row-error",
         x_expand: true,
         x_align: Clutter.ActorAlign.START,
       });
       errorLabel.clutter_text.line_wrap = true;
-      errorLabel.accessible_name = rowPlan.errorText;
+      errorLabel.accessible_name = view.errorText;
       table.add_child(errorLabel);
     }
   }
@@ -339,7 +380,7 @@ export class CompactPanelSection extends PanelStyleSection {
     track: St.BoxLayout,
     fill: St.Widget,
     ratio: number | null,
-    tone: ProviderMatrixPlan["headerTone"],
+    tone: UsageFacts["tone"],
   ): void {
     fill.remove_style_class_name("hairline-warning");
     fill.remove_style_class_name("hairline-critical");

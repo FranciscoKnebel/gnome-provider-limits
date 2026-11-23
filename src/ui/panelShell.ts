@@ -26,6 +26,9 @@ export abstract class PanelStyleSection {
   }
 
   abstract render(context: PanelRenderContext): void;
+
+  /** Optional per-style state for the running indicator; the shell always tracks it too. */
+  setRunning(_running: boolean): void {}
 }
 
 export interface PanelShellOptions {

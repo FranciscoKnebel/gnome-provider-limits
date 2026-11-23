@@ -1,22 +1,17 @@
 import type St from "gi://St";
 
 import { clearChildren } from "../helpers/children.js";
-import type { ProviderViewContext, ViewPhase } from "./viewContext.js";
+import type { ProviderViewContext } from "./viewContext.js";
+import type { EmptyPresentation, PhaseResult } from "./viewMessages.js";
 
-export interface PlaceholderPlan {
-  readonly kind: "placeholder";
-  readonly phase: ViewPhase;
-  readonly placeholder: string | null;
-  readonly placeholderAccessibleText: string;
-  readonly showPlaceholder: boolean;
+/** The lifecycle every status bar section renderer implements. */
+export interface StatusBarSectionRenderer {
+  render(context: ProviderViewContext): void;
+  dispose(): void;
 }
 
-export type ZonePlan<TSegment> =
-  | PlaceholderPlan
-  | { readonly kind: "segments"; readonly segments: readonly TSegment[] };
-
-/** Shared render skeleton: clear, derive one plan, then render that plan. */
-export abstract class StatusBarRenderer<TPlan> {
+/** Shared render skeleton: clear, derive the phase, then render that view. */
+export abstract class StatusBarRenderer implements StatusBarSectionRenderer {
   protected readonly parent: St.BoxLayout;
 
   constructor(parent: St.BoxLayout) {
@@ -25,7 +20,7 @@ export abstract class StatusBarRenderer<TPlan> {
 
   render(context: ProviderViewContext): void {
     this.dispose();
-    this.renderPlan(this.plan(context));
+    this.renderView(context);
   }
 
   dispose(): void {
@@ -33,16 +28,14 @@ export abstract class StatusBarRenderer<TPlan> {
   }
 
   /** Renders a placeholder when present. Acts as a guard so callers can fall through to segments. */
-  protected renderPlaceholder<TSegment>(
-    plan: ZonePlan<TSegment>,
-    factory: (placeholder: PlaceholderPlan) => St.Widget,
-  ): plan is PlaceholderPlan {
-    if (plan.kind !== "placeholder") return false;
-    if (plan.showPlaceholder) this.parent.add_child(factory(plan));
+  protected renderPlaceholder(
+    phase: PhaseResult,
+    factory: (message: EmptyPresentation) => St.Widget,
+  ): boolean {
+    if (phase.kind !== "placeholder" || !phase.message.showPlaceholder) return false;
+    this.parent.add_child(factory(phase.message));
     return true;
   }
 
-  protected abstract plan(context: ProviderViewContext): TPlan;
-
-  protected abstract renderPlan(plan: TPlan): void;
+  protected abstract renderView(context: ProviderViewContext): void;
 }

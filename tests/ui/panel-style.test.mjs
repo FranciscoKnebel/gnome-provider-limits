@@ -53,10 +53,14 @@ test("Panel swaps style sections on setting change and forwards render and runni
     constructor(shell) {
       this.shell = shell;
       this.rendered = [];
+      this.running = false;
       created.push(this);
     }
     render(context) {
       this.rendered.push(context);
+    }
+    setRunning(running) {
+      this.running = running;
     }
   }
   class GaugesStub extends SectionStub {
@@ -72,24 +76,23 @@ test("Panel swaps style sections on setting change and forwards render and runni
     }
   }
 
-  const { resolvePanelStyle, STYLE_REGISTRY } = load(
-    "src/ui/styles.ts",
-    "({ resolvePanelStyle, STYLE_REGISTRY })",
+  const { STYLE_CATALOG, resolvePanelStyle } = load(
+    "src/ui/styleCatalog.ts",
+    "({ STYLE_CATALOG, resolvePanelStyle })",
   );
-  const view = { marker: "provider-view-settings", locale: "en" };
-  const K = load("src/ui/panel.ts", "PanelWidget", {
-    PopupMenu: { PopupMenuSection: Section },
+  const { STYLE_REGISTRY } = load("src/ui/styles.ts", "({ STYLE_REGISTRY })", {
+    STYLE_CATALOG,
     GaugesPanelSection: GaugesStub,
     CardsPanelSection: CardsStub,
     CompactPanelSection: CompactStub,
     createExpandAllControl: () => ({ button: new Actor(), label: new Actor() }),
+  });
+  const view = { marker: "provider-view-settings", locale: "en" };
+  const K = load("src/ui/panel.ts", "PanelWidget", {
+    PopupMenu: { PopupMenuSection: Section },
     PanelShell: ShellStub,
     resolvePanelStyle,
     STYLE_REGISTRY,
-    viewContextFor: () => view,
-    resolveLocale: () => "en",
-    GLib: { getenv: () => null },
-    PROVIDER_FIELDS: {},
     _: (message) => message,
   });
 
@@ -127,6 +130,7 @@ test("Panel swaps style sections on setting change and forwards render and runni
   assert.equal(created[0].rendered[0].view, view, "the canonical view snapshot is forwarded");
   panel.setRunning(true);
   assert.equal(created[0].shell.running, true);
+  assert.equal(created[0].running, true, "the section receives the running state too");
 
   style = "cards";
   fireStyleChange();

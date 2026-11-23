@@ -8,9 +8,10 @@ import {
   OPENCODE_FIELDS,
   PROVIDER_FIELDS,
 } from "../../src/readers/fields.js";
+import type { ProviderDisplayModel } from "../../src/ui/displayModel.js";
 import { deriveDisplayModel } from "../../src/ui/displayModel.js";
 import { deriveFieldViews } from "../../src/ui/fieldViews.js";
-import { cardFromModel, planPanel, type ProviderCardPlan } from "../../src/ui/panelCards.js";
+import { progressResetPresentation } from "../../src/ui/panelCards.js";
 import {
   deriveProviderHealth,
   deriveSeverity,
@@ -23,6 +24,7 @@ import {
   type ProviderViewContext,
   type ViewPhase,
 } from "../../src/ui/viewContext.js";
+import { cardsMessages, cardsRunningMessages, phaseResult } from "../../src/ui/viewMessages.js";
 import { viewContextFromFixture, type ViewFixtureInput } from "./contextFixture.js";
 
 function cardFor(options: {
@@ -32,7 +34,7 @@ function cardFor(options: {
   result: ReaderResult;
   panelFields: readonly string[];
   locale: string;
-}): ProviderCardPlan {
+}): ProviderDisplayModel {
   const model = deriveDisplayModel(options.provider, options.result, {
     fieldDefs: options.fieldDefs,
     statusFields: [],
@@ -43,7 +45,14 @@ function cardFor(options: {
     t: (text) => text,
   });
   if (!model) throw new Error(`Provider ${options.provider} is disabled`);
-  return cardFromModel(model, options.locale, (text: string) => text);
+  return model;
+}
+
+function resetTextFor(model: ProviderDisplayModel, viewName: string): string | undefined {
+  const view = model.facts.views.limit.progress.find((candidate) => candidate.name === viewName);
+  if (!view) return undefined;
+  return progressResetPresentation(view, model.resets.get(view.name), "en", (text) => text)
+    .resetText;
 }
 
 function segmentsContext(
@@ -252,7 +261,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       ).toBe("critical");
     });
 
-    it("reports error and empty health through the card plan", () => {
+    it("reports error and empty health through the card model", () => {
       const errorCard = cardFor({
         provider: "codex",
         fieldDefs: PROVIDER_FIELDS["codex"],
@@ -268,7 +277,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         panelFields: [],
         locale: "en",
       });
-      expect(errorCard.healthTone).toBe("error");
+      expect(errorCard.facts.health.tone).toBe("error");
 
       const emptyCard = cardFor({
         provider: "codex",
@@ -284,7 +293,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         panelFields: [],
         locale: "en",
       });
-      expect(emptyCard.healthTone).toBe("idle");
+      expect(emptyCard.facts.health.tone).toBe("idle");
     });
   });
 
@@ -399,7 +408,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
     });
   });
 
-  describe("cardFromModel & planPanel", () => {
+  describe("card model & phase derivation", () => {
     it("pairs percent fields with companion reset_at fields and separates limit vs telemetry rows", () => {
       const now = Date.now();
       const result: ReaderResult = {
@@ -431,16 +440,19 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         locale: "en",
       });
 
-      expect(card.badgeKind).toBe("live");
-      expect(card.badgeText).toBe("Live");
-      expect(card.healthTone).toBe("warning");
-      expect(card.bannerText).toBeNull();
-      expect(card.limitProgressRows).toHaveSize(1);
-      expect(card.limitProgressRows[0].fillPercent).toBe(72);
-      expect(card.limitProgressRows[0].tone).toBe("warning");
-      expect(card.limitProgressRows[0].resetText).toContain("Reset at (weekly):");
-      expect(card.limitMetaRows.map((r) => r.name)).toEqual(["limit_reached"]);
-      expect(card.telemetryRows.map((r) => r.name)).toEqual(["total_cost", "sessions_count"]);
+      expect(card.facts.badges.card).toBe("live");
+      expect(card.facts.badges.cardText).toBe("Live");
+      expect(card.facts.health.tone).toBe("warning");
+      expect(card.facts.diagnostic.bannerText).toBeNull();
+      expect(card.facts.views.limit.progress).toHaveSize(1);
+      expect(card.facts.views.limit.progress[0].fillPercent).toBe(72);
+      expect(card.facts.views.limit.progress[0].tone).toBe("warning");
+      expect(resetTextFor(card, "used_percent_weekly")).toContain("Reset at (weekly):");
+      expect(card.facts.views.limit.keyValue.map((view) => view.name)).toEqual(["limit_reached"]);
+      expect(card.facts.views.telemetry.keyValue.map((view) => view.name)).toEqual([
+        "total_cost",
+        "sessions_count",
+      ]);
     });
 
     it("keeps standalone reset_at fields in limitMetaRows when companion percent is not configured", () => {
@@ -460,8 +472,10 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         locale: "en",
       });
 
-      expect(card.limitProgressRows).toEqual([]);
-      expect(card.limitMetaRows.map((r) => r.name)).toEqual(["reset_at_secondary"]);
+      expect(card.facts.views.limit.progress).toEqual([]);
+      expect(card.facts.views.limit.keyValue.map((view) => view.name)).toEqual([
+        "reset_at_secondary",
+      ]);
     });
 
     it("consumes a shared reset_at field only once when both used and remaining % are configured", () => {
@@ -489,10 +503,10 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         locale: "en",
       });
 
-      expect(card.limitProgressRows).toHaveSize(2);
-      expect(card.limitProgressRows[0].resetText).toBeDefined();
-      expect(card.limitProgressRows[1].resetText).toBeUndefined();
-      expect(card.limitMetaRows).toEqual([]);
+      expect(card.facts.views.limit.progress).toHaveSize(2);
+      expect(resetTextFor(card, "used_percent_secondary")).toBeDefined();
+      expect(resetTextFor(card, "remaining_percent_secondary")).toBeUndefined();
+      expect(card.facts.views.limit.keyValue).toEqual([]);
     });
 
     it("plans diagnostic banners for PARTIAL, ERROR, and UNAVAILABLE states", () => {
@@ -511,10 +525,10 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         panelFields: ["used_percent_weekly"],
         locale: "en",
       });
-      expect(partialCard.badgeKind).toBe("cached");
-      expect(partialCard.bannerKind).toBe("warning");
-      expect(partialCard.bannerText).toContain("Last-Known-Good");
-      expect(partialCard.limitProgressRows).toHaveSize(1);
+      expect(partialCard.facts.badges.card).toBe("cached");
+      expect(partialCard.facts.diagnostic.bannerKind).toBe("warning");
+      expect(partialCard.facts.diagnostic.bannerText).toContain("Last-Known-Good");
+      expect(partialCard.facts.views.limit.progress).toHaveSize(1);
 
       const errorCard = cardFor({
         provider: "codex",
@@ -531,11 +545,11 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         panelFields: ["used_percent_secondary"],
         locale: "en",
       });
-      expect(errorCard.badgeKind).toBe("error");
-      expect(errorCard.bannerKind).toBe("error");
-      expect(errorCard.bannerText).toBe("Run codex login.");
-      expect(errorCard.limitProgressRows).toEqual([]);
-      expect(errorCard.lastUpdatedText).toBeNull();
+      expect(errorCard.facts.badges.card).toBe("error");
+      expect(errorCard.facts.diagnostic.bannerKind).toBe("error");
+      expect(errorCard.facts.diagnostic.bannerText).toBe("Run codex login.");
+      expect(errorCard.facts.views.limit.progress).toEqual([]);
+      expect(errorCard.facts.lastUpdatedText).toBeNull();
 
       const unavailableCard = cardFor({
         provider: "grok",
@@ -551,47 +565,44 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         panelFields: ["used_percent_credits"],
         locale: "en",
       });
-      expect(unavailableCard.badgeKind).toBe("unavailable");
-      expect(unavailableCard.bannerKind).toBe("error");
-      expect(unavailableCard.bannerText).toBe("Unavailable");
+      expect(unavailableCard.facts.badges.card).toBe("unavailable");
+      expect(unavailableCard.facts.diagnostic.bannerKind).toBe("error");
+      expect(unavailableCard.facts.diagnostic.bannerText).toBe("Unavailable");
     });
 
-    it("plans empty disabled and loading states in planPanel", () => {
-      const disabledPlan = planPanel(
+    it("derives empty, loading, ready and refresh-aware card states from the view", () => {
+      const disabled = phaseResult(
         panelContext({
           providers: ["codex"],
           results: new Map(),
           panelFields: () => [],
           phase: "empty",
         }),
-        false,
+        cardsMessages,
       );
-      expect(disabledPlan.phase).toBe("empty");
-      expect(disabledPlan.emptyTitle).toBe("No providers enabled");
-      expect(disabledPlan.emptySubtitle).toContain("Settings");
+      expect(disabled.kind).toBe("placeholder");
+      if (disabled.kind === "placeholder") {
+        expect(disabled.phase).toBe("empty");
+        expect(disabled.message.title).toBe("No providers enabled");
+        expect(disabled.message.subtitle).toContain("Settings");
+      }
 
-      const loadingPlan = planPanel(
-        panelContext({
-          providers: ["codex"],
-          results: new Map(),
-          panelFields: () => [],
-          phase: "loading",
-        }),
-        true,
-      );
-      expect(loadingPlan.phase).toBe("loading");
-      expect(loadingPlan.emptyTitle).toBe("Loading provider limits…");
-
-      const waitingPlan = planPanel(
-        panelContext({
-          providers: ["codex"],
-          results: new Map(),
-          panelFields: () => [],
-          phase: "loading",
-        }),
-        false,
-      );
-      expect(waitingPlan.emptyTitle).toBe("Waiting for provider data…");
+      const loadingView = panelContext({
+        providers: ["codex"],
+        results: new Map(),
+        panelFields: () => [],
+        phase: "loading",
+      });
+      const running = phaseResult(loadingView, cardsRunningMessages);
+      expect(running.kind).toBe("placeholder");
+      if (running.kind === "placeholder") {
+        expect(running.phase).toBe("loading");
+        expect(running.message.title).toBe("Loading provider limits…");
+      }
+      const waiting = phaseResult(loadingView, cardsMessages);
+      if (waiting.kind === "placeholder") {
+        expect(waiting.message.title).toBe("Waiting for provider data…");
+      }
 
       const customDefs: readonly FieldDef[] = [
         {
@@ -603,54 +614,48 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
           resetField: "reset_at_primary",
         },
       ];
-      const firstActive = planPanel(
-        panelContext({
-          providers: ["codex"],
-          results: new Map([
-            [
-              "codex",
-              {
-                provider: "codex",
-                status: ReaderStatus.OK,
-                fromCache: false,
-                lastUpdated: 1000,
-                fields: [{ name: "used_percent_primary", value: 20, status: FieldStatus.OK }],
-              },
-            ],
-          ]),
-          panelFields: () => ["used_percent_primary"],
-          displayName: () => "Codex",
-          fieldDefs: providerRecord(() => customDefs),
-        }),
-        false,
-      );
+      const firstView = panelContext({
+        providers: ["codex"],
+        results: new Map([
+          [
+            "codex",
+            {
+              provider: "codex",
+              status: ReaderStatus.OK,
+              fromCache: false,
+              lastUpdated: 1000,
+              fields: [{ name: "used_percent_primary", value: 20, status: FieldStatus.OK }],
+            },
+          ],
+        ]),
+        panelFields: () => ["used_percent_primary"],
+        displayName: () => "Codex",
+        fieldDefs: providerRecord(() => customDefs),
+      });
 
-      const secondActive = planPanel(
-        panelContext({
-          providers: ["codex"],
-          results: new Map([
-            [
-              "codex",
-              {
-                provider: "codex",
-                status: ReaderStatus.OK,
-                fromCache: false,
-                lastUpdated: 2000,
-                fields: [{ name: "used_percent_primary", value: 95, status: FieldStatus.OK }],
-              },
-            ],
-          ]),
-          panelFields: () => ["used_percent_primary"],
-          displayName: () => "Codex",
-          fieldDefs: providerRecord(() => customDefs),
-        }),
-        false,
-      );
+      const secondView = panelContext({
+        providers: ["codex"],
+        results: new Map([
+          [
+            "codex",
+            {
+              provider: "codex",
+              status: ReaderStatus.OK,
+              fromCache: false,
+              lastUpdated: 2000,
+              fields: [{ name: "used_percent_primary", value: 95, status: FieldStatus.OK }],
+            },
+          ],
+        ]),
+        panelFields: () => ["used_percent_primary"],
+        displayName: () => "Codex",
+        fieldDefs: providerRecord(() => customDefs),
+      });
 
-      expect(firstActive.phase).toBe("ready");
-      expect(secondActive.phase).toBe("ready");
-      expect(secondActive.cards[0].limitProgressRows[0].valueText).not.toBe(
-        firstActive.cards[0].limitProgressRows[0].valueText,
+      expect(phaseResult(firstView, cardsMessages).kind).toBe("ready");
+      expect(phaseResult(secondView, cardsMessages).kind).toBe("ready");
+      expect(secondView.models[0].facts.views.limit.progress[0].valueText).not.toBe(
+        firstView.models[0].facts.views.limit.progress[0].valueText,
       );
     });
   });

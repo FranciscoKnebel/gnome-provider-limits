@@ -31,10 +31,12 @@ import {
   cycleTab,
   getAvailableTabs,
   loadingOverviewRow,
-  partitionProviderPanel,
   resolveActiveTab,
 } from "../../src/ui/cockpitModel.js";
 import { deriveDisplayModel } from "../../src/ui/displayModel.js";
+import { resetSlotText } from "../../src/ui/resetModel.js";
+
+const identity = (text: string) => text;
 
 function panelModel(
   fieldDefs: readonly FieldDef[],
@@ -283,7 +285,7 @@ describe("meterFromViews", () => {
   });
 });
 
-describe("partitionProviderPanel & chunking", () => {
+describe("panel field partitioning & chunking", () => {
   it("chunks gauges into balanced rows of 1-3 (with 4 split into 2+2) and Bento into pairs", () => {
     expect(chunkGauges([])).toEqual([]);
     expect(chunkGauges([1, 2])).toEqual([[1, 2]]);
@@ -318,40 +320,41 @@ describe("partitionProviderPanel & chunking", () => {
       ],
     };
 
-    const partition = partitionProviderPanel(
-      panelModel(CODEX_FIELDS, result, [
-        "used_percent_primary",
-        "reset_at_primary",
-        "used_percent_secondary",
-        "reset_at_secondary",
-        "reset_credits_expire_at",
-        "plan_type",
-        "limit_reached",
-        "unknown_field",
-      ]),
-      "en",
-      (s) => s,
-    );
+    const model = panelModel(CODEX_FIELDS, result, [
+      "used_percent_primary",
+      "reset_at_primary",
+      "used_percent_secondary",
+      "reset_at_secondary",
+      "reset_credits_expire_at",
+      "plan_type",
+      "limit_reached",
+      "unknown_field",
+    ]);
+    const gauges = model.facts.views.progress;
+    const bentoTiles = model.facts.views.keyValue;
+    const resetText = (name: string) => {
+      const pairing = model.resets.get(name);
+      return pairing ? resetSlotText(pairing, "panel", "en", identity) : null;
+    };
 
-    expect(partition.gauges.map((g) => g.fieldName)).toEqual([
+    expect(gauges.map((view) => view.name)).toEqual([
       "used_percent_primary",
       "used_percent_secondary",
     ]);
-    expect(partition.gauges[0].hasResetSlot).toBeTrue();
-    expect(partition.gauges[0].resetText).toContain("↻");
-    expect(partition.gauges[1].hasResetSlot).toBeTrue();
-    expect(partition.gauges[1].resetText).toBe("↻ —");
+    expect(resetText("used_percent_primary")).toContain("↻");
+    expect(resetText("used_percent_secondary")).toBe("↻ —");
 
     // Paired reset_at_primary and reset_at_secondary were consumed by gauges,
     // while unpaired reset_credits_expire_at, plan_type, and limit_reached stay in Bento!
-    expect(partition.bentoTiles.map((b) => b.fieldName)).toEqual([
+    expect(bentoTiles.map((view) => view.name)).toEqual([
       "reset_credits_expire_at",
       "plan_type",
       "limit_reached",
     ]);
-    expect(partition.bentoRows.length).toBe(2);
-    expect(partition.bentoRows[0].length).toBe(2);
-    expect(partition.bentoRows[1].length).toBe(1);
+    const bentoRows = chunkPairs(bentoTiles);
+    expect(bentoRows.length).toBe(2);
+    expect(bentoRows[0].length).toBe(2);
+    expect(bentoRows[1].length).toBe(1);
   });
 
   it("keeps unpaired reset_at_* in Bento when its companion percent gauge is not in panel fields", () => {
@@ -364,13 +367,9 @@ describe("partitionProviderPanel & chunking", () => {
       fields: [{ name: "reset_at_primary", value: futureEpoch, status: FieldStatus.OK }],
     };
 
-    const partition = partitionProviderPanel(
-      panelModel(CODEX_FIELDS, result, ["reset_at_primary"]),
-      "en",
-      (s) => s,
-    );
-    expect(partition.gauges.length).toBe(0);
-    expect(partition.bentoTiles.map((b) => b.fieldName)).toEqual(["reset_at_primary"]);
+    const model = panelModel(CODEX_FIELDS, result, ["reset_at_primary"]);
+    expect(model.facts.views.progress.length).toBe(0);
+    expect(model.facts.views.keyValue.map((view) => view.name)).toEqual(["reset_at_primary"]);
   });
 
   it("propagates field-level errors onto gauges and Bento tiles", () => {
@@ -395,13 +394,12 @@ describe("partitionProviderPanel & chunking", () => {
       ],
     };
 
-    const partition = partitionProviderPanel(
-      panelModel(CLAUDE_FIELDS, result, ["used_percent_session", "has_extra_usage_enabled"]),
-      "en",
-      (s) => s,
-    );
-    expect(partition.gauges[0].errorText).toBe("Probe timeout");
-    expect(partition.bentoTiles[0].errorText).toBe("Missing token");
+    const model = panelModel(CLAUDE_FIELDS, result, [
+      "used_percent_session",
+      "has_extra_usage_enabled",
+    ]);
+    expect(model.facts.views.progress[0].errorText).toBe("Probe timeout");
+    expect(model.facts.views.keyValue[0].errorText).toBe("Missing token");
   });
 });
 
