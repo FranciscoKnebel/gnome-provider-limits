@@ -14,6 +14,7 @@ import { partitionProviderPanel, providerDetailStructureKey } from "./cockpitMod
 import type { BentoTileItem, PartitionedProviderPanel, RadialGaugeItem } from "./cockpitModel.js";
 import type { GaugeGeometry } from "./gaugeTypes.js";
 import type { PanelShell } from "./panelShell.js";
+import { PlanRenderer, type RenderPlan } from "./statusBarRenderer.js";
 import { applyToneClass } from "./tone.js";
 
 const RADIAL_GAUGE_SIZE = 80;
@@ -55,22 +56,35 @@ export interface DetailHost {
   readonly translate: (message: string) => string;
 }
 
+interface DetailRenderContext {
+  readonly provider: ProviderName;
+  readonly result: ReaderResult;
+  readonly locale: string;
+}
+
+interface DetailRenderPlan extends RenderPlan {
+  readonly callout: CalloutPlan | null;
+  readonly isError: boolean;
+  readonly partition: PartitionedProviderPanel;
+  readonly lastUpdatedText: string | null;
+}
+
 /** Radial gauges, bento tiles and callouts for the gauges panel detail view. */
-export class DetailRenderer {
+export class DetailRenderer extends PlanRenderer<DetailRenderPlan, DetailRenderContext> {
   private readonly _host: DetailHost;
   private _widgets: DetailViewWidgets | null = null;
-  private _structureKey: string | null = null;
 
   constructor(host: DetailHost) {
+    super();
     this._host = host;
   }
 
   reset(): void {
-    this._structureKey = null;
-    this._widgets = null;
+    this.dispose();
   }
 
-  render(provider: ProviderName, result: ReaderResult, locale: string): void {
+  protected plan(context: DetailRenderContext): DetailRenderPlan {
+    const { provider, result, locale } = context;
     const displayName = providerDisplayName(this._host.settings, provider);
     const fieldsDefs = this._host.fieldDefs[provider];
     const isError =
@@ -106,7 +120,7 @@ export class DetailRenderer {
         ? formatAbsoluteTimestamp(result.lastUpdated, locale)
         : null;
 
-    const nextKey = providerDetailStructureKey({
+    const key = providerDetailStructureKey({
       provider,
       displayName,
       status: result.status,
@@ -116,13 +130,15 @@ export class DetailRenderer {
       partition,
     });
 
-    if (nextKey !== this._structureKey) {
-      this._rebuild(callout, isError, partition, lastUpdatedText);
-      this._structureKey = nextKey;
-      return;
-    }
+    return { key, callout, isError, partition, lastUpdatedText };
+  }
 
-    this._update(callout, partition, lastUpdatedText);
+  protected clear(): void {
+    this._host.shell.clearBody();
+  }
+
+  protected override onDispose(): void {
+    this._widgets = null;
   }
 
   private _addRow(styleClass: string | null): PopupMenu.PopupBaseMenuItem {
@@ -131,13 +147,8 @@ export class DetailRenderer {
     return row;
   }
 
-  private _rebuild(
-    callout: CalloutPlan | null,
-    isError: boolean,
-    partition: PartitionedProviderPanel,
-    lastUpdatedText: string | null,
-  ): void {
-    this._host.shell.clearBody();
+  protected build(plan: DetailRenderPlan): void {
+    const { callout, isError, partition, lastUpdatedText } = plan;
 
     let calloutBadge: St.Label | null = null;
     let calloutText: St.Label | null = null;
@@ -376,11 +387,8 @@ export class DetailRenderer {
     return { valueLabel, errorLabel, tile };
   }
 
-  private _update(
-    callout: CalloutPlan | null,
-    partition: PartitionedProviderPanel,
-    lastUpdatedText: string | null,
-  ): void {
+  protected update(plan: DetailRenderPlan): void {
+    const { callout, partition, lastUpdatedText } = plan;
     const widgets = this._widgets;
     if (!widgets) return;
 

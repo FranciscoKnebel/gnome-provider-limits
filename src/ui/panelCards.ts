@@ -7,7 +7,7 @@ import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { resolveLocale } from "../helpers/locale.js";
 import { normalizeProvidersOrder, providerDisplayName } from "../helpers/provider-settings.js";
-import type { BaseReader, FieldDef, ReaderResult } from "../readers/base.js";
+import type { BaseReader, FieldDef } from "../readers/base.js";
 import { computeBarWidthPx, planPanel } from "./cardPlan.js";
 import type {
   BannerKind,
@@ -18,7 +18,8 @@ import type {
   PanelPlan,
   ProviderCardPlan,
 } from "./cardPlan.js";
-import type { PanelShell, PanelStyleSection } from "./panelShell.js";
+import type { PanelRenderContext, PanelShell, PanelStyleSection } from "./panelShell.js";
+import { PlanRenderer, type RenderPlan } from "./statusBarRenderer.js";
 import { applyHealthToneClass, applyToneClass } from "./tone.js";
 
 interface ProgressRowWidgets {
@@ -65,7 +66,15 @@ function bannerStyleClass(kind: BannerKind): string {
     : "pl-diagnostic-banner pl-banner-error";
 }
 
-export class CardsPanelSection implements PanelStyleSection {
+type CardsRenderPlan = PanelPlan &
+  RenderPlan & {
+    readonly lastRefreshAt: number | null;
+  };
+
+export class CardsPanelSection
+  extends PlanRenderer<CardsRenderPlan, PanelRenderContext>
+  implements PanelStyleSection
+{
   private _settings: Gio.Settings;
   private _readers: Map<ProviderName, BaseReader>;
   private readonly _fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>;
@@ -73,7 +82,6 @@ export class CardsPanelSection implements PanelStyleSection {
   private _cards: CardWidgets[] = [];
   private _emptyState: PanelEmptyState = "none";
   private _emptyTitleLabel: St.Label | null = null;
-  private _structureKey: string | null = null;
   readonly shell: PanelShell;
 
   constructor(
@@ -82,6 +90,7 @@ export class CardsPanelSection implements PanelStyleSection {
     fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>,
     shell: PanelShell,
   ) {
+    super();
     this._settings = settings;
     this._readers = readers;
     this._fieldDefs = fieldDefs;
@@ -92,7 +101,7 @@ export class CardsPanelSection implements PanelStyleSection {
     this.shell.destroy();
   }
 
-  render(results: Map<ProviderName, ReaderResult>, lastRefreshAt: number | null): void {
+  protected plan(context: PanelRenderContext): CardsRenderPlan {
     const order = normalizeProvidersOrder(this._settings.get_strv("providers-order"));
     const locale = resolveLocale(
       this._settings.get_string("language"),
@@ -102,9 +111,9 @@ export class CardsPanelSection implements PanelStyleSection {
     const hasEnabledProviders =
       this._readers.size > 0 || order.some((name) => this._settings.get_boolean(`${name}-enabled`));
 
-    const plan = planPanel({
+    const panel = planPanel({
       order,
-      results,
+      results: context.results,
       hasEnabledProviders,
       running: this._running,
       locale,
@@ -114,13 +123,17 @@ export class CardsPanelSection implements PanelStyleSection {
       t: _,
     });
 
-    if (plan.structureKey !== this._structureKey) {
-      this._rebuild(plan, lastRefreshAt);
-      this._structureKey = plan.structureKey;
-      return;
-    }
+    return { ...panel, key: panel.structureKey, lastRefreshAt: context.lastRefreshAt };
+  }
 
-    this._update(plan, lastRefreshAt);
+  protected clear(): void {
+    this.shell.clearBody();
+  }
+
+  protected override onDispose(): void {
+    this._cards = [];
+    this._emptyState = "none";
+    this._emptyTitleLabel = null;
   }
 
   setLastRefreshAt(lastRefreshAt: number | null): void {
@@ -138,9 +151,7 @@ export class CardsPanelSection implements PanelStyleSection {
     }
   }
 
-  private _rebuild(plan: PanelPlan, lastRefreshAt: number | null): void {
-    this.shell.clearBody();
-    this._cards = [];
+  protected build(plan: CardsRenderPlan): void {
     this._emptyState = plan.emptyState;
     this._emptyTitleLabel = null;
 
@@ -156,10 +167,10 @@ export class CardsPanelSection implements PanelStyleSection {
     }
 
     this.setRunning(this._running);
-    this.setLastRefreshAt(lastRefreshAt);
+    this.setLastRefreshAt(plan.lastRefreshAt);
   }
 
-  private _update(plan: PanelPlan, lastRefreshAt: number | null): void {
+  protected update(plan: CardsRenderPlan): void {
     if (plan.emptyState !== "none" && this._emptyTitleLabel && plan.emptyTitle) {
       this._emptyTitleLabel.text = plan.emptyTitle;
       this._emptyTitleLabel.accessible_name = plan.emptyTitle;
@@ -208,7 +219,7 @@ export class CardsPanelSection implements PanelStyleSection {
       this._updateKeyValueRows(card.telemetryRows, cardPlan.telemetryRows);
     });
 
-    this.setLastRefreshAt(lastRefreshAt);
+    this.setLastRefreshAt(plan.lastRefreshAt);
   }
 
   private _updateKeyValueRows(

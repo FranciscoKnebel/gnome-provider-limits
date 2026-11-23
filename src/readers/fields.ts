@@ -629,16 +629,15 @@ const GENERIC_RESET_BY_NAME: Readonly<Record<string, string>> = {
   remaining_percent: "reset_at",
 };
 
-function declaredCategory(def: Pick<FieldDef, "name" | "type">): FieldCategory | undefined {
-  if (!("category" in def)) return undefined;
-  const value: unknown = def.category;
-  return value === "limit" || value === "telemetry" ? value : undefined;
+type FieldMetaInput = Pick<FieldDef, "name" | "type"> &
+  Partial<Pick<FieldDef, "category" | "resetField">>;
+
+function declaredCategory(def: FieldMetaInput): FieldCategory | undefined {
+  return def.category === "limit" || def.category === "telemetry" ? def.category : undefined;
 }
 
-function declaredReset(def: Pick<FieldDef, "name" | "type">): string | undefined {
-  if (!("resetField" in def)) return undefined;
-  const value: unknown = def.resetField;
-  return typeof value === "string" ? value : undefined;
+function declaredReset(def: FieldMetaInput): string | undefined {
+  return typeof def.resetField === "string" ? def.resetField : undefined;
 }
 
 export function resolveFieldCategory(def: Pick<FieldDef, "name" | "type">): FieldCategory {

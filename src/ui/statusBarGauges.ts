@@ -46,7 +46,12 @@ function planGauges(context: StatusBarRenderContext): GaugesPlan {
     provider: segment.provider,
     displayName: segment.displayName,
     status: segment.result.status,
-    meter: computeStatusMicroMeter(segment.fieldDefs, segment.result, segment.statusFields),
+    meter: computeStatusMicroMeter(
+      segment.fieldDefs,
+      segment.result,
+      segment.statusFields,
+      context.locale,
+    ),
     rows: segment.views,
     key: sectionKey({
       provider: segment.provider,

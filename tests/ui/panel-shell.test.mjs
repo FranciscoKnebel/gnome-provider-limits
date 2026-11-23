@@ -169,8 +169,12 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
       settings: footer.settingsControl,
     };
 
-    footer.refreshControl.fire("clicked");
-    footer.settingsControl.fire("clicked");
+    const pointerSignal = style === "cards" ? "button-release-event" : "clicked";
+    const otherSignal = style === "cards" ? "clicked" : "button-release-event";
+    footer.refreshControl.fire(otherSignal);
+    assert.equal(refreshes, 0, `${style}: only the intended pointer signal is bound`);
+    footer.refreshControl.fire(pointerSignal);
+    footer.settingsControl.fire(pointerSignal);
     assert.equal(refreshes, 1, `${style}: refresh activation survives construction`);
     assert.equal(closes, 1, `${style}: menu closes before preferences open`);
     assert.equal(preferences, 1, `${style}: preferences opened once`);
@@ -213,11 +217,11 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
       `${style}: timestamp updated in place`,
     );
 
-    footer.refreshControl.fire("clicked");
+    footer.refreshControl.fire(pointerSignal);
     assert.equal(refreshes, 1, `${style}: refresh stays disabled while running`);
     shell.setRunning(false);
     assert.equal(footer.running, false, `${style}: footer running state clears`);
-    footer.refreshControl.fire("clicked");
+    footer.refreshControl.fire(pointerSignal);
     assert.equal(refreshes, 2, `${style}: refresh re-enabled after running`);
 
     shell.destroy();

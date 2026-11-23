@@ -73,3 +73,47 @@ test("status bar renderer plans once per render and owns structure rebuilds", ()
   assert.deepEqual(builds, ["a", "b", "b"], "dispose clears the structure key");
   assert.deepEqual(updates, [2]);
 });
+
+test("PlanRenderer provides the shared lifecycle to any renderer", () => {
+  const events = [];
+  const { PlanRenderer } = load("src/ui/statusBarRenderer.ts", "({ PlanRenderer })");
+
+  class Renderer extends PlanRenderer {
+    plan(context) {
+      events.push(`plan:${context.key}`);
+      return { key: context.key, value: context.value };
+    }
+    build(plan) {
+      events.push(`build:${plan.key}`);
+    }
+    update(plan) {
+      events.push(`update:${plan.value}`);
+    }
+    clear() {
+      events.push("clear");
+    }
+    onDispose() {
+      events.push("dispose");
+    }
+  }
+  const renderer = new Renderer();
+  renderer.render({ key: "a", value: 1 });
+  renderer.render({ key: "a", value: 2 });
+  renderer.render({ key: "b", value: 3 });
+  renderer.dispose();
+
+  assert.deepEqual(events, [
+    "plan:a",
+    "clear",
+    "dispose",
+    "build:a",
+    "plan:a",
+    "update:2",
+    "plan:b",
+    "clear",
+    "dispose",
+    "build:b",
+    "clear",
+    "dispose",
+  ]);
+});

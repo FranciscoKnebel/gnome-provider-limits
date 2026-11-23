@@ -11,6 +11,7 @@ import type {
   ProviderAttention,
   ProviderHealth,
   ProviderState,
+  ProviderTone,
 } from "./providerTypes.js";
 import { PRESENTATION } from "./providerTypes.js";
 import { clampFillRatio, extractWindowSuffix } from "./usageSnapshot.js";
@@ -260,13 +261,30 @@ function deriveState(
   if (status === ReaderStatus.ERROR) return "error";
   if (status === ReaderStatus.UNAVAILABLE) return "unavailable";
   if (status === ReaderStatus.DISABLED) return "idle";
-  if (worstTone === "critical") return "critical";
-  if (status === ReaderStatus.PARTIAL) {
-    if (lastKnownGood) return worstTone === "warning" ? "cachedWarning" : "cached";
-    return worstTone === "warning" ? "partialWarning" : "partial";
+  if (status === ReaderStatus.PARTIAL && worstTone !== "critical") {
+    return lastKnownGood ? "cached" : "partial";
   }
-  if (worstTone === "warning") return "warning";
-  return hasUsableField ? "ok" : "idle";
+  if (worstTone === "warning" || worstTone === "critical" || hasUsableField) return "ok";
+  return "idle";
+}
+
+function deriveTone(state: ProviderState, worstTone: FieldTone | undefined): ProviderTone {
+  if (state === "error" || state === "unavailable") return "error";
+  if (state === "idle") return "idle";
+  if (state === "partial" || state === "cached") return "partial";
+  return worstTone === "warning" || worstTone === "critical" ? worstTone : "ok";
+}
+
+function deriveAttention(
+  state: ProviderState,
+  worstTone: FieldTone | undefined,
+): ProviderAttention {
+  if (state === "error" || state === "unavailable") return "error";
+  if (state === "idle") return "quiet";
+  if (state === "partial" || state === "cached") {
+    return worstTone === "warning" ? "warning" : "partial";
+  }
+  return worstTone === "warning" || worstTone === "critical" ? worstTone : "quiet";
 }
 
 function localizedStateText(
@@ -308,7 +326,8 @@ export function deriveProviderHealth(
 
   return {
     state,
-    tone: PRESENTATION[state].tone,
+    tone: deriveTone(state, worstTone),
+    attention: deriveAttention(state, worstTone),
     worstTone,
     hasUsableField,
     lastKnownGood,
@@ -317,7 +336,7 @@ export function deriveProviderHealth(
 }
 
 export function toAttention(health: ProviderHealth): ProviderAttention {
-  return PRESENTATION[health.state].attention;
+  return health.attention;
 }
 
 export type BadgeZone = "card" | "overview" | "status";

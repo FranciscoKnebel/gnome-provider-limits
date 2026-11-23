@@ -64,7 +64,11 @@ export function toneToRgb(tone: GaugeTone): RgbTuple {
   return TONE_RGB[tone];
 }
 
-export function computeGaugeGeometry(fieldName: string, rawValue: unknown): GaugeGeometry {
+export function computeGaugeGeometry(
+  fieldName: string,
+  rawValue: unknown,
+  locale: string,
+): GaugeGeometry {
   const ratio = clampRatio(rawValue);
   if (ratio === null) {
     return {
@@ -87,7 +91,7 @@ export function computeGaugeGeometry(fieldName: string, rawValue: unknown): Gaug
     type: "percent",
     value: rawValue,
     zone: "panel",
-    locale: "en",
+    locale,
   });
 
   return {
@@ -107,6 +111,7 @@ export function computeStatusMicroMeter(
   fieldsDefs: readonly FieldDef[],
   result: ReaderResult,
   statusFieldNames: readonly string[],
+  locale: string,
 ): MicroMeterSpec {
   if (result.status === ReaderStatus.ERROR || result.status === ReaderStatus.UNAVAILABLE) {
     return {
@@ -121,7 +126,7 @@ export function computeStatusMicroMeter(
   }
 
   const viewNames = [...statusFieldNames, ...fieldsDefs.map((def) => def.name)];
-  const views = deriveFieldViews(fieldsDefs, result, viewNames, "status", "en");
+  const views = deriveFieldViews(fieldsDefs, result, viewNames, "status", locale);
   const primary = selectUsageView(views, statusFieldNames);
 
   if (primary?.hasValue && primary.type === "percent") {
@@ -193,7 +198,7 @@ export function partitionProviderPanel(
     const translatedLabel = tr(view.label);
 
     if (view.type === "percent") {
-      const geometry = computeGaugeGeometry(view.name, view.hasValue ? view.value : null);
+      const geometry = computeGaugeGeometry(view.name, view.hasValue ? view.value : null, locale);
       const accessibleParts = [`${translatedLabel}: ${geometry.centerText}`];
       if (view.resetText !== null) accessibleParts.push(view.resetText);
 
@@ -285,7 +290,7 @@ export function buildOverviewRowModel(options: {
   const badgeKind: OverviewBadgeKind = badgeForZone(health, "overview");
   const badgeText = overviewBadgeText(health, tr);
 
-  const meter = computeStatusMicroMeter(fieldsDefs, result, statusFieldNames);
+  const meter = computeStatusMicroMeter(fieldsDefs, result, statusFieldNames, locale);
 
   if (badgeKind === "error") {
     const errSummary = result.lastError ?? tr("Error");

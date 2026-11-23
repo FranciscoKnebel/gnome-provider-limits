@@ -14,7 +14,7 @@ import type { DetailHost } from "./panelGaugesDetail.js";
 import { DetailRenderer } from "./panelGaugesDetail.js";
 import type { OverviewHost } from "./panelGaugesOverview.js";
 import { OverviewRenderer } from "./panelGaugesOverview.js";
-import type { PanelShell, PanelStyleSection } from "./panelShell.js";
+import type { PanelRenderContext, PanelShell, PanelStyleSection } from "./panelShell.js";
 import { structureKey } from "./renderStructure.js";
 
 type BodyState =
@@ -63,8 +63,7 @@ export class GaugesPanelSection implements PanelStyleSection {
   private _running = false;
   private _activeTab: CockpitTab = "overview";
   private _enabledProviders: ProviderName[] = [];
-  private _lastResults: Map<ProviderName, ReaderResult> = new Map();
-  private _lastRefreshAt: number | null = null;
+  private _lastContext: PanelRenderContext = { results: new Map(), lastRefreshAt: null };
   private _state: BodyState = { kind: "none" };
   readonly shell: PanelShell;
 
@@ -106,13 +105,13 @@ export class GaugesPanelSection implements PanelStyleSection {
     const resolved = resolveActiveTab(tab, this._enabledProviders);
     if (resolved === this._activeTab && !focusTabButton) return;
     this._activeTab = resolved;
-    this.render(this._lastResults, this._lastRefreshAt);
+    this.render(this._lastContext);
     if (focusTabButton) this._overview.focusTabButton(resolved);
   }
 
-  render(results: Map<ProviderName, ReaderResult>, lastRefreshAt: number | null): void {
-    this._lastResults = results;
-    this._lastRefreshAt = lastRefreshAt;
+  render(context: PanelRenderContext): void {
+    this._lastContext = context;
+    const results = context.results;
 
     const order = normalizeProvidersOrder(this._settings.get_strv("providers-order"));
     const locale = resolveLocale(
@@ -132,19 +131,19 @@ export class GaugesPanelSection implements PanelStyleSection {
 
     this._overview.syncTabHeader(enabledProviders, results, locale);
     this.shell.setRunning(this._running);
-    this.shell.setLastRefreshAt(lastRefreshAt);
+    this.shell.setLastRefreshAt(context.lastRefreshAt);
 
     const nextState = this._resolveBodyState(enabledProviders, results);
     this._transitionBody(locale, nextState);
 
     if (nextState.kind === "overview") {
-      this._overview.render(enabledProviders, results, locale);
+      this._overview.render({ enabledProviders, results, locale });
       return;
     }
 
     if (nextState.kind === "detail") {
       const result = results.get(nextState.provider);
-      if (result) this._detail.render(nextState.provider, result, locale);
+      if (result) this._detail.render({ provider: nextState.provider, result, locale });
     }
   }
 

@@ -16,9 +16,15 @@ import { setScrollViewChild } from "../helpers/scroll.js";
 import type { ReaderResult } from "../readers/base.js";
 import type { PanelStyle, StyleDispatch } from "./styles.js";
 
+/** Single render argument shared by every panel style section. */
+export interface PanelRenderContext {
+  readonly results: Map<ProviderName, ReaderResult>;
+  readonly lastRefreshAt: number | null;
+}
+
 export interface PanelStyleSection {
   readonly shell: PanelShell;
-  render(results: Map<ProviderName, ReaderResult>, lastRefreshAt: number | null): void;
+  render(context: PanelRenderContext): void;
   setRunning(running: boolean): void;
   destroy(): void;
 }
@@ -383,6 +389,7 @@ export class PanelShell extends PopupMenu.PopupMenuSection {
 
     control.accessible_name = options.accessibleName;
     bindActivation(control, options.onActivate, {
+      pointerSignals: spec.variant === "icon-action" ? ["button-release-event"] : ["clicked"],
       onOtherKey: (event) => this._footerKeyHandler(event),
     });
     return { control, icon, label };

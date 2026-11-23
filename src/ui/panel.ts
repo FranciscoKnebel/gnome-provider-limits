@@ -106,7 +106,7 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
 
   render(results: Map<ProviderName, ReaderResult>, lastRefreshAt: number | null): void {
     const section = this._ensureSection();
-    section.render(results, lastRefreshAt);
+    section.render({ results, lastRefreshAt });
   }
 
   setRunning(running: boolean): void {

@@ -16,7 +16,8 @@ import {
   toggleAllProvidersExpanded,
 } from "./matrixPlan.js";
 import type { MatrixDetailRow, PanelMatrixPlan, ProviderMatrixPlan } from "./matrixPlan.js";
-import type { PanelShell, PanelStyleSection } from "./panelShell.js";
+import type { PanelRenderContext, PanelShell, PanelStyleSection } from "./panelShell.js";
+import { PlanRenderer, type RenderPlan } from "./statusBarRenderer.js";
 import { applyQuietToneClass, applyToneClass } from "./tone.js";
 import { clampFillRatio } from "./usageSnapshot.js";
 
@@ -54,7 +55,15 @@ interface ProviderSectionWidgets {
   lastUpdatedLabel: St.Label | null;
 }
 
-export class CompactPanelSection implements PanelStyleSection {
+type CompactRenderPlan = PanelMatrixPlan &
+  RenderPlan & {
+    readonly lastRefreshAt: number | null;
+  };
+
+export class CompactPanelSection
+  extends PlanRenderer<CompactRenderPlan, PanelRenderContext>
+  implements PanelStyleSection
+{
   private _settings: Gio.Settings;
   private readonly _fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>;
   private _running = false;
@@ -65,7 +74,6 @@ export class CompactPanelSection implements PanelStyleSection {
 
   private _sections: ProviderSectionWidgets[] = [];
   private _emptyMessageLabel: St.Label | null = null;
-  private _structureKey: string | null = null;
   readonly shell: PanelShell;
 
   constructor(
@@ -74,30 +82,32 @@ export class CompactPanelSection implements PanelStyleSection {
     fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>,
     shell: PanelShell,
   ) {
+    super();
     this._settings = settings;
     this._fieldDefs = fieldDefs;
     this.shell = shell;
     this._controls = this._buildToolbar();
-    this.render(new Map(), null);
+    this.render({ results: new Map(), lastRefreshAt: null });
   }
 
   destroy(): void {
     this.shell.destroy();
   }
 
-  render(results: Map<ProviderName, ReaderResult>, lastRefreshAt: number | null): void {
-    this._lastResults = results;
-    this._lastRefreshAt = lastRefreshAt;
+  protected plan(context: PanelRenderContext): CompactRenderPlan {
+    this._lastResults = context.results;
+    this._lastRefreshAt = context.lastRefreshAt;
+    const matrixPlan = this._buildPlan(context.results);
+    return { ...matrixPlan, lastRefreshAt: context.lastRefreshAt };
+  }
 
-    const plan = this._buildPlan(results);
+  protected clear(): void {
+    this.shell.clearBody();
+  }
 
-    if (plan.key !== this._structureKey) {
-      this._rebuild(plan, lastRefreshAt);
-      this._structureKey = plan.key;
-      return;
-    }
-
-    this._update(plan, lastRefreshAt);
+  protected override onDispose(): void {
+    this._sections = [];
+    this._emptyMessageLabel = null;
   }
 
   setLastRefreshAt(lastRefreshAt: number | null): void {
@@ -158,7 +168,7 @@ export class CompactPanelSection implements PanelStyleSection {
     const next = forceState ?? !current;
     if (next === current) return;
     this._expandedOverrides.set(provider, next);
-    this.render(this._lastResults, this._lastRefreshAt);
+    this.render({ results: this._lastResults, lastRefreshAt: this._lastRefreshAt });
   }
 
   private _toggleAllProviders(): void {
@@ -170,7 +180,7 @@ export class CompactPanelSection implements PanelStyleSection {
       providers.length,
       this._expandedOverrides,
     );
-    this.render(this._lastResults, this._lastRefreshAt);
+    this.render({ results: this._lastResults, lastRefreshAt: this._lastRefreshAt });
   }
 
   /** The compact toolbar is owned here; the shell only supplies the shared footer actors. */
@@ -236,16 +246,12 @@ export class CompactPanelSection implements PanelStyleSection {
     this.setLastRefreshAt(lastRefreshAt);
   }
 
-  private _rebuild(plan: PanelMatrixPlan, lastRefreshAt: number | null): void {
-    this.shell.clearBody();
-    this._sections = [];
-    this._emptyMessageLabel = null;
-
+  protected build(plan: CompactRenderPlan): void {
     if (plan.state !== "ready") {
       if (plan.messageText) {
         this._emptyMessageLabel = this.shell.addEmptyStateRow(plan.messageText);
       }
-      this._syncToolbar(plan, lastRefreshAt);
+      this._syncToolbar(plan, plan.lastRefreshAt);
       return;
     }
 
@@ -253,16 +259,16 @@ export class CompactPanelSection implements PanelStyleSection {
       this._sections.push(this._addProviderSection(providerPlan, index > 0));
     });
 
-    this._syncToolbar(plan, lastRefreshAt);
+    this._syncToolbar(plan, plan.lastRefreshAt);
   }
 
-  private _update(plan: PanelMatrixPlan, lastRefreshAt: number | null): void {
+  protected update(plan: CompactRenderPlan): void {
     if (plan.state !== "ready") {
       if (this._emptyMessageLabel && plan.messageText) {
         this._emptyMessageLabel.text = plan.messageText;
         this._emptyMessageLabel.accessible_name = plan.messageText;
       }
-      this._syncToolbar(plan, lastRefreshAt);
+      this._syncToolbar(plan, plan.lastRefreshAt);
       return;
     }
 
@@ -336,7 +342,7 @@ export class CompactPanelSection implements PanelStyleSection {
       }
     });
 
-    this._syncToolbar(plan, lastRefreshAt);
+    this._syncToolbar(plan, plan.lastRefreshAt);
   }
 
   private _addProviderSection(plan: ProviderMatrixPlan, divided: boolean): ProviderSectionWidgets {

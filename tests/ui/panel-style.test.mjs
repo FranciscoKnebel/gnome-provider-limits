@@ -49,8 +49,8 @@ test("Panel swaps style sections on setting change and forwards render and runni
       this.destroyed = false;
       created.push(this);
     }
-    render(results, lastRefreshAt) {
-      this.rendered.push([results, lastRefreshAt]);
+    render(context) {
+      this.rendered.push(context);
     }
     setRunning(running) {
       this.running = running;
@@ -104,7 +104,9 @@ test("Panel swaps style sections on setting change and forwards render and runni
 
   const results = new Map([["codex", {}]]);
   panel.render(results, 100);
-  assert.deepEqual(created[0].rendered, [[results, 100]]);
+  assert.equal(created[0].rendered.length, 1);
+  assert.equal(created[0].rendered[0].results, results);
+  assert.equal(created[0].rendered[0].lastRefreshAt, 100);
   panel.setRunning(true);
   assert.equal(created[0].running, true);
 
@@ -115,7 +117,9 @@ test("Panel swaps style sections on setting change and forwards render and runni
   assert.equal(created[0].destroyed, true);
   assert.equal(created[0].shell.destroyed, true);
   assert.equal(created[1].shell.options.footerVariant, "cards");
-  assert.deepEqual(created[1].rendered, [[results, 100]]);
+  assert.equal(created[1].rendered.length, 1);
+  assert.equal(created[1].rendered[0].results, results);
+  assert.equal(created[1].rendered[0].lastRefreshAt, 100);
   assert.equal(created[1].running, true);
 
   style = "compact";

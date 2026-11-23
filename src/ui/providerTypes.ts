@@ -1,21 +1,11 @@
 import type { FieldTone } from "./fieldRows.js";
 
-export type ProviderState =
-  | "idle"
-  | "loading"
-  | "ok"
-  | "partial"
-  | "cached"
-  | "partialWarning"
-  | "cachedWarning"
-  | "warning"
-  | "critical"
-  | "error"
-  | "unavailable";
+export type ProviderState = "idle" | "ok" | "partial" | "cached" | "error" | "unavailable";
+
+export type ProviderTone = "ok" | "warning" | "critical" | "partial" | "error" | "idle";
+export type ProviderAttention = "quiet" | "partial" | "warning" | "critical" | "error";
 
 export interface Presentation {
-  readonly tone: "ok" | "warning" | "critical" | "partial" | "error" | "idle";
-  readonly attention: "quiet" | "partial" | "warning" | "critical" | "error";
   readonly cardBadge: "live" | "cached" | "error" | "unavailable";
   readonly overviewBadge: "ok" | "cached" | "partial" | "error" | "loading";
   readonly statusTag: string;
@@ -25,93 +15,38 @@ export interface Presentation {
   };
 }
 
-export type ProviderTone = Presentation["tone"];
-export type ProviderAttention = Presentation["attention"];
-
 export const PRESENTATION: Readonly<Record<ProviderState, Presentation>> = {
   idle: {
-    tone: "idle",
-    attention: "quiet",
     cardBadge: "live",
     overviewBadge: "ok",
     statusTag: "",
     label: { card: "Live", overview: "…" },
   },
-  loading: {
-    tone: "idle",
-    attention: "quiet",
-    cardBadge: "live",
-    overviewBadge: "loading",
-    statusTag: "",
-    label: { card: "Live", overview: "…" },
-  },
   ok: {
-    tone: "ok",
-    attention: "quiet",
     cardBadge: "live",
     overviewBadge: "ok",
     statusTag: "",
     label: { card: "Live", overview: "OK" },
   },
   partial: {
-    tone: "partial",
-    attention: "partial",
     cardBadge: "cached",
     overviewBadge: "partial",
     statusTag: "(partial)",
     label: { card: "Cached", overview: "Partial" },
   },
   cached: {
-    tone: "partial",
-    attention: "partial",
     cardBadge: "cached",
     overviewBadge: "cached",
     statusTag: "(partial)",
     label: { card: "Cached", overview: "Cached" },
-  },
-  partialWarning: {
-    tone: "partial",
-    attention: "warning",
-    cardBadge: "cached",
-    overviewBadge: "partial",
-    statusTag: "(partial)",
-    label: { card: "Cached", overview: "Partial" },
-  },
-  cachedWarning: {
-    tone: "partial",
-    attention: "warning",
-    cardBadge: "cached",
-    overviewBadge: "cached",
-    statusTag: "(partial)",
-    label: { card: "Cached", overview: "Cached" },
-  },
-  warning: {
-    tone: "warning",
-    attention: "warning",
-    cardBadge: "live",
-    overviewBadge: "ok",
-    statusTag: "",
-    label: { card: "Live", overview: "OK" },
-  },
-  critical: {
-    tone: "critical",
-    attention: "critical",
-    cardBadge: "live",
-    overviewBadge: "ok",
-    statusTag: "",
-    label: { card: "Live", overview: "OK" },
   },
   error: {
-    tone: "error",
-    attention: "error",
     cardBadge: "error",
     overviewBadge: "error",
     statusTag: "(error)",
     label: { card: "Error", overview: "Error" },
   },
   unavailable: {
-    tone: "error",
-    attention: "error",
     cardBadge: "unavailable",
     overviewBadge: "error",
     statusTag: "(unavailable)",
@@ -122,6 +57,7 @@ export const PRESENTATION: Readonly<Record<ProviderState, Presentation>> = {
 export interface ProviderHealth {
   readonly state: ProviderState;
   readonly tone: ProviderTone;
+  readonly attention: ProviderAttention;
   readonly worstTone: FieldTone | undefined;
   readonly hasUsableField: boolean;
   readonly lastKnownGood: boolean;
