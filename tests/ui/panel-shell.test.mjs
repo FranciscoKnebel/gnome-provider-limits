@@ -154,11 +154,60 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
 
     if (style === "compact") {
       assert.equal(shell.items[0], footer.row, `${style}: toolbar stays above the scroll area`);
+      assert.equal(footer.row.children.length, 0, `${style}: the section owns the HUD toolbar`);
     } else {
       assert.equal(
         shell.items[shell.items.length - 1],
         footer.row,
         `${style}: footer stays below the scroll area`,
+      );
+      assert.equal(footer.row.children.length, 1, `${style}: one toolbar lives in the footer`);
+      const toolbar = footer.row.children[0];
+      assert.equal(
+        toolbar.style_class,
+        style === "gauges" ? "pl-footer-toolbar" : "pl-panel-footer",
+        `${style}: toolbar class comes from the footer descriptor`,
+      );
+      assert.deepEqual(
+        toolbar.children,
+        [footer.refreshControl, footer.lastRefreshLabel, footer.settingsControl],
+        `${style}: toolbar child order is preserved`,
+      );
+      assert.equal(
+        footer.lastRefreshLabel.style_class,
+        "provider-limits-dim pl-footer-timestamp",
+        `${style}: timestamp class comes from the footer descriptor`,
+      );
+    }
+
+    const refreshClass =
+      style === "gauges"
+        ? "pl-footer-button pl-refresh-button"
+        : style === "cards"
+          ? "pl-footer-action pl-refresh-action"
+          : "provider-limits-icon-button";
+    assert.equal(
+      footer.refreshControl.style_class,
+      refreshClass,
+      `${style}: refresh control class comes from the action builder`,
+    );
+    if (style === "gauges") {
+      assert.equal(
+        footer.refreshControl.child.style_class,
+        "pl-footer-button-box",
+        `${style}: refresh content box class is preserved`,
+      );
+      assert.equal(
+        footer.refreshControl.child.children[0],
+        footer.spinner,
+        `${style}: spinner leads the refresh label`,
+      );
+    }
+    if (style === "compact") {
+      assert.equal(
+        footer.refreshControl.child.children[1],
+        footer.spinner,
+        `${style}: spinner follows the compact icon`,
       );
     }
     const persistent = {

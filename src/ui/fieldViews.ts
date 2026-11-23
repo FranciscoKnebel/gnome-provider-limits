@@ -3,8 +3,10 @@ import { formatAbsoluteTimestamp, formatField } from "../formatters.js";
 import type { FieldDef, FieldResult, FieldType, FieldZone, ReaderResult } from "../readers/base.js";
 import { FieldStatus, ReaderStatus } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
+import { GAUGE_START_ANGLE, GAUGE_SWEEP_ANGLE, TONE_RGB } from "./cairoDrawing.js";
 import type { FieldRow, FieldTone } from "./fieldRows.js";
 import { fieldTone, getFieldRows } from "./fieldRows.js";
+import type { GaugeTone, MicroMeterSpec } from "./gaugeTypes.js";
 import type {
   Presentation,
   ProviderAttention,
@@ -180,6 +182,46 @@ export function selectUsageView(
     if (view && isUsable(view)) return view;
   }
   return candidates.find(isUsable);
+}
+
+/** Builds the compact gauge spec from views that have already been derived. */
+export function meterFromViews(views: readonly FieldView[]): MicroMeterSpec {
+  const primary = views.find((view) => view.type === "percent" && view.hasValue);
+  if (!primary) {
+    return {
+      ratio: 0,
+      hasValue: false,
+      startAngle: GAUGE_START_ANGLE,
+      endAngle: GAUGE_START_ANGLE,
+      tone: "neutral",
+      rgb: TONE_RGB.neutral,
+      isError: false,
+    };
+  }
+
+  const ratio = primary.usageRatio ?? 0;
+  const tone: GaugeTone = primary.tone ?? "ok";
+  return {
+    ratio,
+    hasValue: true,
+    startAngle: GAUGE_START_ANGLE,
+    endAngle: GAUGE_START_ANGLE + ratio * GAUGE_SWEEP_ANGLE,
+    tone,
+    rgb: TONE_RGB[tone],
+    isError: false,
+  };
+}
+
+function errorMicroMeter(): MicroMeterSpec {
+  return {
+    ratio: 0,
+    hasValue: false,
+    startAngle: GAUGE_START_ANGLE,
+    endAngle: GAUGE_START_ANGLE,
+    tone: "critical",
+    rgb: TONE_RGB.critical,
+    isError: true,
+  };
 }
 
 export interface UsageFacts {
@@ -370,6 +412,7 @@ export interface StatusBarProviderSegment {
   readonly fieldDefs: readonly FieldDef[];
   readonly statusFields: readonly string[];
   readonly views: readonly FieldView[];
+  readonly meter: MicroMeterSpec;
   readonly health: ProviderHealth;
 }
 
@@ -419,6 +462,7 @@ export interface ProviderDisplayModel {
   readonly statusViews: readonly FieldView[];
   readonly panelViews: readonly FieldView[];
   readonly headerViews: readonly FieldView[];
+  readonly meter: MicroMeterSpec;
   readonly groupedViews: ProviderDisplayViews;
   readonly resetPairs: ReadonlyMap<string, FieldView>;
   readonly consumedResets: ReadonlySet<string>;
@@ -594,6 +638,7 @@ export function deriveDisplayModels(context: ProviderViewContext): ProviderDispl
       statusViews,
       panelViews,
       headerViews,
+      meter: isHardError ? errorMicroMeter() : meterFromViews([...statusViews, ...panelViews]),
       groupedViews: groupViewsByCategory(panelViews),
       resetPairs: pairs,
       consumedResets: consumed,
@@ -625,6 +670,7 @@ export function deriveStatusBarSegments(context: ProviderViewContext): StatusBar
     fieldDefs: context.fieldDefs[model.provider],
     statusFields: context.statusFields[model.provider] ?? [],
     views: model.statusViews,
+    meter: model.meter,
     health: {
       state: model.state,
       tone: model.tone,

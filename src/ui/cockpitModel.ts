@@ -1,10 +1,9 @@
 import type { ProviderName } from "../constants.js";
 import { formatField } from "../formatters.js";
-import { ReaderStatus } from "../readers/base.js";
 import type { FieldDef, ReaderResult } from "../readers/base.js";
 import { GAUGE_END_ANGLE, GAUGE_START_ANGLE, GAUGE_SWEEP_ANGLE, TONE_RGB } from "./cairoDrawing.js";
 import { fieldTone, type FieldTone } from "./fieldRows.js";
-import { deriveFieldViews, deriveDisplayModels, selectUsageView } from "./fieldViews.js";
+import { deriveDisplayModels } from "./fieldViews.js";
 import type { GaugeGeometry, GaugeTone, MicroMeterSpec, RgbTuple } from "./gaugeTypes.js";
 import type { Presentation } from "./providerTypes.js";
 import { structureKey } from "./renderStructure.js";
@@ -101,53 +100,6 @@ export function computeGaugeGeometry(
   };
 }
 
-export function computeStatusMicroMeter(
-  fieldsDefs: readonly FieldDef[],
-  result: ReaderResult,
-  statusFieldNames: readonly string[],
-  locale: string,
-): MicroMeterSpec {
-  if (result.status === ReaderStatus.ERROR || result.status === ReaderStatus.UNAVAILABLE) {
-    return {
-      ratio: 0,
-      hasValue: false,
-      startAngle: GAUGE_START_ANGLE,
-      endAngle: GAUGE_START_ANGLE,
-      tone: "critical",
-      rgb: TONE_RGB.critical,
-      isError: true,
-    };
-  }
-
-  const viewNames = [...statusFieldNames, ...fieldsDefs.map((def) => def.name)];
-  const views = deriveFieldViews(fieldsDefs, result, viewNames, "status", locale);
-  const primary = selectUsageView(views, statusFieldNames);
-
-  if (primary?.hasValue && primary.type === "percent") {
-    const ratio = primary.usageRatio ?? 0;
-    const tone: GaugeTone = primary.tone ?? "ok";
-    return {
-      ratio,
-      hasValue: true,
-      startAngle: GAUGE_START_ANGLE,
-      endAngle: GAUGE_START_ANGLE + ratio * GAUGE_SWEEP_ANGLE,
-      tone,
-      rgb: TONE_RGB[tone],
-      isError: false,
-    };
-  }
-
-  return {
-    ratio: 0,
-    hasValue: false,
-    startAngle: GAUGE_START_ANGLE,
-    endAngle: GAUGE_START_ANGLE,
-    tone: "neutral",
-    rgb: TONE_RGB.neutral,
-    isError: false,
-  };
-}
-
 export function chunkGauges<T>(items: readonly T[]): T[][] {
   if (items.length === 0) return [];
   if (items.length <= 3) return [[...items]];
@@ -235,6 +187,28 @@ export function partitionProviderPanel(
   };
 }
 
+function loadingOverviewRow(provider: ProviderName, displayName: string): OverviewRowModel {
+  return {
+    provider,
+    displayName,
+    badgeKind: "loading",
+    badgeText: "…",
+    meter: {
+      ratio: 0,
+      hasValue: false,
+      startAngle: GAUGE_START_ANGLE,
+      endAngle: GAUGE_START_ANGLE,
+      tone: "neutral",
+      rgb: TONE_RGB.neutral,
+      isError: false,
+    },
+    primaryText: "…",
+    secondaryText: null,
+    tone: undefined,
+    accessibleText: `${displayName}: …`,
+  };
+}
+
 export function buildOverviewRowModel(options: {
   provider: ProviderName;
   displayName: string;
@@ -257,67 +231,28 @@ export function buildOverviewRowModel(options: {
   } = options;
   const tr = t ?? ((s: string) => s);
 
-  if (!result) {
-    return {
-      provider,
-      displayName,
-      badgeKind: "loading",
-      badgeText: "…",
-      meter: {
-        ratio: 0,
-        hasValue: false,
-        startAngle: GAUGE_START_ANGLE,
-        endAngle: GAUGE_START_ANGLE,
-        tone: "neutral",
-        rgb: TONE_RGB.neutral,
-        isError: false,
-      },
-      primaryText: "…",
-      secondaryText: null,
-      tone: undefined,
-      accessibleText: `${displayName}: …`,
-    };
-  }
-
-  const context = singleProvider({
-    provider,
-    result,
-    displayName,
-    fieldDefs: fieldsDefs,
-    statusFields: statusFieldNames,
-    panelFields: panelFieldNames,
-    locale,
-    t: tr,
-  });
-  const model = deriveDisplayModels(context)[0];
-  if (!model) {
-    return {
-      provider,
-      displayName,
-      badgeKind: "loading",
-      badgeText: "…",
-      meter: {
-        ratio: 0,
-        hasValue: false,
-        startAngle: GAUGE_START_ANGLE,
-        endAngle: GAUGE_START_ANGLE,
-        tone: "neutral",
-        rgb: TONE_RGB.neutral,
-        isError: false,
-      },
-      primaryText: "…",
-      secondaryText: null,
-      tone: undefined,
-      accessibleText: `${displayName}: …`,
-    };
-  }
+  const model = result
+    ? deriveDisplayModels(
+        singleProvider({
+          provider,
+          result,
+          displayName,
+          fieldDefs: fieldsDefs,
+          statusFields: statusFieldNames,
+          panelFields: panelFieldNames,
+          locale,
+          t: tr,
+        }),
+      )[0]
+    : undefined;
+  if (!model) return loadingOverviewRow(provider, displayName);
 
   const badgeKind: OverviewBadgeKind = model.badges.overview;
   const badgeText = model.badges.overviewText;
-  const meter = computeStatusMicroMeter(fieldsDefs, result, statusFieldNames, locale);
+  const meter = model.meter;
 
   if (badgeKind === "error") {
-    const errSummary = result.lastError ?? tr("Error");
+    const errSummary = result?.lastError ?? tr("Error");
     return {
       provider,
       displayName,

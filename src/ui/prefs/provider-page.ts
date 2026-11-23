@@ -251,36 +251,6 @@ function buildFieldMatrixGroup(
   return group;
 }
 
-function addIdentityRows(
-  settings: Gio.Settings,
-  provider: ProviderName,
-  bindings: SettingsBinding[],
-  addRow: (row: Adw.PreferencesRow) => void,
-): void {
-  const displayNameRow = new Adw.EntryRow({
-    title: _("Display name"),
-    text: settings.get_string(`${provider}-display-name`) ?? "",
-  });
-  bindSetting(settings, `${provider}-display-name`, displayNameRow, "text", bindings);
-  addRow(displayNameRow);
-
-  const shortNameRow = new Adw.EntryRow({
-    title: _("Short display name"),
-    text: settings.get_string(`${provider}-display-name-short`) ?? "",
-  });
-  bindSetting(settings, `${provider}-display-name-short`, shortNameRow, "text", bindings);
-  addRow(shortNameRow);
-
-  const pathKey = `${provider}-cli-path`;
-  const isAuthFileProvider = provider === "grok" || provider === "cursor" || provider === "google";
-  const cliRow = new Adw.EntryRow({
-    title: isAuthFileProvider ? _("Authentication file") : _("CLI path"),
-    text: settings.get_string(pathKey) ?? "",
-  });
-  bindSetting(settings, pathKey, cliRow, "text", bindings);
-  addRow(cliRow);
-}
-
 export const ProviderExpanderRow = GObject.registerClass(
   class ProviderExpanderRow extends Adw.ExpanderRow {
     declare _settings: Gio.Settings;
@@ -292,11 +262,9 @@ export const ProviderExpanderRow = GObject.registerClass(
     _init(
       settings: Gio.Settings,
       provider: ProviderName,
-      options?: {
-        index?: number;
-        totalCount?: number;
-        onMove?: (offset: -1 | 1) => void;
-      },
+      index?: number,
+      totalCount?: number,
+      onMove?: (offset: -1 | 1) => void,
     ) {
       super._init({
         title: providerDisplayName(settings, provider),
@@ -330,25 +298,25 @@ export const ProviderExpanderRow = GObject.registerClass(
       setupDragSource(this, provider);
       setupDropTarget(this, settings, "providers-order", provider);
 
-      if (options?.onMove && options.index !== undefined && options.totalCount !== undefined) {
+      if (onMove && index !== undefined && totalCount !== undefined) {
         const upButton = new Gtk.Button({
           icon_name: "go-up-symbolic",
           valign: Gtk.Align.CENTER,
           tooltip_text: _("Move provider up"),
-          sensitive: options.index > 0,
+          sensitive: index > 0,
         });
         upButton.add_css_class("flat");
-        upButton.connect("clicked", () => options.onMove?.(-1));
+        upButton.connect("clicked", () => onMove(-1));
         this.add_suffix(upButton);
 
         const downButton = new Gtk.Button({
           icon_name: "go-down-symbolic",
           valign: Gtk.Align.CENTER,
           tooltip_text: _("Move provider down"),
-          sensitive: options.index < options.totalCount - 1,
+          sensitive: index < totalCount - 1,
         });
         downButton.add_css_class("flat");
-        downButton.connect("clicked", () => options.onMove?.(1));
+        downButton.connect("clicked", () => onMove(1));
         this.add_suffix(downButton);
       }
 
@@ -375,7 +343,41 @@ export const ProviderExpanderRow = GObject.registerClass(
         GLib.getenv("LANG"),
       );
 
-      addIdentityRows(this._settings, this._provider, this._bindings, (row) => this.add_row(row));
+      const displayNameRow = new Adw.EntryRow({
+        title: _("Display name"),
+        text: this._settings.get_string(`${this._provider}-display-name`) ?? "",
+      });
+      bindSetting(
+        this._settings,
+        `${this._provider}-display-name`,
+        displayNameRow,
+        "text",
+        this._bindings,
+      );
+      this.add_row(displayNameRow);
+
+      const shortNameRow = new Adw.EntryRow({
+        title: _("Short display name"),
+        text: this._settings.get_string(`${this._provider}-display-name-short`) ?? "",
+      });
+      bindSetting(
+        this._settings,
+        `${this._provider}-display-name-short`,
+        shortNameRow,
+        "text",
+        this._bindings,
+      );
+      this.add_row(shortNameRow);
+
+      const pathKey = `${this._provider}-cli-path`;
+      const isAuthFileProvider =
+        this._provider === "grok" || this._provider === "cursor" || this._provider === "google";
+      const cliRow = new Adw.EntryRow({
+        title: isAuthFileProvider ? _("Authentication file") : _("CLI path"),
+        text: this._settings.get_string(pathKey) ?? "",
+      });
+      bindSetting(this._settings, pathKey, cliRow, "text", this._bindings);
+      this.add_row(cliRow);
 
       // Field Matrix group inside expander
       const matrixGroup = buildFieldMatrixGroup(
@@ -415,15 +417,17 @@ export const ProvidersPage = GObject.registerClass(
         "providers-order",
         (name, context) => {
           if (!isProviderName(name)) return null;
-          return new ProviderExpanderRow(this._settings, name, {
-            index: context.index,
-            totalCount: context.visibleValues.length,
-            onMove: (offset) => {
+          return new ProviderExpanderRow(
+            this._settings,
+            name,
+            context.index,
+            context.visibleValues.length,
+            (offset) => {
               const current = this._settings.get_strv("providers-order");
               const reordered = moveAdjacentValue(current, context.visibleValues, name, offset);
               if (reordered) this._settings.set_strv("providers-order", reordered);
             },
-          });
+          );
         },
         {
           normalizeValues: (values) => normalizeProvidersOrder(values),

@@ -26,7 +26,6 @@ import {
   chunkGauges,
   chunkPairs,
   computeGaugeGeometry,
-  computeStatusMicroMeter,
   cycleTab,
   getAvailableTabs,
   partitionProviderPanel,
@@ -34,7 +33,9 @@ import {
   resolveActiveTab,
   toneToRgb,
 } from "../../src/ui/cockpitModel.js";
+import { deriveDisplayModels, deriveFieldViews, meterFromViews } from "../../src/ui/fieldViews.js";
 import { clampRatio, extractWindowSuffix } from "../../src/ui/usageSnapshot.js";
+import { singleProvider } from "../../src/ui/viewContext.js";
 
 interface RecordedCairoOp {
   readonly op: string;
@@ -155,68 +156,88 @@ describe("cockpitModel gauge math", () => {
   });
 });
 
-describe("computeStatusMicroMeter", () => {
-  it("picks the first configured status percent field and falls back to provider percent field", () => {
-    const okResult: ReaderResult = {
-      provider: "codex",
-      status: ReaderStatus.OK,
-      lastUpdated: 1_700_000_000,
-      fields: [
-        { name: "used_percent_primary", value: 30, status: FieldStatus.OK },
-        { name: "used_percent_secondary", value: 65, status: FieldStatus.OK },
-      ],
-    };
+describe("meterFromViews", () => {
+  const okResult: ReaderResult = {
+    provider: "codex",
+    status: ReaderStatus.OK,
+    lastUpdated: 1_700_000_000,
+    fields: [
+      { name: "used_percent_primary", value: 30, status: FieldStatus.OK },
+      { name: "used_percent_secondary", value: 65, status: FieldStatus.OK },
+    ],
+  };
 
-    const secondPicked = computeStatusMicroMeter(
+  it("derives the meter from already-derived views in their given order", () => {
+    const secondaryFirst = deriveFieldViews(
       CODEX_FIELDS,
       okResult,
-      ["reset_at_primary", "used_percent_secondary"],
+      ["used_percent_secondary", "used_percent_primary"],
+      "status",
       "en",
     );
+    const secondPicked = meterFromViews(secondaryFirst);
     expect(secondPicked.hasValue).toBeTrue();
     expect(secondPicked.ratio).toBeCloseTo(0.65, 5);
     expect(secondPicked.tone).toBe("warning");
     expect(secondPicked.isError).toBeFalse();
 
-    const fallbackPicked = computeStatusMicroMeter(CODEX_FIELDS, okResult, ["plan_type"], "en");
+    const primaryFirst = deriveFieldViews(
+      CODEX_FIELDS,
+      okResult,
+      ["used_percent_primary", "used_percent_secondary"],
+      "status",
+      "en",
+    );
+    const fallbackPicked = meterFromViews(primaryFirst);
     expect(fallbackPicked.hasValue).toBeTrue();
     expect(fallbackPicked.ratio).toBeCloseTo(0.3, 5);
     expect(fallbackPicked.tone).toBe("ok");
   });
 
-  it("returns critical error spec on ERROR/UNAVAILABLE and neutral when percent value is missing", () => {
-    const errResult: ReaderResult = {
-      provider: "codex",
-      status: ReaderStatus.ERROR,
-      lastUpdated: 1_700_000_000,
-      fields: [],
-      lastError: "Auth expired",
-    };
-    const errSpec = computeStatusMicroMeter(
-      CODEX_FIELDS,
-      errResult,
-      ["used_percent_primary"],
-      "en",
-    );
-    expect(errSpec.isError).toBeTrue();
-    expect(errSpec.hasValue).toBeFalse();
-    expect(errSpec.tone).toBe("critical");
-
+  it("returns a neutral spec when no derived percent view has a value", () => {
     const emptyOkResult: ReaderResult = {
       provider: "codex",
       status: ReaderStatus.OK,
       lastUpdated: 1_700_000_000,
       fields: [{ name: "used_percent_primary", value: null, status: FieldStatus.UNAVAILABLE }],
     };
-    const neutralSpec = computeStatusMicroMeter(
+    const views = deriveFieldViews(
       CODEX_FIELDS,
       emptyOkResult,
       ["used_percent_primary"],
+      "status",
       "en",
     );
+    const neutralSpec = meterFromViews(views);
     expect(neutralSpec.isError).toBeFalse();
     expect(neutralSpec.hasValue).toBeFalse();
     expect(neutralSpec.tone).toBe("neutral");
+  });
+
+  it("carries the error meter on models for ERROR and UNAVAILABLE results", () => {
+    for (const status of [ReaderStatus.ERROR, ReaderStatus.UNAVAILABLE] as const) {
+      const result: ReaderResult = {
+        provider: "codex",
+        status,
+        lastUpdated: 1_700_000_000,
+        fields: [],
+        lastError: "Auth expired",
+      };
+      const [model] = deriveDisplayModels(
+        singleProvider({
+          provider: "codex",
+          result,
+          displayName: "Codex",
+          fieldDefs: CODEX_FIELDS,
+          locale: "en",
+          t: (message) => message,
+        }),
+      );
+      expect(model).toBeDefined();
+      expect(model?.meter.isError).toBeTrue();
+      expect(model?.meter.hasValue).toBeFalse();
+      expect(model?.meter.tone).toBe("critical");
+    }
   });
 });
 
@@ -350,6 +371,8 @@ describe("buildOverviewRowModel, tabs & structure keys", () => {
     });
     expect(loading.badgeKind).toBe("loading");
     expect(loading.primaryText).toBe("…");
+    expect(loading.meter.tone).toBe("neutral");
+    expect(loading.meter.isError).toBeFalse();
 
     const futureEpoch = Math.floor(Date.now() / 1000) + 1800;
     const okRow = buildOverviewRowModel({

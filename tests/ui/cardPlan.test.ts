@@ -12,6 +12,7 @@ import { computeBarWidthPx, planPanel, planProviderCard } from "../../src/ui/car
 import { clampPercent, getFieldRows } from "../../src/ui/fieldRows.js";
 import type { StatusBarProviderSegment } from "../../src/ui/fieldViews.js";
 import {
+  deriveDisplayModels,
   deriveFieldViews,
   deriveProviderHealth,
   deriveStatusBarSegments,
@@ -347,6 +348,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       expect(segments[1].health.stateTag).toBe("~");
       expect(segments[1].health.stateAccessibleText).toBe("Cached");
       expect(segments[2].health.stateTag).toBe("(error)");
+      expect(segments[2].meter.isError).toBeTrue();
       expect(segments.map((segment) => segment.displayName)).toEqual([
         "CODEX",
         "CLAUDE",
@@ -368,12 +370,18 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
           ],
         ]);
 
-      const first = deriveStatusBarSegments(segmentsContext(makeResults(40), statusFields));
-      const second = deriveStatusBarSegments(segmentsContext(makeResults(88), statusFields));
+      const firstContext = segmentsContext(makeResults(40), statusFields);
+      const secondContext = segmentsContext(makeResults(88), statusFields);
+      const first = deriveStatusBarSegments(firstContext);
+      const second = deriveStatusBarSegments(secondContext);
 
       expect(identity(second)).toEqual(identity(first));
       expect(first[0].health.tone).toBe("ok");
       expect(second[0].health.tone).toBe("critical");
+      expect(first[0].meter.ratio).toBeCloseTo(0.4, 5);
+      expect(second[0].meter.ratio).toBeCloseTo(0.88, 5);
+      expect(second[0].meter.tone).toBe("critical");
+      expect(first[0].meter).toEqual(deriveDisplayModels(firstContext)[0]?.meter);
     });
   });
 

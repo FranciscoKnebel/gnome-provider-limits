@@ -5,7 +5,6 @@ import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { ReaderStatus } from "../readers/base.js";
 import { disposeCairoContext, drawMicroRing, isCairoContext } from "./cairoDrawing.js";
-import { computeStatusMicroMeter } from "./cockpitModel.js";
 import type { FieldView, StatusBarZonePlan } from "./fieldViews.js";
 import { deriveStatusBarSegments } from "./fieldViews.js";
 import type { MicroMeterSpec } from "./gaugeTypes.js";
@@ -46,12 +45,7 @@ function planGauges(context: ProviderViewContext): GaugesPlan {
     provider: segment.provider,
     displayName: segment.displayName,
     status: segment.result.status,
-    meter: computeStatusMicroMeter(
-      segment.fieldDefs,
-      segment.result,
-      segment.statusFields,
-      context.locale,
-    ),
+    meter: segment.meter,
     rows: segment.views,
     key: sectionKey({
       provider: segment.provider,
