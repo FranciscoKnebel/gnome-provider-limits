@@ -8,12 +8,7 @@ import {
   OPENCODE_FIELDS,
   PROVIDER_FIELDS,
 } from "../../src/readers/fields.js";
-import {
-  cardFromModel,
-  computeBarWidthPx,
-  planPanel,
-  type ProviderCardPlan,
-} from "../../src/ui/cardPlan.js";
+import { cardFromModel, planPanel, type ProviderCardPlan } from "../../src/ui/cardPlan.js";
 import { deriveDisplayModel } from "../../src/ui/displayModel.js";
 import { deriveFieldViews } from "../../src/ui/fieldViews.js";
 import type { ProviderTone } from "../../src/ui/providerHealth.js";
@@ -23,8 +18,6 @@ import {
   deriveTone,
   worstFieldTone,
 } from "../../src/ui/providerHealth.js";
-import type { StatusBarProviderSegment } from "../../src/ui/statusBarSegments.js";
-import { deriveStatusBarSegments } from "../../src/ui/statusBarSegments.js";
 import { applyHealthToneClass, applyToneClass } from "../../src/ui/tone.js";
 import {
   providerRecord,
@@ -220,7 +213,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
     });
   });
 
-  describe("provider health derivation & computeBarWidthPx", () => {
+  describe("provider health derivation", () => {
     it("prioritizes hard errors, critical limits, partial state, warnings, ok, and idle", () => {
       expect(toneOf(ReaderStatus.DISABLED, [], false)).toBe("idle");
       expect(toneOf(ReaderStatus.ERROR, [], false)).toBe("error");
@@ -283,19 +276,9 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       });
       expect(emptyCard.healthTone).toBe("idle");
     });
-
-    it("computes proportional bar pixel widths with min cap and bounds", () => {
-      expect(computeBarWidthPx(200, 0)).toBe(0);
-      expect(computeBarWidthPx(200, -10)).toBe(0);
-      expect(computeBarWidthPx(200, 1)).toBe(4);
-      expect(computeBarWidthPx(200, 50)).toBe(100);
-      expect(computeBarWidthPx(200, 100)).toBe(200);
-      expect(computeBarWidthPx(200, 140)).toBe(200);
-      expect(computeBarWidthPx(0, 50, 240)).toBe(120);
-    });
   });
 
-  describe("deriveStatusBarSegments", () => {
+  describe("status bar model derivation", () => {
     const statusFields = (provider: ProviderName): readonly string[] =>
       provider === "codex"
         ? ["used_percent_primary"]
@@ -303,18 +286,18 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
           ? ["used_percent_session"]
           : [];
 
-    const identity = (segments: readonly StatusBarProviderSegment[]): string[] =>
-      segments.map((segment) =>
+    const identity = (models: ProviderViewContext["models"]): string[] =>
+      models.map((model) =>
         JSON.stringify([
-          segment.provider,
-          segment.displayName,
-          segment.result.status,
-          segment.views.map((view) => view.name),
+          model.provider,
+          model.shortDisplayName,
+          model.result.status,
+          model.statusViews.map((view) => view.name),
         ]),
       );
 
-    it("returns no segments when results are empty", () => {
-      expect(deriveStatusBarSegments(segmentsContext(new Map(), statusFields))).toEqual([]);
+    it("returns no models when results are empty", () => {
+      expect(segmentsContext(new Map(), statusFields).models).toEqual([]);
     });
 
     it("skips disabled results and derives health tones, tags, and short labels", () => {
@@ -359,23 +342,23 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         ],
       ]);
 
-      const segments = deriveStatusBarSegments(segmentsContext(results, statusFields));
+      const models = segmentsContext(results, statusFields).models;
 
-      expect(segments).toHaveSize(3);
-      expect(segments.map((segment) => segment.health.tone)).toEqual(["ok", "partial", "error"]);
-      expect(segments[0].health.stateTag).toBeNull();
-      expect(segments[1].health.stateTag).toBe("~");
-      expect(segments[1].health.stateAccessibleText).toBe("Cached");
-      expect(segments[2].health.stateTag).toBe("(error)");
-      expect(segments[2].meter.isError).toBeTrue();
-      expect(segments.map((segment) => segment.displayName)).toEqual([
+      expect(models).toHaveSize(3);
+      expect(models.map((model) => model.health.tone)).toEqual(["ok", "partial", "error"]);
+      expect(models[0].health.stateTag).toBeNull();
+      expect(models[1].health.stateTag).toBe("~");
+      expect(models[1].health.stateAccessibleText).toBe("Cached");
+      expect(models[2].health.stateTag).toBe("(error)");
+      expect(models[2].meter.isError).toBeTrue();
+      expect(models.map((model) => model.shortDisplayName)).toEqual([
         "CODEX",
         "CLAUDE",
         "OPENCODE",
       ]);
     });
 
-    it("keeps segment identity stable across value updates while health tone escalates", () => {
+    it("keeps model identity stable across value updates while health tone escalates", () => {
       const makeResults = (value: number) =>
         new Map<ProviderName, ReaderResult>([
           [
@@ -389,10 +372,8 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
           ],
         ]);
 
-      const firstContext = segmentsContext(makeResults(40), statusFields);
-      const secondContext = segmentsContext(makeResults(88), statusFields);
-      const first = deriveStatusBarSegments(firstContext);
-      const second = deriveStatusBarSegments(secondContext);
+      const first = segmentsContext(makeResults(40), statusFields).models;
+      const second = segmentsContext(makeResults(88), statusFields).models;
 
       expect(identity(second)).toEqual(identity(first));
       expect(first[0].health.tone).toBe("ok");
@@ -400,7 +381,6 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       expect(first[0].meter.ratio).toBeCloseTo(0.4, 5);
       expect(second[0].meter.ratio).toBeCloseTo(0.88, 5);
       expect(second[0].meter.tone).toBe("critical");
-      expect(first[0].meter).toEqual(firstContext.models[0]?.meter);
     });
   });
 

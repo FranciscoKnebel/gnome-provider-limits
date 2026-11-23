@@ -5,12 +5,10 @@ import type { ProviderName } from "../constants.js";
 import { ReaderStatus } from "../readers/base.js";
 import { formatViewText, type FieldView } from "./fieldViews.js";
 import type { ProviderTone } from "./providerHealth.js";
-import { StatusBarRenderer } from "./statusBarRenderer.js";
-import type { StatusBarZonePlan } from "./statusBarSegments.js";
-import { deriveStatusBarSegments } from "./statusBarSegments.js";
+import { StatusBarRenderer, type ZonePlan } from "./statusBarRenderer.js";
 import { applyHealthToneClass, applyToneClass } from "./tone.js";
 import type { ProviderViewContext } from "./viewContext.js";
-import { viewMessages } from "./viewMessages.js";
+import { phaseResult } from "./viewMessages.js";
 
 interface PillRowPlan {
   readonly view: FieldView;
@@ -28,33 +26,28 @@ interface PillPlan {
   rows: readonly PillRowPlan[];
 }
 
-type PillsPlan = StatusBarZonePlan<PillPlan>;
+type PillsPlan = ZonePlan<PillPlan>;
 
 function planPills(context: ProviderViewContext): PillsPlan {
-  const message = viewMessages({
-    phase: context.phase,
-    surface: "pills",
-    running: false,
-    t: context.t,
-  });
-  if (message.showPlaceholder) {
+  const phase = phaseResult(context, "pills", false);
+  if (phase.kind === "placeholder") {
     return {
       kind: "placeholder",
-      phase: context.phase,
-      placeholder: message.placeholder,
-      placeholderAccessibleText: message.accessibleText,
+      phase: phase.phase,
+      placeholder: phase.message.placeholder,
+      placeholderAccessibleText: phase.message.accessibleText,
       showPlaceholder: true,
     };
   }
 
-  const segments: PillPlan[] = deriveStatusBarSegments(context).map((segment) => ({
-    provider: segment.provider,
-    displayName: segment.displayName,
-    isPartial: segment.result.status === ReaderStatus.PARTIAL,
-    healthTone: segment.health.tone,
-    stateTag: segment.health.stateTag,
-    stateAccessibleText: segment.health.stateAccessibleText,
-    rows: segment.views.map((view) => ({
+  const segments: PillPlan[] = context.models.map((model) => ({
+    provider: model.provider,
+    displayName: model.shortDisplayName,
+    isPartial: model.result.status === ReaderStatus.PARTIAL,
+    healthTone: model.health.tone,
+    stateTag: model.health.stateTag,
+    stateAccessibleText: model.health.stateAccessibleText,
+    rows: model.statusViews.map((view) => ({
       view,
       ...formatViewText(view, "status", context.locale, context.t),
     })),

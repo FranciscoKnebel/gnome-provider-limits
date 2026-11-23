@@ -1,12 +1,10 @@
 import Clutter from "gi://Clutter";
 import type Gio from "gi://Gio";
-import GLib from "gi://GLib";
 import St from "gi://St";
 
 import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { bindActivation } from "../helpers/keyboard.js";
-import { resolveLocale } from "../helpers/locale.js";
 import { ReaderStatus } from "../readers/base.js";
 import { clampFillRatio } from "./fieldRows.js";
 import {
@@ -45,21 +43,19 @@ export function createExpandAllControl(): ExpandAllControl {
 
 /** Rebuilds the compact panel body from one freshly derived plan. */
 export class CompactPanelSection implements PanelStyleSection {
-  private _settings: Gio.Settings;
   private _lastRefreshAt: number | null = null;
   private _lastView: ProviderViewContext;
   private _expandedOverrides: Map<ProviderName, boolean> = new Map();
   private readonly _expandAll: ExpandAllControl;
   readonly shell: PanelShell;
 
-  constructor(settings: Gio.Settings, shell: PanelShell, expandAll: ExpandAllControl) {
-    this._settings = settings;
+  constructor(_settings: Gio.Settings, shell: PanelShell, expandAll: ExpandAllControl) {
     this.shell = shell;
     this._expandAll = expandAll;
     bindActivation(expandAll.button, () => this._toggleAllProviders(), {
       pointerSignals: ["clicked"],
     });
-    this._lastView = emptyViewContext(this._currentLocale(), _);
+    this._lastView = emptyViewContext("", _);
     this.render({ lastRefreshAt: null, view: this._lastView });
   }
 
@@ -85,14 +81,6 @@ export class CompactPanelSection implements PanelStyleSection {
 
   setRunning(running: boolean): void {
     this.shell.setRunning(running);
-  }
-
-  private _currentLocale(): string {
-    return resolveLocale(
-      this._settings.get_string("language"),
-      GLib.getenv("LC_MESSAGES"),
-      GLib.getenv("LANG"),
-    );
   }
 
   private _buildPlan(view: ProviderViewContext): PanelMatrixPlan {

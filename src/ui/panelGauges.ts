@@ -1,10 +1,8 @@
 import Clutter from "gi://Clutter";
 import type Gio from "gi://Gio";
-import GLib from "gi://GLib";
 
 import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
-import { resolveLocale } from "../helpers/locale.js";
 import type { ReaderResult } from "../readers/base.js";
 import { cycleTab, resolveActiveTab } from "./cockpitModel.js";
 import type { CockpitTab } from "./cockpitModel.js";
@@ -14,7 +12,7 @@ import type { OverviewHost } from "./panelGaugesOverview.js";
 import { OverviewRenderer } from "./panelGaugesOverview.js";
 import type { PanelRenderContext, PanelShell, PanelStyleSection } from "./panelShell.js";
 import { emptyViewContext, type ViewPhase } from "./viewContext.js";
-import { viewMessages } from "./viewMessages.js";
+import { phaseResult } from "./viewMessages.js";
 
 type BodyState =
   | { kind: "empty"; phase: ViewPhase }
@@ -34,14 +32,7 @@ export class GaugesPanelSection implements PanelStyleSection {
     this.shell = shell;
     this._lastContext = {
       lastRefreshAt: null,
-      view: emptyViewContext(
-        resolveLocale(
-          settings.get_string("language"),
-          GLib.getenv("LC_MESSAGES"),
-          GLib.getenv("LANG"),
-        ),
-        _,
-      ),
+      view: emptyViewContext("", _),
     };
 
     const host: OverviewHost & DetailHost = {
@@ -89,13 +80,10 @@ export class GaugesPanelSection implements PanelStyleSection {
     const nextState = this._resolveBodyState(context.view.phase, results);
 
     if (nextState.kind === "empty") {
-      const message = viewMessages({
-        phase: nextState.phase,
-        surface: "gauges",
-        running: false,
-        t: context.view.t,
-      });
-      this.shell.addEmptyStateRow(message.title, message.subtitle);
+      const phase = phaseResult({ ...context.view, phase: nextState.phase }, "gauges", false);
+      if (phase.kind === "placeholder") {
+        this.shell.addEmptyStateRow(phase.message.title, phase.message.subtitle);
+      }
       return;
     }
 

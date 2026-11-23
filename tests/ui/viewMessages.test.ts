@@ -1,9 +1,25 @@
-import type { ViewPhase } from "../../src/ui/viewContext.js";
-import { viewMessages } from "../../src/ui/viewMessages.js";
+import {
+  providerRecord,
+  type ProviderViewContext,
+  type ViewPhase,
+} from "../../src/ui/viewContext.js";
+import { phaseResult, viewMessages } from "../../src/ui/viewMessages.js";
 import type { ViewSurface } from "../../src/ui/viewMessages.js";
 
 function message(phase: ViewPhase, surface: ViewSurface, running = false) {
   return viewMessages({ phase, surface, running, t: (text) => text });
+}
+
+function view(phase: ViewPhase): ProviderViewContext {
+  return {
+    phase,
+    activeProviders: [],
+    results: new Map(),
+    displayNames: providerRecord(() => ""),
+    models: [],
+    locale: "en",
+    t: (text: string) => text,
+  };
 }
 
 describe("viewMessages", () => {
@@ -69,5 +85,43 @@ describe("viewMessages", () => {
       t: (text) => `T:${text}`,
     });
     expect(result.title).toBe("T:No providers enabled. Open Settings to enable a provider.");
+  });
+});
+
+describe("phaseResult", () => {
+  it("returns ready on every surface when the view is ready", () => {
+    for (const surface of ["cards", "matrix", "pills", "gauges", "compact"] as const) {
+      expect(phaseResult(view("ready"), surface, false)).toEqual({ kind: "ready" });
+    }
+  });
+
+  it("returns ready for status surfaces with an empty view and no words to show", () => {
+    expect(phaseResult(view("empty"), "pills", false)).toEqual({ kind: "ready" });
+    expect(phaseResult(view("empty"), "compact", false)).toEqual({ kind: "ready" });
+  });
+
+  it("returns a typed placeholder carrying the derived message for every loading surface", () => {
+    expect(phaseResult(view("loading"), "cards", true)).toEqual({
+      kind: "placeholder",
+      phase: "loading",
+      message: message("loading", "cards", true),
+    });
+    for (const surface of ["matrix", "pills", "gauges", "compact"] as const) {
+      const result = phaseResult(view("loading"), surface, false);
+      expect(result.kind).toBe("placeholder");
+      if (result.kind === "placeholder") {
+        expect(result.message).toEqual(message("loading", surface));
+      }
+    }
+  });
+
+  it("returns a typed placeholder for card and matrix empty states", () => {
+    for (const surface of ["cards", "matrix", "gauges"] as const) {
+      const result = phaseResult(view("empty"), surface, false);
+      expect(result.kind).toBe("placeholder");
+      if (result.kind === "placeholder") {
+        expect(result.message).toEqual(message("empty", surface));
+      }
+    }
   });
 });

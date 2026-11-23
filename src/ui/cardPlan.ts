@@ -2,12 +2,12 @@ import { type ProviderName } from "../constants.js";
 import type { ReaderStatus } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
 import { classifyPanelViews, type ProviderDisplayModel } from "./displayModel.js";
-import { clampPercent, type FieldTone } from "./fieldRows.js";
+import type { FieldTone } from "./fieldRows.js";
 import { toDisplayRow, type DisplayRow } from "./fieldViews.js";
 import type { Presentation, ProviderTone } from "./providerHealth.js";
 import { resetDetailText, type ResetPairing } from "./resetModel.js";
 import type { ProviderViewContext, ViewPhase } from "./viewContext.js";
-import { viewMessages } from "./viewMessages.js";
+import { phaseResult } from "./viewMessages.js";
 
 export type CardBadgeKind = Presentation["cardBadge"];
 export type BannerKind = "warning" | "error";
@@ -56,17 +56,6 @@ export interface PanelPlan {
   emptyTitle: string | null;
   emptySubtitle: string | null;
   cards: ProviderCardPlan[];
-}
-
-export function computeBarWidthPx(
-  trackWidth: number,
-  fillPercent: number,
-  fallbackTrackWidth = 260,
-): number {
-  const clamped = clampPercent(fillPercent) ?? 0;
-  if (clamped <= 0) return 0;
-  const effectiveTrack = trackWidth > 0 ? trackWidth : fallbackTrackWidth;
-  return Math.min(effectiveTrack, Math.max(4, Math.round((effectiveTrack * clamped) / 100)));
 }
 
 function keyValueRow(row: DisplayRow): CardKeyValueRow {
@@ -156,18 +145,13 @@ export function cardFromModel(
 }
 
 export function planPanel(context: ProviderViewContext, running: boolean): PanelPlan {
-  const message = viewMessages({
-    phase: context.phase,
-    surface: "cards",
-    running,
-    t: context.t,
-  });
+  const phase = phaseResult(context, "cards", running);
 
-  if (context.phase !== "ready") {
+  if (phase.kind === "placeholder") {
     return {
-      phase: context.phase,
-      emptyTitle: message.title || null,
-      emptySubtitle: message.subtitle || null,
+      phase: phase.phase,
+      emptyTitle: phase.message.title || null,
+      emptySubtitle: phase.message.subtitle || null,
       cards: [],
     };
   }

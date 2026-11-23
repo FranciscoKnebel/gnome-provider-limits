@@ -6,12 +6,10 @@ import { ReaderStatus } from "../readers/base.js";
 import { formatViewText } from "./fieldViews.js";
 import { statusBadgeText } from "./providerHealth.js";
 import type { ProviderAttention } from "./providerHealth.js";
-import { StatusBarRenderer } from "./statusBarRenderer.js";
-import type { StatusBarZonePlan } from "./statusBarSegments.js";
-import { deriveStatusBarSegments } from "./statusBarSegments.js";
+import { StatusBarRenderer, type ZonePlan } from "./statusBarRenderer.js";
 import { applyStatusAttentionClass } from "./tone.js";
 import type { ProviderViewContext } from "./viewContext.js";
-import { viewMessages } from "./viewMessages.js";
+import { phaseResult } from "./viewMessages.js";
 
 interface CompactBadgePlan {
   provider: ProviderName;
@@ -21,55 +19,49 @@ interface CompactBadgePlan {
   accessibleText: string;
 }
 
-type CompactPlan = StatusBarZonePlan<CompactBadgePlan>;
+type CompactPlan = ZonePlan<CompactBadgePlan>;
 
 function planCompact(context: ProviderViewContext): CompactPlan {
-  const message = viewMessages({
-    phase: context.phase,
-    surface: "compact",
-    running: false,
-    t: context.t,
-  });
-
-  if (context.phase !== "ready") {
+  const phase = phaseResult(context, "compact", false);
+  if (phase.kind === "placeholder") {
     return {
       kind: "placeholder",
-      phase: context.phase,
-      placeholder: message.placeholder,
-      placeholderAccessibleText: message.accessibleText,
-      showPlaceholder: message.showPlaceholder,
+      phase: phase.phase,
+      placeholder: phase.message.placeholder,
+      placeholderAccessibleText: phase.message.accessibleText,
+      showPlaceholder: phase.message.showPlaceholder,
     };
   }
 
-  const segments: CompactBadgePlan[] = deriveStatusBarSegments(context).map((segment) => {
-    const shortLabel = segment.displayName || segment.provider;
-    const badgeWord = statusBadgeText(segment.health, context.t);
+  const segments: CompactBadgePlan[] = context.models.map((model) => {
+    const shortLabel = model.shortDisplayName || model.provider;
+    const badgeWord = statusBadgeText(model.health, context.t);
 
-    if (segment.health.state === "error" || segment.health.state === "unavailable") {
+    if (model.health.state === "error" || model.health.state === "unavailable") {
       return {
-        provider: segment.provider,
+        provider: model.provider,
         shortLabel,
         metricsText: "!",
-        attention: segment.health.attention,
+        attention: model.health.attention,
         accessibleText: `${shortLabel} ${badgeWord}`.trim(),
       };
     }
 
-    const viewTexts = segment.views.map((view) =>
+    const viewTexts = model.statusViews.map((view) =>
       formatViewText(view, "status", context.locale, context.t),
     );
     const joined = viewTexts.map((text) => text.valueText).join("·");
-    const prefix = segment.result.status === ReaderStatus.PARTIAL ? "~" : "";
+    const prefix = model.result.status === ReaderStatus.PARTIAL ? "~" : "";
     const metricsText = joined ? `${prefix}${joined}` : prefix;
     const spokenRows = viewTexts.map((text) => text.accessibleText).join(", ");
     const headerPart = badgeWord ? `${shortLabel} ${badgeWord}` : shortLabel;
     const accessibleText = spokenRows ? `${headerPart}: ${spokenRows}` : headerPart;
 
     return {
-      provider: segment.provider,
+      provider: model.provider,
       shortLabel,
       metricsText,
-      attention: segment.health.attention,
+      attention: model.health.attention,
       accessibleText,
     };
   });

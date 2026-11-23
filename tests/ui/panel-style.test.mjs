@@ -37,8 +37,9 @@ test("Panel swaps style sections on setting change and forwards render and runni
     destroy() {
       this.destroyed = true;
     }
-    setLastRefreshAt(lastRefreshAt) {
+    setLastRefreshAt(lastRefreshAt, locale) {
       this.lastRefreshAt = lastRefreshAt;
+      this.locale = locale;
     }
     setRunning(running) {
       this.running = running;
@@ -88,7 +89,7 @@ test("Panel swaps style sections on setting change and forwards render and runni
   }
 
   const { resolvePanelStyle } = load("src/ui/styles.ts", "({ resolvePanelStyle })");
-  const view = { marker: "provider-view-settings" };
+  const view = { marker: "provider-view-settings", locale: "en" };
   const K = load("src/ui/panel.ts", "PanelWidget", {
     PopupMenu: { PopupMenuSection: Section },
     GaugesPanelSection: GaugesStub,
@@ -134,6 +135,7 @@ test("Panel swaps style sections on setting change and forwards render and runni
   assert.equal(created[0].rendered.length, 1);
   assert.equal(created[0].rendered[0].lastRefreshAt, 100);
   assert.equal(created[0].shell.lastRefreshAt, 100);
+  assert.equal(created[0].shell.locale, "en", "the view locale reaches the shell timestamp");
   assert.equal(created[0].rendered[0].view, view, "the canonical view snapshot is forwarded");
   panel.setRunning(true);
   assert.equal(created[0].running, true);

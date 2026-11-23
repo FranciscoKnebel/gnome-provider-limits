@@ -106,11 +106,10 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
     EVENT_PROPAGATE: 0,
   };
   const { bindActivation } = load("src/helpers/keyboard.ts", "({ bindActivation })", { Clutter });
-  const { PanelShell } = load("src/ui/panelShell.ts", "({ PanelShell })", {
+  const footerGlobals = {
     Clutter,
     _: (message) => message,
     bindActivation,
-    GLib: { getenv: () => null },
     St: {
       BoxLayout: Actor,
       Label: Actor,
@@ -122,6 +121,19 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
       ThemeContext: { get_for_stage: () => ({ scale_factor: 1 }) },
     },
     Spinner: SpinnerStub,
+    PopupMenu: { PopupBaseMenuItem: Actor },
+    formatTimestampTemplate: (_pattern, at, locale) => (at === null ? "" : `${at}:${locale}`),
+  };
+  const { buildPanelFooter } = load(
+    "src/ui/panelFooter.ts",
+    "({ buildPanelFooter })",
+    footerGlobals,
+  );
+  const { PanelShell } = load("src/ui/panelShell.ts", "({ PanelShell })", {
+    Clutter,
+    _: footerGlobals._,
+    St: footerGlobals.St,
+    buildPanelFooter,
     Main: {
       layoutManager: {
         findMonitorForActor: () => null,
@@ -131,8 +143,7 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
     PopupMenu: { PopupBaseMenuItem: Actor, PopupMenuSection: MenuSectionStub },
     ensureActorVisibleInScrollView: (scroll, row) => focusCalls.push([scroll, row]),
     setScrollViewChild: (scroll, actor) => scroll.set_child(actor),
-    formatTimestampTemplate: (_pattern, at, locale) => (at === null ? "" : `${at}:${locale}`),
-    resolveLocale: (setting, messages, lang) => setting || messages || lang || "en",
+    formatTimestampTemplate: footerGlobals.formatTimestampTemplate,
   });
 
   for (const style of ["gauges", "cards", "compact"]) {
@@ -142,11 +153,9 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
     let preferences = 0;
     const extraControl = style === "compact" ? new Actor({ text: "expand" }) : null;
     const shell = new PanelShell({
-      settings: { get_string: () => "en" },
       onRefresh: () => refreshes++,
       openPreferences: () => preferences++,
       closeMenu: () => closes++,
-      translate: (message) => message,
       footerVariant: style,
       extraControls: extraControl ? [extraControl] : [],
     });
@@ -273,7 +282,7 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
     assert.equal(focusCalls[1][1], secondRow);
 
     shell.setRunning(true);
-    shell.setLastRefreshAt(123);
+    shell.setLastRefreshAt(123, "en");
     assert.equal(shell.footer.row, persistent.row, `${style}: footer row persists`);
     assert.equal(shell.footer.refreshControl, persistent.refresh, `${style}: refresh persists`);
     assert.equal(shell.footer.spinner, persistent.spinner, `${style}: spinner persists`);

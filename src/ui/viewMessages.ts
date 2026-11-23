@@ -1,4 +1,4 @@
-import type { ViewPhase } from "./viewContext.js";
+import type { ProviderViewContext, ViewPhase } from "./viewContext.js";
 
 export type ViewSurface = "cards" | "matrix" | "pills" | "gauges" | "compact";
 
@@ -16,6 +16,14 @@ export interface ViewMessagesOptions {
   readonly running: boolean;
   readonly t: (s: string) => string;
 }
+
+export type PhaseResult =
+  | {
+      readonly kind: "placeholder";
+      readonly phase: ViewPhase;
+      readonly message: EmptyPresentation;
+    }
+  | { readonly kind: "ready" };
 
 const NONE: EmptyPresentation = {
   title: "",
@@ -82,4 +90,30 @@ export function viewMessages(options: ViewMessagesOptions): EmptyPresentation {
   }
 
   return NONE;
+}
+
+function hasNothingToShow(message: EmptyPresentation): boolean {
+  return (
+    message.title === "" &&
+    message.subtitle === "" &&
+    message.placeholder === "" &&
+    message.accessibleText === "" &&
+    !message.showPlaceholder
+  );
+}
+
+/** The one phase-to-placeholder decision shared by every plan builder. */
+export function phaseResult(
+  view: ProviderViewContext,
+  surface: ViewSurface,
+  running: boolean,
+): PhaseResult {
+  const message = viewMessages({
+    phase: view.phase,
+    surface,
+    running,
+    t: view.t,
+  });
+  if (view.phase === "ready" || hasNothingToShow(message)) return { kind: "ready" };
+  return { kind: "placeholder", phase: view.phase, message };
 }

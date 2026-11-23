@@ -3,7 +3,6 @@ import type St from "gi://St";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
 import type { ProviderName } from "../constants.js";
-import { gettext as _ } from "../helpers/gettext.js";
 import type { FieldDef } from "../readers/base.js";
 import { PROVIDER_FIELDS } from "../readers/fields.js";
 import { CardsPanelSection } from "./panelCards.js";
@@ -60,11 +59,9 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
 
   private _createShell(variant: PanelStyle, extraControls: readonly St.Widget[] = []): PanelShell {
     return new PanelShell({
-      settings: this._settings,
       onRefresh: this._onRefresh,
       openPreferences: this._openPreferences,
       closeMenu: this._closeMenu,
-      translate: _,
       footerVariant: variant,
       extraControls,
     });
@@ -98,7 +95,7 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
   render(view: ProviderViewContext, lastRefreshAt: number | null): void {
     const section = this._ensureSection();
     section.render({ lastRefreshAt, view });
-    section.shell.setLastRefreshAt(lastRefreshAt);
+    section.shell.setLastRefreshAt(lastRefreshAt, view.locale);
   }
 
   setRunning(running: boolean): void {

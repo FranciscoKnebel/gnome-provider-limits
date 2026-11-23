@@ -4,7 +4,7 @@ import St from "gi://St";
 
 import type { ProviderName } from "../constants.js";
 import type { FieldDef } from "../readers/base.js";
-import { computeBarWidthPx, planPanel } from "./cardPlan.js";
+import { planPanel } from "./cardPlan.js";
 import type {
   BannerKind,
   CardBadgeKind,
@@ -12,8 +12,20 @@ import type {
   CardProgressRow,
   ProviderCardPlan,
 } from "./cardPlan.js";
+import { clampPercent } from "./fieldRows.js";
 import type { PanelRenderContext, PanelShell, PanelStyleSection } from "./panelShell.js";
 import { applyHealthToneClass, applyToneClass } from "./tone.js";
+
+export function computeBarWidthPx(
+  trackWidth: number,
+  fillPercent: number,
+  fallbackTrackWidth = 260,
+): number {
+  const clamped = clampPercent(fillPercent) ?? 0;
+  if (clamped <= 0) return 0;
+  const effectiveTrack = trackWidth > 0 ? trackWidth : fallbackTrackWidth;
+  return Math.min(effectiveTrack, Math.max(4, Math.round((effectiveTrack * clamped) / 100)));
+}
 
 interface ProgressRowWidgets {
   track: St.BoxLayout;

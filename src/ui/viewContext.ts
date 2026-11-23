@@ -49,9 +49,7 @@ export function resolveViewPhase(
   return "ready";
 }
 
-const EMPTY_DISPLAY_NAMES: Readonly<Record<ProviderName, string>> = {} as Readonly<
-  Record<ProviderName, string>
->;
+const EMPTY_DISPLAY_NAMES: Readonly<Record<ProviderName, string>> = providerRecord(() => "");
 
 /** A genuine empty-phase snapshot for renderers before their first real render. */
 export function emptyViewContext(locale: string, t: (text: string) => string): ProviderViewContext {

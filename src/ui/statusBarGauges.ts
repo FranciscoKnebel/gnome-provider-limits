@@ -6,12 +6,10 @@ import { ReaderStatus } from "../readers/base.js";
 import { connectRepaint, drawMicroRing } from "./cairoDrawing.js";
 import { formatViewText, type FieldView } from "./fieldViews.js";
 import type { GaugeSpec } from "./gaugeTypes.js";
-import { StatusBarRenderer } from "./statusBarRenderer.js";
-import { deriveStatusBarSegments } from "./statusBarSegments.js";
-import type { StatusBarZonePlan } from "./statusBarSegments.js";
+import { StatusBarRenderer, type ZonePlan } from "./statusBarRenderer.js";
 import { applyToneClass } from "./tone.js";
 import type { ProviderViewContext } from "./viewContext.js";
-import { viewMessages } from "./viewMessages.js";
+import { phaseResult } from "./viewMessages.js";
 
 const MICRO_GAUGE_SIZE = 14;
 
@@ -29,31 +27,26 @@ interface GaugeSegmentPlan {
   rows: readonly GaugeRowPlan[];
 }
 
-type GaugesPlan = StatusBarZonePlan<GaugeSegmentPlan>;
+type GaugesPlan = ZonePlan<GaugeSegmentPlan>;
 
 function planGauges(context: ProviderViewContext): GaugesPlan {
-  if (context.phase !== "ready") {
-    const message = viewMessages({
-      phase: context.phase,
-      surface: "gauges",
-      running: false,
-      t: context.t,
-    });
+  const phase = phaseResult(context, "gauges", false);
+  if (phase.kind === "placeholder") {
     return {
       kind: "placeholder",
-      phase: context.phase,
-      placeholder: message.placeholder,
-      placeholderAccessibleText: message.accessibleText,
-      showPlaceholder: message.showPlaceholder,
+      phase: phase.phase,
+      placeholder: phase.message.placeholder,
+      placeholderAccessibleText: phase.message.accessibleText,
+      showPlaceholder: phase.message.showPlaceholder,
     };
   }
 
-  const segments: GaugeSegmentPlan[] = deriveStatusBarSegments(context).map((segment) => ({
-    provider: segment.provider,
-    displayName: segment.displayName,
-    status: segment.result.status,
-    meter: segment.meter,
-    rows: segment.views.map((view) => ({
+  const segments: GaugeSegmentPlan[] = context.models.map((model) => ({
+    provider: model.provider,
+    displayName: model.shortDisplayName,
+    status: model.result.status,
+    meter: model.meter,
+    rows: model.statusViews.map((view) => ({
       view,
       ...formatViewText(view, "status", context.locale, context.t),
     })),

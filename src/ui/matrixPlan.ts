@@ -5,7 +5,7 @@ import { classifyPanelViews, type ProviderDisplayModel } from "./displayModel.js
 import { clampFillRatio, type FieldTone } from "./fieldRows.js";
 import { toDisplayRow } from "./fieldViews.js";
 import type { ProviderViewContext, ViewPhase } from "./viewContext.js";
-import { viewMessages } from "./viewMessages.js";
+import { phaseResult } from "./viewMessages.js";
 
 export interface MatrixDetailRow {
   readonly name: string;
@@ -139,16 +139,11 @@ export function planPanelMatrix(
 ): PanelMatrixPlan {
   const tr = context.t;
 
-  if (context.phase !== "ready") {
-    const message = viewMessages({
-      phase: context.phase,
-      surface: "matrix",
-      running: false,
-      t: tr,
-    });
+  const phase = phaseResult(context, "matrix", false);
+  if (phase.kind === "placeholder") {
     return {
-      phase: context.phase,
-      messageText: message.title,
+      phase: phase.phase,
+      messageText: phase.message.title,
       allExpanded: false,
       canToggleAll: false,
       providers: [],

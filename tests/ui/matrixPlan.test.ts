@@ -12,8 +12,6 @@ import {
   toggleAllProvidersExpanded,
 } from "../../src/ui/matrixPlan.js";
 import { attentionFromTones } from "../../src/ui/providerHealth.js";
-import type { StatusBarProviderSegment } from "../../src/ui/statusBarSegments.js";
-import { deriveStatusBarSegments } from "../../src/ui/statusBarSegments.js";
 import {
   applyQuietToneClass,
   applyStatusAttentionClass,
@@ -155,19 +153,19 @@ describe("matrixPlan", () => {
     });
   });
 
-  describe("deriveStatusBarSegments", () => {
-    const identity = (segments: readonly StatusBarProviderSegment[]): string[] =>
-      segments.map((segment) =>
+  describe("status bar model derivation", () => {
+    const identity = (models: ProviderViewContext["models"]): string[] =>
+      models.map((model) =>
         JSON.stringify([
-          segment.provider,
-          segment.displayName,
-          segment.result.status,
-          segment.views.map((view) => view.name),
+          model.provider,
+          model.shortDisplayName,
+          model.result.status,
+          model.statusViews.map((view) => view.name),
         ]),
       );
 
-    it("returns no segments when results are empty", () => {
-      expect(deriveStatusBarSegments(segmentsContext(new Map(), STATUS_FIELDS))).toEqual([]);
+    it("returns no models when results are empty", () => {
+      expect(segmentsContext(new Map(), STATUS_FIELDS).models).toEqual([]);
     });
 
     it("skips disabled results and derives short labels, metrics, and attention", () => {
@@ -218,28 +216,28 @@ describe("matrixPlan", () => {
         ],
       ]);
 
-      const segments = deriveStatusBarSegments(segmentsContext(results, STATUS_FIELDS));
+      const models = segmentsContext(results, STATUS_FIELDS).models;
 
-      expect(segments).toHaveSize(3);
-      expect(segments.map((segment) => segment.displayName)).toEqual(["codex", "claude", "opc"]);
+      expect(models).toHaveSize(3);
+      expect(models.map((model) => model.shortDisplayName)).toEqual(["codex", "claude", "opc"]);
       expect(
-        segments[0].views
+        models[0].statusViews
           .map((view) => formatViewValue(view, "status", "en", (text) => text))
           .join("·"),
       ).toContain("32%·");
-      expect(segments[0].health.attention).toBe("quiet");
+      expect(models[0].health.attention).toBe("quiet");
       expect(
-        segments[1].views
+        models[1].statusViews
           .map((view) => formatViewValue(view, "status", "en", (text) => text))
           .join("·"),
       ).toContain("82%·");
-      expect(segments[1].health.attention).toBe("critical");
-      expect(segments[2].result.status).toBe(ReaderStatus.ERROR);
-      expect(segments[2].health.state).toBe("error");
-      expect(segments[2].health.attention).toBe("error");
+      expect(models[1].health.attention).toBe("critical");
+      expect(models[2].result.status).toBe(ReaderStatus.ERROR);
+      expect(models[2].health.state).toBe("error");
+      expect(models[2].health.attention).toBe("error");
     });
 
-    it("keeps segment identity stable across value and attention changes", () => {
+    it("keeps model identity stable across value and attention changes", () => {
       const makeResults = (pct: number) =>
         new Map<ProviderName, ReaderResult>([
           [
@@ -254,8 +252,8 @@ describe("matrixPlan", () => {
         ]);
       const statusFields = { ...STATUS_FIELDS, codex: ["used_percent_primary"] };
 
-      const first = deriveStatusBarSegments(segmentsContext(makeResults(20), statusFields));
-      const second = deriveStatusBarSegments(segmentsContext(makeResults(91), statusFields));
+      const first = segmentsContext(makeResults(20), statusFields).models;
+      const second = segmentsContext(makeResults(91), statusFields).models;
 
       expect(identity(second)).toEqual(identity(first));
       expect(first[0].health.attention).toBe("quiet");
