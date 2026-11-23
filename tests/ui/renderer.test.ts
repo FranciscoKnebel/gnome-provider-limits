@@ -61,25 +61,30 @@ describe("formatters", () => {
 
   describe("fieldTone", () => {
     it("applies used-percent boundaries to used fields", () => {
-      expect(fieldTone("used_percent_primary", 49)).toBe("ok");
-      expect(fieldTone("used_percent_primary", 50)).toBe("warning");
-      expect(fieldTone("used_percent_primary", 79)).toBe("warning");
-      expect(fieldTone("used_percent_primary", 80)).toBe("critical");
+      expect(fieldTone("used", 49)).toBe("ok");
+      expect(fieldTone("used", 50)).toBe("warning");
+      expect(fieldTone("used", 79)).toBe("warning");
+      expect(fieldTone("used", 80)).toBe("critical");
     });
 
     it("inverts remaining fields before applying thresholds", () => {
-      expect(fieldTone("remaining_percent_primary", 51)).toBe("ok");
-      expect(fieldTone("remaining_percent_primary", 50)).toBe("warning");
-      expect(fieldTone("remaining_percent_primary", 21)).toBe("warning");
-      expect(fieldTone("remaining_percent_primary", 20)).toBe("critical");
-      expect(fieldTone("remaining_percent_primary", 10)).toBe("critical");
-      expect(fieldTone("remaining_percent_primary", 90)).toBe("ok");
+      expect(fieldTone("remaining", 51)).toBe("ok");
+      expect(fieldTone("remaining", 50)).toBe("warning");
+      expect(fieldTone("remaining", 21)).toBe("warning");
+      expect(fieldTone("remaining", 20)).toBe("critical");
+      expect(fieldTone("remaining", 10)).toBe("critical");
+      expect(fieldTone("remaining", 90)).toBe("ok");
+    });
+
+    it("treats an absent value kind as used", () => {
+      expect(fieldTone(undefined, 80)).toBe("critical");
+      expect(fieldTone(undefined, 49)).toBe("ok");
     });
 
     it("returns undefined for missing values", () => {
-      expect(fieldTone("used_percent_primary", null)).toBeUndefined();
-      expect(fieldTone("remaining_percent_primary", null)).toBeUndefined();
-      expect(fieldTone("remaining_percent_primary", Number.NaN)).toBeUndefined();
+      expect(fieldTone("used", null)).toBeUndefined();
+      expect(fieldTone("remaining", null)).toBeUndefined();
+      expect(fieldTone("remaining", Number.NaN)).toBeUndefined();
     });
   });
 

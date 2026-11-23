@@ -127,6 +127,18 @@ const EXPECTED = {
     cardLabel: "Live",
     overviewLabel: "OK",
   },
+  "critical-partial": {
+    state: "ok",
+    tone: "critical",
+    attention: "critical",
+    card: "live",
+    overview: "ok",
+    statusTag: "",
+    pill: "~",
+    pillA11y: "Cached",
+    cardLabel: "Live",
+    overviewLabel: "OK",
+  },
   error: {
     state: "error",
     tone: "error",
@@ -160,7 +172,7 @@ describe("providerHealth pure helpers", () => {
     expect(deriveSeverity(ReaderStatus.DISABLED, undefined, true, true)).toBe("idle");
     expect(deriveSeverity(ReaderStatus.PARTIAL, "warning", true, false)).toBe("partial-warning");
     expect(deriveSeverity(ReaderStatus.PARTIAL, "warning", true, true)).toBe("cached-warning");
-    expect(deriveSeverity(ReaderStatus.PARTIAL, "critical", true, true)).toBe("critical");
+    expect(deriveSeverity(ReaderStatus.PARTIAL, "critical", true, true)).toBe("critical-partial");
     expect(deriveSeverity(ReaderStatus.OK, "warning", false, false)).toBe("warning");
     expect(deriveSeverity(ReaderStatus.OK, "critical", false, false)).toBe("critical");
     expect(deriveSeverity(ReaderStatus.OK, "ok", true, false)).toBe("ok");

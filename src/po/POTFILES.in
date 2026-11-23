@@ -18,5 +18,10 @@ src/ui/panelCompact.ts
 src/ui/matrixPlan.ts
 src/ui/panelGauges.ts
 src/ui/panelGaugesDetail.ts
+src/ui/viewMessages.ts
+src/ui/displayModel.ts
+src/ui/fieldViews.ts
+src/ui/panelFooter.ts
+src/ui/panelGaugesOverview.ts
 src/ui/prefs/main-page.ts
 src/ui/prefs/provider-page.ts

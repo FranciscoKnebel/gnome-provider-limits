@@ -1,5 +1,11 @@
 import { formatField } from "../formatters.js";
-import type { FieldDef, FieldType, FieldZone, ReaderResult } from "../readers/base.js";
+import type {
+  FieldDef,
+  FieldType,
+  FieldValueKind,
+  FieldZone,
+  ReaderResult,
+} from "../readers/base.js";
 import { FieldStatus, isHardError, isLimitReached, ReaderStatus } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
 import { emptyMeter, gaugeArc } from "./cairoDrawing.js";
@@ -29,9 +35,9 @@ export interface FieldView {
   readonly resetName: string | null;
 }
 
-function usedPercentOf(fieldName: string, value: unknown): number | null {
+function usedPercentOf(valueKind: FieldValueKind | undefined, value: unknown): number | null {
   if (typeof value !== "number" || !Number.isFinite(value)) return null;
-  return fieldName.startsWith("remaining_percent") ? 100 - value : value;
+  return valueKind === "remaining" ? 100 - value : value;
 }
 
 export interface FieldViewOptions {
@@ -71,7 +77,7 @@ export function deriveFieldViews(
     let ratio: number | null = null;
     let fillPercent: number | undefined;
     if (def.type === "percent") {
-      const usedPercent = usedPercentOf(name, hasValue ? value : null);
+      const usedPercent = usedPercentOf(def.valueKind, hasValue ? value : null);
       usageRatio = usedPercent === null ? null : clampFillRatio(usedPercent / 100);
       if (limitReached) usageRatio = usageRatio === null ? 1 : Math.max(usageRatio, 1);
       fillPercent = hasValue ? clampPercent(value) : undefined;
@@ -82,7 +88,7 @@ export function deriveFieldViews(
       limitReached && (name === "limit_reached" || def.type === "percent")
         ? "critical"
         : def.type === "percent"
-          ? fieldTone(name, value)
+          ? fieldTone(def.valueKind, value)
           : undefined;
     const errorText =
       field?.status === FieldStatus.ERROR || result.status === ReaderStatus.ERROR

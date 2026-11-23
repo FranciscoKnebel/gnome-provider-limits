@@ -23,6 +23,7 @@ export const PROVIDER_SEVERITIES = [
   "cached",
   "cached-warning",
   "critical",
+  "critical-partial",
   "error",
   "unavailable",
 ] as const;
@@ -137,6 +138,15 @@ export const HEALTH_BY_SEVERITY: Readonly<Record<ProviderSeverity, HealthProfile
     pillAccessibleText: null,
     label: { card: "Live", overview: "OK" },
   }),
+  // PARTIAL read with a critical field: critical presentation, cached pill.
+  "critical-partial": profile("ok", "critical", "critical", {
+    cardBadge: "live",
+    overviewBadge: "ok",
+    statusTag: "",
+    pillTag: PILL_PARTIAL_MARKER,
+    pillAccessibleText: CACHED_LABEL,
+    label: { card: "Live", overview: "OK" },
+  }),
   error: profile("error", "error", "error", {
     cardBadge: "error",
     overviewBadge: "error",
@@ -181,7 +191,7 @@ export function collectFieldTones(
     for (const def of fieldDefs) {
       if (def.type !== "percent") continue;
       const field = fields.find((candidate) => candidate.name === def.name);
-      if (field?.status === FieldStatus.OK) tones.push(fieldTone(def.name, field.value));
+      if (field?.status === FieldStatus.OK) tones.push(fieldTone(def.valueKind, field.value));
     }
   }
   if (isLimitReached(fields)) tones.push("critical");
@@ -202,7 +212,8 @@ export function deriveSeverity(
   if (status === ReaderStatus.ERROR) return "error";
   if (status === ReaderStatus.UNAVAILABLE) return "unavailable";
   if (status === ReaderStatus.DISABLED) return "idle";
-  if (status === ReaderStatus.PARTIAL && worstTone !== "critical") {
+  if (status === ReaderStatus.PARTIAL) {
+    if (worstTone === "critical") return "critical-partial";
     if (worstTone === "warning") return lastKnownGood ? "cached-warning" : "partial-warning";
     return lastKnownGood ? "cached" : "partial";
   }
@@ -233,11 +244,7 @@ export function deriveProviderHealth({
     result.fields.some((field) => field.status === FieldStatus.OK);
   const severity = deriveSeverity(status, worstTone, hasUsableField, isLastKnownGood(result));
   const { presentation, state, tone, attention } = HEALTH_BY_SEVERITY[severity];
-
-  // A PARTIAL read keeps the cached pill even when a critical field maps to state ok.
-  const partial = status === ReaderStatus.PARTIAL;
-  const pillTag = presentation.pillTag ?? (partial ? PILL_PARTIAL_MARKER : null);
-  const pillAccessibleText = presentation.pillAccessibleText ?? (partial ? CACHED_LABEL : null);
+  const { pillTag, pillAccessibleText } = presentation;
 
   return {
     severity,

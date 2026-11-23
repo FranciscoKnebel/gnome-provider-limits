@@ -620,6 +620,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
           type: "percent",
           category: "limit",
           resetField: "reset_at_primary",
+          valueKind: "used",
         },
       ];
       const firstView = panelContext({

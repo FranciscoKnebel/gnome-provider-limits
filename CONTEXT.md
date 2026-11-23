@@ -32,8 +32,9 @@ _Avoid_: Metric, attribute, datum.
 **Field Catalog**:
 The authoritative field declarations in `src/readers/fields.ts`, one array per
 Provider, assembled into `PROVIDER_FIELDS` and distilled at the type level into
-`FieldName`. Each entry carries only name, label, type, category (limit or
-telemetry) and an optional `resetField` pairing. The default zone is not part
+`FieldName`. Each entry carries name, label, type, category (limit or
+telemetry), an optional `valueKind` (`used` or `remaining`, for percent fields)
+and an optional `resetField` pairing. The default zone is not part
 of it: the GSettings schema `<default>` arrays (`<provider>-status-fields` and
 `<provider>-panel-fields`) remain the single source of truth for where a Field
 appears by default.

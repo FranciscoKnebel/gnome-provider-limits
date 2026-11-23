@@ -405,6 +405,7 @@ describe("matrixPlan", () => {
           type: "percent",
           category: "limit",
           resetField: "reset_at_credits",
+          valueKind: "remaining",
         },
         {
           name: "reset_at_credits",

@@ -21,6 +21,9 @@ export enum FieldStatus {
 
 export type FieldType = "percent" | "count" | "tokens" | "cost" | "timestamp" | "bool" | "text";
 
+/** Whether a percent field reports used share or remaining share of its window. */
+export type FieldValueKind = "used" | "remaining";
+
 export type FieldZone = "status" | "panel";
 
 export type FieldCategory = "limit" | "telemetry";
@@ -31,6 +34,8 @@ export interface FieldDef<TName extends string = string> {
   readonly type: FieldType;
   readonly category: FieldCategory;
   readonly resetField?: string;
+  /** For percent fields, the direction of the stored value. Absent means "used". */
+  readonly valueKind?: FieldValueKind;
 }
 
 /** Full typed names for the two fields of a used/remaining percent pair. */

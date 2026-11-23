@@ -1,3 +1,5 @@
+import type { FieldValueKind } from "../readers/base.js";
+
 export type FieldTone = "ok" | "warning" | "critical";
 
 export function clampPercent(value: unknown): number | undefined {
@@ -17,11 +19,13 @@ export function percentTone(value: unknown): FieldTone | undefined {
   return "ok";
 }
 
-export function fieldTone(fieldName: string, value: unknown): FieldTone | undefined {
-  if (fieldName.startsWith("remaining_percent")) {
+export function fieldTone(
+  valueKind: FieldValueKind | undefined,
+  value: unknown,
+): FieldTone | undefined {
+  if (valueKind === "remaining") {
     if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
-    const used = 100 - value;
-    return percentTone(used);
+    return percentTone(100 - value);
   }
   return percentTone(value);
 }
