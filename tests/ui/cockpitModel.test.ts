@@ -76,8 +76,8 @@ function overviewRowFor(options: {
   if (!model) throw new Error(`Provider ${options.provider} is disabled`);
   return buildOverviewRowModel(model);
 }
+import { clampRatio } from "../../src/ui/fieldRows.js";
 import { deriveFieldViews, meterFromViews } from "../../src/ui/fieldViews.js";
-import { clampRatio, extractWindowSuffix } from "../../src/ui/usageSnapshot.js";
 
 interface RecordedCairoOp {
   readonly op: string;
@@ -186,14 +186,6 @@ describe("cockpitModel gauge math", () => {
     expect(missing.endAngle).toBe(GAUGE_START_ANGLE);
     expect(missing.tone).toBe("neutral");
     expect(missing.centerText).toBe("—");
-  });
-
-  it("extractWindowSuffix parses primary/secondary/rolling/weekly/monthly suffixes", () => {
-    expect(extractWindowSuffix("used_percent_primary")).toBe("primary");
-    expect(extractWindowSuffix("remaining_percent_five_hour")).toBe("five_hour");
-    expect(extractWindowSuffix("used_percent_seven_day_sonnet")).toBe("seven_day_sonnet");
-    expect(extractWindowSuffix("total_cost")).toBeNull();
-    expect(extractWindowSuffix("reset_at_primary")).toBeNull();
   });
 });
 

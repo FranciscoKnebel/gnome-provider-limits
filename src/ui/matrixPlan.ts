@@ -2,9 +2,8 @@ import type { ProviderName } from "../constants.js";
 import { ReaderStatus } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
 import type { FieldRowSet } from "./displayModel.js";
-import type { FieldTone } from "./fieldRows.js";
+import { clampFillRatio, type FieldTone } from "./fieldRows.js";
 import { toDisplayRow } from "./fieldViews.js";
-import { clampFillRatio } from "./usageSnapshot.js";
 import type { ProviderViewContext, ViewPhase } from "./viewContext.js";
 import { viewMessages } from "./viewMessages.js";
 

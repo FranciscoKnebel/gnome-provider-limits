@@ -6,6 +6,7 @@ import { ReaderStatus } from "../readers/base.js";
 import { disposeCairoContext, drawMicroRing, isCairoContext } from "./cairoDrawing.js";
 import type { FieldView } from "./fieldViews.js";
 import type { MicroMeterSpec } from "./gaugeTypes.js";
+import { StatusBarRenderer } from "./statusBarRenderer.js";
 import { deriveStatusBarSegments } from "./statusBarSegments.js";
 import type { StatusBarZonePlan } from "./statusBarSegments.js";
 import { applyToneClass } from "./tone.js";
@@ -53,17 +54,16 @@ function planGauges(context: ProviderViewContext): GaugesPlan {
 }
 
 /** Rebuilds the micro-gauge status bar from one freshly derived plan. */
-export class GaugesStatusBarRenderer {
-  constructor(private readonly parent: St.BoxLayout) {}
+export class GaugesStatusBarRenderer extends StatusBarRenderer<GaugesPlan> {
+  protected plan(context: ProviderViewContext): GaugesPlan {
+    return planGauges(context);
+  }
 
-  render(context: ProviderViewContext): void {
-    this.dispose();
-    const plan = planGauges(context);
-
+  protected renderPlan(plan: GaugesPlan): void {
     if (plan.kind === "placeholder") {
       if (!plan.showPlaceholder) return;
       const placeholder = new St.Label({
-        text: plan.placeholder,
+        text: plan.placeholder ?? "",
         style_class: "pl-status-placeholder",
         y_align: Clutter.ActorAlign.CENTER,
       });
@@ -117,15 +117,6 @@ export class GaugesStatusBarRenderer {
       }
 
       this.parent.add_child(segment);
-    }
-  }
-
-  dispose(): void {
-    let child = this.parent.get_first_child();
-    while (child) {
-      const next = child.get_next_sibling();
-      child.destroy();
-      child = next;
     }
   }
 }

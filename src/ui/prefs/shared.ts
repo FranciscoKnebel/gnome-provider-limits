@@ -4,6 +4,7 @@ import Gio from "gi://Gio";
 import GObject from "gi://GObject";
 import Gtk from "gi://Gtk?version=4.0";
 
+import { clearChildren } from "../../helpers/children.js";
 import { reorderValue } from "../../helpers/reorder.js";
 
 export interface DisposablePage {
@@ -45,12 +46,7 @@ export function unbindSettings(bindings: SettingsBinding[]): void {
 }
 
 export function clearListBox(listBox: Gtk.ListBox): void {
-  let currentChild = listBox.get_first_child();
-  while (currentChild) {
-    const next = currentChild.get_next_sibling();
-    listBox.remove(currentChild);
-    currentChild = next;
-  }
+  clearChildren(listBox, (child) => listBox.remove(child));
 }
 
 export function setupDragSource(row: Gtk.Widget, value: string): void {

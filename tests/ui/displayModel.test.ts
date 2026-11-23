@@ -93,3 +93,107 @@ describe("deriveDisplayModel", () => {
     expect(direct?.provider).toBe(models[0].provider);
   });
 });
+
+describe("deriveDisplayModel owns diagnostics and reset pairing", () => {
+  function modelFor(
+    result: ReaderResult,
+    panelFields: readonly string[],
+    fieldDefs = CODEX_FIELDS,
+  ) {
+    const model = deriveDisplayModel(result.provider, result, {
+      fieldDefs,
+      statusFields: [],
+      panelFields,
+      displayName: result.provider,
+      shortDisplayName: result.provider,
+      locale: "en",
+      t: (text) => text,
+    });
+    if (!model) throw new Error(`Provider ${result.provider} is disabled`);
+    return model;
+  }
+
+  it("carries fully formed reset descriptors instead of re-deriving them in renderers", () => {
+    const model = modelFor(result, ["used_percent_primary", "reset_at_primary"]);
+    const reset = model.resetPairs.get("used_percent_primary");
+
+    expect(model.panelViews[0].resetText).toContain("↻");
+    expect(model.panelViews[0].hasResetSlot).toBeTrue();
+    expect(reset).toBeDefined();
+    expect(reset?.name).toBe("reset_at_primary");
+    expect(reset?.pairedPercent).toBe("used_percent_primary");
+    expect(reset?.hasSlot).toBeTrue();
+    expect(reset?.text).toContain("Reset at (5h window):");
+    expect(reset?.accessibleText).toContain("Reset at (5h window):");
+    expect(Array.from(model.consumedResets)).toEqual(["reset_at_primary"]);
+  });
+
+  it("pairs resets from explicit FieldDef metadata only, never from name suffixes", () => {
+    const fieldDefs = [
+      {
+        name: "used_percent_custom",
+        label: "Used % custom",
+        type: "percent" as const,
+        defaultZone: "panel" as const,
+        category: "limit" as const,
+      },
+      {
+        name: "reset_at_custom",
+        label: "Reset custom",
+        type: "timestamp" as const,
+        defaultZone: "panel" as const,
+        category: "limit" as const,
+      },
+    ];
+    const customResult: ReaderResult = {
+      provider: "codex",
+      status: ReaderStatus.OK,
+      lastUpdated: 1_700_000_000,
+      fields: [
+        { name: "used_percent_custom", value: 40, status: FieldStatus.OK },
+        { name: "reset_at_custom", value: 1_700_003_600, status: FieldStatus.OK },
+      ],
+    };
+
+    const model = modelFor(customResult, ["used_percent_custom", "reset_at_custom"], fieldDefs);
+    expect(model.resetPairs.size).toBe(0);
+    expect(model.consumedResets.size).toBe(0);
+    expect(model.panelViews[0].resetText).toBeNull();
+    expect(model.panelViews.map((view) => view.name)).toEqual([
+      "used_percent_custom",
+      "reset_at_custom",
+    ]);
+  });
+
+  it("derives the panel callout with the same diagnostic classification", () => {
+    const cached = modelFor(
+      {
+        ...result,
+        status: ReaderStatus.PARTIAL,
+        pathsTried: ["oauth-api", "last-known-good"],
+        lastError: "HTTP 503",
+      },
+      [],
+    );
+    expect(cached.callout).toEqual({ kind: "warning", badge: "Cached", text: "HTTP 503" });
+    expect(cached.diagnostic.bannerKind).toBe("warning");
+
+    const partial = modelFor(
+      { ...result, status: ReaderStatus.PARTIAL, lastError: "CLI failed" },
+      [],
+    );
+    expect(partial.callout?.badge).toBe("Partial");
+
+    const error = modelFor({ ...result, status: ReaderStatus.ERROR, lastError: "Login" }, []);
+    expect(error.isHardError).toBeTrue();
+    expect(error.callout).toEqual({ kind: "error", badge: "Error", text: "Login" });
+
+    const unavailable = modelFor({ ...result, status: ReaderStatus.UNAVAILABLE }, []);
+    expect(unavailable.diagnostic.bannerText).toBe("Unavailable");
+    expect(unavailable.callout).toEqual({ kind: "error", badge: "Error", text: "Error" });
+
+    const healthy = modelFor(result, []);
+    expect(healthy.callout).toBeNull();
+    expect(healthy.lastUpdatedText).toContain("Last updated:");
+  });
+});

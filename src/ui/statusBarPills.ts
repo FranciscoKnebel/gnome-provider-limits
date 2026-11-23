@@ -5,6 +5,8 @@ import type { ProviderName } from "../constants.js";
 import { ReaderStatus } from "../readers/base.js";
 import type { FieldView } from "./fieldViews.js";
 import type { ProviderTone } from "./providerHealth.js";
+import { StatusBarRenderer } from "./statusBarRenderer.js";
+import type { StatusBarZonePlan } from "./statusBarSegments.js";
 import { deriveStatusBarSegments } from "./statusBarSegments.js";
 import { applyHealthToneClass, applyToneClass } from "./tone.js";
 import type { ProviderViewContext } from "./viewContext.js";
@@ -20,16 +22,26 @@ interface PillPlan {
   rows: readonly FieldView[];
 }
 
-interface PillsPlan {
-  readonly phase: string;
-  readonly placeholder: string;
-  readonly placeholderAccessibleText: string;
-  readonly showPlaceholder: boolean;
-  readonly pills: readonly PillPlan[];
-}
+type PillsPlan = StatusBarZonePlan<PillPlan>;
 
 function planPills(context: ProviderViewContext): PillsPlan {
-  const pills: PillPlan[] = deriveStatusBarSegments(context).map((segment) => ({
+  const message = viewMessages({
+    phase: context.phase,
+    surface: "pills",
+    t: context.t,
+    running: false,
+  });
+  if (message.showPlaceholder) {
+    return {
+      kind: "placeholder",
+      phase: context.phase,
+      placeholder: message.placeholder,
+      placeholderAccessibleText: message.accessibleText,
+      showPlaceholder: true,
+    };
+  }
+
+  const segments: PillPlan[] = deriveStatusBarSegments(context).map((segment) => ({
     provider: segment.provider,
     displayName: segment.displayName,
     isPartial: segment.result.status === ReaderStatus.PARTIAL,
@@ -38,31 +50,17 @@ function planPills(context: ProviderViewContext): PillsPlan {
     stateAccessibleText: segment.health.stateAccessibleText,
     rows: segment.views,
   }));
-
-  const message = viewMessages({
-    phase: context.phase,
-    surface: "pills",
-    t: context.t,
-    running: false,
-  });
-  return {
-    phase: context.phase,
-    placeholder: message.placeholder,
-    placeholderAccessibleText: message.accessibleText,
-    showPlaceholder: message.showPlaceholder,
-    pills,
-  };
+  return { kind: "segments", segments };
 }
 
 /** Rebuilds the status bar pills from one freshly derived plan. */
-export class PillsStatusBarRenderer {
-  constructor(private readonly parent: St.BoxLayout) {}
+export class PillsStatusBarRenderer extends StatusBarRenderer<PillsPlan> {
+  protected plan(context: ProviderViewContext): PillsPlan {
+    return planPills(context);
+  }
 
-  render(context: ProviderViewContext): void {
-    this.dispose();
-    const plan = planPills(context);
-
-    if (plan.showPlaceholder) {
+  protected renderPlan(plan: PillsPlan): void {
+    if (plan.kind === "placeholder") {
       const loadingPill = new St.BoxLayout({
         style_class: "pl-status-pill pl-status-pill-loading",
         y_align: Clutter.ActorAlign.CENTER,
@@ -75,7 +73,7 @@ export class PillsStatusBarRenderer {
       loadingPill.add_child(dot);
 
       const loadingLabel = new St.Label({
-        text: plan.placeholder,
+        text: plan.placeholder ?? "",
         style_class: "pl-status-value pl-status-loading-label",
         y_align: Clutter.ActorAlign.CENTER,
       });
@@ -85,7 +83,7 @@ export class PillsStatusBarRenderer {
       return;
     }
 
-    for (const pillPlan of plan.pills) {
+    for (const pillPlan of plan.segments) {
       const pill = new St.BoxLayout({
         style_class: pillPlan.isPartial
           ? "pl-status-pill pl-status-pill-partial"
@@ -132,15 +130,6 @@ export class PillsStatusBarRenderer {
       }
 
       this.parent.add_child(pill);
-    }
-  }
-
-  dispose(): void {
-    let child = this.parent.get_first_child();
-    while (child) {
-      const next = child.get_next_sibling();
-      child.destroy();
-      child = next;
     }
   }
 }

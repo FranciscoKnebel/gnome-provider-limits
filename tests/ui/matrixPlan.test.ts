@@ -2,6 +2,7 @@ import { PROVIDER_NAMES, type ProviderName } from "../../src/constants.js";
 import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
 import type { FieldDef, ReaderResult } from "../../src/readers/base.js";
 import { PROVIDER_FIELDS } from "../../src/readers/fields.js";
+import { clampFillRatio } from "../../src/ui/fieldRows.js";
 import {
   areAllProvidersExpanded,
   formatSegmentedBar,
@@ -17,7 +18,6 @@ import {
   applyStatusAttentionClass,
   applyToneClass,
 } from "../../src/ui/tone.js";
-import { clampFillRatio } from "../../src/ui/usageSnapshot.js";
 import {
   resolveViewPhase,
   withDisplayModels,

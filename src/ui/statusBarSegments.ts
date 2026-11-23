@@ -16,14 +16,17 @@ export interface StatusBarProviderSegment {
   readonly health: ProviderHealth;
 }
 
+/** The one placeholder shape shared by pills, gauges and compact status bars. */
+export interface StatusBarPlaceholderPlan {
+  readonly kind: "placeholder";
+  readonly phase: ViewPhase;
+  readonly placeholder: string | null;
+  readonly placeholderAccessibleText: string;
+  readonly showPlaceholder: boolean;
+}
+
 export type StatusBarZonePlan<TSegment> =
-  | {
-      readonly kind: "placeholder";
-      readonly phase: ViewPhase;
-      readonly placeholder: string;
-      readonly placeholderAccessibleText: string;
-      readonly showPlaceholder: boolean;
-    }
+  | StatusBarPlaceholderPlan
   | { readonly kind: "segments"; readonly segments: readonly TSegment[] };
 
 export function deriveStatusBarSegments(context: ProviderViewContext): StatusBarProviderSegment[] {

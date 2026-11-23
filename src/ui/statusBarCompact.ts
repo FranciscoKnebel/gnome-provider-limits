@@ -5,6 +5,8 @@ import type { ProviderName } from "../constants.js";
 import { ReaderStatus } from "../readers/base.js";
 import { statusBadgeText } from "./providerHealth.js";
 import type { ProviderAttention } from "./providerHealth.js";
+import { StatusBarRenderer } from "./statusBarRenderer.js";
+import type { StatusBarZonePlan } from "./statusBarSegments.js";
 import { deriveStatusBarSegments } from "./statusBarSegments.js";
 import { applyStatusAttentionClass } from "./tone.js";
 import type { ProviderViewContext } from "./viewContext.js";
@@ -18,12 +20,7 @@ interface CompactBadgePlan {
   accessibleText: string;
 }
 
-interface CompactPlan {
-  phase: string;
-  placeholderText: string | null;
-  placeholderAccessibleText: string;
-  badges: readonly CompactBadgePlan[];
-}
+type CompactPlan = StatusBarZonePlan<CompactBadgePlan>;
 
 function planCompact(context: ProviderViewContext): CompactPlan {
   const tr = (text: string) => context.t(text);
@@ -37,14 +34,15 @@ function planCompact(context: ProviderViewContext): CompactPlan {
 
   if (context.phase === "empty") {
     return {
+      kind: "placeholder",
       phase: "empty",
-      placeholderText: null,
+      placeholder: null,
       placeholderAccessibleText: message.accessibleText,
-      badges: [],
+      showPlaceholder: false,
     };
   }
 
-  const badges: CompactBadgePlan[] = deriveStatusBarSegments(context).map((segment) => {
+  const segments: CompactBadgePlan[] = deriveStatusBarSegments(context).map((segment) => {
     const shortLabel = segment.displayName || segment.provider;
     const badgeWord = statusBadgeText(segment.health, tr);
 
@@ -76,32 +74,28 @@ function planCompact(context: ProviderViewContext): CompactPlan {
 
   if (context.phase === "loading") {
     return {
+      kind: "placeholder",
       phase: "loading",
-      placeholderText: message.placeholder,
+      placeholder: message.placeholder,
       placeholderAccessibleText: message.accessibleText,
-      badges: [],
+      showPlaceholder: true,
     };
   }
 
-  return {
-    phase: "ready",
-    placeholderText: null,
-    placeholderAccessibleText: "",
-    badges,
-  };
+  return { kind: "segments", segments };
 }
 
 /** Rebuilds the compact status bar from one freshly derived plan. */
-export class CompactStatusBarRenderer {
-  constructor(private readonly parent: St.BoxLayout) {}
+export class CompactStatusBarRenderer extends StatusBarRenderer<CompactPlan> {
+  protected plan(context: ProviderViewContext): CompactPlan {
+    return planCompact(context);
+  }
 
-  render(context: ProviderViewContext): void {
-    this.dispose();
-    const plan = planCompact(context);
-
-    if (plan.phase === "loading" && plan.placeholderText) {
+  protected renderPlan(plan: CompactPlan): void {
+    if (plan.kind === "placeholder") {
+      if (plan.placeholder === null) return;
       const placeholder = new St.Label({
-        text: plan.placeholderText,
+        text: plan.placeholder,
         style_class: "provider-limits-status-placeholder provider-limits-tnum",
         y_align: Clutter.ActorAlign.CENTER,
       });
@@ -110,7 +104,7 @@ export class CompactStatusBarRenderer {
       return;
     }
 
-    plan.badges.forEach((badge, index) => {
+    plan.segments.forEach((badge, index) => {
       const segment = new St.BoxLayout({
         style_class:
           index > 0
@@ -142,14 +136,5 @@ export class CompactStatusBarRenderer {
       applyStatusAttentionClass(segment, metricsLabel ?? nameLabel, badge.attention);
       this.parent.add_child(segment);
     });
-  }
-
-  dispose(): void {
-    let child = this.parent.get_first_child();
-    while (child) {
-      const next = child.get_next_sibling();
-      child.destroy();
-      child = next;
-    }
   }
 }

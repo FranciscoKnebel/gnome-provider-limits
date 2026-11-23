@@ -23,6 +23,16 @@ export function clampPercent(value: unknown): number | undefined {
   return Math.min(100, Math.max(0, value));
 }
 
+export function clampRatio(value: unknown): number | null {
+  const percent = clampPercent(value);
+  return percent === undefined ? null : percent / 100;
+}
+
+export function clampFillRatio(value: unknown): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 0;
+  return Math.min(1, Math.max(0, value));
+}
+
 export function percentTone(value: unknown): FieldTone | undefined {
   if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
   if (value >= 80) return "critical";

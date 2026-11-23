@@ -1,13 +1,11 @@
-import { formatField } from "../formatters.js";
 import type { FieldDef, FieldType, FieldZone, ReaderResult } from "../readers/base.js";
-import { FieldStatus, ReaderStatus } from "../readers/base.js";
+import { ReaderStatus } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
 import { GAUGE_START_ANGLE, GAUGE_SWEEP_ANGLE, TONE_RGB } from "./cairoDrawing.js";
 import type { FieldTone } from "./fieldRows.js";
-import { getFieldRows } from "./fieldRows.js";
+import { clampFillRatio, getFieldRows } from "./fieldRows.js";
 import type { GaugeTone, MicroMeterSpec } from "./gaugeTypes.js";
 import { isLimitReached } from "./providerHealth.js";
-import { clampFillRatio, extractWindowSuffix } from "./usageSnapshot.js";
 
 export interface FieldView {
   readonly name: string;
@@ -80,20 +78,6 @@ export function deriveFieldViews(
   const tr = t ?? ((s: string) => s);
   const limitReached = isLimitReached(result.fields);
 
-  const activeSuffixes = new Set<string>();
-  for (const row of rows) {
-    if (row.type !== "percent" || !row.name) continue;
-    const suffix = extractWindowSuffix(row.name);
-    if (suffix !== null) activeSuffixes.add(suffix);
-  }
-
-  const pairedResets = new Set<string>();
-  for (const row of rows) {
-    if (!row.name?.startsWith("reset_at_") || row.type !== "timestamp") continue;
-    const suffix = row.name.slice("reset_at_".length);
-    if (activeSuffixes.has(suffix)) pairedResets.add(row.name);
-  }
-
   return rows.map((row) => {
     const name = row.name ?? row.label;
     const def = defs.find((candidate) => candidate.name === name);
@@ -101,26 +85,6 @@ export function deriveFieldViews(
     const category = row.category ?? def?.category ?? "limit";
     const resetName = row.companionResetName ?? def?.resetField ?? null;
     const field = result.fields.find((candidate) => candidate.name === name);
-
-    let resetText: string | null = null;
-    let hasResetSlot = false;
-    if (
-      resetName !== null &&
-      defs.some((candidate) => candidate.name === resetName && candidate.type === "timestamp")
-    ) {
-      const resetField = result.fields.find((candidate) => candidate.name === resetName);
-      if (
-        resetField?.status === FieldStatus.OK &&
-        resetField.value !== null &&
-        resetField.value !== undefined
-      ) {
-        resetText = `↻ ${formatField({ type: "timestamp", value: resetField.value, zone, locale, t: tr })}`;
-        hasResetSlot = true;
-      } else if (pairedResets.has(resetName)) {
-        resetText = "↻ —";
-        hasResetSlot = true;
-      }
-    }
 
     const usedPercent = type === "percent" ? usedPercentOf(name, field?.value) : null;
     let usageRatio = usedPercent === null ? null : clampFillRatio(usedPercent / 100);
@@ -141,8 +105,8 @@ export function deriveFieldViews(
       usageRatio,
       hasValue: row.valueText !== "—",
       resetName,
-      resetText,
-      hasResetSlot,
+      resetText: null,
+      hasResetSlot: false,
       ...(row.fillPercent !== undefined ? { fillPercent: row.fillPercent } : {}),
       ...(tone ? { tone } : {}),
       ...(row.errorText ? { errorText: row.errorText } : {}),

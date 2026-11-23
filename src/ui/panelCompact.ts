@@ -8,6 +8,7 @@ import { gettext as _ } from "../helpers/gettext.js";
 import { bindActivation } from "../helpers/keyboard.js";
 import { resolveLocale } from "../helpers/locale.js";
 import type { BaseReader, FieldDef } from "../readers/base.js";
+import { clampFillRatio } from "./fieldRows.js";
 import {
   planPanelMatrix,
   resolveProviderExpanded,
@@ -16,7 +17,6 @@ import {
 import type { MatrixDetailRow, PanelMatrixPlan, ProviderMatrixPlan } from "./matrixPlan.js";
 import type { PanelRenderContext, PanelShell, PanelStyleSection } from "./panelShell.js";
 import { applyQuietToneClass, applyToneClass } from "./tone.js";
-import { clampFillRatio } from "./usageSnapshot.js";
 import { emptyViewContext, type ProviderViewContext } from "./viewContext.js";
 
 interface CompactToolbarControls {

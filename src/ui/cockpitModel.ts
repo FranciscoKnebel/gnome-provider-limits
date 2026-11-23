@@ -2,11 +2,10 @@ import type { ProviderName } from "../constants.js";
 import { formatField } from "../formatters.js";
 import { GAUGE_END_ANGLE, GAUGE_START_ANGLE, GAUGE_SWEEP_ANGLE, TONE_RGB } from "./cairoDrawing.js";
 import type { FieldRowSet, ProviderDisplayModel } from "./displayModel.js";
-import { fieldTone, type FieldTone } from "./fieldRows.js";
+import { clampRatio, fieldTone, type FieldTone } from "./fieldRows.js";
 import { toDisplayRow } from "./fieldViews.js";
 import type { GaugeGeometry, GaugeTone, MicroMeterSpec } from "./gaugeTypes.js";
 import type { Presentation } from "./providerHealth.js";
-import { clampRatio } from "./usageSnapshot.js";
 
 export type CockpitTab = "overview" | ProviderName;
 

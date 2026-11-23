@@ -4,24 +4,16 @@ import St from "gi://St";
 import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
 import type { ProviderName } from "../constants.js";
-import { formatAbsoluteTimestamp } from "../formatters.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import type { FieldDef } from "../readers/base.js";
-import { ReaderStatus } from "../readers/base.js";
 import { disposeCairoContext, drawRadialGauge, isCairoContext } from "./cairoDrawing.js";
 import { partitionProviderPanel } from "./cockpitModel.js";
 import type { BentoTileItem, PartitionedProviderPanel, RadialGaugeItem } from "./cockpitModel.js";
-import type { ProviderDisplayModel } from "./displayModel.js";
+import type { DisplayCallout, ProviderDisplayModel } from "./displayModel.js";
 import type { PanelShell } from "./panelShell.js";
 import { applyToneClass } from "./tone.js";
 
 const RADIAL_GAUGE_SIZE = 80;
-
-interface CalloutPlan {
-  kind: "warning" | "error";
-  badge: string;
-  text: string;
-}
 
 export interface DetailHost {
   readonly settings: Gio.Settings;
@@ -36,7 +28,7 @@ interface DetailRenderContext {
 }
 
 interface DetailRenderPlan {
-  readonly callout: CalloutPlan | null;
+  readonly callout: DisplayCallout | null;
   readonly isError: boolean;
   readonly partition: PartitionedProviderPanel;
   readonly lastUpdatedText: string | null;
@@ -57,35 +49,18 @@ export class DetailRenderer {
 
   private _derivePlan(context: DetailRenderContext): DetailRenderPlan {
     const { model, locale } = context;
-    const { result } = model;
-    const isError =
-      result.status === ReaderStatus.ERROR || result.status === ReaderStatus.UNAVAILABLE;
-
-    let callout: CalloutPlan | null = null;
-    if (isError) {
-      callout = {
-        kind: "error",
-        badge: _("Error"),
-        text: result.lastError ?? _("Error"),
-      };
-    } else if (result.status === ReaderStatus.PARTIAL && result.lastError) {
-      callout = {
-        kind: "warning",
-        badge: result.pathsTried?.includes("last-known-good") ? _("Cached") : _("Partial"),
-        text: result.lastError,
-      };
-    }
+    const isError = model.isHardError;
 
     const partition: PartitionedProviderPanel = isError
       ? { gauges: [], gaugeRows: [], bentoTiles: [], bentoRows: [] }
       : partitionProviderPanel(model, locale, this._host.translate);
 
-    const lastUpdatedText =
-      !isError && Number.isFinite(result.lastUpdated)
-        ? formatAbsoluteTimestamp(result.lastUpdated, locale)
-        : null;
-
-    return { callout, isError, partition, lastUpdatedText };
+    return {
+      callout: model.callout,
+      isError,
+      partition,
+      lastUpdatedText: model.lastUpdatedText,
+    };
   }
 
   private _addRow(styleClass: string | null): PopupMenu.PopupBaseMenuItem {
@@ -171,14 +146,13 @@ export class DetailRenderer {
 
     if (lastUpdatedText !== null) {
       const row = this._host.shell.addStaticRow();
-      const text = _("Last updated: %s").replace("%s", lastUpdatedText);
       const lastUpdatedLabel = new St.Label({
-        text,
+        text: lastUpdatedText,
         style_class: "provider-limits-dim pl-provider-updated",
         x_expand: true,
         x_align: Clutter.ActorAlign.END,
       });
-      lastUpdatedLabel.accessible_name = text;
+      lastUpdatedLabel.accessible_name = lastUpdatedText;
       row.add_child(lastUpdatedLabel);
       this._host.shell.addBodyItem(row);
     }

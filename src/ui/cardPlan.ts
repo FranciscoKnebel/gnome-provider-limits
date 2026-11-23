@@ -1,5 +1,4 @@
 import { type ProviderName } from "../constants.js";
-import { formatField } from "../formatters.js";
 import type { ReaderStatus } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
 import type { ProviderDisplayModel } from "./displayModel.js";
@@ -99,25 +98,8 @@ export function cardFromModel(
     const row = toDisplayRow(view, t);
 
     if (view.type === "percent") {
-      const pairedReset = view.resetName === null ? undefined : model.resetPairs.get(view.name);
-      let resetText: string | undefined;
-      let errorText = row.errorText;
-      let accessibleText = row.accessibleText;
-
-      if (pairedReset) {
-        const resetValueText = pairedReset.hasValue
-          ? formatField({
-              type: "timestamp",
-              value: pairedReset.value,
-              zone: "panel",
-              locale,
-              t,
-            })
-          : pairedReset.valueText;
-        resetText = `${t(pairedReset.label)}: ${resetValueText}`;
-        errorText = errorText ?? pairedReset.errorText;
-        accessibleText = `${row.accessibleText}, ${resetText}`;
-      }
+      const reset = model.resetPairs.get(view.name);
+      const errorText = row.errorText ?? reset?.errorText ?? undefined;
 
       const progressRow: CardProgressRow = {
         kind: "progress",
@@ -126,9 +108,9 @@ export function cardFromModel(
         valueText: row.valueText,
         fillPercent: view.fillPercent ?? 0,
         hasValue: view.fillPercent !== undefined,
-        accessibleText,
+        accessibleText: reset?.accessibleText ?? row.accessibleText,
         ...(row.tone ? { tone: row.tone } : {}),
-        ...(resetText ? { resetText } : {}),
+        ...(reset ? { resetText: reset.text } : {}),
         ...(errorText ? { errorText } : {}),
       };
       limitProgressRows.push(progressRow);
