@@ -1,5 +1,5 @@
 import type { ProviderName } from "../constants.js";
-import type { FieldCategory, FieldDef } from "./base.js";
+import type { FieldDef } from "./base.js";
 
 export type { FieldCategory } from "./base.js";
 
@@ -610,19 +610,3 @@ export const PROVIDER_FIELDS: Record<ProviderName, readonly FieldDef[]> = {
   cursor: CURSOR_FIELDS,
   google: GOOGLE_FIELDS,
 };
-
-export function getProviderFields(provider: ProviderName): readonly FieldDef[] {
-  return PROVIDER_FIELDS[provider];
-}
-
-export function resolveFieldCategory(
-  def: Pick<FieldDef, "name" | "type" | "category">,
-): FieldCategory {
-  return def.category;
-}
-
-export function companionResetFieldName(
-  def: Pick<FieldDef, "name" | "type"> & Partial<Pick<FieldDef, "resetField">>,
-): string | null {
-  return def.resetField ?? null;
-}

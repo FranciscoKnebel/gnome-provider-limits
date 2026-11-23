@@ -6,7 +6,7 @@ import type { FieldView, ProviderDisplayModel } from "./fieldViews.js";
 import { deriveDisplayModels } from "./fieldViews.js";
 import type { Presentation, ProviderTone } from "./providerTypes.js";
 import { structureKey } from "./renderStructure.js";
-import type { ProviderViewContext } from "./viewContext.js";
+import { providerRecord, singleProvider, type ProviderViewContext } from "./viewContext.js";
 
 export type CardBadgeKind = Presentation["cardBadge"];
 export type BannerKind = "warning" | "error";
@@ -78,18 +78,6 @@ export interface PlanProviderCardOptions {
   panelFields: readonly string[];
   fieldDefs: readonly FieldDef[];
   locale: string;
-  t?: (s: string) => string;
-}
-
-export interface PlanPanelOptions {
-  order: readonly ProviderName[];
-  results: ReadonlyMap<ProviderName, ReaderResult>;
-  hasEnabledProviders: boolean;
-  running: boolean;
-  locale: string;
-  getDisplayName: (provider: ProviderName) => string;
-  getPanelFields: (provider: ProviderName) => readonly string[];
-  getFieldDefs: (provider: ProviderName) => readonly FieldDef[];
   t?: (s: string) => string;
 }
 
@@ -170,73 +158,53 @@ function cardFromModel(model: ProviderDisplayModel, tr: (s: string) => string): 
 
 export function planProviderCard(options: PlanProviderCardOptions): ProviderCardPlan {
   const tr = options.t ?? ((s: string) => s);
-  const context: ProviderViewContext = {
-    order: [options.provider],
-    results: new Map([[options.provider, options.result]]),
+  const context = singleProvider({
+    provider: options.provider,
+    result: options.result,
+    displayName: options.displayName,
+    fieldDefs: options.fieldDefs,
+    panelFields: options.panelFields,
     locale: options.locale,
-    fieldDefs: { [options.provider]: options.fieldDefs } as Readonly<
-      Record<ProviderName, readonly FieldDef[]>
-    >,
-    displayName: () => options.displayName,
-    shortDisplayName: () => options.displayName,
-    statusFields: () => [],
-    panelFields: () => options.panelFields,
-    isEnabled: () => true,
-    hasEnabledProviders: true,
-    activeProviders: [options.provider],
     t: tr,
-  };
+  });
   const model = deriveDisplayModels(context)[0];
   return cardFromModel(model, tr);
 }
 
-export function planPanel(options: PlanPanelOptions): PanelPlan {
-  const tr = options.t ?? ((s: string) => s);
-  const context: ProviderViewContext = {
-    order: options.order,
-    results: options.results,
-    locale: options.locale,
-    fieldDefs: Object.fromEntries(
-      options.order.map((provider) => [provider, options.getFieldDefs(provider)]),
-    ) as Readonly<Record<ProviderName, readonly FieldDef[]>>,
-    displayName: options.getDisplayName,
-    shortDisplayName: options.getDisplayName,
-    statusFields: () => [],
-    panelFields: options.getPanelFields,
-    isEnabled: () => true,
-    hasEnabledProviders: options.hasEnabledProviders,
-    activeProviders: options.order,
-    t: tr,
-  };
-  const cards = deriveDisplayModels(context).map((model) => cardFromModel(model, tr));
+export function planPanel(context: ProviderViewContext, running: boolean): PanelPlan {
+  const tr = context.t;
 
-  if (cards.length === 0) {
-    if (!options.hasEnabledProviders) {
-      return {
-        emptyState: "disabled",
-        emptyTitle: tr("No providers enabled"),
-        emptySubtitle: tr("Enable a provider in Settings to monitor usage limits."),
-        cards: [],
-        structureKey: structureKey([options.locale, "empty:disabled"]),
-      };
-    }
-
+  if (context.phase === "empty") {
     return {
-      emptyState: "loading",
-      emptyTitle: options.running
-        ? tr("Loading provider limits…")
-        : tr("Waiting for provider data…"),
-      emptySubtitle: null,
+      emptyState: "disabled",
+      emptyTitle: tr("No providers enabled"),
+      emptySubtitle: tr("Enable a provider in Settings to monitor usage limits."),
       cards: [],
-      structureKey: structureKey([options.locale, "empty:loading"]),
+      structureKey: structureKey([context.locale, "empty:disabled"]),
     };
   }
+
+  if (context.phase === "loading") {
+    return {
+      emptyState: "loading",
+      emptyTitle: running ? tr("Loading provider limits…") : tr("Waiting for provider data…"),
+      emptySubtitle: null,
+      cards: [],
+      structureKey: structureKey([context.locale, "empty:loading"]),
+    };
+  }
+
+  const cardContext: ProviderViewContext = {
+    ...context,
+    statusFields: providerRecord(() => []),
+  };
+  const cards = deriveDisplayModels(cardContext).map((model) => cardFromModel(model, tr));
 
   return {
     emptyState: "none",
     emptyTitle: null,
     emptySubtitle: null,
     cards,
-    structureKey: structureKey([options.locale, ...cards.map((c) => c.key)]),
+    structureKey: structureKey([context.locale, ...cards.map((c) => c.key)]),
   };
 }

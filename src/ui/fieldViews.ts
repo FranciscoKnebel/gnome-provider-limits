@@ -3,7 +3,6 @@ import { formatAbsoluteTimestamp, formatField } from "../formatters.js";
 import type { FieldDef, FieldResult, FieldType, FieldZone, ReaderResult } from "../readers/base.js";
 import { FieldStatus, ReaderStatus } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
-import { companionResetFieldName, resolveFieldCategory } from "../readers/fields.js";
 import type { FieldRow, FieldTone } from "./fieldRows.js";
 import { fieldTone, getFieldRows } from "./fieldRows.js";
 import type {
@@ -110,9 +109,8 @@ export function deriveFieldViews(
     const name = row.name ?? row.label;
     const def = defs.find((candidate) => candidate.name === name);
     const type = row.type ?? def?.type ?? "text";
-    const category = row.category ?? (def ? resolveFieldCategory(def) : "limit");
-    const resetName =
-      row.companionResetName ?? companionResetFieldName(def ?? { name, type }) ?? null;
+    const category = row.category ?? def?.category ?? "limit";
+    const resetName = row.companionResetName ?? def?.resetField ?? null;
     const field = result.fields.find((candidate) => candidate.name === name);
 
     let resetText: string | null = null;
@@ -337,10 +335,6 @@ export function deriveProviderHealth(
   };
 }
 
-export function toAttention(health: ProviderHealth): ProviderAttention {
-  return health.attention;
-}
-
 export type BadgeZone = "card" | "overview" | "status";
 
 export function badgeForZone(health: ProviderHealth, zone: "card"): Presentation["cardBadge"];
@@ -512,8 +506,8 @@ export function deriveDisplayModels(context: ProviderViewContext): ProviderDispl
     if (!result || result.status === ReaderStatus.DISABLED) continue;
 
     const fieldDefs = context.fieldDefs[provider];
-    const statusFields = context.statusFields(provider);
-    const panelFields = context.panelFields(provider);
+    const statusFields = context.statusFields[provider] ?? [];
+    const panelFields = context.panelFields[provider] ?? [];
     const isHardError =
       result.status === ReaderStatus.ERROR || result.status === ReaderStatus.UNAVAILABLE;
 
@@ -583,8 +577,8 @@ export function deriveDisplayModels(context: ProviderViewContext): ProviderDispl
 
     const partialModel: Omit<ProviderDisplayModel, "structureKey"> = {
       provider,
-      displayName: context.displayName(provider),
-      shortDisplayName: context.shortDisplayName(provider),
+      displayName: context.displayNames[provider] ?? provider,
+      shortDisplayName: context.shortDisplayNames[provider] ?? provider,
       result,
       status: result.status,
       isHardError,
@@ -629,7 +623,7 @@ export function deriveStatusBarSegments(context: ProviderViewContext): StatusBar
     displayName: model.shortDisplayName,
     result: model.result,
     fieldDefs: context.fieldDefs[model.provider],
-    statusFields: context.statusFields(model.provider),
+    statusFields: context.statusFields[model.provider] ?? [],
     views: model.statusViews,
     health: {
       state: model.state,

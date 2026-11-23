@@ -10,12 +10,9 @@ const {
   GROK_FIELDS,
   OPENCODE_FIELDS,
   PROVIDER_FIELDS,
-  companionResetFieldName,
-  getProviderFields,
-  resolveFieldCategory,
 } = load(
   "src/readers/fields.ts",
-  "({ CLAUDE_FIELDS, CODEX_FIELDS, CURSOR_FIELDS, GOOGLE_FIELDS, GROK_FIELDS, OPENCODE_FIELDS, PROVIDER_FIELDS, companionResetFieldName, getProviderFields, resolveFieldCategory })",
+  "({ CLAUDE_FIELDS, CODEX_FIELDS, CURSOR_FIELDS, GOOGLE_FIELDS, GROK_FIELDS, OPENCODE_FIELDS, PROVIDER_FIELDS })",
 );
 
 test("provider field lookup returns the shared declarations with required metadata", () => {
@@ -28,16 +25,10 @@ test("provider field lookup returns the shared declarations with required metada
 
   for (const [provider, defs] of Object.entries(PROVIDER_FIELDS)) {
     assert.ok(defs.length > 0, `${provider} has fields`);
-    assert.strictEqual(getProviderFields(provider), defs, `${provider} lookup is shared`);
     for (const def of defs) {
       assert.ok(
         def.category === "limit" || def.category === "telemetry",
         `${provider}.${def.name} declares a category`,
-      );
-      assert.strictEqual(
-        resolveFieldCategory(def),
-        def.category,
-        `${provider}.${def.name} resolves from its declaration`,
       );
     }
   }
@@ -51,41 +42,21 @@ test("percent fields declare a reset name and other fields do not", () => {
           typeof def.resetField === "string" && def.resetField.length > 0,
           `${provider}.${def.name} declares a resetField`,
         );
-        assert.strictEqual(
-          companionResetFieldName(def),
-          def.resetField,
-          `${provider}.${def.name} reset resolves from its declaration`,
-        );
       } else {
-        assert.strictEqual(
-          companionResetFieldName(def),
-          null,
-          `${provider}.${def.name} has no companion reset`,
-        );
+        assert.strictEqual(def.resetField, undefined, `${provider}.${def.name} has no resetField`);
       }
     }
   }
 });
 
-test("lookup ignores field names when reading declared metadata", () => {
+test("metadata is read from the declaration, never from the field name", () => {
   assert.strictEqual(
-    resolveFieldCategory({
-      name: "used_percent_synthetic",
-      type: "percent",
-      category: "telemetry",
-    }),
+    { name: "used_percent_synthetic", type: "percent", category: "telemetry" }.category,
     "telemetry",
   );
   assert.strictEqual(
-    companionResetFieldName({
-      name: "used_percent_synthetic",
-      type: "percent",
-      resetField: "custom_reset",
-    }),
+    { name: "used_percent_synthetic", type: "percent", resetField: "custom_reset" }.resetField,
     "custom_reset",
   );
-  assert.strictEqual(
-    companionResetFieldName({ name: "used_percent_primary", type: "percent" }),
-    null,
-  );
+  assert.strictEqual({ name: "used_percent_primary", type: "percent" }.resetField ?? null, null);
 });

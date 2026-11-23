@@ -15,8 +15,7 @@ export async function run() {
   const { CodexReader } = await import(`${readersDir}/codex.js`);
   const { ClaudeReader } = await import(`${readersDir}/claude.js`);
   const { OpenCodeReader } = await import(`${readersDir}/opencode.js`);
-  const { getProviderFields, PROVIDER_FIELDS, resolveFieldCategory, companionResetFieldName } =
-    await import(`${readersDir}/fields.js`);
+  const { PROVIDER_FIELDS } = await import(`${readersDir}/fields.js`);
 
   // ---------- BaseReader ----------
   // Test via a concrete anonymous subclass
@@ -60,30 +59,21 @@ export async function run() {
 
   // ---------- Field registry ----------
   try {
-    assert(getProviderFields("codex").length > 5, "codex has fields in registry");
-    assert(PROVIDER_FIELDS.codex === getProviderFields("codex"), "codex registry uses shared defs");
+    assert(PROVIDER_FIELDS.codex.length > 5, "codex has fields in registry");
     results.push({ name: "codex fields in registry", passed: true });
   } catch (e) {
     results.push({ name: "codex fields in registry", passed: false, error: String(e) });
   }
 
   try {
-    assert(getProviderFields("claude").length > 5, "claude has fields in registry");
-    assert(
-      PROVIDER_FIELDS.claude === getProviderFields("claude"),
-      "claude registry uses shared defs",
-    );
+    assert(PROVIDER_FIELDS.claude.length > 5, "claude has fields in registry");
     results.push({ name: "claude fields in registry", passed: true });
   } catch (e) {
     results.push({ name: "claude fields in registry", passed: false, error: String(e) });
   }
 
   try {
-    assert(getProviderFields("opencode").length > 5, "opencode has fields in registry");
-    assert(
-      PROVIDER_FIELDS.opencode === getProviderFields("opencode"),
-      "opencode registry uses shared defs",
-    );
+    assert(PROVIDER_FIELDS.opencode.length > 5, "opencode has fields in registry");
     results.push({ name: "opencode fields in registry", passed: true });
   } catch (e) {
     results.push({ name: "opencode fields in registry", passed: false, error: String(e) });
@@ -107,18 +97,8 @@ export async function run() {
       for (const def of defs) {
         const expected = telemetryNames.has(def.name) ? "telemetry" : "limit";
         assertEqual(def.category, expected, `${provider}.${def.name} category`);
-        assertEqual(
-          resolveFieldCategory(def),
-          expected,
-          `${provider}.${def.name} resolved category`,
-        );
         if (def.type === "percent") {
           assertNotNull(def.resetField, `${provider}.${def.name} resetField`);
-          assertEqual(
-            companionResetFieldName(def),
-            def.resetField,
-            `${provider}.${def.name} reset`,
-          );
         } else {
           assertEqual(def.resetField, undefined, `${provider}.${def.name} has no resetField`);
         }

@@ -1,11 +1,9 @@
 import Clutter from "gi://Clutter";
 import type Gio from "gi://Gio";
-import GLib from "gi://GLib";
 import St from "gi://St";
 
 import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
-import { resolveLocale } from "../helpers/locale.js";
 import type { BaseReader, FieldDef } from "../readers/base.js";
 import { computeBarWidthPx, planPanel } from "./cardPlan.js";
 import type {
@@ -18,7 +16,7 @@ import type {
   ProviderCardPlan,
 } from "./cardPlan.js";
 import type { PanelRenderContext, PanelShell, PanelStyleSection } from "./panelShell.js";
-import { PlanRenderer, type RenderPlan } from "./statusBarRenderer.js";
+import { PlanRenderer, type RenderPlan } from "./planRenderer.js";
 import { applyHealthToneClass, applyToneClass } from "./tone.js";
 
 interface ProgressRowWidgets {
@@ -65,16 +63,12 @@ function bannerStyleClass(kind: BannerKind): string {
     : "pl-diagnostic-banner pl-banner-error";
 }
 
-type CardsRenderPlan = PanelPlan &
-  RenderPlan & {
-    readonly lastRefreshAt: number | null;
-  };
+type CardsRenderPlan = PanelPlan & RenderPlan;
 
 export class CardsPanelSection
   extends PlanRenderer<CardsRenderPlan, PanelRenderContext>
   implements PanelStyleSection
 {
-  private _settings: Gio.Settings;
   private _running = false;
   private _cards: CardWidgets[] = [];
   private _emptyState: PanelEmptyState = "none";
@@ -82,13 +76,12 @@ export class CardsPanelSection
   readonly shell: PanelShell;
 
   constructor(
-    settings: Gio.Settings,
+    _settings: Gio.Settings,
     _readers: Map<ProviderName, BaseReader>,
-    fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>,
+    _fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>,
     shell: PanelShell,
   ) {
     super();
-    this._settings = settings;
     this.shell = shell;
   }
 
@@ -97,26 +90,8 @@ export class CardsPanelSection
   }
 
   protected plan(context: PanelRenderContext): CardsRenderPlan {
-    const view = context.view;
-    const locale = resolveLocale(
-      this._settings.get_string("language"),
-      GLib.getenv("LC_MESSAGES"),
-      GLib.getenv("LANG"),
-    );
-
-    const panel = planPanel({
-      order: view.order,
-      results: view.results,
-      hasEnabledProviders: view.hasEnabledProviders,
-      running: this._running,
-      locale,
-      getDisplayName: view.displayName,
-      getPanelFields: view.panelFields,
-      getFieldDefs: view.fieldDefsFor,
-      t: _,
-    });
-
-    return { ...panel, key: panel.structureKey, lastRefreshAt: context.lastRefreshAt };
+    const panel = planPanel(context.view, this._running);
+    return { ...panel, key: panel.structureKey };
   }
 
   protected clear(): void {
@@ -127,10 +102,6 @@ export class CardsPanelSection
     this._cards = [];
     this._emptyState = "none";
     this._emptyTitleLabel = null;
-  }
-
-  setLastRefreshAt(lastRefreshAt: number | null): void {
-    this.shell.setLastRefreshAt(lastRefreshAt);
   }
 
   setRunning(running: boolean): void {
@@ -160,7 +131,6 @@ export class CardsPanelSection
     }
 
     this.setRunning(this._running);
-    this.setLastRefreshAt(plan.lastRefreshAt);
   }
 
   protected update(plan: CardsRenderPlan): void {
@@ -211,8 +181,6 @@ export class CardsPanelSection
       this._updateKeyValueRows(card.limitMetaRows, cardPlan.limitMetaRows);
       this._updateKeyValueRows(card.telemetryRows, cardPlan.telemetryRows);
     });
-
-    this.setLastRefreshAt(plan.lastRefreshAt);
   }
 
   private _updateKeyValueRows(

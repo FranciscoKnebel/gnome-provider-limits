@@ -7,7 +7,6 @@ import St from "gi://St";
 import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { resolveLocale } from "../helpers/locale.js";
-import { readProviderViewSettings } from "../helpers/provider-settings.js";
 import type { BaseReader, FieldDef, ReaderResult } from "../readers/base.js";
 import { PROVIDER_FIELDS } from "../readers/fields.js";
 import { CompactStatusBarRenderer } from "./statusBarCompact.js";
@@ -15,7 +14,7 @@ import { GaugesStatusBarRenderer } from "./statusBarGauges.js";
 import { PillsStatusBarRenderer } from "./statusBarPills.js";
 import { StatusBarRenderer } from "./statusBarRenderer.js";
 import { resolveStatusBarStyle, type StatusBarStyle, type StyleDispatch } from "./styles.js";
-import type { ProviderViewContext } from "./viewContext.js";
+import { viewContextFor } from "./viewContext.js";
 
 export type { StatusBarStyle } from "./styles.js";
 export type { StatusBarRenderer } from "./statusBarRenderer.js";
@@ -51,7 +50,18 @@ export const StatusBarWidget = GObject.registerClass(
 
     render(results: Map<ProviderName, ReaderResult>): void {
       const style = resolveStatusBarStyle(this._settings.get_string("status-bar-style"));
-      const context = this._createContext(results);
+      const context = viewContextFor(
+        this._settings,
+        this._readers,
+        results,
+        this._fieldDefs,
+        resolveLocale(
+          this._settings.get_string("language"),
+          GLib.getenv("LC_MESSAGES"),
+          GLib.getenv("LANG"),
+        ),
+        _,
+      );
 
       if (this._style !== style) {
         this._renderer?.dispose();
@@ -60,22 +70,6 @@ export const StatusBarWidget = GObject.registerClass(
       }
 
       this._renderer?.render(context);
-    }
-
-    private _createContext(results: Map<ProviderName, ReaderResult>): ProviderViewContext {
-      const view = readProviderViewSettings(
-        this._settings,
-        this._readers,
-        results,
-        this._fieldDefs,
-      );
-      const locale = resolveLocale(
-        this._settings.get_string("language"),
-        GLib.getenv("LC_MESSAGES"),
-        GLib.getenv("LANG"),
-      );
-
-      return { ...view, locale, t: _ };
     }
   },
 );

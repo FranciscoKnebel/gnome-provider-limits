@@ -1,10 +1,9 @@
 import type { ProviderName } from "../constants.js";
 import { ReaderStatus } from "../readers/base.js";
-import type { FieldDef, ReaderResult } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
 import type { FieldTone } from "./fieldRows.js";
 import type { ProviderDisplayViews } from "./fieldViews.js";
-import { deriveDisplayModels, deriveProviderHealth, toAttention } from "./fieldViews.js";
+import { deriveDisplayModels, deriveProviderHealth } from "./fieldViews.js";
 import type { ProviderAttention } from "./providerTypes.js";
 import { structureKey } from "./renderStructure.js";
 import { clampFillRatio } from "./usageSnapshot.js";
@@ -55,19 +54,6 @@ export interface PanelMatrixPlan {
   readonly key: string;
 }
 
-export interface PlanPanelMatrixInput {
-  readonly order: readonly ProviderName[];
-  readonly enabledProviders: ReadonlySet<ProviderName>;
-  readonly results: ReadonlyMap<ProviderName, ReaderResult>;
-  readonly displayNames: Readonly<Record<ProviderName, string>>;
-  readonly statusFields: Readonly<Record<ProviderName, readonly string[]>>;
-  readonly panelFields: Readonly<Record<ProviderName, readonly string[]>>;
-  readonly expandedOverrides: ReadonlyMap<ProviderName, boolean>;
-  readonly fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>;
-  readonly locale: string;
-  readonly t?: (s: string) => string;
-}
-
 const FILLED_SEGMENT = "▰";
 const EMPTY_SEGMENT = "▱";
 
@@ -114,7 +100,7 @@ export function resolveStatusAttention(
   status: ReaderStatus,
   tones: readonly (FieldTone | undefined)[],
 ): ProviderAttention {
-  return toAttention(deriveProviderHealth(status, { tones }));
+  return deriveProviderHealth(status, { tones }).attention;
 }
 
 function groupsFromViews(views: ProviderDisplayViews, tr: (s: string) => string): MatrixRowGroup[] {
@@ -163,11 +149,13 @@ function groupStructure(groups: readonly MatrixRowGroup[]): string[] {
   );
 }
 
-export function planPanelMatrix(input: PlanPanelMatrixInput): PanelMatrixPlan {
-  const tr = input.t ?? ((s: string) => s);
-  const enabledInOrder = input.order.filter((provider) => input.enabledProviders.has(provider));
+export function planPanelMatrix(
+  context: ProviderViewContext,
+  expandedOverrides: ReadonlyMap<ProviderName, boolean>,
+): PanelMatrixPlan {
+  const tr = context.t;
 
-  if (enabledInOrder.length === 0) {
+  if (context.phase === "empty") {
     const msg = tr("No providers enabled. Open Settings to enable a provider.");
     return {
       state: "empty",
@@ -175,16 +163,11 @@ export function planPanelMatrix(input: PlanPanelMatrixInput): PanelMatrixPlan {
       allExpanded: false,
       canToggleAll: false,
       providers: [],
-      key: structureKey(["empty", input.locale]),
+      key: structureKey(["empty", context.locale]),
     };
   }
 
-  const activeProviders = enabledInOrder.filter((provider) => {
-    const result = input.results.get(provider);
-    return result !== undefined && result.status !== ReaderStatus.DISABLED;
-  });
-
-  if (activeProviders.length === 0 && input.results.size === 0) {
+  if (context.phase === "loading") {
     const msg = tr("Reading provider limits…");
     return {
       state: "loading",
@@ -192,30 +175,20 @@ export function planPanelMatrix(input: PlanPanelMatrixInput): PanelMatrixPlan {
       allExpanded: false,
       canToggleAll: false,
       providers: [],
-      key: structureKey(["loading", input.locale]),
+      key: structureKey(["loading", context.locale]),
     };
   }
 
-  const context: ProviderViewContext = {
-    order: input.order,
-    results: input.results,
-    locale: input.locale,
-    fieldDefs: input.fieldDefs,
-    displayName: (provider) => input.displayNames[provider] || provider,
-    shortDisplayName: (provider) => input.displayNames[provider] || provider,
-    statusFields: (provider) => input.statusFields[provider] ?? [],
-    panelFields: (provider) => input.panelFields[provider] ?? [],
-    isEnabled: (provider) => input.enabledProviders.has(provider),
-    hasEnabledProviders: enabledInOrder.length > 0,
-    activeProviders,
-    t: tr,
-  };
+  const activeProviders = context.activeProviders.filter((provider) => {
+    const result = context.results.get(provider);
+    return result !== undefined && result.status !== ReaderStatus.DISABLED;
+  });
   const models = deriveDisplayModels(context);
   const enabledCount = activeProviders.length;
   const providers: ProviderMatrixPlan[] = [];
 
   for (const model of models) {
-    const expanded = resolveProviderExpanded(model.provider, enabledCount, input.expandedOverrides);
+    const expanded = resolveProviderExpanded(model.provider, enabledCount, expandedOverrides);
     const chevron: "▾" | "▸" = expanded ? "▾" : "▸";
     const statusBadge = model.badges.status;
     const facts = model.usage.header;
@@ -261,11 +234,7 @@ export function planPanelMatrix(input: PlanPanelMatrixInput): PanelMatrixPlan {
     });
   }
 
-  const allExpanded = areAllProvidersExpanded(
-    activeProviders,
-    enabledCount,
-    input.expandedOverrides,
-  );
+  const allExpanded = areAllProvidersExpanded(activeProviders, enabledCount, expandedOverrides);
 
   return {
     state: "ready",
@@ -273,6 +242,6 @@ export function planPanelMatrix(input: PlanPanelMatrixInput): PanelMatrixPlan {
     allExpanded,
     canToggleAll: providers.length > 0,
     providers,
-    key: structureKey(["ready", input.locale, ...providers.map((provider) => provider.key)]),
+    key: structureKey(["ready", context.locale, ...providers.map((provider) => provider.key)]),
   };
 }

@@ -5,7 +5,6 @@ import GLib from "gi://GLib";
 import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { resolveLocale } from "../helpers/locale.js";
-import { readProviderViewSettings } from "../helpers/provider-settings.js";
 import type { BaseReader, FieldDef, ReaderResult } from "../readers/base.js";
 import { cycleTab, resolveActiveTab } from "./cockpitModel.js";
 import type { CockpitTab } from "./cockpitModel.js";
@@ -15,6 +14,7 @@ import type { OverviewHost } from "./panelGaugesOverview.js";
 import { OverviewRenderer } from "./panelGaugesOverview.js";
 import type { PanelRenderContext, PanelShell, PanelStyleSection } from "./panelShell.js";
 import { structureKey } from "./renderStructure.js";
+import { viewContextFor, type ViewPhase } from "./viewContext.js";
 
 type BodyState =
   | { kind: "none" }
@@ -55,7 +55,6 @@ function emptyStateText(state: EmptyState): { title: string; subtitle: string } 
 
 /** Thin coordinator: owns tab state and delegates rendering to focused renderers. */
 export class GaugesPanelSection implements PanelStyleSection {
-  private readonly _settings: Gio.Settings;
   private readonly _overview: OverviewRenderer;
   private readonly _detail: DetailRenderer;
   private _running = false;
@@ -71,12 +70,21 @@ export class GaugesPanelSection implements PanelStyleSection {
     fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>,
     shell: PanelShell,
   ) {
-    this._settings = settings;
     this.shell = shell;
     this._lastContext = {
-      results: new Map(),
       lastRefreshAt: null,
-      view: readProviderViewSettings(settings, new Map(), new Map(), fieldDefs),
+      view: viewContextFor(
+        settings,
+        new Map(),
+        new Map(),
+        fieldDefs,
+        resolveLocale(
+          settings.get_string("language"),
+          GLib.getenv("LC_MESSAGES"),
+          GLib.getenv("LANG"),
+        ),
+        _,
+      ),
     };
 
     const host: OverviewHost & DetailHost = {
@@ -113,13 +121,8 @@ export class GaugesPanelSection implements PanelStyleSection {
 
   render(context: PanelRenderContext): void {
     this._lastContext = context;
-    const results = context.results;
-
-    const locale = resolveLocale(
-      this._settings.get_string("language"),
-      GLib.getenv("LC_MESSAGES"),
-      GLib.getenv("LANG"),
-    );
+    const results = context.view.results;
+    const locale = context.view.locale;
 
     const enabledProviders = [...context.view.activeProviders];
 
@@ -128,9 +131,8 @@ export class GaugesPanelSection implements PanelStyleSection {
 
     this._overview.syncTabHeader(enabledProviders, results, locale);
     this.shell.setRunning(this._running);
-    this.shell.setLastRefreshAt(context.lastRefreshAt);
 
-    const nextState = this._resolveBodyState(enabledProviders, results);
+    const nextState = this._resolveBodyState(context.view.phase, results);
     this._transitionBody(locale, nextState);
 
     if (nextState.kind === "overview") {
@@ -150,14 +152,14 @@ export class GaugesPanelSection implements PanelStyleSection {
   }
 
   private _resolveBodyState(
-    enabledProviders: ProviderName[],
-    results: Map<ProviderName, ReaderResult>,
+    phase: ViewPhase,
+    results: ReadonlyMap<ProviderName, ReaderResult>,
   ): BodyState {
-    if (enabledProviders.length === 0) {
+    if (phase === "empty") {
       return { kind: "empty", reason: "no-providers" };
     }
 
-    if (results.size === 0) {
+    if (phase === "loading") {
       return { kind: "empty", reason: "initial-load" };
     }
 

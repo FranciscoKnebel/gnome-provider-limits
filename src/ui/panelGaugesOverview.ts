@@ -14,8 +14,8 @@ import { buildOverviewRowModel, getAvailableTabs } from "./cockpitModel.js";
 import type { CockpitTab, OverviewBadgeKind, OverviewRowModel } from "./cockpitModel.js";
 import type { MicroMeterSpec } from "./gaugeTypes.js";
 import type { PanelShell } from "./panelShell.js";
+import { PlanRenderer, type RenderPlan } from "./planRenderer.js";
 import { structureKey } from "./renderStructure.js";
-import { PlanRenderer, type RenderPlan } from "./statusBarRenderer.js";
 import { applyToneClass } from "./tone.js";
 
 const OVERVIEW_BAR_WIDTH = 56;
@@ -93,7 +93,7 @@ export interface OverviewHost {
 
 interface TabBarContext {
   readonly enabledProviders: readonly ProviderName[];
-  readonly results: Map<ProviderName, ReaderResult>;
+  readonly results: ReadonlyMap<ProviderName, ReaderResult>;
   readonly locale: string;
   readonly activeTab: CockpitTab;
 }
@@ -101,7 +101,7 @@ interface TabBarContext {
 interface TabBarPlan extends RenderPlan {
   readonly tabs: readonly CockpitTab[];
   readonly activeTab: CockpitTab;
-  readonly results: Map<ProviderName, ReaderResult>;
+  readonly results: ReadonlyMap<ProviderName, ReaderResult>;
 }
 
 /** Owns the persistent tab bar through the same plan lifecycle as every other renderer. */
@@ -214,7 +214,7 @@ class TabBarRenderer extends PlanRenderer<TabBarPlan, TabBarContext> {
 
 interface OverviewRowsContext {
   readonly enabledProviders: readonly ProviderName[];
-  readonly results: Map<ProviderName, ReaderResult>;
+  readonly results: ReadonlyMap<ProviderName, ReaderResult>;
   readonly locale: string;
 }
 
@@ -459,7 +459,7 @@ export class OverviewRenderer {
 
   syncTabHeader(
     enabledProviders: readonly ProviderName[],
-    results: Map<ProviderName, ReaderResult>,
+    results: ReadonlyMap<ProviderName, ReaderResult>,
     locale: string,
   ): void {
     this._tabRenderer.render({

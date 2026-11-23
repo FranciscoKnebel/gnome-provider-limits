@@ -36,6 +36,9 @@ test("Panel swaps style sections on setting change and forwards render and runni
     destroy() {
       this.destroyed = true;
     }
+    setLastRefreshAt(lastRefreshAt) {
+      this.lastRefreshAt = lastRefreshAt;
+    }
   }
   const created = [];
   class SectionStub {
@@ -73,7 +76,9 @@ test("Panel swaps style sections on setting change and forwards render and runni
     CompactPanelSection: CompactStub,
     PanelShell: ShellStub,
     resolvePanelStyle,
-    readProviderViewSettings: () => view,
+    viewContextFor: () => view,
+    resolveLocale: () => "en",
+    GLib: { getenv: () => null },
     PROVIDER_FIELDS: {},
     _: (message) => message,
   });
@@ -107,8 +112,8 @@ test("Panel swaps style sections on setting change and forwards render and runni
   const results = new Map([["codex", {}]]);
   panel.render(results, 100);
   assert.equal(created[0].rendered.length, 1);
-  assert.equal(created[0].rendered[0].results, results);
   assert.equal(created[0].rendered[0].lastRefreshAt, 100);
+  assert.equal(created[0].shell.lastRefreshAt, 100);
   assert.equal(created[0].rendered[0].view, view, "the canonical view snapshot is forwarded");
   panel.setRunning(true);
   assert.equal(created[0].running, true);
@@ -121,8 +126,8 @@ test("Panel swaps style sections on setting change and forwards render and runni
   assert.equal(created[0].shell.destroyed, true);
   assert.equal(created[1].shell.options.footerVariant, "cards");
   assert.equal(created[1].rendered.length, 1);
-  assert.equal(created[1].rendered[0].results, results);
   assert.equal(created[1].rendered[0].lastRefreshAt, 100);
+  assert.equal(created[1].shell.lastRefreshAt, 100);
   assert.equal(created[1].running, true);
 
   style = "compact";

@@ -7,21 +7,18 @@ import { Spinner } from "resource:///org/gnome/shell/ui/animation.js";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
-import type { ProviderName } from "../constants.js";
 import { formatTimestampTemplate } from "../formatters.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { bindActivation } from "../helpers/keyboard.js";
 import { resolveLocale } from "../helpers/locale.js";
-import type { ProviderViewSettings } from "../helpers/provider-settings.js";
 import { setScrollViewChild } from "../helpers/scroll.js";
-import type { ReaderResult } from "../readers/base.js";
 import type { PanelStyle, StyleDispatch } from "./styles.js";
+import type { ProviderViewContext } from "./viewContext.js";
 
 /** Single render argument shared by every panel style section. */
 export interface PanelRenderContext {
-  readonly results: Map<ProviderName, ReaderResult>;
   readonly lastRefreshAt: number | null;
-  readonly view: ProviderViewSettings;
+  readonly view: ProviderViewContext;
 }
 
 export interface PanelStyleSection {

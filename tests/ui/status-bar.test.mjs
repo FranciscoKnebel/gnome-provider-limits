@@ -7,13 +7,20 @@ const PROVIDER_NAMES = ["codex", "claude", "opencode", "grok", "cursor", "google
 function loadProviderSettings() {
   return load(
     "src/helpers/provider-settings.ts",
-    "({ resolveActiveProviders, readProviderViewSettings })",
+    "({ resolveActiveProviders, normalizeProvidersOrder, providerDisplayName, providerDisplayNameShort })",
     {
       PROVIDER_NAMES,
       DEFAULT_PROVIDERS_ORDER: PROVIDER_NAMES,
       ReaderStatus: { DISABLED: "disabled", OK: "ok" },
     },
   );
+}
+
+function loadViewContext() {
+  return load("src/ui/viewContext.ts", "({ viewContextFor, resolveViewPhase, singleProvider })", {
+    PROVIDER_NAMES,
+    ...loadProviderSettings(),
+  });
 }
 
 function settingsWith(values) {
@@ -45,7 +52,8 @@ test("active providers have one canonical selector across rendering paths", () =
 });
 
 test("the view snapshot exposes one consistent set of provider settings", () => {
-  const { resolveActiveProviders, readProviderViewSettings } = loadProviderSettings();
+  const { resolveActiveProviders } = loadProviderSettings();
+  const { viewContextFor } = loadViewContext();
   const settings = settingsWith({
     "providers-order": ["opencode", "codex"],
     "codex-enabled": true,
@@ -57,23 +65,20 @@ test("the view snapshot exposes one consistent set of provider settings", () => 
   const readers = new Map();
   const results = new Map([["opencode", { status: "ok" }]]);
   const fieldDefs = { codex: [{ name: "used_percent_primary" }] };
-  const view = readProviderViewSettings(settings, readers, results, fieldDefs);
+  const view = viewContextFor(settings, readers, results, fieldDefs, "en", (text) => text);
 
   assert.deepEqual(
     Array.from(view.activeProviders),
     Array.from(resolveActiveProviders(settings, readers, results)),
   );
   assert.deepEqual(Array.from(view.activeProviders), ["opencode", "codex"]);
-  assert.equal(view.hasEnabledProviders, true);
-  assert.equal(view.isEnabled("codex"), true);
-  assert.equal(view.isEnabled("claude"), false);
-  assert.equal(view.displayName("codex"), "Codex Pro");
+  assert.equal(view.phase, "ready");
+  assert.equal(view.activeProviders.includes("codex"), true);
+  assert.equal(view.activeProviders.includes("claude"), false);
   assert.equal(view.displayNames.codex, "Codex Pro");
-  assert.equal(view.shortDisplayName("codex"), "CX");
-  assert.deepEqual(view.statusFields("codex"), ["used_percent_primary"]);
-  assert.deepEqual(view.statusFieldNames.codex, ["used_percent_primary"]);
-  assert.deepEqual(view.panelFields("codex"), ["reset_at_primary"]);
-  assert.equal(view.fieldDefsFor("codex"), fieldDefs.codex);
+  assert.equal(view.shortDisplayNames.codex, "CX");
+  assert.deepEqual(view.statusFields.codex, ["used_percent_primary"]);
+  assert.deepEqual(view.panelFields.codex, ["reset_at_primary"]);
   assert.equal(view.fieldDefs, fieldDefs);
   assert.deepEqual(Array.from(view.order), [
     "opencode",
@@ -83,6 +88,13 @@ test("the view snapshot exposes one consistent set of provider settings", () => 
     "cursor",
     "google",
   ]);
+});
+
+test("view phase comes from enabled providers and results only", () => {
+  const { resolveViewPhase } = loadViewContext();
+  assert.equal(resolveViewPhase([], new Map()), "empty");
+  assert.equal(resolveViewPhase(["codex"], new Map()), "loading");
+  assert.equal(resolveViewPhase(["codex"], new Map([["codex", {}]])), "ready");
 });
 
 test("status bar renderer plans once per render and owns structure rebuilds", () => {
@@ -109,7 +121,10 @@ test("status bar renderer plans once per render and owns structure rebuilds", ()
       if (this.parent) this.parent.children = this.parent.children.filter((c) => c !== this);
     },
   });
-  const { StatusBarRenderer } = load("src/ui/statusBarRenderer.ts", "({ StatusBarRenderer })");
+  const { PlanRenderer } = load("src/ui/planRenderer.ts", "({ PlanRenderer })");
+  const { StatusBarRenderer } = load("src/ui/statusBarRenderer.ts", "({ StatusBarRenderer })", {
+    PlanRenderer,
+  });
 
   const plans = [];
   const builds = [];
@@ -159,7 +174,7 @@ test("status bar renderer plans once per render and owns structure rebuilds", ()
 
 test("PlanRenderer provides the shared lifecycle to any renderer", () => {
   const events = [];
-  const { PlanRenderer } = load("src/ui/statusBarRenderer.ts", "({ PlanRenderer })");
+  const { PlanRenderer } = load("src/ui/planRenderer.ts", "({ PlanRenderer })");
 
   class Renderer extends PlanRenderer {
     plan(context) {

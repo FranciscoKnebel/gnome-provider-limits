@@ -9,7 +9,7 @@ import type { GaugeGeometry, GaugeTone, MicroMeterSpec, RgbTuple } from "./gauge
 import type { Presentation } from "./providerTypes.js";
 import { structureKey } from "./renderStructure.js";
 import { clampRatio } from "./usageSnapshot.js";
-import type { ProviderViewContext } from "./viewContext.js";
+import { singleProvider } from "./viewContext.js";
 
 export type CockpitTab = "overview" | ProviderName;
 
@@ -177,20 +177,15 @@ export function partitionProviderPanel(
 ): PartitionedProviderPanel {
   const tr = t ?? ((s: string) => s);
   const provider = result.provider as ProviderName;
-  const context: ProviderViewContext = {
-    order: [provider],
-    results: new Map([[provider, result]]),
+  const context = singleProvider({
+    provider,
+    result,
+    displayName: provider,
+    fieldDefs: fieldsDefs,
+    panelFields: panelFieldNames,
     locale,
-    fieldDefs: { [provider]: fieldsDefs } as Readonly<Record<ProviderName, readonly FieldDef[]>>,
-    displayName: () => provider,
-    shortDisplayName: () => provider,
-    statusFields: () => [],
-    panelFields: () => panelFieldNames,
-    isEnabled: () => true,
-    hasEnabledProviders: true,
-    activeProviders: [provider],
     t: tr,
-  };
+  });
   const model = deriveDisplayModels(context)[0];
   const views = model?.panelViews ?? [];
   const consumedResets = model?.consumedResets ?? new Set<string>();
@@ -284,22 +279,16 @@ export function buildOverviewRowModel(options: {
     };
   }
 
-  const context: ProviderViewContext = {
-    order: [provider],
-    results: new Map([[provider, result]]),
+  const context = singleProvider({
+    provider,
+    result,
+    displayName,
+    fieldDefs: fieldsDefs,
+    statusFields: statusFieldNames,
+    panelFields: panelFieldNames,
     locale,
-    fieldDefs: { [result.provider]: fieldsDefs } as Readonly<
-      Record<ProviderName, readonly FieldDef[]>
-    >,
-    displayName: () => displayName,
-    shortDisplayName: () => displayName,
-    statusFields: () => statusFieldNames,
-    panelFields: () => panelFieldNames,
-    isEnabled: () => true,
-    hasEnabledProviders: true,
-    activeProviders: [provider],
     t: tr,
-  };
+  });
   const model = deriveDisplayModels(context)[0];
   if (!model) {
     return {

@@ -56,7 +56,7 @@ function planPills(context: ProviderViewContext): PillsPlan {
     ]),
   }));
 
-  const loading = pills.length === 0 && context.results.size === 0 && context.hasEnabledProviders;
+  const loading = context.phase === "loading";
   return {
     key: structureKey([
       context.locale,

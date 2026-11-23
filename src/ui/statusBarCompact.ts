@@ -4,7 +4,7 @@ import St from "gi://St";
 import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { ReaderStatus } from "../readers/base.js";
-import { deriveStatusBarSegments, statusBadgeText, toAttention } from "./fieldViews.js";
+import { deriveStatusBarSegments, statusBadgeText } from "./fieldViews.js";
 import type { ProviderAttention } from "./providerTypes.js";
 import { structureKey } from "./renderStructure.js";
 import { StatusBarRenderer } from "./statusBarRenderer.js";
@@ -36,7 +36,7 @@ interface CompactPlan {
 function planCompact(context: ProviderViewContext): CompactPlan {
   const tr = (text: string) => context.t(text);
 
-  if (context.activeProviders.length === 0) {
+  if (context.phase === "empty") {
     return {
       state: "empty",
       placeholderText: null,
@@ -45,41 +45,39 @@ function planCompact(context: ProviderViewContext): CompactPlan {
     };
   }
 
-  const badges: CompactBadgePlan[] = deriveStatusBarSegments(context)
-    .filter((segment) => context.isEnabled(segment.provider))
-    .map((segment) => {
-      const shortLabel = segment.displayName || segment.provider;
-      const badgeWord = statusBadgeText(segment.health, tr);
+  const badges: CompactBadgePlan[] = deriveStatusBarSegments(context).map((segment) => {
+    const shortLabel = segment.displayName || segment.provider;
+    const badgeWord = statusBadgeText(segment.health, tr);
 
-      if (segment.health.state === "error" || segment.health.state === "unavailable") {
-        return {
-          provider: segment.provider,
-          shortLabel,
-          metricsText: "!",
-          attention: toAttention(segment.health),
-          accessibleText: `${shortLabel} ${badgeWord}`.trim(),
-          key: JSON.stringify([segment.provider, shortLabel, 1]),
-        };
-      }
-
-      const joined = segment.views.map((view) => view.valueText).join("·");
-      const prefix = segment.result.status === ReaderStatus.PARTIAL ? "~" : "";
-      const metricsText = joined ? `${prefix}${joined}` : prefix;
-      const spokenRows = segment.views.map((view) => view.accessibleText).join(", ");
-      const headerPart = badgeWord ? `${shortLabel} ${badgeWord}` : shortLabel;
-      const accessibleText = spokenRows ? `${headerPart}: ${spokenRows}` : headerPart;
-
+    if (segment.health.state === "error" || segment.health.state === "unavailable") {
       return {
         provider: segment.provider,
         shortLabel,
-        metricsText,
-        attention: toAttention(segment.health),
-        accessibleText,
-        key: JSON.stringify([segment.provider, shortLabel, metricsText ? 1 : 0]),
+        metricsText: "!",
+        attention: segment.health.attention,
+        accessibleText: `${shortLabel} ${badgeWord}`.trim(),
+        key: JSON.stringify([segment.provider, shortLabel, 1]),
       };
-    });
+    }
 
-  if (badges.length === 0 && context.results.size === 0) {
+    const joined = segment.views.map((view) => view.valueText).join("·");
+    const prefix = segment.result.status === ReaderStatus.PARTIAL ? "~" : "";
+    const metricsText = joined ? `${prefix}${joined}` : prefix;
+    const spokenRows = segment.views.map((view) => view.accessibleText).join(", ");
+    const headerPart = badgeWord ? `${shortLabel} ${badgeWord}` : shortLabel;
+    const accessibleText = spokenRows ? `${headerPart}: ${spokenRows}` : headerPart;
+
+    return {
+      provider: segment.provider,
+      shortLabel,
+      metricsText,
+      attention: segment.health.attention,
+      accessibleText,
+      key: JSON.stringify([segment.provider, shortLabel, metricsText ? 1 : 0]),
+    };
+  });
+
+  if (context.phase === "loading") {
     return {
       state: "loading",
       placeholderText: "…",

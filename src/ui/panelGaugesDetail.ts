@@ -14,7 +14,7 @@ import { partitionProviderPanel, providerDetailStructureKey } from "./cockpitMod
 import type { BentoTileItem, PartitionedProviderPanel, RadialGaugeItem } from "./cockpitModel.js";
 import type { GaugeGeometry } from "./gaugeTypes.js";
 import type { PanelShell } from "./panelShell.js";
-import { PlanRenderer, type RenderPlan } from "./statusBarRenderer.js";
+import { PlanRenderer, type RenderPlan } from "./planRenderer.js";
 import { applyToneClass } from "./tone.js";
 
 const RADIAL_GAUGE_SIZE = 80;

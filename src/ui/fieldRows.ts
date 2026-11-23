@@ -2,7 +2,6 @@ import { formatField } from "../formatters.js";
 import type { FieldDef, FieldType, ReaderResult } from "../readers/base.js";
 import { FieldStatus, ReaderStatus } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
-import { companionResetFieldName, resolveFieldCategory } from "../readers/fields.js";
 
 export type FieldTone = "ok" | "warning" | "critical";
 
@@ -62,8 +61,8 @@ export function getFieldRows(
     const field = result.fields.find((f) => f.name === fieldName);
     const translatedLabel = t ? t(fieldDef.label) : fieldDef.label;
     const tone = fieldDef.type === "percent" ? fieldTone(fieldName, field?.value) : undefined;
-    const category = resolveFieldCategory(fieldDef);
-    const resetName = companionResetFieldName(fieldDef);
+    const category = fieldDef.category;
+    const resetName = fieldDef.resetField ?? null;
 
     if (!field || field.status !== FieldStatus.OK) {
       const row: FieldRow = {

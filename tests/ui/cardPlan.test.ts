@@ -7,9 +7,6 @@ import {
   GROK_FIELDS,
   OPENCODE_FIELDS,
   PROVIDER_FIELDS,
-  companionResetFieldName,
-  getProviderFields,
-  resolveFieldCategory,
 } from "../../src/readers/fields.js";
 import { computeBarWidthPx, planPanel, planProviderCard } from "../../src/ui/cardPlan.js";
 import { clampPercent, getFieldRows } from "../../src/ui/fieldRows.js";
@@ -21,7 +18,12 @@ import {
 } from "../../src/ui/fieldViews.js";
 import type { ProviderTone } from "../../src/ui/providerTypes.js";
 import { applyHealthToneClass, applyToneClass } from "../../src/ui/tone.js";
-import type { ProviderViewContext } from "../../src/ui/viewContext.js";
+import {
+  providerRecord,
+  resolveViewPhase,
+  type ProviderViewContext,
+  type ViewPhase,
+} from "../../src/ui/viewContext.js";
 
 function segmentsContext(
   results: ReadonlyMap<ProviderName, ReaderResult>,
@@ -32,15 +34,39 @@ function segmentsContext(
     order,
     results,
     locale: "en",
-    statusFields,
-    panelFields: () => [],
-    displayName: (provider) => provider.toUpperCase(),
-    shortDisplayName: (provider) => provider.toUpperCase(),
+    statusFields: providerRecord(statusFields),
+    panelFields: providerRecord(() => []),
+    displayNames: providerRecord((provider) => provider.toUpperCase()),
+    shortDisplayNames: providerRecord((provider) => provider.toUpperCase()),
     fieldDefs: PROVIDER_FIELDS,
-    isEnabled: () => true,
-    hasEnabledProviders: results.size > 0,
     activeProviders: order,
     t: (text) => text,
+    phase: resolveViewPhase(order, results),
+  };
+}
+
+function panelContext(options: {
+  providers: readonly ProviderName[];
+  results: ReadonlyMap<ProviderName, ReaderResult>;
+  panelFields: (provider: ProviderName) => readonly string[];
+  displayName?: (provider: ProviderName) => string;
+  fieldDefs?: Readonly<Record<ProviderName, readonly FieldDef[]>>;
+  phase?: ViewPhase;
+}): ProviderViewContext {
+  const name = (provider: ProviderName) => options.displayName?.(provider) ?? provider;
+  const phase = options.phase ?? resolveViewPhase(options.providers, options.results);
+  return {
+    order: options.providers,
+    results: options.results,
+    fieldDefs: options.fieldDefs ?? providerRecord((provider) => PROVIDER_FIELDS[provider]),
+    activeProviders: options.providers,
+    displayNames: providerRecord(name),
+    shortDisplayNames: providerRecord(name),
+    statusFields: providerRecord(() => []),
+    panelFields: providerRecord(options.panelFields),
+    locale: "en",
+    t: (text) => text,
+    phase,
   };
 }
 
@@ -56,10 +82,10 @@ function toneOf(
 describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
   describe("fields metadata module", () => {
     it("exposes field definitions for every provider without GI dependencies", () => {
-      expect(getProviderFields("codex")).toBe(CODEX_FIELDS);
-      expect(getProviderFields("claude")).toBe(CLAUDE_FIELDS);
-      expect(getProviderFields("opencode")).toBe(OPENCODE_FIELDS);
-      expect(getProviderFields("grok")).toBe(GROK_FIELDS);
+      expect(PROVIDER_FIELDS.codex).toBe(CODEX_FIELDS);
+      expect(PROVIDER_FIELDS.claude).toBe(CLAUDE_FIELDS);
+      expect(PROVIDER_FIELDS.opencode).toBe(OPENCODE_FIELDS);
+      expect(PROVIDER_FIELDS.grok).toBe(GROK_FIELDS);
       expect(Object.keys(PROVIDER_FIELDS)).toEqual([
         "codex",
         "claude",
@@ -71,45 +97,48 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
     });
 
     it("reads field categories directly from the declaration", () => {
-      expect(resolveFieldCategory({ name: "plan_type", type: "text", category: "telemetry" })).toBe(
-        "telemetry",
-      );
-      expect(
-        resolveFieldCategory({ name: "used_percent_primary", type: "percent", category: "limit" }),
-      ).toBe("limit");
-      expect(resolveFieldCategory({ name: "limit_reached", type: "bool", category: "limit" })).toBe(
+      expect({ name: "plan_type", type: "text", category: "telemetry" }.category).toBe("telemetry");
+      expect({ name: "used_percent_primary", type: "percent", category: "limit" }.category).toBe(
         "limit",
       );
-      expect(
-        resolveFieldCategory({ name: "total_cost", type: "cost", category: "telemetry" }),
-      ).toBe("telemetry");
+      expect({ name: "limit_reached", type: "bool", category: "limit" }.category).toBe("limit");
+      expect({ name: "total_cost", type: "cost", category: "telemetry" }.category).toBe(
+        "telemetry",
+      );
     });
 
     it("reads companion reset field names directly from the declaration", () => {
       expect(
-        companionResetFieldName({
+        {
           name: "used_percent_primary",
           type: "percent",
           resetField: "reset_at_primary",
-        }),
+        }.resetField,
       ).toBe("reset_at_primary");
       expect(
-        companionResetFieldName({
+        {
           name: "used_percent_weekly",
           type: "percent",
           resetField: "reset_at_weekly",
-        }),
+        }.resetField,
       ).toBe("reset_at_weekly");
       expect(
-        companionResetFieldName({
+        {
           name: "remaining_percent_credits",
           type: "percent",
           resetField: "reset_at_credits",
-        }),
+        }.resetField,
       ).toBe("reset_at_credits");
-      expect(companionResetFieldName({ name: "used_percent", type: "percent" })).toBeNull();
-      expect(companionResetFieldName({ name: "custom_ratio", type: "percent" })).toBeNull();
-      expect(companionResetFieldName({ name: "reset_at_weekly", type: "timestamp" })).toBeNull();
+      const withoutReset = (name: string, type: FieldDef["type"]): FieldDef => ({
+        name,
+        type,
+        label: name,
+        defaultZone: "panel",
+        category: "limit",
+      });
+      expect(withoutReset("used_percent", "percent").resetField ?? null).toBeNull();
+      expect(withoutReset("custom_ratio", "percent").resetField ?? null).toBeNull();
+      expect(withoutReset("reset_at_weekly", "timestamp").resetField ?? null).toBeNull();
     });
   });
 
@@ -500,43 +529,40 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
     });
 
     it("plans empty disabled and loading states in planPanel and preserves key across value updates", () => {
-      const disabledPlan = planPanel({
-        order: ["codex"],
-        results: new Map(),
-        hasEnabledProviders: false,
-        running: false,
-        locale: "en",
-        getDisplayName: (p) => p,
-        getPanelFields: () => [],
-        getFieldDefs: (provider) => PROVIDER_FIELDS[provider],
-      });
+      const disabledPlan = planPanel(
+        panelContext({
+          providers: ["codex"],
+          results: new Map(),
+          panelFields: () => [],
+          phase: "empty",
+        }),
+        false,
+      );
       expect(disabledPlan.emptyState).toBe("disabled");
       expect(disabledPlan.emptyTitle).toBe("No providers enabled");
       expect(disabledPlan.emptySubtitle).toContain("Settings");
 
-      const loadingPlan = planPanel({
-        order: ["codex"],
-        results: new Map(),
-        hasEnabledProviders: true,
-        running: true,
-        locale: "en",
-        getDisplayName: (p) => p,
-        getPanelFields: () => [],
-        getFieldDefs: (provider) => PROVIDER_FIELDS[provider],
-      });
+      const loadingPlan = planPanel(
+        panelContext({
+          providers: ["codex"],
+          results: new Map(),
+          panelFields: () => [],
+          phase: "loading",
+        }),
+        true,
+      );
       expect(loadingPlan.emptyState).toBe("loading");
       expect(loadingPlan.emptyTitle).toBe("Loading provider limits…");
 
-      const waitingPlan = planPanel({
-        order: ["codex"],
-        results: new Map(),
-        hasEnabledProviders: true,
-        running: false,
-        locale: "en",
-        getDisplayName: (p) => p,
-        getPanelFields: () => [],
-        getFieldDefs: (provider) => PROVIDER_FIELDS[provider],
-      });
+      const waitingPlan = planPanel(
+        panelContext({
+          providers: ["codex"],
+          results: new Map(),
+          panelFields: () => [],
+          phase: "loading",
+        }),
+        false,
+      );
       expect(waitingPlan.emptyTitle).toBe("Waiting for provider data…");
       expect(waitingPlan.structureKey).toBe(loadingPlan.structureKey);
 
@@ -550,47 +576,47 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
           resetField: "reset_at_primary",
         },
       ];
-      const firstActive = planPanel({
-        order: ["codex"],
-        results: new Map([
-          [
-            "codex",
-            {
-              provider: "codex",
-              status: ReaderStatus.OK,
-              lastUpdated: 1000,
-              fields: [{ name: "used_percent_primary", value: 20, status: FieldStatus.OK }],
-            },
-          ],
-        ]),
-        hasEnabledProviders: true,
-        running: false,
-        locale: "en",
-        getDisplayName: () => "Codex",
-        getPanelFields: () => ["used_percent_primary"],
-        getFieldDefs: () => customDefs,
-      });
+      const firstActive = planPanel(
+        panelContext({
+          providers: ["codex"],
+          results: new Map([
+            [
+              "codex",
+              {
+                provider: "codex",
+                status: ReaderStatus.OK,
+                lastUpdated: 1000,
+                fields: [{ name: "used_percent_primary", value: 20, status: FieldStatus.OK }],
+              },
+            ],
+          ]),
+          panelFields: () => ["used_percent_primary"],
+          displayName: () => "Codex",
+          fieldDefs: providerRecord(() => customDefs),
+        }),
+        false,
+      );
 
-      const secondActive = planPanel({
-        order: ["codex"],
-        results: new Map([
-          [
-            "codex",
-            {
-              provider: "codex",
-              status: ReaderStatus.OK,
-              lastUpdated: 2000,
-              fields: [{ name: "used_percent_primary", value: 95, status: FieldStatus.OK }],
-            },
-          ],
-        ]),
-        hasEnabledProviders: true,
-        running: false,
-        locale: "en",
-        getDisplayName: () => "Codex",
-        getPanelFields: () => ["used_percent_primary"],
-        getFieldDefs: () => customDefs,
-      });
+      const secondActive = planPanel(
+        panelContext({
+          providers: ["codex"],
+          results: new Map([
+            [
+              "codex",
+              {
+                provider: "codex",
+                status: ReaderStatus.OK,
+                lastUpdated: 2000,
+                fields: [{ name: "used_percent_primary", value: 95, status: FieldStatus.OK }],
+              },
+            ],
+          ]),
+          panelFields: () => ["used_percent_primary"],
+          displayName: () => "Codex",
+          fieldDefs: providerRecord(() => customDefs),
+        }),
+        false,
+      );
 
       expect(firstActive.emptyState).toBe("none");
       expect(secondActive.structureKey).toBe(firstActive.structureKey);

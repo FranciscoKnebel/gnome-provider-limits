@@ -3,7 +3,7 @@ import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
 import type { FieldDef, ReaderResult } from "../../src/readers/base.js";
 import { PROVIDER_FIELDS } from "../../src/readers/fields.js";
 import type { StatusBarProviderSegment } from "../../src/ui/fieldViews.js";
-import { deriveStatusBarSegments, toAttention } from "../../src/ui/fieldViews.js";
+import { deriveStatusBarSegments } from "../../src/ui/fieldViews.js";
 import {
   areAllProvidersExpanded,
   formatSegmentedBar,
@@ -18,7 +18,11 @@ import {
   applyToneClass,
 } from "../../src/ui/tone.js";
 import { clampFillRatio } from "../../src/ui/usageSnapshot.js";
-import type { ProviderViewContext } from "../../src/ui/viewContext.js";
+import {
+  resolveViewPhase,
+  type ProviderViewContext,
+  type ViewPhase,
+} from "../../src/ui/viewContext.js";
 
 const SHORT_LABELS: Record<ProviderName, string> = {
   codex: "codex",
@@ -64,15 +68,37 @@ function segmentsContext(
     order: PROVIDER_NAMES,
     results,
     locale: "en",
-    statusFields: (provider) => statusFields[provider] ?? [],
-    panelFields: () => [],
-    displayName: (provider) => DISPLAY_NAMES[provider] || provider,
-    shortDisplayName: (provider) => SHORT_LABELS[provider] || provider,
+    statusFields,
+    panelFields: { codex: [], claude: [], opencode: [], grok: [], cursor: [], google: [] },
+    displayNames: DISPLAY_NAMES,
+    shortDisplayNames: SHORT_LABELS,
     fieldDefs: PROVIDER_FIELDS,
-    isEnabled: () => true,
-    hasEnabledProviders: results.size > 0,
     activeProviders: PROVIDER_NAMES,
     t: (text) => text,
+    phase: resolveViewPhase(PROVIDER_NAMES, results),
+  };
+}
+
+function matrixContext(options: {
+  activeProviders: readonly ProviderName[];
+  results: ReadonlyMap<ProviderName, ReaderResult>;
+  statusFields?: Readonly<Record<ProviderName, readonly string[]>>;
+  panelFields?: Readonly<Record<ProviderName, readonly string[]>>;
+  fieldDefs?: Readonly<Record<ProviderName, readonly FieldDef[]>>;
+  phase?: ViewPhase;
+}): ProviderViewContext {
+  return {
+    order: PROVIDER_NAMES,
+    results: options.results,
+    fieldDefs: options.fieldDefs ?? PROVIDER_FIELDS,
+    activeProviders: options.activeProviders,
+    displayNames: DISPLAY_NAMES,
+    shortDisplayNames: DISPLAY_NAMES,
+    statusFields: options.statusFields ?? STATUS_FIELDS,
+    panelFields: options.panelFields ?? PANEL_FIELDS,
+    locale: "en",
+    t: (text) => text,
+    phase: options.phase ?? resolveViewPhase(options.activeProviders, options.results),
   };
 }
 
@@ -196,12 +222,12 @@ describe("matrixPlan", () => {
       expect(segments).toHaveSize(3);
       expect(segments.map((segment) => segment.displayName)).toEqual(["codex", "claude", "opc"]);
       expect(segments[0].views.map((view) => view.valueText).join("·")).toContain("32%·");
-      expect(toAttention(segments[0].health)).toBe("quiet");
+      expect(segments[0].health.attention).toBe("quiet");
       expect(segments[1].views.map((view) => view.valueText).join("·")).toContain("82%·");
-      expect(toAttention(segments[1].health)).toBe("critical");
+      expect(segments[1].health.attention).toBe("critical");
       expect(segments[2].result.status).toBe(ReaderStatus.ERROR);
       expect(segments[2].health.state).toBe("error");
-      expect(toAttention(segments[2].health)).toBe("error");
+      expect(segments[2].health.attention).toBe("error");
     });
 
     it("keeps segment identity stable across value and attention changes", () => {
@@ -223,8 +249,8 @@ describe("matrixPlan", () => {
       const second = deriveStatusBarSegments(segmentsContext(makeResults(91), statusFields));
 
       expect(identity(second)).toEqual(identity(first));
-      expect(toAttention(first[0].health)).toBe("quiet");
-      expect(toAttention(second[0].health)).toBe("critical");
+      expect(first[0].health.attention).toBe("quiet");
+      expect(second[0].health.attention).toBe("critical");
     });
   });
 
@@ -256,32 +282,18 @@ describe("matrixPlan", () => {
 
   describe("planPanelMatrix", () => {
     it("returns empty and loading messages appropriately", () => {
-      const emptyPlan = planPanelMatrix({
-        order: PROVIDER_NAMES,
-        enabledProviders: new Set(),
-        results: new Map(),
-        displayNames: DISPLAY_NAMES,
-        statusFields: STATUS_FIELDS,
-        panelFields: PANEL_FIELDS,
-        expandedOverrides: new Map(),
-        locale: "en",
-        fieldDefs: PROVIDER_FIELDS,
-      });
+      const emptyPlan = planPanelMatrix(
+        matrixContext({ activeProviders: [], results: new Map(), phase: "empty" }),
+        new Map(),
+      );
       expect(emptyPlan.state).toBe("empty");
       expect(emptyPlan.messageText).toContain("No providers enabled");
       expect(emptyPlan.canToggleAll).toBeFalse();
 
-      const loadingPlan = planPanelMatrix({
-        order: PROVIDER_NAMES,
-        enabledProviders: new Set(["codex"]),
-        results: new Map(),
-        displayNames: DISPLAY_NAMES,
-        statusFields: STATUS_FIELDS,
-        panelFields: PANEL_FIELDS,
-        expandedOverrides: new Map(),
-        locale: "en",
-        fieldDefs: PROVIDER_FIELDS,
-      });
+      const loadingPlan = planPanelMatrix(
+        matrixContext({ activeProviders: ["codex"], results: new Map(), phase: "loading" }),
+        new Map(),
+      );
       expect(loadingPlan.state).toBe("loading");
       expect(loadingPlan.messageText).toContain("Reading provider limits");
       expect(loadingPlan.canToggleAll).toBeFalse();
@@ -316,17 +328,10 @@ describe("matrixPlan", () => {
         ],
       ]);
 
-      const plan = planPanelMatrix({
-        order: PROVIDER_NAMES,
-        enabledProviders: new Set(["opencode"]),
-        results,
-        displayNames: DISPLAY_NAMES,
-        statusFields: STATUS_FIELDS,
-        panelFields: PANEL_FIELDS,
-        expandedOverrides: new Map(),
-        locale: "en",
-        fieldDefs: PROVIDER_FIELDS,
-      });
+      const plan = planPanelMatrix(
+        matrixContext({ activeProviders: ["opencode"], results }),
+        new Map(),
+      );
 
       expect(plan.state).toBe("ready");
       expect(plan.allExpanded).toBeTrue();
@@ -420,17 +425,16 @@ describe("matrixPlan", () => {
         ],
       ]);
 
-      const collapsedPlan = planPanelMatrix({
-        order: PROVIDER_NAMES,
-        enabledProviders: new Set(["codex", "claude", "grok"]),
-        results,
-        displayNames: DISPLAY_NAMES,
-        statusFields: { ...STATUS_FIELDS, grok: [] },
-        panelFields: { ...PANEL_FIELDS, grok: ["remaining_percent_credits", "limit_reached"] },
-        expandedOverrides: new Map(),
-        fieldDefs: { ...PROVIDER_FIELDS, grok: customDefs },
-        locale: "en",
-      });
+      const collapsedPlan = planPanelMatrix(
+        matrixContext({
+          activeProviders: ["codex", "claude", "grok"],
+          results,
+          statusFields: { ...STATUS_FIELDS, grok: [] },
+          panelFields: { ...PANEL_FIELDS, grok: ["remaining_percent_credits", "limit_reached"] },
+          fieldDefs: { ...PROVIDER_FIELDS, grok: customDefs },
+        }),
+        new Map(),
+      );
 
       expect(collapsedPlan.allExpanded).toBeFalse();
       const grokCollapsed = collapsedPlan.providers.find((p) => p.provider === "grok");
@@ -441,21 +445,20 @@ describe("matrixPlan", () => {
       expect(grokCollapsed?.headerTone).toBe("critical");
       expect(grokCollapsed?.primarySummary).toContain("30%");
 
-      const expandedPlan = planPanelMatrix({
-        order: PROVIDER_NAMES,
-        enabledProviders: new Set(["codex", "claude", "grok"]),
-        results,
-        displayNames: DISPLAY_NAMES,
-        statusFields: { ...STATUS_FIELDS, grok: [] },
-        panelFields: { ...PANEL_FIELDS, grok: ["remaining_percent_credits", "limit_reached"] },
-        expandedOverrides: new Map([
+      const expandedPlan = planPanelMatrix(
+        matrixContext({
+          activeProviders: ["codex", "claude", "grok"],
+          results,
+          statusFields: { ...STATUS_FIELDS, grok: [] },
+          panelFields: { ...PANEL_FIELDS, grok: ["remaining_percent_credits", "limit_reached"] },
+          fieldDefs: { ...PROVIDER_FIELDS, grok: customDefs },
+        }),
+        new Map<ProviderName, boolean>([
           ["grok", true],
           ["codex", true],
           ["claude", true],
         ]),
-        fieldDefs: { ...PROVIDER_FIELDS, grok: customDefs },
-        locale: "en",
-      });
+      );
 
       expect(expandedPlan.key).not.toBe(collapsedPlan.key);
       const grokExpanded = expandedPlan.providers.find((p) => p.provider === "grok");
@@ -488,28 +491,20 @@ describe("matrixPlan", () => {
           ],
         ]);
 
-      const first = planPanelMatrix({
-        order: PROVIDER_NAMES,
-        enabledProviders: new Set(["codex"]),
-        results: makeResults(25, 1_700_000_000_000),
-        displayNames: DISPLAY_NAMES,
-        statusFields: STATUS_FIELDS,
-        panelFields: PANEL_FIELDS,
-        expandedOverrides: new Map(),
-        locale: "en",
-        fieldDefs: PROVIDER_FIELDS,
-      });
-      const second = planPanelMatrix({
-        order: PROVIDER_NAMES,
-        enabledProviders: new Set(["codex"]),
-        results: makeResults(88, 1_700_000_060_000),
-        displayNames: DISPLAY_NAMES,
-        statusFields: STATUS_FIELDS,
-        panelFields: PANEL_FIELDS,
-        expandedOverrides: new Map(),
-        locale: "en",
-        fieldDefs: PROVIDER_FIELDS,
-      });
+      const first = planPanelMatrix(
+        matrixContext({
+          activeProviders: ["codex"],
+          results: makeResults(25, 1_700_000_000_000),
+        }),
+        new Map(),
+      );
+      const second = planPanelMatrix(
+        matrixContext({
+          activeProviders: ["codex"],
+          results: makeResults(88, 1_700_000_060_000),
+        }),
+        new Map(),
+      );
 
       expect(first.key).toBe(second.key);
     });

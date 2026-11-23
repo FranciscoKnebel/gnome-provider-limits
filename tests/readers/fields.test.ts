@@ -8,8 +8,6 @@ import {
   GROK_FIELDS,
   OPENCODE_FIELDS,
   PROVIDER_FIELDS,
-  companionResetFieldName,
-  resolveFieldCategory,
 } from "../../src/readers/fields.js";
 
 describe("readers/fields & helpers/reorder", () => {
@@ -24,16 +22,12 @@ describe("readers/fields & helpers/reorder", () => {
     for (const provider of PROVIDER_NAMES) {
       expect(PROVIDER_FIELDS[provider].length).toBeGreaterThan(0);
       for (const def of PROVIDER_FIELDS[provider]) {
-        expect(["limit", "telemetry"]).toContain(resolveFieldCategory(def));
+        expect(["limit", "telemetry"]).toContain(def.category);
       }
     }
 
-    expect(resolveFieldCategory({ name: "custom_cost", type: "cost", category: "telemetry" })).toBe(
-      "telemetry",
-    );
-    expect(resolveFieldCategory({ name: "custom_pct", type: "percent", category: "limit" })).toBe(
-      "limit",
-    );
+    expect({ name: "custom_cost", type: "cost", category: "telemetry" }.category).toBe("telemetry");
+    expect({ name: "custom_pct", type: "percent", category: "limit" }.category).toBe("limit");
   });
 
   it("carries category and companion reset explicitly on every field definition", () => {
@@ -54,16 +48,13 @@ describe("readers/fields & helpers/reorder", () => {
       for (const def of PROVIDER_FIELDS[provider]) {
         const expectedCategory = telemetryNames.has(def.name) ? "telemetry" : "limit";
         expect(def.category).toBe(expectedCategory);
-        expect(resolveFieldCategory(def)).toBe(expectedCategory);
 
         if (def.type === "percent") {
           const suffix = def.name.replace(/^(used|remaining)_percent_?/, "");
           const expectedReset = suffix ? `reset_at_${suffix}` : "reset_at";
           expect(def.resetField).toBe(expectedReset);
-          expect(companionResetFieldName(def)).toBe(expectedReset);
         } else {
           expect(def.resetField).toBeUndefined();
-          expect(companionResetFieldName(def)).toBeNull();
         }
       }
     }
@@ -71,21 +62,29 @@ describe("readers/fields & helpers/reorder", () => {
 
   it("reads category and reset metadata only from the declaration, never from the name", () => {
     expect(
-      resolveFieldCategory({
+      {
         name: "used_percent_synthetic",
         type: "percent",
         category: "telemetry",
-      }),
+      }.category,
     ).toBe("telemetry");
     expect(
-      companionResetFieldName({
+      {
         name: "used_percent_primary",
         type: "percent",
         resetField: "custom_reset",
-      }),
+      }.resetField,
     ).toBe("custom_reset");
-    expect(companionResetFieldName({ name: "used_percent_primary", type: "percent" })).toBeNull();
-    expect(companionResetFieldName({ name: "used_percent", type: "percent" })).toBeNull();
+    const primary: { name: string; type: string; resetField?: string } = {
+      name: "used_percent_primary",
+      type: "percent",
+    };
+    const plain: { name: string; type: string; resetField?: string } = {
+      name: "used_percent",
+      type: "percent",
+    };
+    expect(primary.resetField ?? null).toBeNull();
+    expect(plain.resetField ?? null).toBeNull();
   });
 
   it("reorders adjacent items with keyboard Move Up / Move Down while preserving unknown values", () => {

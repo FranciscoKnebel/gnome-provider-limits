@@ -34,11 +34,11 @@ interface GaugeSegmentWidgets {
 }
 
 function planGauges(context: ProviderViewContext): GaugesPlan {
-  if (context.results.size === 0) {
+  if (context.phase !== "ready") {
     return {
       kind: "placeholder",
-      hasEnabled: context.hasEnabledProviders,
-      key: structureKey([context.locale, context.hasEnabledProviders ? "loading" : "empty"]),
+      hasEnabled: context.phase === "loading",
+      key: structureKey([context.locale, context.phase]),
     };
   }
 

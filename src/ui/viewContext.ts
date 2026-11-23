@@ -1,17 +1,107 @@
-import type { ProviderName } from "../constants.js";
-import type { FieldDef, ReaderResult } from "../readers/base.js";
+import type Gio from "gi://Gio";
 
+import { PROVIDER_NAMES, type ProviderName } from "../constants.js";
+import {
+  normalizeProvidersOrder,
+  providerDisplayName,
+  providerDisplayNameShort,
+  resolveActiveProviders,
+} from "../helpers/provider-settings.js";
+import type { BaseReader, FieldDef, ReaderResult } from "../readers/base.js";
+
+export type ViewPhase = "empty" | "loading" | "ready";
+
+/** The one immutable snapshot passed to every plan builder and renderer. */
 export interface ProviderViewContext {
-  order: readonly ProviderName[];
-  results: ReadonlyMap<ProviderName, ReaderResult>;
-  locale: string;
-  fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>;
-  displayName: (provider: ProviderName) => string;
-  shortDisplayName: (provider: ProviderName) => string;
-  statusFields: (provider: ProviderName) => readonly string[];
-  panelFields: (provider: ProviderName) => readonly string[];
-  isEnabled: (provider: ProviderName) => boolean;
-  hasEnabledProviders: boolean;
-  activeProviders: readonly ProviderName[];
-  t: (text: string) => string;
+  readonly order: readonly ProviderName[];
+  readonly results: ReadonlyMap<ProviderName, ReaderResult>;
+  readonly fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>;
+  readonly activeProviders: readonly ProviderName[];
+  readonly displayNames: Readonly<Record<ProviderName, string>>;
+  readonly shortDisplayNames: Readonly<Record<ProviderName, string>>;
+  readonly statusFields: Readonly<Record<ProviderName, readonly string[]>>;
+  readonly panelFields: Readonly<Record<ProviderName, readonly string[]>>;
+  readonly locale: string;
+  readonly t: (text: string) => string;
+  readonly phase: ViewPhase;
+}
+
+export function providerRecord<T>(make: (provider: ProviderName) => T): Record<ProviderName, T> {
+  return Object.fromEntries(PROVIDER_NAMES.map((name) => [name, make(name)])) as Record<
+    ProviderName,
+    T
+  >;
+}
+
+/** Empty when nothing is enabled, loading until results arrive, ready otherwise. */
+export function resolveViewPhase(
+  activeProviders: readonly ProviderName[],
+  results: ReadonlyMap<ProviderName, ReaderResult>,
+): ViewPhase {
+  if (activeProviders.length === 0) return "empty";
+  if (results.size === 0) return "loading";
+  return "ready";
+}
+
+/** Build the one canonical context from settings, readers and fresh results. */
+export function viewContextFor(
+  settings: Gio.Settings,
+  readers: ReadonlyMap<ProviderName, BaseReader>,
+  results: ReadonlyMap<ProviderName, ReaderResult>,
+  fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>,
+  locale: string,
+  t: (text: string) => string,
+): ProviderViewContext {
+  const order = normalizeProvidersOrder(settings.get_strv("providers-order"));
+  const activeProviders = resolveActiveProviders(settings, readers, results);
+
+  return {
+    order,
+    results,
+    fieldDefs,
+    activeProviders,
+    displayNames: providerRecord((name) => providerDisplayName(settings, name)),
+    shortDisplayNames: providerRecord((name) => providerDisplayNameShort(settings, name)),
+    statusFields: providerRecord((name) => settings.get_strv(`${name}-status-fields`)),
+    panelFields: providerRecord((name) => settings.get_strv(`${name}-panel-fields`)),
+    locale,
+    t,
+    phase: resolveViewPhase(activeProviders, results),
+  };
+}
+
+export interface SingleProviderViewOptions {
+  readonly provider: ProviderName;
+  readonly result: ReaderResult;
+  readonly displayName: string;
+  readonly shortDisplayName?: string;
+  readonly fieldDefs: readonly FieldDef[];
+  readonly statusFields?: readonly string[];
+  readonly panelFields?: readonly string[];
+  readonly locale: string;
+  readonly t: (text: string) => string;
+}
+
+/** View of one provider for model builders that work outside the shell. */
+export function singleProvider(options: SingleProviderViewOptions): ProviderViewContext {
+  const { provider, result, displayName, locale, t } = options;
+  const shortDisplayName = options.shortDisplayName ?? displayName;
+  const statusFields = options.statusFields ?? [];
+  const panelFields = options.panelFields ?? [];
+
+  return {
+    order: [provider],
+    results: new Map<ProviderName, ReaderResult>([[provider, result]]),
+    fieldDefs: providerRecord<readonly FieldDef[]>((name) =>
+      name === provider ? options.fieldDefs : [],
+    ),
+    activeProviders: [provider],
+    displayNames: providerRecord((name) => (name === provider ? displayName : name)),
+    shortDisplayNames: providerRecord((name) => (name === provider ? shortDisplayName : name)),
+    statusFields: providerRecord((name) => (name === provider ? statusFields : [])),
+    panelFields: providerRecord((name) => (name === provider ? panelFields : [])),
+    locale,
+    t,
+    phase: "ready",
+  };
 }
