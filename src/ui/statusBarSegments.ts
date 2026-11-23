@@ -1,7 +1,7 @@
 import type { ProviderName } from "../constants.js";
 import type { FieldDef, ReaderResult } from "../readers/base.js";
 import type { FieldView } from "./fieldViews.js";
-import type { MicroMeterSpec } from "./gaugeTypes.js";
+import type { GaugeSpec } from "./gaugeTypes.js";
 import type { ProviderHealth } from "./providerHealth.js";
 import type { ProviderViewContext, ViewPhase } from "./viewContext.js";
 
@@ -12,7 +12,7 @@ export interface StatusBarProviderSegment {
   readonly fieldDefs: readonly FieldDef[];
   readonly statusFields: readonly string[];
   readonly views: readonly FieldView[];
-  readonly meter: MicroMeterSpec;
+  readonly meter: GaugeSpec;
   readonly health: ProviderHealth;
 }
 

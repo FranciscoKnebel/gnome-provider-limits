@@ -8,6 +8,7 @@ import { gettext as _ } from "../helpers/gettext.js";
 import { bindActivation } from "../helpers/keyboard.js";
 import { resolveLocale } from "../helpers/locale.js";
 import type { FieldDef } from "../readers/base.js";
+import { ReaderStatus } from "../readers/base.js";
 import { clampFillRatio } from "./fieldRows.js";
 import {
   planPanelMatrix,
@@ -225,7 +226,7 @@ export class CompactPanelSection implements PanelStyleSection {
         style_class: "provider-limits-status-badge",
         y_align: Clutter.ActorAlign.CENTER,
       });
-      applyQuietToneClass(badgeLabel, plan.status === "partial" ? "warning" : "error");
+      applyQuietToneClass(badgeLabel, plan.status === ReaderStatus.PARTIAL ? "warning" : "error");
       leftTitleBox.add_child(badgeLabel);
     }
 

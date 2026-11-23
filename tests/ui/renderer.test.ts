@@ -99,8 +99,8 @@ describe("formatters", () => {
       expect(rows[0].valueText).toBe("plus");
     });
 
-    it("returns empty array when reader is undefined", () => {
-      const rows = getFieldRows(undefined, sampleResult, ["used_percent"], "panel", "en");
+    it("returns empty array when no field definitions are supplied", () => {
+      const rows = getFieldRows([], sampleResult, ["used_percent"], "panel", "en");
       expect(rows).toEqual([]);
     });
 

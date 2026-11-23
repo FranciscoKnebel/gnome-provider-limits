@@ -4,7 +4,7 @@ import St from "gi://St";
 
 import type { ProviderName } from "../constants.js";
 import type { FieldDef } from "../readers/base.js";
-import { computeBarWidthPx, planPanel } from "./cardPlan.js";
+import { cardsLoadingTitle, computeBarWidthPx, planPanel } from "./cardPlan.js";
 import type {
   BannerKind,
   CardBadgeKind,
@@ -15,7 +15,6 @@ import type {
 import type { PanelRenderContext, PanelShell, PanelStyleSection } from "./panelShell.js";
 import { applyHealthToneClass, applyToneClass } from "./tone.js";
 import type { ViewPhase } from "./viewContext.js";
-import { viewMessages } from "./viewMessages.js";
 
 interface ProgressRowWidgets {
   track: St.BoxLayout;
@@ -88,14 +87,9 @@ export class CardsPanelSection implements PanelStyleSection {
 
   private _syncLoadingMessage(running: boolean): void {
     if (this._phase === "loading" && this._emptyTitleLabel) {
-      const message = viewMessages({
-        phase: "loading",
-        surface: "cards",
-        t: this._t,
-        running,
-      });
-      this._emptyTitleLabel.text = message.title;
-      this._emptyTitleLabel.accessible_name = message.title;
+      const title = cardsLoadingTitle(running, this._t);
+      this._emptyTitleLabel.text = title;
+      this._emptyTitleLabel.accessible_name = title;
     }
   }
 

@@ -3,6 +3,7 @@ import St from "gi://St";
 
 import type { ProviderName } from "../constants.js";
 import { ReaderStatus } from "../readers/base.js";
+import { formatViewText } from "./fieldViews.js";
 import { statusBadgeText } from "./providerHealth.js";
 import type { ProviderAttention } from "./providerHealth.js";
 import { StatusBarRenderer } from "./statusBarRenderer.js";
@@ -27,7 +28,6 @@ function planCompact(context: ProviderViewContext): CompactPlan {
     phase: context.phase,
     surface: "compact",
     t: context.t,
-    running: false,
   });
 
   if (context.phase === "empty") {
@@ -64,10 +64,13 @@ function planCompact(context: ProviderViewContext): CompactPlan {
       };
     }
 
-    const joined = segment.views.map((view) => view.valueText).join("·");
+    const viewTexts = segment.views.map((view) =>
+      formatViewText(view, "status", context.locale, context.t),
+    );
+    const joined = viewTexts.map((text) => text.valueText).join("·");
     const prefix = segment.result.status === ReaderStatus.PARTIAL ? "~" : "";
     const metricsText = joined ? `${prefix}${joined}` : prefix;
-    const spokenRows = segment.views.map((view) => view.accessibleText).join(", ");
+    const spokenRows = viewTexts.map((text) => text.accessibleText).join(", ");
     const headerPart = badgeWord ? `${shortLabel} ${badgeWord}` : shortLabel;
     const accessibleText = spokenRows ? `${headerPart}: ${spokenRows}` : headerPart;
 

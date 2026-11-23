@@ -3,7 +3,7 @@ import St from "gi://St";
 
 import type { ProviderName } from "../constants.js";
 import { ReaderStatus } from "../readers/base.js";
-import type { FieldView } from "./fieldViews.js";
+import { formatViewText, type FieldView } from "./fieldViews.js";
 import type { ProviderTone } from "./providerHealth.js";
 import { StatusBarRenderer } from "./statusBarRenderer.js";
 import type { StatusBarZonePlan } from "./statusBarSegments.js";
@@ -12,6 +12,12 @@ import { applyHealthToneClass, applyToneClass } from "./tone.js";
 import type { ProviderViewContext } from "./viewContext.js";
 import { viewMessages } from "./viewMessages.js";
 
+interface PillRowPlan {
+  readonly view: FieldView;
+  readonly valueText: string;
+  readonly accessibleText: string;
+}
+
 interface PillPlan {
   provider: ProviderName;
   displayName: string;
@@ -19,7 +25,7 @@ interface PillPlan {
   healthTone: ProviderTone;
   stateTag: string | null;
   stateAccessibleText: string | null;
-  rows: readonly FieldView[];
+  rows: readonly PillRowPlan[];
 }
 
 type PillsPlan = StatusBarZonePlan<PillPlan>;
@@ -29,7 +35,6 @@ function planPills(context: ProviderViewContext): PillsPlan {
     phase: context.phase,
     surface: "pills",
     t: context.t,
-    running: false,
   });
   if (message.showPlaceholder) {
     return {
@@ -48,7 +53,10 @@ function planPills(context: ProviderViewContext): PillsPlan {
     healthTone: segment.health.tone,
     stateTag: segment.health.stateTag,
     stateAccessibleText: segment.health.stateAccessibleText,
-    rows: segment.views,
+    rows: segment.views.map((view) => ({
+      view,
+      ...formatViewText(view, "status", context.locale, context.t),
+    })),
   }));
   return { kind: "segments", segments };
 }
@@ -124,8 +132,8 @@ export class PillsStatusBarRenderer extends StatusBarRenderer<PillsPlan> {
           style_class: "pl-status-value",
           y_align: Clutter.ActorAlign.CENTER,
         });
-        valueLabel.accessible_name = row.accessibleText ?? `${row.label}: ${row.valueText}`;
-        applyToneClass(valueLabel, row.tone);
+        valueLabel.accessible_name = row.accessibleText;
+        applyToneClass(valueLabel, row.view.tone);
         pill.add_child(valueLabel);
       }
 

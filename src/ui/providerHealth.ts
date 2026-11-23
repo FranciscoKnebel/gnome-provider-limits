@@ -1,7 +1,6 @@
 import type { FieldDef, FieldResult, ReaderResult } from "../readers/base.js";
 import { FieldStatus, ReaderStatus } from "../readers/base.js";
 import type { FieldTone } from "./fieldRows.js";
-import type { FieldRow } from "./fieldRows.js";
 import { fieldTone } from "./fieldRows.js";
 import type { FieldView } from "./fieldViews.js";
 
@@ -92,7 +91,7 @@ export function isLimitReached(fields: readonly FieldResult[] | undefined): bool
 }
 
 export function collectFieldTones(
-  rows: readonly FieldRow[],
+  rows: readonly { readonly tone?: FieldTone }[],
   fields?: readonly FieldResult[],
   fieldDefs?: readonly FieldDef[],
 ): (FieldTone | undefined)[] {

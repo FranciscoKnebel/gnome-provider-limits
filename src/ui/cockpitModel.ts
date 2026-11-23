@@ -1,11 +1,13 @@
 import type { ProviderName } from "../constants.js";
 import { formatField } from "../formatters.js";
-import { GAUGE_END_ANGLE, GAUGE_START_ANGLE, GAUGE_SWEEP_ANGLE, TONE_RGB } from "./cairoDrawing.js";
-import type { FieldRowSet, ProviderDisplayModel } from "./displayModel.js";
-import { clampRatio, fieldTone, type FieldTone } from "./fieldRows.js";
+import { GAUGE_END_ANGLE, emptyMeter, gaugeArc } from "./cairoDrawing.js";
+import { classifyPanelViews, type ProviderDisplayModel } from "./displayModel.js";
+import type { FieldTone } from "./fieldRows.js";
+import type { FieldView } from "./fieldViews.js";
 import { toDisplayRow } from "./fieldViews.js";
-import type { GaugeGeometry, GaugeTone, MicroMeterSpec } from "./gaugeTypes.js";
+import type { GaugeSpec, GaugeTone } from "./gaugeTypes.js";
 import type { Presentation } from "./providerHealth.js";
+import { resetSlotText } from "./resetModel.js";
 
 export type CockpitTab = "overview" | ProviderName;
 
@@ -15,7 +17,7 @@ export interface RadialGaugeItem {
   readonly fieldName: string;
   readonly label: string;
   readonly translatedLabel: string;
-  readonly geometry: GaugeGeometry;
+  readonly geometry: GaugeSpec;
   readonly resetText: string | null;
   readonly hasResetSlot: boolean;
   readonly errorText?: string;
@@ -43,53 +45,24 @@ export interface OverviewRowModel {
   readonly displayName: string;
   readonly badgeKind: OverviewBadgeKind;
   readonly badgeText: string;
-  readonly meter: MicroMeterSpec;
+  readonly meter: GaugeSpec;
   readonly primaryText: string;
   readonly secondaryText: string | null;
   readonly tone: FieldTone | undefined;
   readonly accessibleText: string;
 }
 
-export function computeGaugeGeometry(
-  fieldName: string,
-  rawValue: unknown,
-  locale: string,
-): GaugeGeometry {
-  const ratio = clampRatio(rawValue);
-  if (ratio === null) {
-    return {
-      ratio: 0,
-      hasValue: false,
-      startAngle: GAUGE_START_ANGLE,
-      endAngle: GAUGE_START_ANGLE,
-      trackEndAngle: GAUGE_END_ANGLE,
-      tone: "neutral",
-      fieldTone: undefined,
-      rgb: TONE_RGB.neutral,
-      centerText: "—",
-    };
-  }
-
-  const resolvedFieldTone = fieldTone(fieldName, rawValue);
-  const tone: GaugeTone = resolvedFieldTone ?? "ok";
-  const endAngle = GAUGE_START_ANGLE + ratio * GAUGE_SWEEP_ANGLE;
-  const centerText = formatField({
-    type: "percent",
-    value: rawValue,
-    zone: "panel",
-    locale,
-  });
-
+/** The one gauge spec builder: consumes the derived FieldView, never a raw value. */
+export function computeGaugeGeometry(view: FieldView, locale: string): GaugeSpec {
+  const tone: GaugeTone = view.hasValue ? (view.tone ?? "ok") : "neutral";
+  const centerText = view.hasValue
+    ? formatField({ type: "percent", value: view.value, zone: "panel", locale })
+    : "—";
   return {
-    ratio,
-    hasValue: true,
-    startAngle: GAUGE_START_ANGLE,
-    endAngle,
-    trackEndAngle: GAUGE_END_ANGLE,
-    tone,
-    fieldTone: resolvedFieldTone,
-    rgb: TONE_RGB[tone],
+    ...gaugeArc(view.hasValue ? view.usageRatio : null, tone),
+    fieldTone: view.tone,
     centerText,
+    trackEndAngle: GAUGE_END_ANGLE,
   };
 }
 
@@ -114,35 +87,36 @@ export function chunkPairs<T>(items: readonly T[]): T[][] {
 }
 
 export function partitionProviderPanel(
-  rows: FieldRowSet,
+  model: ProviderDisplayModel,
   locale: string,
   tr: (s: string) => string = (s) => s,
 ): PartitionedProviderPanel {
+  const groups = classifyPanelViews(model);
   const gauges: RadialGaugeItem[] = [];
   const bentoTiles: BentoTileItem[] = [];
 
-  for (const view of rows.panelViews) {
-    if (rows.consumedResets.has(view.name)) continue;
-    const row = toDisplayRow(view, tr);
+  for (const view of groups.progress) {
+    const row = toDisplayRow(view, "panel", locale, tr);
+    const pairing = model.resets.get(view.name);
+    const resetText = pairing ? resetSlotText(pairing, "panel", locale, tr) : null;
+    const geometry = computeGaugeGeometry(view, locale);
+    const accessibleParts = [`${row.labelText}: ${geometry.centerText}`];
+    if (resetText !== null) accessibleParts.push(resetText);
 
-    if (view.type === "percent") {
-      const geometry = computeGaugeGeometry(row.name, view.hasValue ? view.value : null, locale);
-      const accessibleParts = [`${row.labelText}: ${geometry.centerText}`];
-      if (row.reset.text !== null) accessibleParts.push(row.reset.text);
+    gauges.push({
+      fieldName: row.name,
+      label: row.label,
+      translatedLabel: row.labelText,
+      geometry,
+      resetText,
+      hasResetSlot: resetText !== null,
+      accessibleText: accessibleParts.join(", "),
+      ...(row.errorText ? { errorText: row.errorText } : {}),
+    });
+  }
 
-      gauges.push({
-        fieldName: row.name,
-        label: row.label,
-        translatedLabel: row.labelText,
-        geometry,
-        resetText: row.reset.text,
-        hasResetSlot: row.reset.hasSlot,
-        accessibleText: accessibleParts.join(", "),
-        ...(row.errorText ? { errorText: row.errorText } : {}),
-      });
-      continue;
-    }
-
+  for (const view of groups.keyValue) {
+    const row = toDisplayRow(view, "panel", locale, tr);
     bentoTiles.push({
       fieldName: row.name,
       label: row.label,
@@ -167,15 +141,7 @@ export function loadingOverviewRow(provider: ProviderName, displayName: string):
     displayName,
     badgeKind: "loading",
     badgeText: "…",
-    meter: {
-      ratio: 0,
-      hasValue: false,
-      startAngle: GAUGE_START_ANGLE,
-      endAngle: GAUGE_START_ANGLE,
-      tone: "neutral",
-      rgb: TONE_RGB.neutral,
-      isError: false,
-    },
+    meter: emptyMeter("neutral", false),
     primaryText: "…",
     secondaryText: null,
     tone: undefined,

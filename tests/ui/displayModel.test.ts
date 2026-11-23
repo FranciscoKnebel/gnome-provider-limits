@@ -2,6 +2,7 @@ import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
 import type { ReaderResult } from "../../src/readers/base.js";
 import { CODEX_FIELDS, PROVIDER_FIELDS } from "../../src/readers/fields.js";
 import { deriveDisplayModel, deriveDisplayModels } from "../../src/ui/displayModel.js";
+import { consumedResetNames, resetDetailText, resetSlotText } from "../../src/ui/resetModel.js";
 import { providerRecord, withDisplayModels } from "../../src/ui/viewContext.js";
 import type { ProviderViewContextBase } from "../../src/ui/viewContext.js";
 
@@ -113,16 +114,17 @@ describe("deriveDisplayModel owns diagnostics and reset pairing", () => {
     return model;
   }
 
-  it("carries fully formed reset descriptors instead of re-deriving them in renderers", () => {
+  it("carries one fully formed reset model instead of re-deriving it in renderers", () => {
     const model = modelFor(result, ["used_percent_primary", "reset_at_primary"]);
-    const reset = model.resetPairs.get("used_percent_primary");
+    const reset = model.resets.get("used_percent_primary");
+    if (!reset) throw new Error("missing reset pairing");
 
-    expect(model.panelViews[0].resetText).toContain("↻");
-    expect(model.panelViews[0].hasResetSlot).toBeTrue();
-    expect(model.resetPairs.has("used_percent_primary")).toBeTrue();
-    expect(reset?.text).toContain("Reset at (5h window):");
-    expect(reset?.accessibleText).toContain("Reset at (5h window):");
-    expect(Array.from(model.consumedResets)).toEqual(["reset_at_primary"]);
+    expect(resetSlotText(reset, "panel", "en", (text) => text)).toContain("↻");
+    expect(resetDetailText(reset, "panel", "en", (text) => text)).toContain(
+      "Reset at (5h window):",
+    );
+    expect(model.resets.has("used_percent_primary")).toBeTrue();
+    expect(Array.from(consumedResetNames(model.resets))).toEqual(["reset_at_primary"]);
   });
 
   it("pairs resets from explicit FieldDef metadata only, never from name suffixes", () => {
@@ -153,9 +155,8 @@ describe("deriveDisplayModel owns diagnostics and reset pairing", () => {
     };
 
     const model = modelFor(customResult, ["used_percent_custom", "reset_at_custom"], fieldDefs);
-    expect(model.resetPairs.size).toBe(0);
-    expect(model.consumedResets.size).toBe(0);
-    expect(model.panelViews[0].resetText).toBeNull();
+    expect(model.resets.size).toBe(0);
+    expect(consumedResetNames(model.resets).size).toBe(0);
     expect(model.panelViews.map((view) => view.name)).toEqual([
       "used_percent_custom",
       "reset_at_custom",

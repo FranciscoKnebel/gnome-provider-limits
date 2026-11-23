@@ -54,7 +54,7 @@ function cardFor(options: {
     t: (text) => text,
   });
   if (!model) throw new Error(`Provider ${options.provider} is disabled`);
-  return cardFromModel(model, options.panelFields, options.locale, (text) => text);
+  return cardFromModel(model, options.locale, (text: string) => text);
 }
 
 function segmentsContext(
@@ -253,7 +253,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         lastUpdated: 1_700_000_000_000,
         fields: [{ name: "used_percent_primary", value: 92, status: FieldStatus.OK }],
       };
-      const views = deriveFieldViews(CODEX_FIELDS, result, ["reset_at_primary"], "status", "en");
+      const views = deriveFieldViews(CODEX_FIELDS, result, ["reset_at_primary"]);
       expect(views.every((view) => view.type !== "percent")).toBeTrue();
       expect(
         deriveProviderHealth(result.status, {

@@ -1,10 +1,11 @@
 import { type ProviderName } from "../constants.js";
 import type { ReaderStatus } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
-import type { ProviderDisplayModel } from "./displayModel.js";
+import { classifyPanelViews, type ProviderDisplayModel } from "./displayModel.js";
 import { clampPercent, type FieldTone } from "./fieldRows.js";
 import { toDisplayRow, type DisplayRow } from "./fieldViews.js";
 import type { Presentation, ProviderTone } from "./providerHealth.js";
+import { resetDetailText, type ResetPairing } from "./resetModel.js";
 import type { ProviderViewContext, ViewPhase } from "./viewContext.js";
 import { viewMessages } from "./viewMessages.js";
 
@@ -68,6 +69,11 @@ export function computeBarWidthPx(
   return Math.min(effectiveTrack, Math.max(4, Math.round((effectiveTrack * clamped) / 100)));
 }
 
+/** The cards-specific refresh title, kept out of the phase/surface message map. */
+export function cardsLoadingTitle(running: boolean, t: (s: string) => string): string {
+  return running ? t("Loading provider limits…") : t("Waiting for provider data…");
+}
+
 function keyValueRow(row: DisplayRow): CardKeyValueRow {
   return {
     kind: "kv",
@@ -81,47 +87,61 @@ function keyValueRow(row: DisplayRow): CardKeyValueRow {
   };
 }
 
+function progressRow(
+  view: ProviderDisplayModel["panelViews"][number],
+  pairing: ResetPairing | undefined,
+  row: DisplayRow,
+  locale: string,
+  t: (s: string) => string,
+): CardProgressRow {
+  const detail =
+    pairing?.inPanel === true && pairing.claimed
+      ? resetDetailText(pairing, "panel", locale, t)
+      : undefined;
+  const errorText = row.errorText ?? (detail ? (pairing?.errorText ?? undefined) : undefined);
+  const accessibleText = detail ? `${row.accessibleText}, ${detail}` : row.accessibleText;
+
+  return {
+    kind: "progress",
+    name: row.name,
+    label: row.labelText,
+    valueText: row.valueText,
+    fillPercent: view.fillPercent ?? 0,
+    hasValue: view.fillPercent !== undefined,
+    accessibleText,
+    ...(row.tone ? { tone: row.tone } : {}),
+    ...(detail ? { resetText: detail } : {}),
+    ...(errorText ? { errorText } : {}),
+  };
+}
+
 /** Pure card projection from one canonical model; the only card derivation. */
 export function cardFromModel(
   model: ProviderDisplayModel,
-  _panelFields: readonly string[],
   locale: string,
   t: (s: string) => string,
 ): ProviderCardPlan {
+  const groups = classifyPanelViews(model);
   const limitProgressRows: CardProgressRow[] = [];
   const limitMetaRows: CardKeyValueRow[] = [];
   const telemetryRows: CardKeyValueRow[] = [];
 
-  for (const view of model.groupedViews.limit) {
-    if (model.consumedResets.has(view.name)) continue;
-    const row = toDisplayRow(view, t);
-
-    if (view.type === "percent") {
-      const reset = model.resetPairs.get(view.name);
-      const errorText = row.errorText ?? reset?.errorText ?? undefined;
-
-      const progressRow: CardProgressRow = {
-        kind: "progress",
-        name: row.name,
-        label: row.labelText,
-        valueText: row.valueText,
-        fillPercent: view.fillPercent ?? 0,
-        hasValue: view.fillPercent !== undefined,
-        accessibleText: reset?.accessibleText ?? row.accessibleText,
-        ...(row.tone ? { tone: row.tone } : {}),
-        ...(reset ? { resetText: reset.text } : {}),
-        ...(errorText ? { errorText } : {}),
-      };
-      limitProgressRows.push(progressRow);
-      continue;
-    }
-
-    limitMetaRows.push(keyValueRow(row));
+  for (const view of groups.limit.progress) {
+    limitProgressRows.push(
+      progressRow(
+        view,
+        model.resets.get(view.name),
+        toDisplayRow(view, "panel", locale, t),
+        locale,
+        t,
+      ),
+    );
   }
-
-  for (const view of model.groupedViews.telemetry) {
-    if (model.consumedResets.has(view.name)) continue;
-    telemetryRows.push(keyValueRow(toDisplayRow(view, t)));
+  for (const view of groups.limit.keyValue) {
+    limitMetaRows.push(keyValueRow(toDisplayRow(view, "panel", locale, t)));
+  }
+  for (const view of groups.telemetry.keyValue) {
+    telemetryRows.push(keyValueRow(toDisplayRow(view, "panel", locale, t)));
   }
 
   return {
@@ -145,21 +165,19 @@ export function planPanel(context: ProviderViewContext, running: boolean): Panel
     phase: context.phase,
     surface: "cards",
     t: context.t,
-    running,
   });
 
   if (context.phase !== "ready") {
     return {
       phase: context.phase,
-      emptyTitle: message.title,
+      emptyTitle:
+        context.phase === "loading" ? cardsLoadingTitle(running, context.t) : message.title,
       emptySubtitle: message.subtitle || null,
       cards: [],
     };
   }
 
-  const cards = context.models.map((model) =>
-    cardFromModel(model, context.panelFields[model.provider], context.locale, context.t),
-  );
+  const cards = context.models.map((model) => cardFromModel(model, context.locale, context.t));
 
   return {
     phase: "ready",

@@ -4,8 +4,8 @@ import St from "gi://St";
 import type { ProviderName } from "../constants.js";
 import { ReaderStatus } from "../readers/base.js";
 import { disposeCairoContext, drawMicroRing, isCairoContext } from "./cairoDrawing.js";
-import type { FieldView } from "./fieldViews.js";
-import type { MicroMeterSpec } from "./gaugeTypes.js";
+import { formatViewText, type FieldView } from "./fieldViews.js";
+import type { GaugeSpec } from "./gaugeTypes.js";
 import { StatusBarRenderer } from "./statusBarRenderer.js";
 import { deriveStatusBarSegments } from "./statusBarSegments.js";
 import type { StatusBarZonePlan } from "./statusBarSegments.js";
@@ -15,12 +15,18 @@ import { viewMessages } from "./viewMessages.js";
 
 const MICRO_GAUGE_SIZE = 14;
 
+interface GaugeRowPlan {
+  readonly view: FieldView;
+  readonly valueText: string;
+  readonly accessibleText: string;
+}
+
 interface GaugeSegmentPlan {
   provider: ProviderName;
   displayName: string;
   status: ReaderStatus;
-  meter: MicroMeterSpec;
-  rows: readonly FieldView[];
+  meter: GaugeSpec;
+  rows: readonly GaugeRowPlan[];
 }
 
 type GaugesPlan = StatusBarZonePlan<GaugeSegmentPlan>;
@@ -31,7 +37,6 @@ function planGauges(context: ProviderViewContext): GaugesPlan {
       phase: context.phase,
       surface: "gauges",
       t: context.t,
-      running: false,
     });
     return {
       kind: "placeholder",
@@ -47,7 +52,10 @@ function planGauges(context: ProviderViewContext): GaugesPlan {
     displayName: segment.displayName,
     status: segment.result.status,
     meter: segment.meter,
-    rows: segment.views,
+    rows: segment.views.map((view) => ({
+      view,
+      ...formatViewText(view, "status", context.locale, context.t),
+    })),
   }));
 
   return { kind: "segments", segments };
@@ -112,7 +120,7 @@ export class GaugesStatusBarRenderer extends StatusBarRenderer<GaugesPlan> {
           y_align: Clutter.ActorAlign.CENTER,
         });
         valueLabel.accessible_name = row.accessibleText;
-        applyToneClass(valueLabel, row.tone);
+        applyToneClass(valueLabel, row.view.tone);
         segment.add_child(valueLabel);
       }
 

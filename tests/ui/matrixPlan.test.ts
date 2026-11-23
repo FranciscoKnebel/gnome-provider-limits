@@ -3,6 +3,7 @@ import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
 import type { FieldDef, ReaderResult } from "../../src/readers/base.js";
 import { PROVIDER_FIELDS } from "../../src/readers/fields.js";
 import { clampFillRatio } from "../../src/ui/fieldRows.js";
+import { formatViewValue } from "../../src/ui/fieldViews.js";
 import {
   areAllProvidersExpanded,
   formatSegmentedBar,
@@ -225,9 +226,17 @@ describe("matrixPlan", () => {
 
       expect(segments).toHaveSize(3);
       expect(segments.map((segment) => segment.displayName)).toEqual(["codex", "claude", "opc"]);
-      expect(segments[0].views.map((view) => view.valueText).join("·")).toContain("32%·");
+      expect(
+        segments[0].views
+          .map((view) => formatViewValue(view, "status", "en", (text) => text))
+          .join("·"),
+      ).toContain("32%·");
       expect(segments[0].health.attention).toBe("quiet");
-      expect(segments[1].views.map((view) => view.valueText).join("·")).toContain("82%·");
+      expect(
+        segments[1].views
+          .map((view) => formatViewValue(view, "status", "en", (text) => text))
+          .join("·"),
+      ).toContain("82%·");
       expect(segments[1].health.attention).toBe("critical");
       expect(segments[2].result.status).toBe(ReaderStatus.ERROR);
       expect(segments[2].health.state).toBe("error");

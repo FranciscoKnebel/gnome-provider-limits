@@ -1,29 +1,27 @@
+import { formatField } from "../formatters.js";
 import type { FieldDef, FieldType, FieldZone, ReaderResult } from "../readers/base.js";
-import { ReaderStatus } from "../readers/base.js";
+import { FieldStatus, ReaderStatus } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
-import { GAUGE_START_ANGLE, GAUGE_SWEEP_ANGLE, TONE_RGB } from "./cairoDrawing.js";
+import { emptyMeter, gaugeArc } from "./cairoDrawing.js";
 import type { FieldTone } from "./fieldRows.js";
-import { clampFillRatio, getFieldRows } from "./fieldRows.js";
-import type { GaugeTone, MicroMeterSpec } from "./gaugeTypes.js";
+import { clampFillRatio, clampPercent, fieldTone } from "./fieldRows.js";
+import type { GaugeSpec } from "./gaugeTypes.js";
 import { isLimitReached } from "./providerHealth.js";
 
+/** One zone-agnostic projection of a field. Value text is formatted at point of use. */
 export interface FieldView {
   readonly name: string;
   readonly type: FieldType;
   readonly category: FieldCategory;
   readonly label: string;
   readonly value: unknown;
-  readonly valueText: string;
-  readonly accessibleText: string;
+  readonly hasValue: boolean;
   readonly tone?: FieldTone;
   readonly errorText?: string;
   readonly ratio: number | null;
   readonly usageRatio: number | null;
   readonly fillPercent?: number;
-  readonly hasValue: boolean;
   readonly resetName: string | null;
-  readonly resetText: string | null;
-  readonly hasResetSlot: boolean;
 }
 
 function usedPercentOf(fieldName: string, value: unknown): number | null {
@@ -31,11 +29,40 @@ function usedPercentOf(fieldName: string, value: unknown): number | null {
   return fieldName.startsWith("remaining_percent") ? 100 - value : value;
 }
 
-/** Reset facts that every row projection can carry, independent of panel style. */
-export interface DisplayRowReset {
-  readonly name: string | null;
-  readonly text: string | null;
-  readonly hasSlot: boolean;
+export function formatViewValue(
+  view: FieldView,
+  zone: FieldZone,
+  locale: string,
+  t: (s: string) => string,
+): string {
+  if (!view.hasValue) return "—";
+  return formatField({ type: view.type, value: view.value, zone, locale, t });
+}
+
+export function formatViewAccessibleText(
+  view: FieldView,
+  zone: FieldZone,
+  locale: string,
+  t: (s: string) => string,
+): string {
+  return `${t(view.label)}: ${formatViewValue(view, zone, locale, t)}`;
+}
+
+export interface FormattedViewText {
+  readonly valueText: string;
+  readonly accessibleText: string;
+}
+
+export function formatViewText(
+  view: FieldView,
+  zone: FieldZone,
+  locale: string,
+  t: (s: string) => string,
+): FormattedViewText {
+  return {
+    valueText: formatViewValue(view, zone, locale, t),
+    accessibleText: formatViewAccessibleText(view, zone, locale, t),
+  };
 }
 
 /** The style-neutral projection of a FieldView, shared by every plan builder. */
@@ -48,70 +75,106 @@ export interface DisplayRow {
   readonly category: FieldCategory;
   readonly tone?: FieldTone;
   readonly errorText?: string;
-  readonly reset: DisplayRowReset;
 }
 
-/** Single FieldView-to-row projection; plan builders add only style-specific fields. */
-export function toDisplayRow(view: FieldView, t: (s: string) => string): DisplayRow {
+export function toDisplayRow(
+  view: FieldView,
+  zone: FieldZone,
+  locale: string,
+  t: (s: string) => string,
+): DisplayRow {
   return {
     name: view.name,
     label: view.label,
     labelText: t(view.label),
-    valueText: view.valueText,
-    accessibleText: view.accessibleText,
+    ...formatViewText(view, zone, locale, t),
     category: view.category,
     ...(view.tone ? { tone: view.tone } : {}),
     ...(view.errorText ? { errorText: view.errorText } : {}),
-    reset: { name: view.resetName, text: view.resetText, hasSlot: view.hasResetSlot },
   };
 }
 
+/** The single zone-agnostic derivation for one provider's configured fields. */
 export function deriveFieldViews(
   defs: readonly FieldDef[],
   result: ReaderResult,
   fieldNames: readonly string[],
-  zone: FieldZone,
-  locale: string,
-  t?: (s: string) => string,
 ): FieldView[] {
-  const rows = getFieldRows(defs, result, fieldNames, zone, locale, t);
-  const tr = t ?? ((s: string) => s);
   const limitReached = isLimitReached(result.fields);
+  const fieldByName = new Map(result.fields.map((field) => [field.name, field]));
+  const views: FieldView[] = [];
+  const seen = new Set<string>();
 
-  return rows.map((row) => {
-    const name = row.name ?? row.label;
+  for (const name of fieldNames) {
+    if (seen.has(name)) continue;
+    seen.add(name);
     const def = defs.find((candidate) => candidate.name === name);
-    const type = row.type ?? def?.type ?? "text";
-    const category = row.category ?? def?.category ?? "limit";
-    const resetName = row.companionResetName ?? def?.resetField ?? null;
-    const field = result.fields.find((candidate) => candidate.name === name);
+    if (!def) continue;
 
-    const usedPercent = type === "percent" ? usedPercentOf(name, field?.value) : null;
-    let usageRatio = usedPercent === null ? null : clampFillRatio(usedPercent / 100);
-    if (limitReached && type === "percent") {
-      usageRatio = usageRatio === null ? 1 : Math.max(usageRatio, 1);
+    const field = fieldByName.get(name);
+    const value = field?.value ?? null;
+    const hasValue =
+      field?.status === FieldStatus.OK &&
+      value !== null &&
+      value !== undefined &&
+      (typeof value !== "number" || Number.isFinite(value));
+
+    let usageRatio: number | null = null;
+    let ratio: number | null = null;
+    let fillPercent: number | undefined;
+    if (def.type === "percent") {
+      const usedPercent = usedPercentOf(name, hasValue ? value : null);
+      usageRatio = usedPercent === null ? null : clampFillRatio(usedPercent / 100);
+      if (limitReached) usageRatio = usageRatio === null ? 1 : Math.max(usageRatio, 1);
+      fillPercent = hasValue ? clampPercent(value) : undefined;
+      ratio = fillPercent === undefined ? null : clampFillRatio(fillPercent / 100);
     }
+
     const tone =
-      limitReached && (name === "limit_reached" || type === "percent") ? "critical" : row.tone;
-    return {
+      limitReached && (name === "limit_reached" || def.type === "percent")
+        ? "critical"
+        : def.type === "percent"
+          ? fieldTone(name, value)
+          : undefined;
+    const errorText =
+      field?.status === FieldStatus.ERROR || result.status === ReaderStatus.ERROR
+        ? (field?.error ?? result.lastError ?? "Provider error")
+        : undefined;
+
+    views.push({
       name,
-      type,
-      category,
-      label: row.label,
-      value: field?.value ?? null,
-      valueText: row.valueText,
-      accessibleText: row.accessibleText ?? `${tr(row.label)}: ${row.valueText}`,
-      ratio: row.fillPercent === undefined ? null : clampFillRatio(row.fillPercent / 100),
-      usageRatio,
-      hasValue: row.valueText !== "—",
-      resetName,
-      resetText: null,
-      hasResetSlot: false,
-      ...(row.fillPercent !== undefined ? { fillPercent: row.fillPercent } : {}),
+      type: def.type,
+      category: def.category,
+      label: def.label,
+      value,
+      hasValue,
       ...(tone ? { tone } : {}),
-      ...(row.errorText ? { errorText: row.errorText } : {}),
-    };
-  });
+      ...(errorText ? { errorText } : {}),
+      ratio,
+      usageRatio,
+      ...(fillPercent !== undefined ? { fillPercent } : {}),
+      resetName: def.resetField ?? null,
+    });
+  }
+
+  return views;
+}
+
+/** Project one derived view set into a zone's configured order. */
+export function selectViews(
+  views: readonly FieldView[],
+  fieldNames: readonly string[],
+): FieldView[] {
+  const byName = new Map(views.map((view) => [view.name, view]));
+  const selected: FieldView[] = [];
+  const seen = new Set<string>();
+  for (const name of fieldNames) {
+    if (seen.has(name)) continue;
+    seen.add(name);
+    const view = byName.get(name);
+    if (view) selected.push(view);
+  }
+  return selected;
 }
 
 export interface UsageViewSelection {
@@ -136,31 +199,10 @@ export function selectUsageView(
 }
 
 /** Builds the compact gauge spec from views that have already been derived. */
-export function meterFromViews(views: readonly FieldView[]): MicroMeterSpec {
+export function meterFromViews(views: readonly FieldView[]): GaugeSpec {
   const primary = views.find((view) => view.type === "percent" && view.hasValue);
-  if (!primary) {
-    return {
-      ratio: 0,
-      hasValue: false,
-      startAngle: GAUGE_START_ANGLE,
-      endAngle: GAUGE_START_ANGLE,
-      tone: "neutral",
-      rgb: TONE_RGB.neutral,
-      isError: false,
-    };
-  }
-
-  const ratio = primary.usageRatio ?? 0;
-  const tone: GaugeTone = primary.tone ?? "ok";
-  return {
-    ratio,
-    hasValue: true,
-    startAngle: GAUGE_START_ANGLE,
-    endAngle: GAUGE_START_ANGLE + ratio * GAUGE_SWEEP_ANGLE,
-    tone,
-    rgb: TONE_RGB[tone],
-    isError: false,
-  };
+  if (!primary) return emptyMeter("neutral", false);
+  return gaugeArc(primary.usageRatio ?? 0, primary.tone ?? "ok");
 }
 
 export interface UsageFacts {
@@ -173,13 +215,16 @@ export interface UsageFacts {
 
 export interface UsageProjectionOptions extends UsageViewSelection {
   readonly t?: (s: string) => string;
+  readonly zone: FieldZone;
+  readonly locale: string;
+  readonly resetTextFor?: (view: FieldView) => string | null;
 }
 
 export function projectUsageFacts(
   result: ReaderResult,
   views: readonly FieldView[],
   preferredFieldNames: readonly string[],
-  options: UsageProjectionOptions = {},
+  options: UsageProjectionOptions,
 ): UsageFacts {
   const tr = options.t ?? ((s: string) => s);
   if (result.status === ReaderStatus.ERROR || result.status === ReaderStatus.UNAVAILABLE) {
@@ -196,22 +241,24 @@ export function projectUsageFacts(
   const tokens: string[] = [];
   for (const name of preferredFieldNames) {
     const view = views.find((candidate) => candidate.name === name);
-    if (view?.hasValue) tokens.push(view.valueText);
+    if (view?.hasValue) tokens.push(formatViewValue(view, options.zone, options.locale, tr));
   }
   if (tokens.length === 0) {
-    if (primary?.hasValue) tokens.push(primary.valueText);
+    if (primary?.hasValue) {
+      tokens.push(formatViewValue(primary, options.zone, options.locale, tr));
+    }
     const resetView = views.find(
       (candidate) =>
         candidate.type === "timestamp" && candidate.category === "limit" && candidate.hasValue,
     );
-    if (resetView) tokens.push(resetView.valueText);
+    if (resetView) tokens.push(formatViewValue(resetView, options.zone, options.locale, tr));
   }
 
   return {
-    valueText: primary?.valueText ?? "—",
+    valueText: primary ? formatViewValue(primary, options.zone, options.locale, tr) : "—",
     fillRatio: primary?.usageRatio ?? null,
     tone: primary?.tone,
-    resetText: primary?.resetText ?? null,
+    resetText: primary ? (options.resetTextFor?.(primary) ?? null) : null,
     summaryText: tokens.length > 0 ? tokens.join(" · ") : "—",
   };
 }

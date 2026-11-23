@@ -1,9 +1,10 @@
+import { cardsLoadingTitle } from "../../src/ui/cardPlan.js";
 import type { ViewPhase } from "../../src/ui/viewContext.js";
 import { viewMessages } from "../../src/ui/viewMessages.js";
 import type { ViewSurface } from "../../src/ui/viewMessages.js";
 
-function message(phase: ViewPhase, surface: ViewSurface, running = false) {
-  return viewMessages({ phase, surface, t: (text) => text, running });
+function message(phase: ViewPhase, surface: ViewSurface) {
+  return viewMessages({ phase, surface, t: (text) => text });
 }
 
 describe("viewMessages", () => {
@@ -19,14 +20,17 @@ describe("viewMessages", () => {
     }
   });
 
-  it("maps cards empty and loading messages, including the running toggle", () => {
+  it("maps cards empty and loading messages", () => {
     const empty = message("empty", "cards");
     expect(empty.title).toBe("No providers enabled");
     expect(empty.subtitle).toBe("Enable a provider in Settings to monitor usage limits.");
     expect(empty.showPlaceholder).toBeFalse();
+    expect(message("loading", "cards").title).toBe("Waiting for provider data…");
+  });
 
-    expect(message("loading", "cards", true).title).toBe("Loading provider limits…");
-    expect(message("loading", "cards", false).title).toBe("Waiting for provider data…");
+  it("keeps the refresh-aware cards title out of the phase/surface map", () => {
+    expect(cardsLoadingTitle(true, (text) => text)).toBe("Loading provider limits…");
+    expect(cardsLoadingTitle(false, (text) => text)).toBe("Waiting for provider data…");
   });
 
   it("maps matrix empty and loading messages", () => {
@@ -63,7 +67,6 @@ describe("viewMessages", () => {
       phase: "empty",
       surface: "matrix",
       t: (text) => `T:${text}`,
-      running: false,
     });
     expect(result.title).toBe("T:No providers enabled. Open Settings to enable a provider.");
   });

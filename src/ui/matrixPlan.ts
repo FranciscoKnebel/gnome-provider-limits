@@ -1,7 +1,7 @@
 import type { ProviderName } from "../constants.js";
 import type { ReaderStatus } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
-import type { FieldRowSet } from "./displayModel.js";
+import { classifyPanelViews, type ProviderDisplayModel } from "./displayModel.js";
 import { clampFillRatio, type FieldTone } from "./fieldRows.js";
 import { toDisplayRow } from "./fieldViews.js";
 import type { ProviderViewContext, ViewPhase } from "./viewContext.js";
@@ -92,9 +92,13 @@ export function toggleAllProvidersExpanded(
   return next;
 }
 
-function groupsFromViews(rows: FieldRowSet, tr: (s: string) => string): MatrixRowGroup[] {
-  const toDetailRow = (view: FieldRowSet["panelViews"][number]): MatrixDetailRow => {
-    const row = toDisplayRow(view, tr);
+function groupsFromViews(
+  model: ProviderDisplayModel,
+  locale: string,
+  tr: (s: string) => string,
+): MatrixRowGroup[] {
+  const toDetailRow = (view: ProviderDisplayModel["panelViews"][number]): MatrixDetailRow => {
+    const row = toDisplayRow(view, "panel", locale, tr);
     return {
       name: row.name,
       labelText: row.labelText,
@@ -110,19 +114,20 @@ function groupsFromViews(rows: FieldRowSet, tr: (s: string) => string): MatrixRo
     };
   };
 
+  const classified = classifyPanelViews(model, { includeConsumedResets: true });
   const groups: MatrixRowGroup[] = [];
-  if (rows.groupedViews.limit.length > 0) {
+  if (classified.limit.all.length > 0) {
     groups.push({
       category: "limit",
       title: tr("Limits"),
-      rows: rows.groupedViews.limit.map(toDetailRow),
+      rows: classified.limit.all.map(toDetailRow),
     });
   }
-  if (rows.groupedViews.telemetry.length > 0) {
+  if (classified.telemetry.all.length > 0) {
     groups.push({
       category: "telemetry",
       title: tr("Telemetry"),
-      rows: rows.groupedViews.telemetry.map(toDetailRow),
+      rows: classified.telemetry.all.map(toDetailRow),
     });
   }
   return groups;
@@ -139,7 +144,6 @@ export function planPanelMatrix(
       phase: context.phase,
       surface: "matrix",
       t: tr,
-      running: false,
     });
     return {
       phase: context.phase,
@@ -162,7 +166,7 @@ export function planPanelMatrix(
     const fiveSegmentBar = facts.fillRatio !== null ? formatSegmentedBar(facts.fillRatio, 5) : "";
     const errorText = model.diagnostic.errorText;
     const detailText = model.diagnostic.detailText;
-    const groups = expanded && errorText === null ? groupsFromViews(model, tr) : [];
+    const groups = expanded && errorText === null ? groupsFromViews(model, context.locale, tr) : [];
     const lastUpdatedText = expanded && errorText === null ? model.lastUpdatedText : null;
 
     const accessibleParts = [model.displayName];

@@ -1,11 +1,11 @@
 import type { ProviderName } from "../constants.js";
-import { formatAbsoluteTimestamp, formatField } from "../formatters.js";
-import type { FieldDef, FieldZone, ReaderResult } from "../readers/base.js";
-import { FieldStatus, ReaderStatus } from "../readers/base.js";
-import { GAUGE_START_ANGLE, TONE_RGB } from "./cairoDrawing.js";
+import { formatAbsoluteTimestamp } from "../formatters.js";
+import type { FieldDef, ReaderResult } from "../readers/base.js";
+import { ReaderStatus } from "../readers/base.js";
+import { emptyMeter } from "./cairoDrawing.js";
 import type { FieldView, UsageFacts } from "./fieldViews.js";
-import { deriveFieldViews, meterFromViews, projectUsageFacts } from "./fieldViews.js";
-import type { MicroMeterSpec } from "./gaugeTypes.js";
+import { deriveFieldViews, meterFromViews, projectUsageFacts, selectViews } from "./fieldViews.js";
+import type { GaugeSpec } from "./gaugeTypes.js";
 import type { ProviderHealth } from "./providerHealth.js";
 import type { Presentation } from "./providerHealth.js";
 import {
@@ -15,6 +15,12 @@ import {
   overviewBadgeText,
   statusBadgeText,
 } from "./providerHealth.js";
+import {
+  consumedResetNames,
+  deriveResetPairings,
+  resetSlotText,
+  type ResetPairing,
+} from "./resetModel.js";
 import type { ProviderViewContextBase } from "./viewContext.js";
 
 export type DisplayBannerKind = "warning" | "error";
@@ -33,13 +39,6 @@ export interface DisplayCallout {
   readonly text: string;
 }
 
-/** A reset field paired with one percent field, with all display text ready. */
-export interface DisplayResetDescriptor {
-  readonly text: string;
-  readonly errorText: string | null;
-  readonly accessibleText: string;
-}
-
 export interface DisplayBadges {
   readonly card: Presentation["cardBadge"];
   readonly cardText: string;
@@ -51,11 +50,6 @@ export interface DisplayBadges {
 export interface ProviderDisplayUsage {
   readonly header: UsageFacts;
   readonly overview: UsageFacts;
-}
-
-export interface ProviderDisplayViews {
-  readonly limit: readonly FieldView[];
-  readonly telemetry: readonly FieldView[];
 }
 
 /** Identity and result state, shared by every consumer of a snapshot. */
@@ -74,20 +68,17 @@ export interface ProviderHealthView extends ProviderIdentityView {
   readonly badges: DisplayBadges;
 }
 
-/** All derived field rows and their reset pairings for one provider. */
+/** The one derived view set and its single reset model for one provider. */
 export interface FieldRowSet {
   readonly statusViews: readonly FieldView[];
   readonly panelViews: readonly FieldView[];
-  readonly headerViews: readonly FieldView[];
-  readonly groupedViews: ProviderDisplayViews;
-  readonly resetPairs: ReadonlyMap<string, DisplayResetDescriptor>;
-  readonly consumedResets: ReadonlySet<string>;
+  readonly resets: ReadonlyMap<string, ResetPairing>;
 }
 
 /** Usage facts, meter, diagnostic and human-facing timestamps. */
 export interface UsageSummary {
   readonly usage: ProviderDisplayUsage;
-  readonly meter: MicroMeterSpec;
+  readonly meter: GaugeSpec;
   readonly diagnostic: DisplayDiagnostic;
   readonly callout: DisplayCallout | null;
   readonly lastUpdatedText: string | null;
@@ -107,103 +98,51 @@ export interface DisplayModelOptions {
   readonly t: (s: string) => string;
 }
 
-function errorMicroMeter(): MicroMeterSpec {
-  return {
-    ratio: 0,
-    hasValue: false,
-    startAngle: GAUGE_START_ANGLE,
-    endAngle: GAUGE_START_ANGLE,
-    tone: "critical",
-    rgb: TONE_RGB.critical,
-    isError: true,
-  };
+export interface ClassifiedPanelViewGroup {
+  readonly all: readonly FieldView[];
+  readonly progress: readonly FieldView[];
+  readonly keyValue: readonly FieldView[];
 }
 
-function groupViewsByCategory(views: readonly FieldView[]): ProviderDisplayViews {
-  const limit: FieldView[] = [];
-  const telemetry: FieldView[] = [];
-  for (const view of views) {
-    if (view.category === "telemetry") telemetry.push(view);
-    else limit.push(view);
-  }
-  return { limit, telemetry };
+export interface ClassifiedPanelViews {
+  readonly all: readonly FieldView[];
+  readonly progress: readonly FieldView[];
+  readonly keyValue: readonly FieldView[];
+  readonly limit: ClassifiedPanelViewGroup;
+  readonly telemetry: ClassifiedPanelViewGroup;
 }
 
-interface ResetSlot {
-  readonly text: string;
-  readonly hasSlot: boolean;
+/** The one panel classification shared by cards, gauges and matrix rows. */
+interface MutableClassifiedGroup {
+  all: FieldView[];
+  progress: FieldView[];
+  keyValue: FieldView[];
 }
 
-/** Builds gauge reset slots from explicit FieldDef pairings only. */
-function resetSlotsForViews(
-  defs: readonly FieldDef[],
-  result: ReaderResult,
-  views: readonly FieldView[],
-  zoneFields: readonly string[],
-  zone: FieldZone,
-  locale: string,
-  tr: (s: string) => string,
-): ReadonlyMap<string, ResetSlot> {
-  const defByName = new Map(defs.map((def) => [def.name, def]));
-  const fieldByName = new Map(result.fields.map((field) => [field.name, field]));
-  const slots = new Map<string, ResetSlot>();
-
-  for (const view of views) {
-    if (view.type !== "percent" || view.resetName === null) continue;
-    if (defByName.get(view.resetName)?.type !== "timestamp") continue;
-    const resetField = fieldByName.get(view.resetName);
-    if (
-      resetField?.status === FieldStatus.OK &&
-      resetField.value !== null &&
-      resetField.value !== undefined
-    ) {
-      const text = formatField({ type: "timestamp", value: resetField.value, zone, locale, t: tr });
-      slots.set(view.name, { text: `↻ ${text}`, hasSlot: true });
-    } else if (zoneFields.includes(view.resetName)) {
-      slots.set(view.name, { text: "↻ —", hasSlot: true });
+export function classifyPanelViews(
+  model: ProviderDisplayModel,
+  options: { readonly includeConsumedResets?: boolean } = {},
+): ClassifiedPanelViews {
+  const consumed = consumedResetNames(model.resets);
+  const limit: MutableClassifiedGroup = { all: [], progress: [], keyValue: [] };
+  const telemetry: MutableClassifiedGroup = { all: [], progress: [], keyValue: [] };
+  const all: FieldView[] = [];
+  const progress: FieldView[] = [];
+  const keyValue: FieldView[] = [];
+  for (const view of model.panelViews) {
+    if (!options.includeConsumedResets && consumed.has(view.name)) continue;
+    const group = view.category === "telemetry" ? telemetry : limit;
+    group.all.push(view);
+    all.push(view);
+    if (view.type === "percent") {
+      group.progress.push(view);
+      progress.push(view);
+    } else {
+      group.keyValue.push(view);
+      keyValue.push(view);
     }
   }
-  return slots;
-}
-
-function withResetSlots(
-  views: readonly FieldView[],
-  slots: ReadonlyMap<string, ResetSlot>,
-): FieldView[] {
-  return views.map((view) => {
-    const slot = slots.get(view.name);
-    return slot ? { ...view, resetText: slot.text, hasResetSlot: slot.hasSlot } : view;
-  });
-}
-
-/** Pairs panel percent views with their reset field once, in configured order. */
-function pairPanelResets(
-  views: readonly FieldView[],
-  locale: string,
-  tr: (s: string) => string,
-): { pairs: Map<string, DisplayResetDescriptor>; consumed: Set<string> } {
-  const byName = new Map(views.map((view) => [view.name, view]));
-  const pairs = new Map<string, DisplayResetDescriptor>();
-  const consumed = new Set<string>();
-
-  for (const view of views) {
-    if (view.type !== "percent" || view.resetName === null || !view.hasResetSlot) continue;
-    if (consumed.has(view.resetName)) continue;
-    const reset = byName.get(view.resetName);
-    if (!reset) continue;
-
-    const resetValueText = reset.hasValue
-      ? formatField({ type: "timestamp", value: reset.value, zone: "panel", locale, t: tr })
-      : reset.valueText;
-    const text = `${tr(reset.label)}: ${resetValueText}`;
-    pairs.set(view.name, {
-      text,
-      errorText: view.errorText ?? reset.errorText ?? null,
-      accessibleText: `${view.accessibleText}, ${text}`,
-    });
-    consumed.add(view.resetName);
-  }
-  return { pairs, consumed };
+  return { all, progress, keyValue, limit, telemetry };
 }
 
 function deriveDiagnostics(
@@ -258,33 +197,20 @@ export function deriveDisplayModel(
   const isHardError =
     result.status === ReaderStatus.ERROR || result.status === ReaderStatus.UNAVAILABLE;
 
-  const searchOrder = [...statusFields, ...panelFields];
-  const rawStatusViews = isHardError
-    ? []
-    : deriveFieldViews(fieldDefs, result, statusFields, "status", locale, tr);
-  const rawPanelViews = isHardError
-    ? []
-    : deriveFieldViews(fieldDefs, result, panelFields, "panel", locale, tr);
-  const rawHeaderViews = isHardError
-    ? []
-    : deriveFieldViews(fieldDefs, result, searchOrder, "status", locale, tr);
+  const searchOrder = [...new Set([...statusFields, ...panelFields])];
+  const allViews = isHardError ? [] : deriveFieldViews(fieldDefs, result, searchOrder);
+  const statusViews = selectViews(allViews, statusFields);
+  const panelViews = selectViews(allViews, panelFields);
 
-  const statusViews = withResetSlots(
-    rawStatusViews,
-    resetSlotsForViews(fieldDefs, result, rawStatusViews, statusFields, "status", locale, tr),
-  );
-  const panelViews = withResetSlots(
-    rawPanelViews,
-    resetSlotsForViews(fieldDefs, result, rawPanelViews, panelFields, "panel", locale, tr),
-  );
-  const headerViews = withResetSlots(
-    rawHeaderViews,
-    resetSlotsForViews(fieldDefs, result, rawHeaderViews, searchOrder, "status", locale, tr),
-  );
+  const resets = deriveResetPairings(fieldDefs, result, allViews, searchOrder, panelFields);
+  const resetTextFor = (view: FieldView): string | null => {
+    const pairing = resets.get(view.name);
+    return pairing ? resetSlotText(pairing, "status", locale, tr) : null;
+  };
 
   const health = deriveProviderHealth(result.status, {
     result,
-    views: headerViews,
+    views: allViews,
     fieldDefs,
     t: tr,
   });
@@ -297,15 +223,21 @@ export function deriveDisplayModel(
     status: statusBadgeText(health, tr),
   };
 
-  const { pairs, consumed } = pairPanelResets(panelViews, locale, tr);
-
   const usage: ProviderDisplayUsage = {
-    header: projectUsageFacts(result, headerViews, statusFields, {
+    header: projectUsageFacts(result, allViews, statusFields, {
       limitOnly: true,
       requireFiniteValue: true,
+      zone: "status",
+      locale,
       t: tr,
+      resetTextFor,
     }),
-    overview: projectUsageFacts(result, headerViews, searchOrder, { t: tr }),
+    overview: projectUsageFacts(result, allViews, searchOrder, {
+      zone: "status",
+      locale,
+      t: tr,
+      resetTextFor,
+    }),
   };
 
   const { diagnostic, callout } = deriveDiagnostics(result, isHardError, tr);
@@ -326,11 +258,10 @@ export function deriveDisplayModel(
     badges,
     statusViews,
     panelViews,
-    headerViews,
-    meter: isHardError ? errorMicroMeter() : meterFromViews([...statusViews, ...panelViews]),
-    groupedViews: groupViewsByCategory(panelViews),
-    resetPairs: pairs,
-    consumedResets: consumed,
+    resets,
+    meter: isHardError
+      ? emptyMeter("critical", true)
+      : meterFromViews([...statusViews, ...panelViews]),
     usage,
     lastUpdatedText,
     diagnostic,

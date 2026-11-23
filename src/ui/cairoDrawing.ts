@@ -1,4 +1,4 @@
-import type { GaugeGeometry, GaugeTone, MicroMeterSpec, RgbTuple } from "./gaugeTypes.js";
+import type { GaugeSpec, GaugeTone, RgbTuple } from "./gaugeTypes.js";
 
 export const CAIRO_LINE_CAP_ROUND = 1;
 
@@ -12,6 +12,44 @@ export const TONE_RGB: Record<GaugeTone, RgbTuple> = {
   critical: [0xe0 / 255, 0x1b / 255, 0x24 / 255],
   neutral: [0x88 / 255, 0x88 / 255, 0x90 / 255],
 };
+
+function clampGaugeRatio(ratio: number): number {
+  if (!Number.isFinite(ratio)) return 0;
+  return Math.min(1, Math.max(0, ratio));
+}
+
+/** The single fill-math home: ratio, sweep angles and color for every gauge surface. */
+export function gaugeArc(
+  ratio: number | null,
+  tone: GaugeTone,
+): Pick<GaugeSpec, "ratio" | "hasValue" | "startAngle" | "endAngle" | "tone" | "rgb" | "isError"> {
+  if (ratio === null) {
+    return {
+      ratio: 0,
+      hasValue: false,
+      startAngle: GAUGE_START_ANGLE,
+      endAngle: GAUGE_START_ANGLE,
+      tone,
+      rgb: TONE_RGB[tone],
+      isError: false,
+    };
+  }
+  const clamped = clampGaugeRatio(ratio);
+  return {
+    ratio: clamped,
+    hasValue: true,
+    startAngle: GAUGE_START_ANGLE,
+    endAngle: GAUGE_START_ANGLE + clamped * GAUGE_SWEEP_ANGLE,
+    tone,
+    rgb: TONE_RGB[tone],
+    isError: false,
+  };
+}
+
+/** One empty meter for loading, unavailable and error surfaces. */
+export function emptyMeter(tone: GaugeTone, isError: boolean): GaugeSpec {
+  return { ...gaugeArc(null, tone), isError };
+}
 
 export const TRACK_RGBA: readonly [number, number, number, number] = [0.5, 0.5, 0.5, 0.24];
 
@@ -59,7 +97,7 @@ export function drawMicroRing(
   cr: CairoContextLike,
   width: number,
   height: number,
-  spec: MicroMeterSpec,
+  spec: GaugeSpec,
 ): void {
   const size = Math.min(width, height);
   if (size <= 2) return;
@@ -104,7 +142,7 @@ export function drawRadialGauge(
   cr: CairoContextLike,
   width: number,
   height: number,
-  geometry: GaugeGeometry,
+  geometry: GaugeSpec,
 ): void {
   const size = Math.min(width, height);
   if (size <= 6) return;
@@ -128,7 +166,7 @@ export function drawRadialGauge(
 
   const [tr, tg, tb, ta] = TRACK_RGBA;
   cr.newSubPath();
-  cr.arc(cx, cy, radius, geometry.startAngle, geometry.trackEndAngle);
+  cr.arc(cx, cy, radius, geometry.startAngle, geometry.trackEndAngle ?? GAUGE_END_ANGLE);
   cr.setSourceRGBA(tr, tg, tb, ta);
   cr.stroke();
 
@@ -147,7 +185,7 @@ export function drawMiniCapsule(
   cr: CairoContextLike,
   width: number,
   height: number,
-  spec: MicroMeterSpec,
+  spec: GaugeSpec,
 ): void {
   if (width <= 4 || height <= 1) return;
 
