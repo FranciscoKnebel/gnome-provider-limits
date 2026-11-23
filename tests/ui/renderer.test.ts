@@ -1,17 +1,6 @@
 import { resolveLocale } from "../../src/helpers/locale.js";
 import { currentRefreshInterval, shouldRender } from "../../src/helpers/refresh.js";
-import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
-import type { FieldDef, ReaderResult } from "../../src/readers/base.js";
-import { fieldTone, getFieldRows, percentTone } from "../../src/ui/fieldRows.js";
-
-const bracketT = (s: string) => `[${s}]`;
-
-const percentResult = (name: string, value: number): ReaderResult => ({
-  provider: "codex",
-  status: ReaderStatus.OK,
-  lastUpdated: 0,
-  fields: [{ name, value, status: FieldStatus.OK }],
-});
+import { clampFillRatio, clampPercent, fieldTone, percentTone } from "../../src/ui/fieldRows.js";
 
 describe("formatters", () => {
   describe("resolveLocale", () => {
@@ -36,267 +25,37 @@ describe("formatters", () => {
     });
   });
 
-  describe("getFieldRows", () => {
-    const mockReader: readonly FieldDef[] = [
-      {
-        name: "used_percent",
-        label: "Used %",
-        type: "percent",
-        defaultZone: "panel",
-        category: "limit",
-        resetField: "reset_at",
-      },
-      {
-        name: "reset_at",
-        label: "Reset at",
-        type: "timestamp",
-        defaultZone: "panel",
-        category: "limit",
-      },
-      {
-        name: "plan_type",
-        label: "Plan",
-        type: "text",
-        defaultZone: "panel",
-        category: "telemetry",
-      },
-    ];
-
-    const sampleResult: ReaderResult = {
-      provider: "codex",
-      status: ReaderStatus.OK,
-      lastUpdated: 0,
-      fields: [
-        { name: "used_percent", value: 42, status: FieldStatus.OK },
-        { name: "reset_at", value: Date.now() + 7200000, status: FieldStatus.OK },
-        { name: "plan_type", value: "plus", status: FieldStatus.OK },
-      ],
-    };
-
-    it("returns field rows for the given field names", () => {
-      const rows = getFieldRows(
-        mockReader,
-        sampleResult,
-        ["used_percent", "reset_at", "plan_type"],
-        "panel",
-        "en",
-      );
-      expect(rows).toHaveSize(3);
-      expect(rows[0].label).toBe("Used %");
-      expect(rows[1].label).toBe("Reset at");
-      expect(rows[2].label).toBe("Plan");
+  describe("clampPercent", () => {
+    it("clamps numeric values into 0..100", () => {
+      expect(clampPercent(-12)).toBe(0);
+      expect(clampPercent(0)).toBe(0);
+      expect(clampPercent(42.5)).toBe(42.5);
+      expect(clampPercent(100)).toBe(100);
+      expect(clampPercent(135)).toBe(100);
     });
 
-    it("returns rows only for explicitly requested field names", () => {
-      const rows = getFieldRows(mockReader, sampleResult, ["used_percent"], "panel", "en");
-      expect(rows).toHaveSize(1);
-      expect(rows[0].label).toBe("Used %");
+    it("rejects non-numeric and non-finite values", () => {
+      expect(clampPercent(Number.NaN)).toBeUndefined();
+      expect(clampPercent(Number.POSITIVE_INFINITY)).toBeUndefined();
+      expect(clampPercent(null)).toBeUndefined();
+      expect(clampPercent("50")).toBeUndefined();
+    });
+  });
+
+  describe("clampFillRatio", () => {
+    it("clamps numeric values into 0..1", () => {
+      expect(clampFillRatio(-0.4)).toBe(0);
+      expect(clampFillRatio(0)).toBe(0);
+      expect(clampFillRatio(0.42)).toBe(0.42);
+      expect(clampFillRatio(1)).toBe(1);
+      expect(clampFillRatio(1.5)).toBe(1);
     });
 
-    it("assigns correct zone to formatField", () => {
-      const rows = getFieldRows(mockReader, sampleResult, ["plan_type"], "status", "en");
-      expect(rows).toHaveSize(1);
-      expect(rows[0].valueText).toBe("plus");
-    });
-
-    it("returns empty array when no field definitions are supplied", () => {
-      const rows = getFieldRows([], sampleResult, ["used_percent"], "panel", "en");
-      expect(rows).toEqual([]);
-    });
-
-    it("returns empty array when no field names match FIELDS", () => {
-      const emptyReader: readonly FieldDef[] = [];
-      const rows = getFieldRows(emptyReader, sampleResult, ["used_percent"], "panel", "en");
-      expect(rows).toEqual([]);
-    });
-
-    it("skips field names not present in FIELDS", () => {
-      const extraFieldResult: ReaderResult = {
-        provider: "codex",
-        status: ReaderStatus.OK,
-        lastUpdated: 0,
-        fields: [
-          { name: "used_percent", value: 42, status: FieldStatus.OK },
-          { name: "unknown_field", value: "test", status: FieldStatus.OK },
-        ],
-      };
-      const rows = getFieldRows(
-        mockReader,
-        extraFieldResult,
-        ["used_percent", "unknown_field"],
-        "panel",
-        "en",
-      );
-      expect(rows).toHaveSize(1);
-      expect(rows[0].label).toBe("Used %");
-    });
-
-    it("emits a dash row for a field missing from the result", () => {
-      const missingResult: ReaderResult = {
-        provider: "codex",
-        status: ReaderStatus.OK,
-        lastUpdated: 0,
-        fields: [{ name: "used_percent", value: 42, status: FieldStatus.OK }],
-      };
-      const rows = getFieldRows(
-        mockReader,
-        missingResult,
-        ["used_percent", "plan_type"],
-        "panel",
-        "en",
-      );
-      expect(rows).toHaveSize(2);
-      expect(rows[1].label).toBe("Plan");
-      expect(rows[1].valueText).toBe("—");
-      expect(rows[1].errorText).toBeUndefined();
-    });
-
-    it("emits a dash row for an UNAVAILABLE field without error text", () => {
-      const unavailableResult: ReaderResult = {
-        provider: "codex",
-        status: ReaderStatus.PARTIAL,
-        lastUpdated: 0,
-        fields: [{ name: "used_percent", value: null, status: FieldStatus.UNAVAILABLE }],
-      };
-      const rows = getFieldRows(mockReader, unavailableResult, ["used_percent"], "panel", "en");
-      expect(rows).toHaveSize(1);
-      expect(rows[0].valueText).toBe("—");
-      expect(rows[0].errorText).toBeUndefined();
-    });
-
-    it("emits a dash row with error text for an ERROR field", () => {
-      const errorResult: ReaderResult = {
-        provider: "codex",
-        status: ReaderStatus.PARTIAL,
-        lastUpdated: 0,
-        fields: [
-          {
-            name: "used_percent",
-            value: null,
-            status: FieldStatus.ERROR,
-            error: "token expired",
-          },
-        ],
-      };
-      const rows = getFieldRows(mockReader, errorResult, ["used_percent"], "panel", "en");
-      expect(rows).toHaveSize(1);
-      expect(rows[0].valueText).toBe("—");
-      expect(rows[0].errorText).toBe("token expired");
-    });
-
-    it("falls back to lastError for an ERROR field without its own error", () => {
-      const errorResult: ReaderResult = {
-        provider: "codex",
-        status: ReaderStatus.PARTIAL,
-        lastUpdated: 0,
-        lastError: "HTTP 401",
-        fields: [{ name: "used_percent", value: null, status: FieldStatus.ERROR }],
-      };
-      const rows = getFieldRows(mockReader, errorResult, ["used_percent"], "panel", "en");
-      expect(rows[0].errorText).toBe("HTTP 401");
-    });
-
-    it("propagates lastError to missing fields when the reader is in error", () => {
-      const errorResult: ReaderResult = {
-        provider: "codex",
-        status: ReaderStatus.ERROR,
-        lastUpdated: 0,
-        lastError: "codex login required",
-        fields: [],
-      };
-      const rows = getFieldRows(mockReader, errorResult, ["used_percent"], "panel", "en");
-      expect(rows).toHaveSize(1);
-      expect(rows[0].valueText).toBe("—");
-      expect(rows[0].errorText).toBe("codex login required");
-    });
-
-    it("does not attach error text to an UNAVAILABLE field on a PARTIAL reader", () => {
-      const partialResult: ReaderResult = {
-        provider: "codex",
-        status: ReaderStatus.PARTIAL,
-        lastUpdated: 0,
-        lastError: "secondary path failed",
-        fields: [{ name: "plan_type", value: null, status: FieldStatus.UNAVAILABLE }],
-      };
-      const rows = getFieldRows(mockReader, partialResult, ["plan_type"], "panel", "en");
-      expect(rows[0].errorText).toBeUndefined();
-    });
-
-    it("keeps the configured field order even with missing fields", () => {
-      const result: ReaderResult = {
-        provider: "codex",
-        status: ReaderStatus.OK,
-        lastUpdated: 0,
-        fields: [{ name: "plan_type", value: "plus", status: FieldStatus.OK }],
-      };
-      const rows = getFieldRows(
-        mockReader,
-        result,
-        ["plan_type", "used_percent", "reset_at"],
-        "panel",
-        "en",
-      );
-      expect(rows.map((r) => r.label)).toEqual(["Plan", "Used %", "Reset at"]);
-    });
-
-    it("builds accessible text from the translated label and value", () => {
-      const rows = getFieldRows(
-        mockReader,
-        sampleResult,
-        ["used_percent"],
-        "panel",
-        "en",
-        bracketT,
-      );
-      expect(rows[0].accessibleText).toBe("[Used %]: 42%");
-    });
-
-    it("builds accessible text with a dash for missing fields", () => {
-      const rows = getFieldRows(mockReader, sampleResult, ["plan_type"], "status", "en");
-      expect(rows[0].accessibleText).toBe("Plan: plus");
-    });
-
-    it("applies used-percent tones to used fields", () => {
-      const atThreshold: ReaderResult = {
-        provider: "codex",
-        status: ReaderStatus.OK,
-        lastUpdated: 0,
-        fields: [{ name: "used_percent", value: 80, status: FieldStatus.OK }],
-      };
-      const rows = getFieldRows(mockReader, atThreshold, ["used_percent"], "panel", "en");
-      expect(rows[0].tone).toBe("critical");
-    });
-
-    it("inverts remaining-percent tones", () => {
-      const readerWithRemaining: readonly FieldDef[] = [
-        {
-          name: "remaining_percent",
-          label: "Remaining %",
-          type: "percent",
-          defaultZone: "panel",
-          category: "limit",
-          resetField: "reset_at",
-        },
-      ];
-      const high = getFieldRows(
-        readerWithRemaining,
-        percentResult("remaining_percent", 90),
-        ["remaining_percent"],
-        "panel",
-        "en",
-      );
-      expect(high[0].valueText).toBe("90%");
-      expect(high[0].tone).toBe("ok");
-
-      const low = getFieldRows(
-        readerWithRemaining,
-        percentResult("remaining_percent", 20),
-        ["remaining_percent"],
-        "panel",
-        "en",
-      );
-      expect(low[0].valueText).toBe("20%");
-      expect(low[0].tone).toBe("critical");
+    it("falls back to zero for non-numeric and non-finite values", () => {
+      expect(clampFillRatio(Number.NaN)).toBe(0);
+      expect(clampFillRatio(Number.POSITIVE_INFINITY)).toBe(0);
+      expect(clampFillRatio(null)).toBe(0);
+      expect(clampFillRatio("0.5")).toBe(0);
     });
   });
 

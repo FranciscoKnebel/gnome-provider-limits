@@ -39,13 +39,12 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     this._onRefresh = onRefresh;
     this._closeMenu = closeMenu;
     this._sections = {
-      gauges: () => new GaugesPanelSection(settings, this._fieldDefs, this._createShell("gauges")),
+      gauges: () => new GaugesPanelSection(settings, this._createShell("gauges")),
       cards: () => new CardsPanelSection(settings, this._fieldDefs, this._createShell("cards")),
       compact: () => {
         const expandAll = createExpandAllControl();
         return new CompactPanelSection(
           settings,
-          this._fieldDefs,
           this._createShell("compact", [expandAll.button]),
           expandAll,
         );

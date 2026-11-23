@@ -5,7 +5,7 @@ import { classifyPanelViews, type ProviderDisplayModel } from "./displayModel.js
 import type { FieldTone } from "./fieldRows.js";
 import type { FieldView } from "./fieldViews.js";
 import { toDisplayRow } from "./fieldViews.js";
-import type { GaugeSpec, GaugeTone } from "./gaugeTypes.js";
+import type { GaugeSpec, GaugeTone, RadialGaugeGeometry } from "./gaugeTypes.js";
 import type { Presentation } from "./providerHealth.js";
 import { resetSlotText } from "./resetModel.js";
 
@@ -17,7 +17,7 @@ export interface RadialGaugeItem {
   readonly fieldName: string;
   readonly label: string;
   readonly translatedLabel: string;
-  readonly geometry: GaugeSpec;
+  readonly geometry: RadialGaugeGeometry;
   readonly resetText: string | null;
   readonly hasResetSlot: boolean;
   readonly errorText?: string;
@@ -53,7 +53,7 @@ export interface OverviewRowModel {
 }
 
 /** The one gauge spec builder: consumes the derived FieldView, never a raw value. */
-export function computeGaugeGeometry(view: FieldView, locale: string): GaugeSpec {
+export function computeGaugeGeometry(view: FieldView, locale: string): RadialGaugeGeometry {
   const tone: GaugeTone = view.hasValue ? (view.tone ?? "ok") : "neutral";
   const centerText = view.hasValue
     ? formatField({ type: "percent", value: view.value, zone: "panel", locale })

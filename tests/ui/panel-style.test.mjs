@@ -49,10 +49,10 @@ test("Panel swaps style sections on setting change and forwards render and runni
   }
   const created = [];
   class SectionStub {
-    constructor(settings, fieldDefs, shell) {
+    constructor(settings, fieldDefsOrShell, maybeShell) {
       this.settings = settings;
-      this.fieldDefs = fieldDefs;
-      this.shell = shell;
+      this.fieldDefs = maybeShell === undefined ? undefined : fieldDefsOrShell;
+      this.shell = maybeShell ?? fieldDefsOrShell;
       this.rendered = [];
       this.running = null;
       this.destroyed = false;
@@ -70,9 +70,22 @@ test("Panel swaps style sections on setting change and forwards render and runni
       this.shell.destroy();
     }
   }
-  class GaugesStub extends SectionStub {}
-  class CardsStub extends SectionStub {}
-  class CompactStub extends SectionStub {}
+  class GaugesStub extends SectionStub {
+    constructor(settings, shell) {
+      super(settings, undefined, shell);
+    }
+  }
+  class CardsStub extends SectionStub {
+    constructor(settings, fieldDefs, shell) {
+      super(settings, fieldDefs, shell);
+    }
+  }
+  class CompactStub extends SectionStub {
+    constructor(settings, shell, expandAll) {
+      super(settings, undefined, shell);
+      this.expandAll = expandAll;
+    }
+  }
 
   const { resolvePanelStyle } = load("src/ui/styles.ts", "({ resolvePanelStyle })");
   const view = { marker: "provider-view-settings" };

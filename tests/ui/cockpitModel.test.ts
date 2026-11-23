@@ -77,7 +77,6 @@ function overviewRowFor(options: {
   if (!model) throw new Error(`Provider ${options.provider} is disabled`);
   return buildOverviewRowModel(model);
 }
-import { clampRatio } from "../../src/ui/fieldRows.js";
 import { deriveFieldViews, meterFromViews, type FieldView } from "../../src/ui/fieldViews.js";
 
 function gaugeView(fieldName: string, value: unknown): FieldView {
@@ -146,18 +145,6 @@ describe("src/readers/fields", () => {
 });
 
 describe("cockpitModel gauge math", () => {
-  it("clampRatio clamps numeric percentages to [0, 1] and rejects non-finite values", () => {
-    expect(clampRatio(0)).toBe(0);
-    expect(clampRatio(42.5)).toBeCloseTo(0.425, 5);
-    expect(clampRatio(100)).toBe(1);
-    expect(clampRatio(-15)).toBe(0);
-    expect(clampRatio(145)).toBe(1);
-    expect(clampRatio(Number.NaN)).toBeNull();
-    expect(clampRatio(Number.POSITIVE_INFINITY)).toBeNull();
-    expect(clampRatio(null)).toBeNull();
-    expect(clampRatio("50")).toBeNull();
-  });
-
   it("TONE_RGB maps semantic tones to RGB tuples in [0, 1]", () => {
     for (const tone of ["ok", "warning", "critical", "neutral"] as const) {
       const rgb = TONE_RGB[tone];

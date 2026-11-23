@@ -2,35 +2,30 @@ import type Gio from "gi://Gio";
 
 import type { ProviderName } from "../constants.js";
 import {
-  normalizeProvidersOrder,
   providerDisplayName,
   providerDisplayNameShort,
   resolveActiveProviders,
 } from "../helpers/provider-settings.js";
 import type { BaseReader, FieldDef, ReaderResult } from "../readers/base.js";
-import { deriveDisplayModels } from "./displayModel.js";
+import { deriveDisplayModels, type DisplayModelDerivationInput } from "./displayModel.js";
 import type { ProviderDisplayModel } from "./displayModel.js";
 
 export type ViewPhase = "empty" | "loading" | "ready";
 
-/** The base snapshot: everything needed to derive one canonical model set. */
-export interface ProviderViewContextBase {
-  readonly order: readonly ProviderName[];
-  readonly results: ReadonlyMap<ProviderName, ReaderResult>;
-  readonly fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>;
+/** The one immutable snapshot passed to every plan builder and renderer. */
+export interface ProviderViewContext {
+  readonly phase: ViewPhase;
   readonly activeProviders: readonly ProviderName[];
+  readonly results: ReadonlyMap<ProviderName, ReaderResult>;
   readonly displayNames: Readonly<Record<ProviderName, string>>;
-  readonly shortDisplayNames: Readonly<Record<ProviderName, string>>;
-  readonly statusFields: Readonly<Record<ProviderName, readonly string[]>>;
-  readonly panelFields: Readonly<Record<ProviderName, readonly string[]>>;
+  readonly models: readonly ProviderDisplayModel[];
   readonly locale: string;
   readonly t: (text: string) => string;
-  readonly phase: ViewPhase;
 }
 
-/** The one immutable snapshot passed to every plan builder and renderer. */
-export interface ProviderViewContext extends ProviderViewContextBase {
-  readonly models: readonly ProviderDisplayModel[];
+/** Derivation-only inputs, never exposed to renderers or plan builders. */
+interface ViewDerivationInput extends DisplayModelDerivationInput {
+  readonly phase: ViewPhase;
 }
 
 export function providerRecord<T>(make: (provider: ProviderName) => T): Record<ProviderName, T> {
@@ -54,30 +49,20 @@ export function resolveViewPhase(
   return "ready";
 }
 
-/** Attach the single canonical model set to a base snapshot. */
-export function withDisplayModels(base: ProviderViewContextBase): ProviderViewContext {
-  return { ...base, models: deriveDisplayModels(base) };
-}
+const EMPTY_DISPLAY_NAMES: Readonly<Record<ProviderName, string>> = {} as Readonly<
+  Record<ProviderName, string>
+>;
 
 /** A genuine empty-phase snapshot for renderers before their first real render. */
-export function emptyViewContext(
-  fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>,
-  locale: string,
-  t: (text: string) => string,
-): ProviderViewContext {
+export function emptyViewContext(locale: string, t: (text: string) => string): ProviderViewContext {
   return {
-    order: [],
-    results: new Map(),
-    fieldDefs,
+    phase: "empty",
     activeProviders: [],
-    displayNames: providerRecord(() => ""),
-    shortDisplayNames: providerRecord(() => ""),
-    statusFields: providerRecord(() => []),
-    panelFields: providerRecord(() => []),
+    results: new Map(),
+    displayNames: EMPTY_DISPLAY_NAMES,
+    models: [],
     locale,
     t,
-    phase: "empty",
-    models: [],
   };
 }
 
@@ -90,11 +75,8 @@ export function viewContextFor(
   locale: string,
   t: (text: string) => string,
 ): ProviderViewContext {
-  const order = normalizeProvidersOrder(settings.get_strv("providers-order"));
   const activeProviders = resolveActiveProviders(settings, readers, results);
-
-  const base: ProviderViewContextBase = {
-    order,
+  const input: ViewDerivationInput = {
     results,
     fieldDefs,
     activeProviders,
@@ -107,5 +89,13 @@ export function viewContextFor(
     phase: resolveViewPhase(activeProviders, results),
   };
 
-  return withDisplayModels(base);
+  return {
+    phase: input.phase,
+    activeProviders: input.activeProviders,
+    results: input.results,
+    displayNames: input.displayNames,
+    models: deriveDisplayModels(input),
+    locale: input.locale,
+    t: input.t,
+  };
 }

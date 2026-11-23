@@ -1,4 +1,4 @@
-import type { GaugeSpec, GaugeTone, RgbTuple } from "./gaugeTypes.js";
+import type { GaugeSpec, GaugeTone, RadialGaugeGeometry, RgbTuple } from "./gaugeTypes.js";
 
 export const CAIRO_LINE_CAP_ROUND = 1;
 
@@ -166,7 +166,7 @@ export function drawRadialGauge(
   cr: CairoContextLike,
   width: number,
   height: number,
-  geometry: GaugeSpec,
+  geometry: RadialGaugeGeometry,
 ): void {
   const size = Math.min(width, height);
   if (size <= 6) return;
@@ -190,7 +190,7 @@ export function drawRadialGauge(
 
   const [tr, tg, tb, ta] = TRACK_RGBA;
   cr.newSubPath();
-  cr.arc(cx, cy, radius, geometry.startAngle, geometry.trackEndAngle ?? GAUGE_END_ANGLE);
+  cr.arc(cx, cy, radius, geometry.startAngle, geometry.trackEndAngle);
   cr.setSourceRGBA(tr, tg, tb, ta);
   cr.stroke();
 

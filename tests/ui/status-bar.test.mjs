@@ -17,11 +17,16 @@ function loadProviderSettings() {
 }
 
 function loadViewContext() {
-  return load("src/ui/viewContext.ts", "({ viewContextFor, resolveViewPhase })", {
+  let derivationInput;
+  const api = load("src/ui/viewContext.ts", "({ viewContextFor, resolveViewPhase })", {
     PROVIDER_NAMES,
-    deriveDisplayModels: () => [],
+    deriveDisplayModels: (input) => {
+      derivationInput = input;
+      return [];
+    },
     ...loadProviderSettings(),
   });
+  return { ...api, derivationInput: () => derivationInput };
 }
 
 function settingsWith(values) {
@@ -54,7 +59,7 @@ test("active providers have one canonical selector across rendering paths", () =
 
 test("the view snapshot exposes one consistent set of provider settings", () => {
   const { resolveActiveProviders } = loadProviderSettings();
-  const { viewContextFor } = loadViewContext();
+  const { viewContextFor, derivationInput } = loadViewContext();
   const settings = settingsWith({
     "providers-order": ["opencode", "codex"],
     "codex-enabled": true,
@@ -77,18 +82,22 @@ test("the view snapshot exposes one consistent set of provider settings", () => 
   assert.equal(view.activeProviders.includes("codex"), true);
   assert.equal(view.activeProviders.includes("claude"), false);
   assert.equal(view.displayNames.codex, "Codex Pro");
-  assert.equal(view.shortDisplayNames.codex, "CX");
-  assert.deepEqual(view.statusFields.codex, ["used_percent_primary"]);
-  assert.deepEqual(view.panelFields.codex, ["reset_at_primary"]);
-  assert.equal(view.fieldDefs, fieldDefs);
-  assert.deepEqual(Array.from(view.order), [
-    "opencode",
-    "codex",
-    "claude",
-    "grok",
-    "cursor",
-    "google",
+  assert.deepEqual(view.models, []);
+  assert.deepEqual(Object.keys(view).sort(), [
+    "activeProviders",
+    "displayNames",
+    "locale",
+    "models",
+    "phase",
+    "results",
+    "t",
   ]);
+
+  const input = derivationInput();
+  assert.equal(input.shortDisplayNames.codex, "CX");
+  assert.deepEqual(input.statusFields.codex, ["used_percent_primary"]);
+  assert.deepEqual(input.panelFields.codex, ["reset_at_primary"]);
+  assert.equal(input.fieldDefs, fieldDefs);
 });
 
 test("view phase comes from enabled providers and results only", () => {

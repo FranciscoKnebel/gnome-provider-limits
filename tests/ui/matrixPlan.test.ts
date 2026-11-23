@@ -21,11 +21,10 @@ import {
 } from "../../src/ui/tone.js";
 import {
   resolveViewPhase,
-  withDisplayModels,
   type ProviderViewContext,
-  type ProviderViewContextBase,
   type ViewPhase,
 } from "../../src/ui/viewContext.js";
+import { viewContextFromFixture, type ViewFixtureInput } from "./contextFixture.js";
 
 const SHORT_LABELS: Record<ProviderName, string> = {
   codex: "codex",
@@ -67,8 +66,7 @@ function segmentsContext(
   results: ReadonlyMap<ProviderName, ReaderResult>,
   statusFields: Readonly<Record<ProviderName, readonly string[]>>,
 ): ProviderViewContext {
-  const base: ProviderViewContextBase = {
-    order: PROVIDER_NAMES,
+  const input: ViewFixtureInput = {
     results,
     locale: "en",
     statusFields,
@@ -80,7 +78,7 @@ function segmentsContext(
     t: (text) => text,
     phase: resolveViewPhase(PROVIDER_NAMES, results),
   };
-  return withDisplayModels(base);
+  return viewContextFromFixture(input);
 }
 
 function matrixContext(options: {
@@ -91,8 +89,7 @@ function matrixContext(options: {
   fieldDefs?: Readonly<Record<ProviderName, readonly FieldDef[]>>;
   phase?: ViewPhase;
 }): ProviderViewContext {
-  const base: ProviderViewContextBase = {
-    order: PROVIDER_NAMES,
+  const input: ViewFixtureInput = {
     results: options.results,
     fieldDefs: options.fieldDefs ?? PROVIDER_FIELDS,
     activeProviders: options.activeProviders,
@@ -104,7 +101,7 @@ function matrixContext(options: {
     t: (text) => text,
     phase: options.phase ?? resolveViewPhase(options.activeProviders, options.results),
   };
-  return withDisplayModels(base);
+  return viewContextFromFixture(input);
 }
 
 function makeClassTracker(): {

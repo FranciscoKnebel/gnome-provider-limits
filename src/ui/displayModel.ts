@@ -21,7 +21,6 @@ import {
   resetSlotText,
   type ResetPairing,
 } from "./resetModel.js";
-import type { ProviderViewContextBase } from "./viewContext.js";
 
 export type DisplayBannerKind = "warning" | "error";
 
@@ -269,21 +268,34 @@ export function deriveDisplayModel(
   };
 }
 
+/** Only the inputs needed to derive the canonical display model set. */
+export interface DisplayModelDerivationInput {
+  readonly results: ReadonlyMap<ProviderName, ReaderResult>;
+  readonly fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>;
+  readonly activeProviders: readonly ProviderName[];
+  readonly displayNames: Readonly<Record<ProviderName, string>>;
+  readonly shortDisplayNames: Readonly<Record<ProviderName, string>>;
+  readonly statusFields: Readonly<Record<ProviderName, readonly string[]>>;
+  readonly panelFields: Readonly<Record<ProviderName, readonly string[]>>;
+  readonly locale: string;
+  readonly t: (text: string) => string;
+}
+
 /** Thin loop over the active results, delegating all assembly to deriveDisplayModel. */
-export function deriveDisplayModels(context: ProviderViewContextBase): ProviderDisplayModel[] {
+export function deriveDisplayModels(input: DisplayModelDerivationInput): ProviderDisplayModel[] {
   const models: ProviderDisplayModel[] = [];
 
-  for (const provider of context.activeProviders) {
-    const result = context.results.get(provider);
+  for (const provider of input.activeProviders) {
+    const result = input.results.get(provider);
     if (!result) continue;
     const model = deriveDisplayModel(provider, result, {
-      fieldDefs: context.fieldDefs[provider],
-      statusFields: context.statusFields[provider],
-      panelFields: context.panelFields[provider],
-      displayName: context.displayNames[provider],
-      shortDisplayName: context.shortDisplayNames[provider],
-      locale: context.locale,
-      t: context.t,
+      fieldDefs: input.fieldDefs[provider],
+      statusFields: input.statusFields[provider],
+      panelFields: input.panelFields[provider],
+      displayName: input.displayNames[provider],
+      shortDisplayName: input.shortDisplayNames[provider],
+      locale: input.locale,
+      t: input.t,
     });
     if (model) models.push(model);
   }

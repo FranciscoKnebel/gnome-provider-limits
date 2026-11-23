@@ -7,7 +7,6 @@ import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { bindActivation } from "../helpers/keyboard.js";
 import { resolveLocale } from "../helpers/locale.js";
-import type { FieldDef } from "../readers/base.js";
 import { ReaderStatus } from "../readers/base.js";
 import { clampFillRatio } from "./fieldRows.js";
 import {
@@ -53,19 +52,14 @@ export class CompactPanelSection implements PanelStyleSection {
   private readonly _expandAll: ExpandAllControl;
   readonly shell: PanelShell;
 
-  constructor(
-    settings: Gio.Settings,
-    fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>,
-    shell: PanelShell,
-    expandAll: ExpandAllControl,
-  ) {
+  constructor(settings: Gio.Settings, shell: PanelShell, expandAll: ExpandAllControl) {
     this._settings = settings;
     this.shell = shell;
     this._expandAll = expandAll;
     bindActivation(expandAll.button, () => this._toggleAllProviders(), {
       pointerSignals: ["clicked"],
     });
-    this._lastView = emptyViewContext(fieldDefs, this._currentLocale(), _);
+    this._lastView = emptyViewContext(this._currentLocale(), _);
     this.render({ lastRefreshAt: null, view: this._lastView });
   }
 

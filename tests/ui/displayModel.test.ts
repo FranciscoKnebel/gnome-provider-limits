@@ -3,8 +3,8 @@ import type { ReaderResult } from "../../src/readers/base.js";
 import { CODEX_FIELDS, PROVIDER_FIELDS } from "../../src/readers/fields.js";
 import { deriveDisplayModel, deriveDisplayModels } from "../../src/ui/displayModel.js";
 import { consumedResetNames, resetDetailText, resetSlotText } from "../../src/ui/resetModel.js";
-import { providerRecord, withDisplayModels } from "../../src/ui/viewContext.js";
-import type { ProviderViewContextBase } from "../../src/ui/viewContext.js";
+import { providerRecord } from "../../src/ui/viewContext.js";
+import { viewContextFromFixture, type ViewFixtureInput } from "./contextFixture.js";
 
 const result: ReaderResult = {
   provider: "codex",
@@ -61,8 +61,7 @@ describe("deriveDisplayModel", () => {
   });
 
   it("stays a thin loop over active results", () => {
-    const base: ProviderViewContextBase = {
-      order: ["codex", "claude"],
+    const input: ViewFixtureInput = {
       activeProviders: ["codex", "claude"],
       results: new Map([
         ["codex", result],
@@ -78,8 +77,8 @@ describe("deriveDisplayModel", () => {
       phase: "ready",
     };
 
-    const models = withDisplayModels(base).models;
-    expect(models).toEqual(deriveDisplayModels(base));
+    const models = viewContextFromFixture(input).models;
+    expect(models).toEqual(deriveDisplayModels(input));
     expect(models.map((model) => model.provider)).toEqual(["codex"]);
     const direct = deriveDisplayModel("codex", result, {
       fieldDefs: CODEX_FIELDS,

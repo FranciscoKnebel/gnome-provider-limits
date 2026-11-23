@@ -14,8 +14,7 @@ import {
   planPanel,
   type ProviderCardPlan,
 } from "../../src/ui/cardPlan.js";
-import { deriveDisplayModel, deriveDisplayModels } from "../../src/ui/displayModel.js";
-import { clampPercent, getFieldRows } from "../../src/ui/fieldRows.js";
+import { deriveDisplayModel } from "../../src/ui/displayModel.js";
 import { deriveFieldViews } from "../../src/ui/fieldViews.js";
 import type { ProviderTone } from "../../src/ui/providerHealth.js";
 import {
@@ -30,11 +29,10 @@ import { applyHealthToneClass, applyToneClass } from "../../src/ui/tone.js";
 import {
   providerRecord,
   resolveViewPhase,
-  withDisplayModels,
   type ProviderViewContext,
-  type ProviderViewContextBase,
   type ViewPhase,
 } from "../../src/ui/viewContext.js";
+import { viewContextFromFixture, type ViewFixtureInput } from "./contextFixture.js";
 
 function cardFor(options: {
   provider: ProviderName;
@@ -62,8 +60,7 @@ function segmentsContext(
   statusFields: (provider: ProviderName) => readonly string[],
 ): ProviderViewContext {
   const order: readonly ProviderName[] = ["codex", "claude", "opencode", "grok"];
-  const base: ProviderViewContextBase = {
-    order,
+  const input: ViewFixtureInput = {
     results,
     locale: "en",
     statusFields: providerRecord(statusFields),
@@ -75,7 +72,7 @@ function segmentsContext(
     t: (text) => text,
     phase: resolveViewPhase(order, results),
   };
-  return withDisplayModels(base);
+  return viewContextFromFixture(input);
 }
 
 function panelContext(options: {
@@ -87,8 +84,7 @@ function panelContext(options: {
   phase?: ViewPhase;
 }): ProviderViewContext {
   const name = (provider: ProviderName) => options.displayName?.(provider) ?? provider;
-  const base: ProviderViewContextBase = {
-    order: options.providers,
+  const input: ViewFixtureInput = {
     results: options.results,
     fieldDefs: options.fieldDefs ?? providerRecord((provider) => PROVIDER_FIELDS[provider]),
     activeProviders: options.providers,
@@ -100,7 +96,7 @@ function panelContext(options: {
     t: (text) => text,
     phase: options.phase ?? resolveViewPhase(options.providers, options.results),
   };
-  return withDisplayModels(base);
+  return viewContextFromFixture(input);
 }
 
 function toneOf(
@@ -176,18 +172,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
     });
   });
 
-  describe("clampPercent and getFieldRows fillPercent", () => {
-    it("clamps numeric values into 0..100", () => {
-      expect(clampPercent(-12)).toBe(0);
-      expect(clampPercent(0)).toBe(0);
-      expect(clampPercent(42.5)).toBe(42.5);
-      expect(clampPercent(100)).toBe(100);
-      expect(clampPercent(135)).toBe(100);
-      expect(clampPercent(Number.NaN)).toBeUndefined();
-      expect(clampPercent(null)).toBeUndefined();
-      expect(clampPercent("50")).toBeUndefined();
-    });
-
+  describe("remaining percent view derivation", () => {
     it("keeps fillPercent equal to remaining % while urgency tone is inverted", () => {
       const result: ReaderResult = {
         provider: "grok",
@@ -195,10 +180,11 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         lastUpdated: 1_700_000_000_000,
         fields: [{ name: "remaining_percent_credits", value: 15, status: FieldStatus.OK }],
       };
-      const rows = getFieldRows(GROK_FIELDS, result, ["remaining_percent_credits"], "panel", "en");
-      expect(rows).toHaveSize(1);
-      expect(rows[0].fillPercent).toBe(15);
-      expect(rows[0].tone).toBe("critical");
+      const views = deriveFieldViews(GROK_FIELDS, result, ["remaining_percent_credits"]);
+      expect(views).toHaveSize(1);
+      expect(views[0].fillPercent).toBe(15);
+      expect(views[0].tone).toBe("critical");
+      expect(views[0].usageRatio).toBeCloseTo(0.85, 5);
     });
   });
 
@@ -414,7 +400,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       expect(first[0].meter.ratio).toBeCloseTo(0.4, 5);
       expect(second[0].meter.ratio).toBeCloseTo(0.88, 5);
       expect(second[0].meter.tone).toBe("critical");
-      expect(first[0].meter).toEqual(deriveDisplayModels(firstContext)[0]?.meter);
+      expect(first[0].meter).toEqual(firstContext.models[0]?.meter);
     });
   });
 

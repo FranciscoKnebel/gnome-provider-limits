@@ -8,24 +8,15 @@ import type { ProviderName } from "../constants.js";
 import { clearChildren } from "../helpers/children.js";
 import { bindActivation } from "../helpers/keyboard.js";
 import { providerDisplayName } from "../helpers/provider-settings.js";
-import type { FieldDef, ReaderResult } from "../readers/base.js";
-import { ReaderStatus } from "../readers/base.js";
 import { connectRepaint, drawMiniCapsule } from "./cairoDrawing.js";
 import { buildOverviewRowModel, getAvailableTabs, loadingOverviewRow } from "./cockpitModel.js";
 import type { CockpitTab, OverviewBadgeKind, OverviewRowModel } from "./cockpitModel.js";
 import type { ProviderDisplayModel } from "./displayModel.js";
 import type { PanelShell } from "./panelShell.js";
-import { applyToneClass } from "./tone.js";
+import { applyHealthToneClass, applyToneClass } from "./tone.js";
 
 const OVERVIEW_BAR_WIDTH = 56;
 const OVERVIEW_BAR_HEIGHT = 6;
-
-const HEALTH_CLASSES = [
-  "pl-health-ok",
-  "pl-health-partial",
-  "pl-health-error",
-  "pl-health-loading",
-] as const;
 
 const BADGE_CLASS_BY_KIND: Record<OverviewBadgeKind, string> = {
   ok: "pl-badge-ok",
@@ -39,24 +30,8 @@ function badgeClassFor(kind: OverviewBadgeKind): string {
   return BADGE_CLASS_BY_KIND[kind];
 }
 
-function healthClassFor(result: ReaderResult | undefined): string {
-  if (!result) return "pl-health-loading";
-  switch (result.status) {
-    case ReaderStatus.OK:
-      return "pl-health-ok";
-    case ReaderStatus.PARTIAL:
-      return "pl-health-partial";
-    case ReaderStatus.ERROR:
-    case ReaderStatus.UNAVAILABLE:
-      return "pl-health-error";
-    default:
-      return "pl-health-loading";
-  }
-}
-
 export interface OverviewHost {
   readonly settings: Gio.Settings;
-  readonly fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>;
   readonly shell: PanelShell;
   readonly translate: (message: string) => string;
   selectTab(tab: CockpitTab, focusTabButton?: boolean): void;
@@ -67,8 +42,7 @@ export interface OverviewHost {
 
 interface TabBarContext {
   readonly enabledProviders: readonly ProviderName[];
-  readonly results: ReadonlyMap<ProviderName, ReaderResult>;
-  readonly locale: string;
+  readonly models: readonly ProviderDisplayModel[];
   readonly activeTab: CockpitTab;
 }
 
@@ -86,6 +60,7 @@ class TabBarRenderer {
     clearChildren(this.bar, (child) => child.destroy());
     this._buttons.clear();
 
+    const modelsByProvider = new Map(context.models.map((model) => [model.provider, model]));
     const tabs = getAvailableTabs(context.enabledProviders);
     this.headerRow.visible = tabs.length > 0;
 
@@ -106,8 +81,7 @@ class TabBarRenderer {
           style_class: "pl-health-dot",
           y_align: Clutter.ActorAlign.CENTER,
         });
-        for (const cls of HEALTH_CLASSES) healthDot.remove_style_class_name(cls);
-        healthDot.add_style_class_name(healthClassFor(context.results.get(tab)));
+        applyHealthToneClass(healthDot, modelsByProvider.get(tab)?.health.tone ?? "idle");
         content.add_child(healthDot);
       }
 
@@ -299,13 +273,11 @@ export class OverviewRenderer {
 
   syncTabHeader(
     enabledProviders: readonly ProviderName[],
-    results: ReadonlyMap<ProviderName, ReaderResult>,
-    locale: string,
+    models: readonly ProviderDisplayModel[],
   ): void {
     this._tabRenderer.render({
       enabledProviders,
-      results,
-      locale,
+      models,
       activeTab: this._host.getActiveTab(),
     });
   }

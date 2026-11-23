@@ -5,7 +5,7 @@ import GLib from "gi://GLib";
 import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { resolveLocale } from "../helpers/locale.js";
-import type { FieldDef, ReaderResult } from "../readers/base.js";
+import type { ReaderResult } from "../readers/base.js";
 import { cycleTab, resolveActiveTab } from "./cockpitModel.js";
 import type { CockpitTab } from "./cockpitModel.js";
 import type { DetailHost } from "./panelGaugesDetail.js";
@@ -30,16 +30,11 @@ export class GaugesPanelSection implements PanelStyleSection {
   private _lastContext: PanelRenderContext;
   readonly shell: PanelShell;
 
-  constructor(
-    settings: Gio.Settings,
-    fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>,
-    shell: PanelShell,
-  ) {
+  constructor(settings: Gio.Settings, shell: PanelShell) {
     this.shell = shell;
     this._lastContext = {
       lastRefreshAt: null,
       view: emptyViewContext(
-        fieldDefs,
         resolveLocale(
           settings.get_string("language"),
           GLib.getenv("LC_MESSAGES"),
@@ -51,7 +46,6 @@ export class GaugesPanelSection implements PanelStyleSection {
 
     const host: OverviewHost & DetailHost = {
       settings,
-      fieldDefs,
       shell,
       translate: _,
       selectTab: (tab, focusTabButton) => this.selectTab(tab, focusTabButton),
@@ -89,7 +83,7 @@ export class GaugesPanelSection implements PanelStyleSection {
 
     this._enabledProviders = enabledProviders;
     this._activeTab = resolveActiveTab(this._activeTab, enabledProviders);
-    this._overview.syncTabHeader(enabledProviders, results, locale);
+    this._overview.syncTabHeader(enabledProviders, context.view.models);
 
     this.shell.clearBody();
     const nextState = this._resolveBodyState(context.view.phase, results);

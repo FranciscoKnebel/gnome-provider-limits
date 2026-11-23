@@ -3,9 +3,7 @@ import type Gio from "gi://Gio";
 import St from "gi://St";
 import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
-import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
-import type { FieldDef } from "../readers/base.js";
 import { connectRepaint, drawRadialGauge } from "./cairoDrawing.js";
 import { partitionProviderPanel } from "./cockpitModel.js";
 import type { BentoTileItem, PartitionedProviderPanel, RadialGaugeItem } from "./cockpitModel.js";
@@ -17,7 +15,6 @@ const RADIAL_GAUGE_SIZE = 80;
 
 export interface DetailHost {
   readonly settings: Gio.Settings;
-  readonly fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>;
   readonly shell: PanelShell;
   readonly translate: (message: string) => string;
 }

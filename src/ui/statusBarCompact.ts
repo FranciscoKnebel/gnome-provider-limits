@@ -31,23 +31,13 @@ function planCompact(context: ProviderViewContext): CompactPlan {
     t: context.t,
   });
 
-  if (context.phase === "empty") {
+  if (context.phase !== "ready") {
     return {
       kind: "placeholder",
-      phase: "empty",
-      placeholder: null,
-      placeholderAccessibleText: message.accessibleText,
-      showPlaceholder: false,
-    };
-  }
-
-  if (context.phase === "loading") {
-    return {
-      kind: "placeholder",
-      phase: "loading",
+      phase: context.phase,
       placeholder: message.placeholder,
       placeholderAccessibleText: message.accessibleText,
-      showPlaceholder: true,
+      showPlaceholder: message.showPlaceholder,
     };
   }
 
@@ -95,9 +85,9 @@ export class CompactStatusBarRenderer extends StatusBarRenderer<CompactPlan> {
 
   protected renderPlan(plan: CompactPlan): void {
     if (plan.kind === "placeholder") {
-      if (plan.placeholder === null) return;
+      if (!plan.showPlaceholder) return;
       const placeholder = new St.Label({
-        text: plan.placeholder,
+        text: plan.placeholder ?? "",
         style_class: "provider-limits-status-placeholder provider-limits-tnum",
         y_align: Clutter.ActorAlign.CENTER,
       });

@@ -65,12 +65,8 @@ interface FooterControlSpec {
 }
 
 /** Every difference between footer styles, assembled by the one buildFooter. */
-export interface FooterConfig {
-  readonly style: PanelStyle;
+interface FooterSpec {
   readonly rowClass: string;
-  readonly shellClass: string | null;
-  readonly scrollClass: string | undefined;
-  readonly insertionIndex: number | undefined;
   readonly layout: "toolbar" | "split";
   readonly toolbarClass?: string;
   readonly leadingClass?: string;
@@ -81,6 +77,9 @@ export interface FooterConfig {
   readonly timestampExpanded: boolean;
   readonly pointerSignal: PointerSignal;
   readonly control: FooterControlSpec;
+}
+
+export interface FooterConfig extends FooterSpec {
   readonly extraControls: readonly St.Widget[];
   readonly onRefresh: () => void;
   readonly openPreferences: () => void;
@@ -88,79 +87,93 @@ export interface FooterConfig {
   readonly onFooterKey: (event: Clutter.Event) => boolean;
 }
 
-type FooterSpec = Omit<
-  FooterConfig,
-  "extraControls" | "onRefresh" | "openPreferences" | "closeMenu" | "onFooterKey"
->;
+/** Shell placement and footer content stay separate despite sharing one table. */
+export interface PanelStyleSpec {
+  readonly shell: {
+    readonly shellClass: string | null;
+    readonly scrollClass: string | undefined;
+    readonly insertionIndex: number | undefined;
+  };
+  readonly footer: FooterSpec;
+}
 
-const FOOTER_SPECS: Record<PanelStyle, FooterSpec> = {
+const PANEL_STYLE_SPECS: Record<PanelStyle, PanelStyleSpec> = {
   gauges: {
-    style: "gauges",
-    rowClass: "pl-footer-row",
-    shellClass: "pl-cockpit-panel",
-    scrollClass: "pl-cockpit-scroll",
-    insertionIndex: undefined,
-    layout: "toolbar",
-    toolbarClass: "pl-footer-toolbar",
-    timestampClass: "provider-limits-dim pl-footer-timestamp",
-    timestampExpanded: true,
-    pointerSignal: "clicked",
-    control: {
-      factory: "button",
-      refreshClass: "pl-footer-button pl-refresh-button",
-      settingsClass: "pl-footer-button pl-settings-button",
-      refreshContentClass: "pl-footer-button-box",
-      refreshLabel: true,
-      settingsLabel: true,
+    shell: {
+      shellClass: "pl-cockpit-panel",
+      scrollClass: "pl-cockpit-scroll",
+      insertionIndex: undefined,
+    },
+    footer: {
+      rowClass: "pl-footer-row",
+      layout: "toolbar",
+      toolbarClass: "pl-footer-toolbar",
+      timestampClass: "provider-limits-dim pl-footer-timestamp",
+      timestampExpanded: true,
+      pointerSignal: "clicked",
+      control: {
+        factory: "button",
+        refreshClass: "pl-footer-button pl-refresh-button",
+        settingsClass: "pl-footer-button pl-settings-button",
+        refreshContentClass: "pl-footer-button-box",
+        refreshLabel: true,
+        settingsLabel: true,
+      },
     },
   },
   cards: {
-    style: "cards",
-    rowClass: "pl-panel-footer-row",
-    shellClass: null,
-    scrollClass: "pl-panel-scroll",
-    insertionIndex: undefined,
-    layout: "toolbar",
-    toolbarClass: "pl-panel-footer",
-    timestampClass: "provider-limits-dim pl-footer-timestamp",
-    timestampExpanded: true,
-    pointerSignal: "button-release-event",
-    control: {
-      factory: "box",
-      refreshClass: "pl-footer-action pl-refresh-action",
-      settingsClass: "pl-footer-action pl-settings-action",
-      refreshIcon: { name: "view-refresh-symbolic", styleClass: "pl-footer-icon" },
-      settingsIcon: { name: "preferences-system-symbolic", styleClass: "pl-footer-icon" },
-      labelClass: "pl-footer-action-label",
-      refreshLabel: true,
-      settingsLabel: true,
-      disabledClass: "pl-footer-action-disabled",
-      syncIconVisibility: true,
+    shell: {
+      shellClass: null,
+      scrollClass: "pl-panel-scroll",
+      insertionIndex: undefined,
+    },
+    footer: {
+      rowClass: "pl-panel-footer-row",
+      layout: "toolbar",
+      toolbarClass: "pl-panel-footer",
+      timestampClass: "provider-limits-dim pl-footer-timestamp",
+      timestampExpanded: true,
+      pointerSignal: "button-release-event",
+      control: {
+        factory: "box",
+        refreshClass: "pl-footer-action pl-refresh-action",
+        settingsClass: "pl-footer-action pl-settings-action",
+        refreshIcon: { name: "view-refresh-symbolic", styleClass: "pl-footer-icon" },
+        settingsIcon: { name: "preferences-system-symbolic", styleClass: "pl-footer-icon" },
+        labelClass: "pl-footer-action-label",
+        refreshLabel: true,
+        settingsLabel: true,
+        disabledClass: "pl-footer-action-disabled",
+        syncIconVisibility: true,
+      },
     },
   },
   compact: {
-    style: "compact",
-    rowClass: "provider-limits-hud-toolbar",
-    shellClass: null,
-    scrollClass: undefined,
-    insertionIndex: 0,
-    layout: "split",
-    leadingClass: "provider-limits-hud-toolbar-left",
-    trailingClass: "provider-limits-hud-actions",
-    title: "Provider Limits",
-    titleClass: "provider-limits-hud-title",
-    timestampClass: "provider-limits-hud-meta provider-limits-tnum",
-    timestampExpanded: false,
-    pointerSignal: "clicked",
-    control: {
-      factory: "button",
-      refreshClass: "provider-limits-icon-button",
-      settingsClass: "provider-limits-icon-button",
-      refreshIcon: { name: "view-refresh-symbolic" },
-      settingsIcon: { name: "emblem-system-symbolic" },
-      refreshIconBeforeSpinner: true,
-      refreshLabel: false,
-      settingsLabel: false,
+    shell: {
+      shellClass: null,
+      scrollClass: undefined,
+      insertionIndex: 0,
+    },
+    footer: {
+      rowClass: "provider-limits-hud-toolbar",
+      layout: "split",
+      leadingClass: "provider-limits-hud-toolbar-left",
+      trailingClass: "provider-limits-hud-actions",
+      title: "Provider Limits",
+      titleClass: "provider-limits-hud-title",
+      timestampClass: "provider-limits-hud-meta provider-limits-tnum",
+      timestampExpanded: false,
+      pointerSignal: "clicked",
+      control: {
+        factory: "button",
+        refreshClass: "provider-limits-icon-button",
+        settingsClass: "provider-limits-icon-button",
+        refreshIcon: { name: "view-refresh-symbolic" },
+        settingsIcon: { name: "emblem-system-symbolic" },
+        refreshIconBeforeSpinner: true,
+        refreshLabel: false,
+        settingsLabel: false,
+      },
     },
   },
 };
@@ -168,9 +181,6 @@ const FOOTER_SPECS: Record<PanelStyle, FooterSpec> = {
 interface FooterBuild {
   readonly actors: PanelFooterActors;
   readonly applyRunning: (running: boolean) => void;
-  readonly shellClass: string | null;
-  readonly scrollClass: string | undefined;
-  readonly insertionIndex: number | undefined;
 }
 
 function runningText(running: boolean): string {
@@ -443,9 +453,6 @@ function buildFooter(config: FooterConfig): FooterBuild {
       spinner,
     },
     applyRunning: (running) => refresh.setRunning(running),
-    shellClass: config.shellClass,
-    scrollClass: config.scrollClass,
-    insertionIndex: config.insertionIndex,
   };
 }
 
@@ -486,8 +493,9 @@ export class PanelShell extends PopupMenu.PopupMenuSection {
     this._footerKeyHandler = options.onFooterKeyPress ?? (() => Clutter.EVENT_PROPAGATE);
 
     const onFooterKey = (event: Clutter.Event): boolean => this._footerKeyHandler(event);
+    const styleSpec = PANEL_STYLE_SPECS[options.footerVariant];
     const config: FooterConfig = {
-      ...FOOTER_SPECS[options.footerVariant],
+      ...styleSpec.footer,
       extraControls: options.extraControls ?? [],
       onRefresh: () => {
         if (!this.isRunning()) this._onRefresh();
@@ -497,7 +505,8 @@ export class PanelShell extends PopupMenu.PopupMenuSection {
       onFooterKey,
     };
     const footer = buildFooter(config);
-    if (footer.shellClass !== null) this.box.add_style_class_name(footer.shellClass);
+    if (styleSpec.shell.shellClass !== null)
+      this.box.add_style_class_name(styleSpec.shell.shellClass);
 
     this._footer = footer.actors;
     this._applyFooterRunning = footer.applyRunning;
@@ -510,7 +519,9 @@ export class PanelShell extends PopupMenu.PopupMenuSection {
     this._scroll = new St.ScrollView({
       overlay_scrollbars: true,
       x_expand: true,
-      ...(footer.scrollClass !== undefined ? { style_class: footer.scrollClass } : {}),
+      ...(styleSpec.shell.scrollClass !== undefined
+        ? { style_class: styleSpec.shell.scrollClass }
+        : {}),
     });
     this._scroll.set_policy(St.PolicyType.NEVER, St.PolicyType.AUTOMATIC);
     this.addMenuItem(this._body);
@@ -527,7 +538,7 @@ export class PanelShell extends PopupMenu.PopupMenuSection {
       this._scroll.style = `max-height: ${Math.max(1, Math.floor((area.height / scale) * 0.6))}px;`;
     });
 
-    this.addMenuItem(this._footer.row, footer.insertionIndex);
+    this.addMenuItem(this._footer.row, styleSpec.shell.insertionIndex);
   }
 
   /** Shared footer row and action actors. No style-specific controls live here. */
