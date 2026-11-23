@@ -510,3 +510,74 @@ msgstr "Entre com Gemini CLI ou Antigravity."
 msgid "Leave the authentication file empty to use ~/.gemini/oauth_creds.json or Antigravity credentials."
 msgstr "Deixe o arquivo de autenticação vazio para usar ~/.gemini/oauth_creds.json ou credenciais do Antigravity."
 
+#: src/ui/cockpitModel.ts
+msgid "OK"
+msgstr "OK"
+
+#: src/ui/cockpitModel.ts
+msgid "Cached"
+msgstr "Em cache"
+
+#: src/ui/cockpitModel.ts
+msgid "Partial"
+msgstr "Parcial"
+
+#: src/ui/panel.ts
+msgid "Overview"
+msgstr "Visão geral"
+
+#: src/ui/panel.ts
+msgid "No providers enabled"
+msgstr "Nenhum provedor ativado"
+
+#: src/ui/panel.ts
+msgid "Enable a provider in Settings to monitor usage limits."
+msgstr "Ative um provedor nas Configurações para monitorar limites de uso."
+
+#: src/ui/panel.ts
+msgid "Reading provider limits…"
+msgstr "Lendo limites dos provedores…"
+
+#: src/ui/panel.ts
+msgid "Waiting for initial refresh to complete."
+msgstr "Aguardando a atualização inicial ser concluída."
+
+#: src/ui/panel.ts
+msgid "No panel fields configured for this provider."
+msgstr "Nenhum campo do painel configurado para este provedor."
+
+#: src/ui/prefs/main-page.ts
+msgid "Move up"
+msgstr "Mover para cima"
+
+#: src/ui/prefs/main-page.ts
+msgid "Move down"
+msgstr "Mover para baixo"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Field Matrix"
+msgstr "Matriz de campos"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Toggle which fields appear in the status bar and panel."
+msgstr "Alterne quais campos aparecem na barra de status e no painel."
+
+#: src/ui/prefs/provider-page.ts
+msgid "Reset defaults"
+msgstr "Restaurar padrões"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Top Bar"
+msgstr "Barra superior"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Panel"
+msgstr "Painel"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Reorder active fields with the arrow buttons or by dragging."
+msgstr "Reordene os campos ativos com os botões de seta ou arrastando."
+
+#: src/ui/prefs/provider-page.ts
+msgid "No fields selected."
+msgstr "Nenhum campo selecionado."

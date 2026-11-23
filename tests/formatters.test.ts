@@ -172,7 +172,8 @@ describe("formatters", () => {
     });
 
     it("returns only time when same day as now", () => {
-      const ms = Date.now() - 60_000;
+      const now = new Date();
+      const ms = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 12, 0, 0).getTime();
       const result = formatAbsoluteTimestamp(ms, "en");
       expect(result).toMatch(/^\d{1,2}:\d{2}/);
       expect(result).not.toContain(",");

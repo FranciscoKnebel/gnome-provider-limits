@@ -9,16 +9,12 @@ import { formatField } from "../../formatters.js";
 import { resolveLocale } from "../../helpers/locale.js";
 import { providerDisplayName } from "../../helpers/provider-settings.js";
 import type { FieldDef, FieldType } from "../../readers/base.js";
-import { CLAUDE_FIELDS } from "../../readers/claude.js";
-import { CODEX_FIELDS } from "../../readers/codex.js";
-import { CURSOR_FIELDS } from "../../readers/cursor.js";
-import { GOOGLE_FIELDS } from "../../readers/google.js";
-import { GROK_FIELDS } from "../../readers/grok.js";
-import { OPENCODE_FIELDS } from "../../readers/opencode.js";
+import { DEFAULT_PROVIDER_ZONE_FIELDS, PROVIDER_FIELDS } from "../../readers/fields.js";
 import { gettext as _ } from "./gettext.js";
 import {
   bindSetting,
   buildReorderableList,
+  createMoveButtons,
   setupDragSource,
   setupDropTarget,
   unbindSettings,
@@ -39,17 +35,10 @@ function sampleValue(type: FieldType): unknown {
   return SAMPLE_VALUES[type];
 }
 
-const READER_FIELDS: Record<ProviderName, readonly FieldDef[]> = {
-  codex: CODEX_FIELDS,
-  claude: CLAUDE_FIELDS,
-  opencode: OPENCODE_FIELDS,
-  grok: GROK_FIELDS,
-  cursor: CURSOR_FIELDS,
-  google: GOOGLE_FIELDS,
-};
-
-function getReaderFields(provider: ProviderName): readonly FieldDef[] {
-  return READER_FIELDS[provider];
+interface MatrixRowTogglePair {
+  fieldName: string;
+  topBarToggle: Gtk.ToggleButton;
+  panelToggle: Gtk.ToggleButton;
 }
 
 export const ProviderPage = GObject.registerClass(
@@ -79,8 +68,9 @@ export const ProviderPage = GObject.registerClass(
       });
 
       this.add(this._buildSettingsGroup());
-      this.add(this._buildFieldsGroup("status-fields", _("Status bar fields")));
-      this.add(this._buildFieldsGroup("panel-fields", _("Panel fields")));
+      this.add(this._buildFieldMatrixGroup());
+      this.add(this._buildOrderGroup("status-fields", _("Status bar fields")));
+      this.add(this._buildOrderGroup("panel-fields", _("Panel fields")));
     }
 
     cleanup(): void {
@@ -164,7 +154,137 @@ export const ProviderPage = GObject.registerClass(
       return group;
     }
 
-    private _buildFieldsGroup(suffix: string, title: string): Adw.PreferencesGroup {
+    private _buildFieldMatrixGroup(): Adw.PreferencesGroup {
+      const statusKey = `${this._provider}-status-fields`;
+      const panelKey = `${this._provider}-panel-fields`;
+      const available = PROVIDER_FIELDS[this._provider];
+      const locale = resolveLocale(
+        this._settings.get_string("language"),
+        GLib.getenv("LC_MESSAGES"),
+        GLib.getenv("LANG"),
+      );
+
+      const group = new Adw.PreferencesGroup({
+        title: _("Field Matrix"),
+        description: _("Toggle which fields appear in the status bar and panel."),
+      });
+
+      const resetButton = new Gtk.Button({
+        label: _("Reset defaults"),
+        valign: Gtk.Align.CENTER,
+      });
+      resetButton.add_css_class("flat");
+      resetButton.connect("clicked", () => {
+        const defaults = DEFAULT_PROVIDER_ZONE_FIELDS[this._provider];
+        this._settings.set_strv(statusKey, [...defaults.status]);
+        this._settings.set_strv(panelKey, [...defaults.panel]);
+      });
+      group.set_header_suffix(resetButton);
+
+      const listBox = new Gtk.ListBox({
+        selection_mode: Gtk.SelectionMode.NONE,
+        show_separators: false,
+        accessible_role: Gtk.AccessibleRole.LIST,
+      });
+      listBox.add_css_class("boxed-list");
+
+      const pairs: MatrixRowTogglePair[] = [];
+      let syncingToggles = false;
+
+      const toggleFieldInZone = (key: string, fieldName: string, enabled: boolean) => {
+        const current = this._settings.get_strv(key);
+        const exists = current.includes(fieldName);
+        if (enabled && !exists) {
+          this._settings.set_strv(key, [...current, fieldName]);
+        } else if (!enabled && exists) {
+          this._settings.set_strv(
+            key,
+            current.filter((item) => item !== fieldName),
+          );
+        }
+      };
+
+      const initialStatus = new Set(this._settings.get_strv(statusKey));
+      const initialPanel = new Set(this._settings.get_strv(panelKey));
+
+      for (const def of available) {
+        const row = new Adw.ActionRow({
+          title: _(def.label),
+          subtitle: this._preview(def, "panel", locale),
+          activatable: false,
+        });
+
+        const buttonBox = new Gtk.Box({
+          spacing: 6,
+          valign: Gtk.Align.CENTER,
+        });
+
+        const topBarToggle = new Gtk.ToggleButton({
+          label: _("Top Bar"),
+          active: initialStatus.has(def.name),
+          valign: Gtk.Align.CENTER,
+          tooltip_text: _("Top Bar"),
+        });
+        topBarToggle.connect("toggled", (btn: Gtk.ToggleButton) => {
+          if (syncingToggles) return;
+          toggleFieldInZone(statusKey, def.name, btn.active);
+        });
+
+        const panelToggle = new Gtk.ToggleButton({
+          label: _("Panel"),
+          active: initialPanel.has(def.name),
+          valign: Gtk.Align.CENTER,
+          tooltip_text: _("Panel"),
+        });
+        panelToggle.connect("toggled", (btn: Gtk.ToggleButton) => {
+          if (syncingToggles) return;
+          toggleFieldInZone(panelKey, def.name, btn.active);
+        });
+
+        buttonBox.append(topBarToggle);
+        buttonBox.append(panelToggle);
+        row.add_suffix(buttonBox);
+        listBox.append(row);
+
+        pairs.push({ fieldName: def.name, topBarToggle, panelToggle });
+      }
+
+      const syncToggles = () => {
+        if (syncingToggles) return;
+        syncingToggles = true;
+        try {
+          const statusSet = new Set(this._settings.get_strv(statusKey));
+          const panelSet = new Set(this._settings.get_strv(panelKey));
+          for (const pair of pairs) {
+            const wantStatus = statusSet.has(pair.fieldName);
+            if (pair.topBarToggle.active !== wantStatus) {
+              pair.topBarToggle.active = wantStatus;
+            }
+            const wantPanel = panelSet.has(pair.fieldName);
+            if (pair.panelToggle.active !== wantPanel) {
+              pair.panelToggle.active = wantPanel;
+            }
+          }
+        } finally {
+          syncingToggles = false;
+        }
+      };
+
+      const statusChangedId = this._settings.connect(`changed::${statusKey}`, syncToggles);
+      const panelChangedId = this._settings.connect(`changed::${panelKey}`, syncToggles);
+      this._destroyCallbacks.push(() => {
+        this._settings.disconnect(statusChangedId);
+        this._settings.disconnect(panelChangedId);
+      });
+
+      group.add(listBox);
+      return group;
+    }
+
+    private _buildOrderGroup(
+      suffix: "status-fields" | "panel-fields",
+      title: string,
+    ): Adw.PreferencesGroup {
       const key = `${this._provider}-${suffix}`;
       const zone = suffix === "status-fields" ? "status" : "panel";
       const locale = resolveLocale(
@@ -172,80 +292,61 @@ export const ProviderPage = GObject.registerClass(
         GLib.getenv("LC_MESSAGES"),
         GLib.getenv("LANG"),
       );
-      const available = getReaderFields(this._provider);
+      const available = PROVIDER_FIELDS[this._provider];
 
       const group = new Adw.PreferencesGroup({
         title,
-        description: _('Drag rows to reorder. Use "+" to add fields.'),
+        description: _("Reorder active fields with the arrow buttons or by dragging."),
       });
 
-      const addButton = new Gtk.Button({
-        icon_name: "list-add-symbolic",
-        tooltip_text: _("Add field"),
-      });
-      addButton.add_css_class("flat");
-      group.set_header_suffix(addButton);
+      const { listBox, destroy } = buildReorderableList(
+        this._settings,
+        key,
+        (name, context) => {
+          const def = available.find((f) => f.name === name);
+          if (!def) return null;
 
-      addButton.connect("clicked", () => {
-        const used = new Set(this._settings.get_strv(key));
+          const row = new Adw.ActionRow({
+            title: _(def.label),
+            subtitle: this._preview(def, zone, locale),
+            activatable: false,
+          });
 
-        const dialog = new Adw.MessageDialog({
-          body: _("Select a field to add:"),
-          close_response: "cancel",
-        });
+          const dragHandle = new Gtk.Image({ icon_name: "list-drag-handle-symbolic" });
+          row.add_prefix(dragHandle);
 
-        dialog.add_response("cancel", _("Cancel"));
-        dialog.set_default_response("cancel");
+          const moveButtons = createMoveButtons({
+            settings: this._settings,
+            key,
+            visibleValues: context.visibleValues,
+            index: context.index,
+            moveUpLabel: _("Move up"),
+            moveDownLabel: _("Move down"),
+          });
+          row.add_suffix(moveButtons);
 
-        for (const def of available) {
-          if (used.has(def.name)) continue;
-          dialog.add_response(def.name, _(def.label));
-        }
+          const removeButton = new Gtk.Button({
+            icon_name: "list-remove-symbolic",
+            valign: Gtk.Align.CENTER,
+            tooltip_text: _("Remove"),
+          });
+          removeButton.add_css_class("flat");
+          removeButton.connect("clicked", () => {
+            const values = this._settings.get_strv(key).filter((v) => v !== name);
+            this._settings.set_strv(key, values);
+          });
+          row.add_suffix(removeButton);
 
-        if (available.every((def) => used.has(def.name))) {
-          dialog.add_response("none", _("No more fields available"));
-          dialog.set_response_enabled("none", false);
-        }
+          setupDragSource(row, name);
+          setupDropTarget(row, this._settings, key, name);
 
-        dialog.connect("response", (_widget, response) => {
-          if (response === "cancel" || response === "none") return;
-          const values = this._settings.get_strv(key);
-          this._settings.set_strv(key, [...values, response]);
-        });
-
-        dialog.present();
-      });
-
-      const { listBox, destroy } = buildReorderableList(this._settings, key, (name) => {
-        const def = available.find((f) => f.name === name);
-        if (!def) return null;
-
-        const row = new Adw.ActionRow({
-          title: _(def.label),
-          subtitle: this._preview(def, zone, locale),
-          activatable: false,
-        });
-
-        const dragHandle = new Gtk.Image({ icon_name: "list-drag-handle-symbolic" });
-        row.add_prefix(dragHandle);
-
-        const removeButton = new Gtk.Button({
-          icon_name: "list-remove-symbolic",
-          valign: Gtk.Align.CENTER,
-          tooltip_text: _("Remove"),
-        });
-        removeButton.add_css_class("flat");
-        removeButton.connect("clicked", () => {
-          const values = this._settings.get_strv(key).filter((v) => v !== name);
-          this._settings.set_strv(key, values);
-        });
-        row.add_suffix(removeButton);
-
-        setupDragSource(row, name);
-        setupDropTarget(row, this._settings, key, name);
-
-        return row;
-      });
+          return row;
+        },
+        {
+          isRenderable: (name) => available.some((f) => f.name === name),
+          emptyText: _("No fields selected."),
+        },
+      );
       this._destroyCallbacks.push(destroy);
       group.add(listBox);
       return group;

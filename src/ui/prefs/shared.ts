@@ -15,6 +15,11 @@ export interface SettingsBinding {
   property: string;
 }
 
+export interface ReorderRowContext {
+  index: number;
+  visibleValues: readonly string[];
+}
+
 export function isDisposablePage(
   page: Adw.PreferencesPage,
 ): page is Adw.PreferencesPage & DisposablePage {
@@ -54,15 +59,68 @@ export function setupDragSource(row: Adw.ActionRow, value: string): void {
   row.add_controller(dragSource);
 }
 
+export function createMoveButtons(options: {
+  settings: Gio.Settings;
+  key: string;
+  visibleValues: readonly string[];
+  index: number;
+  moveUpLabel: string;
+  moveDownLabel: string;
+}): Gtk.Box {
+  const { settings, key, visibleValues, index, moveUpLabel, moveDownLabel } = options;
+  const current = visibleValues[index];
+
+  const box = new Gtk.Box({
+    spacing: 2,
+    valign: Gtk.Align.CENTER,
+  });
+
+  const upButton = new Gtk.Button({
+    icon_name: "go-up-symbolic",
+    valign: Gtk.Align.CENTER,
+    tooltip_text: moveUpLabel,
+    sensitive: index > 0,
+  });
+  upButton.add_css_class("flat");
+  upButton.connect("clicked", () => {
+    if (index <= 0) return;
+    const prev = visibleValues[index - 1];
+    const reordered = reorderValue(settings.get_strv(key), current, prev);
+    if (reordered) settings.set_strv(key, reordered);
+  });
+
+  const downButton = new Gtk.Button({
+    icon_name: "go-down-symbolic",
+    valign: Gtk.Align.CENTER,
+    tooltip_text: moveDownLabel,
+    sensitive: index < visibleValues.length - 1,
+  });
+  downButton.add_css_class("flat");
+  downButton.connect("clicked", () => {
+    if (index >= visibleValues.length - 1) return;
+    const next = visibleValues[index + 1];
+    const reordered = reorderValue(settings.get_strv(key), current, next);
+    if (reordered) settings.set_strv(key, reordered);
+  });
+
+  box.append(upButton);
+  box.append(downButton);
+  return box;
+}
+
 export function buildReorderableList(
   settings: Gio.Settings,
   key: string,
-  buildRow: (value: string) => Adw.ActionRow | null,
-  normalizeValues?: (values: readonly string[]) => readonly string[],
-  beforeRender?: () => void,
+  buildRow: (value: string, context: ReorderRowContext) => Adw.ActionRow | null,
+  options?: {
+    normalizeValues?: (values: readonly string[]) => readonly string[];
+    beforeRender?: () => void;
+    isRenderable?: (value: string) => boolean;
+    emptyText?: string;
+  },
 ): { listBox: Gtk.ListBox; render: () => void; destroy: () => void } {
   const listBox = new Gtk.ListBox({
-    selection_mode: Gtk.SelectionMode.SINGLE,
+    selection_mode: Gtk.SelectionMode.NONE,
     show_separators: false,
     accessible_role: Gtk.AccessibleRole.LIST,
   });
@@ -74,17 +132,32 @@ export function buildReorderableList(
     if (isRendering) return;
     isRendering = true;
     try {
-      beforeRender?.();
+      options?.beforeRender?.();
       clearListBox(listBox);
       const currentValues = settings.get_strv(key);
-      const values = normalizeValues ? [...normalizeValues(currentValues)] : currentValues;
-      if (normalizeValues && !stringArraysEqual(currentValues, values)) {
+      const values = options?.normalizeValues
+        ? [...options.normalizeValues(currentValues)]
+        : currentValues;
+      if (options?.normalizeValues && !stringArraysEqual(currentValues, values)) {
         settings.set_strv(key, values);
       }
-      for (const value of values) {
-        const row = buildRow(value);
-        if (row) listBox.append(row);
+
+      const visibleValues = options?.isRenderable ? values.filter(options.isRenderable) : values;
+
+      if (visibleValues.length === 0 && options?.emptyText) {
+        const emptyRow = new Adw.ActionRow({
+          title: options.emptyText,
+          activatable: false,
+          sensitive: false,
+        });
+        listBox.append(emptyRow);
+        return;
       }
+
+      visibleValues.forEach((value, index) => {
+        const row = buildRow(value, { index, visibleValues });
+        if (row) listBox.append(row);
+      });
     } finally {
       isRendering = false;
     }

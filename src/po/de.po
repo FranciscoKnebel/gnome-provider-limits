@@ -510,3 +510,74 @@ msgstr "Mit Gemini CLI oder Antigravity anmelden."
 msgid "Leave the authentication file empty to use ~/.gemini/oauth_creds.json or Antigravity credentials."
 msgstr "Authentifizierungsdatei leer lassen, um ~/.gemini/oauth_creds.json oder Antigravity-Zugangsdaten zu verwenden."
 
+#: src/ui/cockpitModel.ts
+msgid "OK"
+msgstr "OK"
+
+#: src/ui/cockpitModel.ts
+msgid "Cached"
+msgstr "Zwischengespeichert"
+
+#: src/ui/cockpitModel.ts
+msgid "Partial"
+msgstr "Teilweise"
+
+#: src/ui/panel.ts
+msgid "Overview"
+msgstr "Übersicht"
+
+#: src/ui/panel.ts
+msgid "No providers enabled"
+msgstr "Keine Anbieter aktiviert"
+
+#: src/ui/panel.ts
+msgid "Enable a provider in Settings to monitor usage limits."
+msgstr "Aktivieren Sie in den Einstellungen einen Anbieter, um Nutzungslimits zu überwachen."
+
+#: src/ui/panel.ts
+msgid "Reading provider limits…"
+msgstr "Anbieterlimits werden gelesen…"
+
+#: src/ui/panel.ts
+msgid "Waiting for initial refresh to complete."
+msgstr "Warten auf Abschluss der ersten Aktualisierung."
+
+#: src/ui/panel.ts
+msgid "No panel fields configured for this provider."
+msgstr "Für diesen Anbieter sind keine Panel-Felder konfiguriert."
+
+#: src/ui/prefs/main-page.ts
+msgid "Move up"
+msgstr "Nach oben"
+
+#: src/ui/prefs/main-page.ts
+msgid "Move down"
+msgstr "Nach unten"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Field Matrix"
+msgstr "Feldmatrix"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Toggle which fields appear in the status bar and panel."
+msgstr "Wählen Sie aus, welche Felder in der Statusleiste und im Panel angezeigt werden."
+
+#: src/ui/prefs/provider-page.ts
+msgid "Reset defaults"
+msgstr "Standards wiederherstellen"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Top Bar"
+msgstr "Obere Leiste"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Panel"
+msgstr "Panel"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Reorder active fields with the arrow buttons or by dragging."
+msgstr "Ordnen Sie aktive Felder mit den Pfeiltasten oder per Ziehen neu an."
+
+#: src/ui/prefs/provider-page.ts
+msgid "No fields selected."
+msgstr "Keine Felder ausgewählt."
