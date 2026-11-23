@@ -8,7 +8,6 @@ import type { FieldView } from "./fieldViews.js";
 import {
   deriveFieldViews,
   deriveProviderHealth,
-  healthFromStatusAndTones,
   projectUsageFacts,
   statusBadgeText,
   toAttention,
@@ -121,7 +120,7 @@ export function resolveStatusAttention(
   status: ReaderStatus,
   tones: readonly (FieldTone | undefined)[],
 ): ProviderAttention {
-  return toAttention(healthFromStatusAndTones(status, tones));
+  return toAttention(deriveProviderHealth(status, { tones }));
 }
 
 function groupsFromViews(views: readonly FieldView[], tr: (s: string) => string): MatrixRowGroup[] {
@@ -213,7 +212,15 @@ export function planPanelMatrix(input: PlanPanelMatrixInput): PanelMatrixPlan {
       input.locale,
       tr,
     );
-    const statusBadge = statusBadgeText(deriveProviderHealth(result, headerViews, tr, defs), tr);
+    const statusBadge = statusBadgeText(
+      deriveProviderHealth(result.status, {
+        result,
+        views: headerViews,
+        fieldDefs: defs,
+        t: tr,
+      }),
+      tr,
+    );
 
     const facts = projectUsageFacts(result, headerViews, statusFieldNames, {
       limitOnly: true,

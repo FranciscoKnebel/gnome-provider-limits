@@ -20,12 +20,16 @@ export type FieldType = "percent" | "count" | "tokens" | "cost" | "timestamp" | 
 
 export type FieldZone = "status" | "panel";
 
+export type FieldCategory = "limit" | "telemetry";
+
 export interface FieldDef {
   readonly name: string;
   readonly label: string;
   readonly type: FieldType;
   readonly description?: string;
   readonly defaultZone: FieldZone;
+  readonly category?: FieldCategory;
+  readonly resetField?: string;
 }
 
 export interface FieldResult<T = unknown> {

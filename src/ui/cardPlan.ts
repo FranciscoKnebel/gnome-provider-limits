@@ -11,10 +11,10 @@ import {
   deriveFieldViews,
   deriveProviderHealth,
 } from "./fieldViews.js";
-import type { CardBadgeValue, ProviderTone } from "./providerTypes.js";
+import type { Presentation, ProviderTone } from "./providerTypes.js";
 import { structureKey } from "./renderStructure.js";
 
-export type CardBadgeKind = CardBadgeValue;
+export type CardBadgeKind = Presentation["cardBadge"];
 export type BannerKind = "warning" | "error";
 export type PanelEmptyState = "none" | "disabled" | "loading";
 
@@ -95,7 +95,12 @@ export function planProviderCard(options: PlanProviderCardOptions): ProviderCard
     result.status === ReaderStatus.ERROR || result.status === ReaderStatus.UNAVAILABLE;
 
   const views = isHardError ? [] : deriveFieldViews(defs, result, panelFields, "panel", locale, tr);
-  const health = deriveProviderHealth(result, views, tr, defs);
+  const health = deriveProviderHealth(result.status, {
+    result,
+    views,
+    fieldDefs: defs,
+    t: tr,
+  });
   const badgeKind: CardBadgeKind = badgeForZone(health, "card");
   const badgeText = cardBadgeText(health, tr);
   const healthTone = health.tone;

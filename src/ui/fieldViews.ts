@@ -7,13 +7,12 @@ import { companionResetFieldName, resolveFieldCategory } from "../readers/fields
 import type { FieldRow, FieldTone } from "./fieldRows.js";
 import { fieldTone, getFieldRows } from "./fieldRows.js";
 import type {
-  CardBadgeValue,
-  OverviewBadgeValue,
+  Presentation,
   ProviderAttention,
   ProviderHealth,
   ProviderState,
-  ProviderTone,
 } from "./providerTypes.js";
+import { PRESENTATION } from "./providerTypes.js";
 import { clampFillRatio, extractWindowSuffix } from "./usageSnapshot.js";
 
 export interface FieldView {
@@ -242,43 +241,32 @@ export function isLastKnownGood(result: ReaderResult): boolean {
   );
 }
 
-const TONE_BY_STATE: Readonly<Record<ProviderState, ProviderTone>> = {
-  ok: "ok",
-  warning: "warning",
-  critical: "critical",
-  partial: "partial",
-  error: "error",
-  unavailable: "error",
-  idle: "idle",
-  loading: "idle",
-};
+export interface DeriveHealthOptions {
+  readonly tones?: readonly (FieldTone | undefined)[];
+  readonly result?: ReaderResult;
+  readonly views?: readonly FieldView[];
+  readonly fieldDefs?: readonly FieldDef[];
+  readonly t?: (s: string) => string;
+  readonly hasUsableField?: boolean;
+  readonly lastKnownGood?: boolean;
+}
 
-export function deriveProviderState(
+function deriveState(
   status: ReaderStatus,
-  tones: readonly (FieldTone | undefined)[],
+  worstTone: FieldTone | undefined,
   hasUsableField: boolean,
   lastKnownGood: boolean,
-): ProviderHealth {
-  const worstTone = worstFieldTone(tones);
-  let state: ProviderState;
-  if (status === ReaderStatus.ERROR) state = "error";
-  else if (status === ReaderStatus.UNAVAILABLE) state = "unavailable";
-  else if (status === ReaderStatus.DISABLED) state = "idle";
-  else if (worstTone === "critical") state = "critical";
-  else if (status === ReaderStatus.PARTIAL) state = "partial";
-  else if (worstTone === "warning") state = "warning";
-  else if (hasUsableField) state = "ok";
-  else state = "idle";
-
-  return {
-    state,
-    tone: TONE_BY_STATE[state],
-    worstTone,
-    hasUsableField,
-    lastKnownGood,
-    stateTag: null,
-    stateAccessibleText: null,
-  };
+): ProviderState {
+  if (status === ReaderStatus.ERROR) return "error";
+  if (status === ReaderStatus.UNAVAILABLE) return "unavailable";
+  if (status === ReaderStatus.DISABLED) return "idle";
+  if (worstTone === "critical") return "critical";
+  if (status === ReaderStatus.PARTIAL) {
+    if (lastKnownGood) return worstTone === "warning" ? "cachedWarning" : "cached";
+    return worstTone === "warning" ? "partialWarning" : "partial";
+  }
+  if (worstTone === "warning") return "warning";
+  return hasUsableField ? "ok" : "idle";
 }
 
 function localizedStateText(
@@ -300,131 +288,64 @@ function localizedStateText(
 }
 
 export function deriveProviderHealth(
-  result: ReaderResult,
-  views: readonly FieldView[],
-  t?: (s: string) => string,
-  defs?: readonly FieldDef[],
-  hasUsableOverride?: boolean,
-): ProviderHealth {
-  const tr = t ?? ((s: string) => s);
-  const tones = collectFieldTones(views, result.fields, defs);
-  const hasUsableField =
-    hasUsableOverride ??
-    (views.some((view) => view.hasValue) ||
-      result.fields.some((field) => field.status === FieldStatus.OK));
-  const lastKnownGood = isLastKnownGood(result);
-  const core = deriveProviderState(result.status, tones, hasUsableField, lastKnownGood);
-  const stateText = localizedStateText(result.status, tr);
-
-  return { ...core, ...stateText };
-}
-
-export function healthFromStatusAndTones(
   status: ReaderStatus,
-  tones: readonly (FieldTone | undefined)[],
-  t?: (s: string) => string,
-  hasUsableField = false,
+  options: DeriveHealthOptions = {},
 ): ProviderHealth {
-  const tr = t ?? ((s: string) => s);
-  const core = deriveProviderState(status, tones, hasUsableField, false);
+  const tr = options.t ?? ((s: string) => s);
+  const { result, views, fieldDefs } = options;
+  const tones =
+    options.tones ?? (result && views ? collectFieldTones(views, result.fields, fieldDefs) : []);
+  const worstTone = worstFieldTone(tones);
+  const hasUsableField =
+    options.hasUsableField ??
+    (result && views
+      ? views.some((view) => view.hasValue) ||
+        result.fields.some((field) => field.status === FieldStatus.OK)
+      : false);
+  const lastKnownGood = options.lastKnownGood ?? (result ? isLastKnownGood(result) : false);
+  const state = deriveState(status, worstTone, hasUsableField, lastKnownGood);
   const stateText = localizedStateText(status, tr);
 
-  return { ...core, ...stateText };
+  return {
+    state,
+    tone: PRESENTATION[state].tone,
+    worstTone,
+    hasUsableField,
+    lastKnownGood,
+    ...stateText,
+  };
 }
 
 export function toAttention(health: ProviderHealth): ProviderAttention {
-  if (health.state === "partial" && health.worstTone === "warning") return "warning";
-  switch (health.state) {
-    case "error":
-    case "unavailable":
-      return "error";
-    case "partial":
-      return "partial";
-    case "warning":
-      return "warning";
-    case "critical":
-      return "critical";
-    default:
-      return "quiet";
-  }
+  return PRESENTATION[health.state].attention;
 }
 
 export type BadgeZone = "card" | "overview" | "status";
 
-export interface BadgeValues {
-  readonly card: CardBadgeValue;
-  readonly overview: OverviewBadgeValue;
-  readonly status: string;
-  readonly cardLabel: string;
-  readonly overviewLabel: string;
-}
-
-type BadgeKey = ProviderState | "cached";
-
-const BADGE_BY_KEY: Readonly<Record<BadgeKey, BadgeValues>> = {
-  ok: { card: "live", overview: "ok", status: "", cardLabel: "Live", overviewLabel: "OK" },
-  warning: { card: "live", overview: "ok", status: "", cardLabel: "Live", overviewLabel: "OK" },
-  critical: { card: "live", overview: "ok", status: "", cardLabel: "Live", overviewLabel: "OK" },
-  partial: {
-    card: "cached",
-    overview: "partial",
-    status: "(partial)",
-    cardLabel: "Cached",
-    overviewLabel: "Partial",
-  },
-  cached: {
-    card: "cached",
-    overview: "cached",
-    status: "(partial)",
-    cardLabel: "Cached",
-    overviewLabel: "Cached",
-  },
-  error: {
-    card: "error",
-    overview: "error",
-    status: "(error)",
-    cardLabel: "Error",
-    overviewLabel: "Error",
-  },
-  unavailable: {
-    card: "unavailable",
-    overview: "error",
-    status: "(unavailable)",
-    cardLabel: "Unavailable",
-    overviewLabel: "Error",
-  },
-  idle: { card: "live", overview: "ok", status: "", cardLabel: "Live", overviewLabel: "…" },
-  loading: {
-    card: "live",
-    overview: "loading",
-    status: "",
-    cardLabel: "Live",
-    overviewLabel: "…",
-  },
-};
-
-function badgeValues(health: ProviderHealth): BadgeValues {
-  const key: BadgeKey =
-    health.lastKnownGood && health.state === "partial" ? "cached" : health.state;
-  return BADGE_BY_KEY[key];
-}
-
-export function badgeForZone<Z extends BadgeZone>(health: ProviderHealth, zone: Z): BadgeValues[Z] {
-  return badgeValues(health)[zone];
+export function badgeForZone(health: ProviderHealth, zone: "card"): Presentation["cardBadge"];
+export function badgeForZone(
+  health: ProviderHealth,
+  zone: "overview",
+): Presentation["overviewBadge"];
+export function badgeForZone(health: ProviderHealth, zone: "status"): string;
+export function badgeForZone(health: ProviderHealth, zone: BadgeZone): string {
+  const presentation = PRESENTATION[health.state];
+  if (zone === "card") return presentation.cardBadge;
+  if (zone === "overview") return presentation.overviewBadge;
+  return presentation.statusTag;
 }
 
 export function cardBadgeText(health: ProviderHealth, t: (s: string) => string): string {
-  return t(badgeValues(health).cardLabel);
+  return t(PRESENTATION[health.state].label.card);
 }
 
 export function overviewBadgeText(health: ProviderHealth, t: (s: string) => string): string {
-  if (health.state === "loading" || health.state === "idle") return "…";
-  return t(badgeValues(health).overviewLabel);
+  return t(PRESENTATION[health.state].label.overview);
 }
 
 export function statusBadgeText(health: ProviderHealth, t: (s: string) => string): string {
-  const label = badgeForZone(health, "status");
-  return label ? t(label) : "";
+  const tag = PRESENTATION[health.state].statusTag;
+  return tag ? t(tag) : "";
 }
 
 export interface StatusBarProviderSegment {
@@ -471,7 +392,12 @@ export function deriveStatusBarSegments(
       fieldDefs,
       statusFields,
       views,
-      health: deriveProviderHealth(result, views, context.t, fieldDefs),
+      health: deriveProviderHealth(result.status, {
+        result,
+        views,
+        fieldDefs,
+        t: context.t,
+      }),
     });
   }
   return segments;

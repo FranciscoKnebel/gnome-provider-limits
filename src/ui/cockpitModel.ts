@@ -13,13 +13,13 @@ import {
   selectUsageView,
 } from "./fieldViews.js";
 import type { GaugeGeometry, GaugeTone, MicroMeterSpec, RgbTuple } from "./gaugeTypes.js";
-import type { OverviewBadgeValue } from "./providerTypes.js";
+import type { Presentation } from "./providerTypes.js";
 import { structureKey } from "./renderStructure.js";
 import { clampRatio } from "./usageSnapshot.js";
 
 export type CockpitTab = "overview" | ProviderName;
 
-export type OverviewBadgeKind = OverviewBadgeValue;
+export type OverviewBadgeKind = Presentation["overviewBadge"];
 
 export interface RadialGaugeItem {
   readonly fieldName: string;
@@ -276,7 +276,12 @@ export function buildOverviewRowModel(options: {
 
   const searchOrder = [...statusFieldNames, ...panelFieldNames];
   const overviewViews = deriveFieldViews(fieldsDefs, result, searchOrder, "status", locale, tr);
-  const health = deriveProviderHealth(result, overviewViews, tr, fieldsDefs);
+  const health = deriveProviderHealth(result.status, {
+    result,
+    views: overviewViews,
+    fieldDefs: fieldsDefs,
+    t: tr,
+  });
   const badgeKind: OverviewBadgeKind = badgeForZone(health, "overview");
   const badgeText = overviewBadgeText(health, tr);
 

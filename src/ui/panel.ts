@@ -22,11 +22,8 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
   private readonly _onRefresh: () => void;
   private readonly _closeMenu: () => void;
   private readonly _sections: StyleDispatch<PanelStyle, () => PanelStyleSection>;
-  private _styleChangedId: number | null = null;
   private _currentStyle: PanelStyle | null = null;
   private _currentSection: PanelStyleSection | null = null;
-  private _lastResults: Map<ProviderName, ReaderResult> = new Map();
-  private _lastRefreshAt: number | null = null;
   private _running = false;
 
   constructor(
@@ -63,10 +60,6 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     };
 
     this._ensureSection();
-
-    this._styleChangedId = this._settings.connect("changed::panel-style", () => {
-      this._switchSection();
-    });
   }
 
   private _resolveStyle(): PanelStyle {
@@ -108,15 +101,10 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     this._currentSection = section;
     this.addMenuItem(section.shell);
     section.setRunning(this._running);
-    if (this._lastResults.size > 0) {
-      section.render(this._lastResults, this._lastRefreshAt);
-    }
     return section;
   }
 
   render(results: Map<ProviderName, ReaderResult>, lastRefreshAt: number | null): void {
-    this._lastResults = results;
-    this._lastRefreshAt = lastRefreshAt;
     const section = this._ensureSection();
     section.render(results, lastRefreshAt);
   }
@@ -127,10 +115,6 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
   }
 
   override destroy(): void {
-    if (this._styleChangedId !== null) {
-      this._settings.disconnect(this._styleChangedId);
-      this._styleChangedId = null;
-    }
     if (this._currentSection) {
       this._currentSection.destroy();
       this._currentSection = null;

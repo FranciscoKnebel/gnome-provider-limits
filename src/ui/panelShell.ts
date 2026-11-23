@@ -49,12 +49,12 @@ interface ActionSpec {
 }
 
 interface ShellConfig {
-  readonly panelClass: string | null;
+  readonly panelClass: string | undefined;
   readonly scrollClass: string | undefined;
   readonly footerRowClass: string;
-  readonly toolbarClass: string | null;
+  readonly toolbarClass: string | undefined;
   readonly compact: boolean;
-  readonly disabledRefreshClass: string | null;
+  readonly disabledRefreshClass: string | undefined;
   readonly refresh: ActionSpec;
   readonly settings: ActionSpec;
 }
@@ -66,7 +66,7 @@ const SHELL_CONFIGS: StyleDispatch<PanelStyle, ShellConfig> = {
     footerRowClass: "pl-footer-row",
     toolbarClass: "pl-footer-toolbar",
     compact: false,
-    disabledRefreshClass: null,
+    disabledRefreshClass: undefined,
     refresh: {
       variant: "text-button",
       controlClass: "pl-footer-button pl-refresh-button",
@@ -79,7 +79,7 @@ const SHELL_CONFIGS: StyleDispatch<PanelStyle, ShellConfig> = {
     },
   },
   cards: {
-    panelClass: null,
+    panelClass: undefined,
     scrollClass: "pl-panel-scroll",
     footerRowClass: "pl-panel-footer-row",
     toolbarClass: "pl-panel-footer",
@@ -103,12 +103,12 @@ const SHELL_CONFIGS: StyleDispatch<PanelStyle, ShellConfig> = {
     },
   },
   compact: {
-    panelClass: null,
+    panelClass: undefined,
     scrollClass: undefined,
     footerRowClass: "provider-limits-hud-toolbar",
-    toolbarClass: null,
+    toolbarClass: undefined,
     compact: true,
-    disabledRefreshClass: null,
+    disabledRefreshClass: undefined,
     refresh: {
       variant: "compact-icon",
       controlClass: "provider-limits-icon-button",
@@ -170,7 +170,7 @@ export class PanelShell extends PopupMenu.PopupMenuSection {
     this._footerKeyHandler = options.onFooterKeyPress ?? (() => Clutter.EVENT_PROPAGATE);
 
     const config = SHELL_CONFIGS[options.footerVariant];
-    if (config.panelClass !== null) this.box.add_style_class_name(config.panelClass);
+    if (config.panelClass !== undefined) this.box.add_style_class_name(config.panelClass);
     const footer = this._buildFooter(config);
     this._footer = footer.actors;
     this._applyFooterRunning = footer.applyRunning;
@@ -415,7 +415,7 @@ export class PanelShell extends PopupMenu.PopupMenuSection {
         refresh.label.accessible_name = text;
       }
       refresh.control.reactive = !value;
-      if (config.disabledRefreshClass !== null) {
+      if (config.disabledRefreshClass !== undefined) {
         if (value) refresh.control.add_style_class_name(config.disabledRefreshClass);
         else refresh.control.remove_style_class_name(config.disabledRefreshClass);
       }
@@ -427,7 +427,7 @@ export class PanelShell extends PopupMenu.PopupMenuSection {
 
     if (!config.compact) {
       const toolbar = new St.BoxLayout({
-        style_class: config.toolbarClass ?? undefined,
+        style_class: config.toolbarClass,
         x_expand: true,
         y_align: Clutter.ActorAlign.CENTER,
       });

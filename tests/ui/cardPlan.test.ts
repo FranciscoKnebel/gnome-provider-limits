@@ -20,9 +20,9 @@ import type {
 import {
   deriveFieldViews,
   deriveProviderHealth,
-  deriveProviderState,
   deriveStatusBarSegments,
 } from "../../src/ui/fieldViews.js";
+import type { ProviderTone } from "../../src/ui/providerTypes.js";
 import { applyHealthToneClass, applyToneClass } from "../../src/ui/tone.js";
 
 function segmentsContext(
@@ -38,6 +38,15 @@ function segmentsContext(
     fieldDefs: (provider) => getProviderFields(provider),
     t: (text) => text,
   };
+}
+
+function toneOf(
+  status: ReaderStatus,
+  tones: readonly ("ok" | "warning" | "critical" | undefined)[],
+  hasUsableField: boolean,
+  lastKnownGood = false,
+): ProviderTone {
+  return deriveProviderHealth(status, { tones, hasUsableField, lastKnownGood }).tone;
 }
 
 describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
@@ -153,20 +162,14 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
 
   describe("provider health derivation & computeBarWidthPx", () => {
     it("prioritizes hard errors, critical limits, partial state, warnings, ok, and idle", () => {
-      expect(deriveProviderState(ReaderStatus.DISABLED, [], false, false).tone).toBe("idle");
-      expect(deriveProviderState(ReaderStatus.ERROR, [], false, false).tone).toBe("error");
-      expect(deriveProviderState(ReaderStatus.UNAVAILABLE, [], false, false).tone).toBe("error");
-      expect(deriveProviderState(ReaderStatus.PARTIAL, ["critical"], true, false).tone).toBe(
-        "critical",
-      );
-      expect(deriveProviderState(ReaderStatus.PARTIAL, ["warning"], true, false).tone).toBe(
-        "partial",
-      );
-      expect(deriveProviderState(ReaderStatus.OK, ["ok", "warning"], true, false).tone).toBe(
-        "warning",
-      );
-      expect(deriveProviderState(ReaderStatus.OK, [], true, false).tone).toBe("ok");
-      expect(deriveProviderState(ReaderStatus.OK, [], false, false).tone).toBe("idle");
+      expect(toneOf(ReaderStatus.DISABLED, [], false)).toBe("idle");
+      expect(toneOf(ReaderStatus.ERROR, [], false)).toBe("error");
+      expect(toneOf(ReaderStatus.UNAVAILABLE, [], false)).toBe("error");
+      expect(toneOf(ReaderStatus.PARTIAL, ["critical"], true)).toBe("critical");
+      expect(toneOf(ReaderStatus.PARTIAL, ["warning"], true)).toBe("partial");
+      expect(toneOf(ReaderStatus.OK, ["ok", "warning"], true)).toBe("warning");
+      expect(toneOf(ReaderStatus.OK, [], true)).toBe("ok");
+      expect(toneOf(ReaderStatus.OK, [], false)).toBe("idle");
     });
 
     it("derives urgency from result percent fields even when status views only show timestamps", () => {
@@ -178,7 +181,13 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       };
       const views = deriveFieldViews(CODEX_FIELDS, result, ["reset_at_primary"], "status", "en");
       expect(views.every((view) => view.type !== "percent")).toBeTrue();
-      expect(deriveProviderHealth(result, views, undefined, CODEX_FIELDS).tone).toBe("critical");
+      expect(
+        deriveProviderHealth(result.status, {
+          result,
+          views,
+          fieldDefs: CODEX_FIELDS,
+        }).tone,
+      ).toBe("critical");
     });
 
     it("reports error and empty health through planProviderCard", () => {

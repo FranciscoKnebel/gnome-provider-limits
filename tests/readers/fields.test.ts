@@ -8,6 +8,7 @@ import {
   GROK_FIELDS,
   OPENCODE_FIELDS,
   PROVIDER_FIELDS,
+  companionResetFieldName,
   resolveFieldCategory,
 } from "../../src/readers/fields.js";
 
@@ -29,6 +30,39 @@ describe("readers/fields & helpers/reorder", () => {
 
     expect(resolveFieldCategory({ name: "custom_cost", type: "cost" })).toBe("telemetry");
     expect(resolveFieldCategory({ name: "custom_pct", type: "percent" })).toBe("limit");
+  });
+
+  it("carries category and companion reset explicitly on every field definition", () => {
+    const telemetryNames = new Set([
+      "plan_type",
+      "has_extra_usage_enabled",
+      "extra_usage_disabled_reason",
+      "total_cost",
+      "sessions_count",
+      "usage_source",
+      "prepaid_balance",
+      "unified_billing",
+      "remaining_credits",
+      "spend_limit_used",
+    ]);
+
+    for (const provider of PROVIDER_NAMES) {
+      for (const def of PROVIDER_FIELDS[provider]) {
+        const expectedCategory = telemetryNames.has(def.name) ? "telemetry" : "limit";
+        expect(def.category).toBe(expectedCategory);
+        expect(resolveFieldCategory(def)).toBe(expectedCategory);
+
+        if (def.type === "percent") {
+          const suffix = def.name.replace(/^(used|remaining)_percent_?/, "");
+          const expectedReset = suffix ? `reset_at_${suffix}` : "reset_at";
+          expect(def.resetField).toBe(expectedReset);
+          expect(companionResetFieldName(def)).toBe(expectedReset);
+        } else {
+          expect(def.resetField).toBeUndefined();
+          expect(companionResetFieldName(def)).toBeNull();
+        }
+      }
+    }
   });
 
   it("reorders adjacent items with keyboard Move Up / Move Down while preserving unknown values", () => {

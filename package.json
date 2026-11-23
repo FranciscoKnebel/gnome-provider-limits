@@ -33,7 +33,7 @@
     "check:i18n": "node scripts/check-i18n.mjs",
     "release": "bash scripts/release.sh",
     "test:catalogs": "node --test tests/catalogs.test.mjs",
-    "test:regressions": "node --test tests/review-regressions.test.mjs"
+    "test:regressions": "node --test tests/helpers/*.test.mjs tests/ui/*.test.mjs tests/readers/*.test.mjs"
   },
   "devDependencies": {
     "@girs/adw-1": "^1.10.0-4.0.0-rc.9",

@@ -152,6 +152,9 @@ const ProviderLimitsIndicator = GObject.registerClass(
       }
 
       this._settingsChangedIds.push(this._settings.connect(`changed::providers-order`, onRender));
+      for (const key of ["status-bar-style", "panel-style"]) {
+        this._settingsChangedIds.push(this._settings.connect(`changed::${key}`, onRender));
+      }
       this._settingsChangedIds.push(
         this._settings.connect(`changed::language`, () => {
           this._applyLanguageOverride();
@@ -314,11 +317,6 @@ const ProviderLimitsIndicator = GObject.registerClass(
     }
 
     private _render(): void {
-      if (this._destroyed) return;
-      this._renderNow();
-    }
-
-    private _renderNow(): void {
       if (this._destroyed) return;
       this._statusBar.render(this._results);
       this._panel.render(this._results, this._lastRefreshAt);

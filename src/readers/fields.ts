@@ -1,7 +1,7 @@
 import { PROVIDER_NAMES, type ProviderName } from "../constants.js";
-import type { FieldDef } from "./base.js";
+import type { FieldCategory, FieldDef } from "./base.js";
 
-export type FieldCategory = "limit" | "telemetry";
+export type { FieldCategory } from "./base.js";
 
 export const CODEX_FIELDS: readonly FieldDef[] = [
   {
@@ -10,6 +10,8 @@ export const CODEX_FIELDS: readonly FieldDef[] = [
     type: "percent",
     description: "Percentage used in the primary 5-hour rolling window.",
     defaultZone: "status",
+    category: "limit",
+    resetField: "reset_at_primary",
   },
   {
     name: "remaining_percent_primary",
@@ -17,6 +19,8 @@ export const CODEX_FIELDS: readonly FieldDef[] = [
     type: "percent",
     description: "Percentage remaining in the primary 5-hour rolling window.",
     defaultZone: "status",
+    category: "limit",
+    resetField: "reset_at_primary",
   },
   {
     name: "reset_at_primary",
@@ -24,6 +28,7 @@ export const CODEX_FIELDS: readonly FieldDef[] = [
     type: "timestamp",
     description: "When the primary 5-hour window resets.",
     defaultZone: "status",
+    category: "limit",
   },
   {
     name: "used_percent_secondary",
@@ -31,6 +36,8 @@ export const CODEX_FIELDS: readonly FieldDef[] = [
     type: "percent",
     description: "Percentage used in the weekly window.",
     defaultZone: "panel",
+    category: "limit",
+    resetField: "reset_at_secondary",
   },
   {
     name: "remaining_percent_secondary",
@@ -38,6 +45,8 @@ export const CODEX_FIELDS: readonly FieldDef[] = [
     type: "percent",
     description: "Percentage remaining in the weekly window.",
     defaultZone: "panel",
+    category: "limit",
+    resetField: "reset_at_secondary",
   },
   {
     name: "reset_at_secondary",
@@ -45,6 +54,7 @@ export const CODEX_FIELDS: readonly FieldDef[] = [
     type: "timestamp",
     description: "When the weekly window resets.",
     defaultZone: "panel",
+    category: "limit",
   },
   {
     name: "window_minutes_primary",
@@ -52,6 +62,7 @@ export const CODEX_FIELDS: readonly FieldDef[] = [
     type: "count",
     description: "Primary window duration in minutes.",
     defaultZone: "panel",
+    category: "limit",
   },
   {
     name: "window_minutes_secondary",
@@ -59,6 +70,7 @@ export const CODEX_FIELDS: readonly FieldDef[] = [
     type: "count",
     description: "Secondary window duration in minutes.",
     defaultZone: "panel",
+    category: "limit",
   },
   {
     name: "limit_reached",
@@ -66,6 +78,7 @@ export const CODEX_FIELDS: readonly FieldDef[] = [
     type: "bool",
     description: "Whether any rate limit has been reached.",
     defaultZone: "panel",
+    category: "limit",
   },
   {
     name: "plan_type",
@@ -73,6 +86,7 @@ export const CODEX_FIELDS: readonly FieldDef[] = [
     type: "text",
     description: "Current plan type (e.g. plus, pro).",
     defaultZone: "panel",
+    category: "telemetry",
   },
   {
     name: "reset_credits_available",
@@ -80,6 +94,7 @@ export const CODEX_FIELDS: readonly FieldDef[] = [
     type: "count",
     description: "Banked rate-limit reset credits available to redeem.",
     defaultZone: "panel",
+    category: "limit",
   },
   {
     name: "reset_credits_expire_at",
@@ -87,6 +102,7 @@ export const CODEX_FIELDS: readonly FieldDef[] = [
     type: "timestamp",
     description: "When the earliest banked rate-limit reset credit expires.",
     defaultZone: "panel",
+    category: "limit",
   },
 ];
 
@@ -97,6 +113,8 @@ export const CLAUDE_FIELDS: readonly FieldDef[] = [
     type: "percent",
     description: "Percentage used in the current 5-hour session window.",
     defaultZone: "status",
+    category: "limit",
+    resetField: "reset_at_session",
   },
   {
     name: "remaining_percent_session",
@@ -104,6 +122,8 @@ export const CLAUDE_FIELDS: readonly FieldDef[] = [
     type: "percent",
     description: "Percentage remaining in the current 5-hour session window.",
     defaultZone: "status",
+    category: "limit",
+    resetField: "reset_at_session",
   },
   {
     name: "reset_at_session",
@@ -111,6 +131,7 @@ export const CLAUDE_FIELDS: readonly FieldDef[] = [
     type: "timestamp",
     description: "When the session window resets.",
     defaultZone: "status",
+    category: "limit",
   },
   {
     name: "used_percent_weekly",
@@ -118,6 +139,8 @@ export const CLAUDE_FIELDS: readonly FieldDef[] = [
     type: "percent",
     description: "Percentage used in the weekly window.",
     defaultZone: "panel",
+    category: "limit",
+    resetField: "reset_at_weekly",
   },
   {
     name: "remaining_percent_weekly",
@@ -125,6 +148,8 @@ export const CLAUDE_FIELDS: readonly FieldDef[] = [
     type: "percent",
     description: "Percentage remaining in the weekly window.",
     defaultZone: "panel",
+    category: "limit",
+    resetField: "reset_at_weekly",
   },
   {
     name: "reset_at_weekly",
@@ -132,6 +157,7 @@ export const CLAUDE_FIELDS: readonly FieldDef[] = [
     type: "timestamp",
     description: "When the weekly window resets.",
     defaultZone: "panel",
+    category: "limit",
   },
   {
     name: "used_percent_sonnet",
@@ -139,6 +165,8 @@ export const CLAUDE_FIELDS: readonly FieldDef[] = [
     type: "percent",
     description: "Model-specific weekly usage for Sonnet.",
     defaultZone: "panel",
+    category: "limit",
+    resetField: "reset_at_sonnet",
   },
   {
     name: "remaining_percent_sonnet",
@@ -146,6 +174,8 @@ export const CLAUDE_FIELDS: readonly FieldDef[] = [
     type: "percent",
     description: "Model-specific weekly remaining for Sonnet.",
     defaultZone: "panel",
+    category: "limit",
+    resetField: "reset_at_sonnet",
   },
   {
     name: "used_percent_opus",
@@ -153,6 +183,8 @@ export const CLAUDE_FIELDS: readonly FieldDef[] = [
     type: "percent",
     description: "Model-specific weekly usage for Opus.",
     defaultZone: "panel",
+    category: "limit",
+    resetField: "reset_at_opus",
   },
   {
     name: "remaining_percent_opus",
@@ -160,6 +192,8 @@ export const CLAUDE_FIELDS: readonly FieldDef[] = [
     type: "percent",
     description: "Model-specific weekly remaining for Opus.",
     defaultZone: "panel",
+    category: "limit",
+    resetField: "reset_at_opus",
   },
   {
     name: "has_extra_usage_enabled",
@@ -167,6 +201,7 @@ export const CLAUDE_FIELDS: readonly FieldDef[] = [
     type: "bool",
     description: "Whether extra usage (overage) is enabled for this account.",
     defaultZone: "panel",
+    category: "telemetry",
   },
   {
     name: "extra_usage_disabled_reason",
@@ -174,6 +209,7 @@ export const CLAUDE_FIELDS: readonly FieldDef[] = [
     type: "text",
     description: "Reason extra usage is disabled, if any.",
     defaultZone: "panel",
+    category: "telemetry",
   },
 ];
 
@@ -184,6 +220,8 @@ export const OPENCODE_FIELDS: readonly FieldDef[] = [
     type: "percent",
     description: "Percentage used in the provider-reported rolling 5-hour window.",
     defaultZone: "status",
+    category: "limit",
+    resetField: "reset_at_rolling",
   },
   {
     name: "remaining_percent_rolling",
@@ -191,6 +229,8 @@ export const OPENCODE_FIELDS: readonly FieldDef[] = [
     type: "percent",
     description: "Percentage remaining in the provider-reported rolling 5-hour window.",
     defaultZone: "status",
+    category: "limit",
+    resetField: "reset_at_rolling",
   },
   {
     name: "reset_at_rolling",
@@ -198,6 +238,7 @@ export const OPENCODE_FIELDS: readonly FieldDef[] = [
     type: "timestamp",
     description: "When the provider-reported rolling window resets.",
     defaultZone: "status",
+    category: "limit",
   },
   {
     name: "used_percent_weekly",
@@ -205,6 +246,8 @@ export const OPENCODE_FIELDS: readonly FieldDef[] = [
     type: "percent",
     description: "Percentage used in the provider-reported weekly window.",
     defaultZone: "panel",
+    category: "limit",
+    resetField: "reset_at_weekly",
   },
   {
     name: "remaining_percent_weekly",
@@ -212,6 +255,8 @@ export const OPENCODE_FIELDS: readonly FieldDef[] = [
     type: "percent",
     description: "Percentage remaining in the provider-reported weekly window.",
     defaultZone: "panel",
+    category: "limit",
+    resetField: "reset_at_weekly",
   },
   {
     name: "reset_at_weekly",
@@ -219,6 +264,7 @@ export const OPENCODE_FIELDS: readonly FieldDef[] = [
     type: "timestamp",
     description: "When the provider-reported weekly window resets.",
     defaultZone: "panel",
+    category: "limit",
   },
   {
     name: "used_percent_monthly",
@@ -226,6 +272,8 @@ export const OPENCODE_FIELDS: readonly FieldDef[] = [
     type: "percent",
     description: "Percentage used in the provider-reported monthly window.",
     defaultZone: "panel",
+    category: "limit",
+    resetField: "reset_at_monthly",
   },
   {
     name: "remaining_percent_monthly",
@@ -233,6 +281,8 @@ export const OPENCODE_FIELDS: readonly FieldDef[] = [
     type: "percent",
     description: "Percentage remaining in the provider-reported monthly window.",
     defaultZone: "panel",
+    category: "limit",
+    resetField: "reset_at_monthly",
   },
   {
     name: "reset_at_monthly",
@@ -240,6 +290,7 @@ export const OPENCODE_FIELDS: readonly FieldDef[] = [
     type: "timestamp",
     description: "When the provider-reported monthly window resets.",
     defaultZone: "panel",
+    category: "limit",
   },
   {
     name: "limit_reached",
@@ -247,6 +298,7 @@ export const OPENCODE_FIELDS: readonly FieldDef[] = [
     type: "bool",
     description: "Whether any OpenCode Go usage window is rate-limited.",
     defaultZone: "panel",
+    category: "limit",
   },
   {
     name: "total_cost",
@@ -254,6 +306,7 @@ export const OPENCODE_FIELDS: readonly FieldDef[] = [
     type: "cost",
     description: "Total local session cost observed in opencode.db.",
     defaultZone: "panel",
+    category: "telemetry",
   },
   {
     name: "sessions_count",
@@ -261,6 +314,7 @@ export const OPENCODE_FIELDS: readonly FieldDef[] = [
     type: "count",
     description: "Total number of local sessions.",
     defaultZone: "panel",
+    category: "telemetry",
   },
   {
     name: "usage_source",
@@ -268,6 +322,7 @@ export const OPENCODE_FIELDS: readonly FieldDef[] = [
     type: "text",
     description: "Where OpenCode Go usage was read from.",
     defaultZone: "panel",
+    category: "telemetry",
   },
 ];
 
@@ -278,18 +333,23 @@ export const GROK_FIELDS: readonly FieldDef[] = [
     type: "percent",
     description: "Provider-reported subscription credit usage, not an API spending limit.",
     defaultZone: "status",
+    category: "limit",
+    resetField: "reset_at_credits",
   },
   {
     name: "remaining_percent_credits",
     label: "Remaining % (credits)",
     type: "percent",
     defaultZone: "status",
+    category: "limit",
+    resetField: "reset_at_credits",
   },
   {
     name: "reset_at_credits",
     label: "Reset at (credits)",
     type: "timestamp",
     defaultZone: "status",
+    category: "limit",
   },
   {
     name: "prepaid_balance",
@@ -297,6 +357,7 @@ export const GROK_FIELDS: readonly FieldDef[] = [
     type: "cost",
     description: "Purchased credit balance in USD, separate from subscription credit usage.",
     defaultZone: "panel",
+    category: "telemetry",
   },
   {
     name: "unified_billing",
@@ -304,9 +365,22 @@ export const GROK_FIELDS: readonly FieldDef[] = [
     type: "bool",
     description: "Whether Grok reports a shared subscription credit pool.",
     defaultZone: "panel",
+    category: "telemetry",
   },
-  { name: "plan_type", label: "Plan type", type: "text", defaultZone: "panel" },
-  { name: "usage_source", label: "Usage source", type: "text", defaultZone: "panel" },
+  {
+    name: "plan_type",
+    label: "Plan type",
+    type: "text",
+    defaultZone: "panel",
+    category: "telemetry",
+  },
+  {
+    name: "usage_source",
+    label: "Usage source",
+    type: "text",
+    defaultZone: "panel",
+    category: "telemetry",
+  },
 ];
 
 export const CURSOR_FIELDS: readonly FieldDef[] = [
@@ -316,18 +390,23 @@ export const CURSOR_FIELDS: readonly FieldDef[] = [
     type: "percent",
     description: "Provider-reported subscription credit usage for the current billing cycle.",
     defaultZone: "status",
+    category: "limit",
+    resetField: "reset_at_credits",
   },
   {
     name: "remaining_percent_credits",
     label: "Remaining % (credits)",
     type: "percent",
     defaultZone: "status",
+    category: "limit",
+    resetField: "reset_at_credits",
   },
   {
     name: "reset_at_credits",
     label: "Reset at (credits)",
     type: "timestamp",
     defaultZone: "status",
+    category: "limit",
   },
   {
     name: "used_percent_auto",
@@ -335,12 +414,16 @@ export const CURSOR_FIELDS: readonly FieldDef[] = [
     type: "percent",
     description: "Usage percentage of the Auto + Composer subscription pool.",
     defaultZone: "panel",
+    category: "limit",
+    resetField: "reset_at_auto",
   },
   {
     name: "remaining_percent_auto",
     label: "Remaining % (Auto + Composer)",
     type: "percent",
     defaultZone: "panel",
+    category: "limit",
+    resetField: "reset_at_auto",
   },
   {
     name: "used_percent_api",
@@ -348,12 +431,16 @@ export const CURSOR_FIELDS: readonly FieldDef[] = [
     type: "percent",
     description: "Usage percentage of the named-model API subscription pool.",
     defaultZone: "panel",
+    category: "limit",
+    resetField: "reset_at_api",
   },
   {
     name: "remaining_percent_api",
     label: "Remaining % (API pool)",
     type: "percent",
     defaultZone: "panel",
+    category: "limit",
+    resetField: "reset_at_api",
   },
   {
     name: "remaining_credits",
@@ -361,6 +448,7 @@ export const CURSOR_FIELDS: readonly FieldDef[] = [
     type: "cost",
     description: "Remaining included subscription credits in USD.",
     defaultZone: "panel",
+    category: "telemetry",
   },
   {
     name: "spend_limit_used",
@@ -369,10 +457,29 @@ export const CURSOR_FIELDS: readonly FieldDef[] = [
     description:
       "On-demand spend in USD for the current billing cycle, separate from included subscription credits.",
     defaultZone: "panel",
+    category: "telemetry",
   },
-  { name: "limit_reached", label: "Limit reached", type: "bool", defaultZone: "panel" },
-  { name: "plan_type", label: "Plan type", type: "text", defaultZone: "panel" },
-  { name: "usage_source", label: "Usage source", type: "text", defaultZone: "panel" },
+  {
+    name: "limit_reached",
+    label: "Limit reached",
+    type: "bool",
+    defaultZone: "panel",
+    category: "limit",
+  },
+  {
+    name: "plan_type",
+    label: "Plan type",
+    type: "text",
+    defaultZone: "panel",
+    category: "telemetry",
+  },
+  {
+    name: "usage_source",
+    label: "Usage source",
+    type: "text",
+    defaultZone: "panel",
+    category: "telemetry",
+  },
 ];
 
 export const GOOGLE_FIELDS: readonly FieldDef[] = [
@@ -382,18 +489,23 @@ export const GOOGLE_FIELDS: readonly FieldDef[] = [
     type: "percent",
     description: "Gemini 5-hour rolling subscription quota usage.",
     defaultZone: "status",
+    category: "limit",
+    resetField: "reset_at_session",
   },
   {
     name: "remaining_percent_session",
     label: "Remaining % (session 5h)",
     type: "percent",
     defaultZone: "status",
+    category: "limit",
+    resetField: "reset_at_session",
   },
   {
     name: "reset_at_session",
     label: "Reset at (session)",
     type: "timestamp",
     defaultZone: "status",
+    category: "limit",
   },
   {
     name: "used_percent_weekly",
@@ -401,18 +513,23 @@ export const GOOGLE_FIELDS: readonly FieldDef[] = [
     type: "percent",
     description: "Gemini weekly subscription quota usage.",
     defaultZone: "panel",
+    category: "limit",
+    resetField: "reset_at_weekly",
   },
   {
     name: "remaining_percent_weekly",
     label: "Remaining % (weekly)",
     type: "percent",
     defaultZone: "panel",
+    category: "limit",
+    resetField: "reset_at_weekly",
   },
   {
     name: "reset_at_weekly",
     label: "Reset at (weekly)",
     type: "timestamp",
     defaultZone: "panel",
+    category: "limit",
   },
   {
     name: "used_percent_3p_session",
@@ -420,18 +537,23 @@ export const GOOGLE_FIELDS: readonly FieldDef[] = [
     type: "percent",
     description: "Third-party model (Claude & GPT) 5-hour quota usage on Google AI / Antigravity.",
     defaultZone: "panel",
+    category: "limit",
+    resetField: "reset_at_3p_session",
   },
   {
     name: "remaining_percent_3p_session",
     label: "Remaining % (Claude & GPT 5h)",
     type: "percent",
     defaultZone: "panel",
+    category: "limit",
+    resetField: "reset_at_3p_session",
   },
   {
     name: "reset_at_3p_session",
     label: "Reset at (Claude & GPT 5h)",
     type: "timestamp",
     defaultZone: "panel",
+    category: "limit",
   },
   {
     name: "used_percent_3p_weekly",
@@ -439,22 +561,45 @@ export const GOOGLE_FIELDS: readonly FieldDef[] = [
     type: "percent",
     description: "Third-party model (Claude & GPT) weekly quota usage on Google AI / Antigravity.",
     defaultZone: "panel",
+    category: "limit",
+    resetField: "reset_at_3p_weekly",
   },
   {
     name: "remaining_percent_3p_weekly",
     label: "Remaining % (Claude & GPT weekly)",
     type: "percent",
     defaultZone: "panel",
+    category: "limit",
+    resetField: "reset_at_3p_weekly",
   },
   {
     name: "reset_at_3p_weekly",
     label: "Reset at (Claude & GPT weekly)",
     type: "timestamp",
     defaultZone: "panel",
+    category: "limit",
   },
-  { name: "limit_reached", label: "Limit reached", type: "bool", defaultZone: "panel" },
-  { name: "plan_type", label: "Plan type", type: "text", defaultZone: "panel" },
-  { name: "usage_source", label: "Usage source", type: "text", defaultZone: "panel" },
+  {
+    name: "limit_reached",
+    label: "Limit reached",
+    type: "bool",
+    defaultZone: "panel",
+    category: "limit",
+  },
+  {
+    name: "plan_type",
+    label: "Plan type",
+    type: "text",
+    defaultZone: "panel",
+    category: "telemetry",
+  },
+  {
+    name: "usage_source",
+    label: "Usage source",
+    type: "text",
+    defaultZone: "panel",
+    category: "telemetry",
+  },
 ];
 
 export const PROVIDER_FIELDS: Record<ProviderName, readonly FieldDef[]> = {
@@ -477,39 +622,44 @@ export function resolveFieldDefs(): Readonly<Record<ProviderName, readonly Field
   return defs;
 }
 
-const TELEMETRY_FIELD_NAMES = new Set<string>([
-  "total_cost",
-  "sessions_count",
-  "usage_source",
-  "prepaid_balance",
-  "unified_billing",
-  "plan_type",
-  "has_extra_usage_enabled",
-  "extra_usage_disabled_reason",
-  "remaining_credits",
-  "spend_limit_used",
-]);
+const CATEGORY_BY_NAME = new Map<string, FieldCategory>();
+const RESET_BY_NAME = new Map<string, string>();
+for (const fields of Object.values(PROVIDER_FIELDS)) {
+  for (const def of fields) {
+    CATEGORY_BY_NAME.set(def.name, def.category ?? "limit");
+    if (def.resetField) RESET_BY_NAME.set(def.name, def.resetField);
+  }
+}
+
+const GENERIC_RESET_BY_NAME: Readonly<Record<string, string>> = {
+  used_percent: "reset_at",
+  remaining_percent: "reset_at",
+};
+
+function declaredCategory(def: Pick<FieldDef, "name" | "type">): FieldCategory | undefined {
+  if (!("category" in def)) return undefined;
+  const value: unknown = def.category;
+  return value === "limit" || value === "telemetry" ? value : undefined;
+}
+
+function declaredReset(def: Pick<FieldDef, "name" | "type">): string | undefined {
+  if (!("resetField" in def)) return undefined;
+  const value: unknown = def.resetField;
+  return typeof value === "string" ? value : undefined;
+}
 
 export function resolveFieldCategory(def: Pick<FieldDef, "name" | "type">): FieldCategory {
-  if (TELEMETRY_FIELD_NAMES.has(def.name) || def.type === "cost" || def.type === "tokens") {
-    return "telemetry";
-  }
-  return "limit";
+  return (
+    declaredCategory(def) ??
+    CATEGORY_BY_NAME.get(def.name) ??
+    (def.type === "cost" || def.type === "tokens" ? "telemetry" : "limit")
+  );
 }
 
 export function companionResetFieldName(
   def: Pick<FieldDef, "name" | "type"> & { windowGroup?: string },
 ): string | null {
-  if (def.type !== "percent") return null;
-  if (def.windowGroup) return `reset_at_${def.windowGroup}`;
-  if (def.name === "used_percent" || def.name === "remaining_percent") {
-    return "reset_at";
-  }
-  if (def.name.startsWith("used_percent_")) {
-    return `reset_at_${def.name.slice("used_percent_".length)}`;
-  }
-  if (def.name.startsWith("remaining_percent_")) {
-    return `reset_at_${def.name.slice("remaining_percent_".length)}`;
-  }
-  return null;
+  return (
+    declaredReset(def) ?? RESET_BY_NAME.get(def.name) ?? GENERIC_RESET_BY_NAME[def.name] ?? null
+  );
 }
