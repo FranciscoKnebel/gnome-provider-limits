@@ -1,6 +1,6 @@
 import type Gio from "gi://Gio";
 
-import { PROVIDER_NAMES, type ProviderName } from "../constants.js";
+import type { ProviderName } from "../constants.js";
 import {
   normalizeProvidersOrder,
   providerDisplayName,
@@ -27,10 +27,14 @@ export interface ProviderViewContext {
 }
 
 export function providerRecord<T>(make: (provider: ProviderName) => T): Record<ProviderName, T> {
-  return Object.fromEntries(PROVIDER_NAMES.map((name) => [name, make(name)])) as Record<
-    ProviderName,
-    T
-  >;
+  return {
+    codex: make("codex"),
+    claude: make("claude"),
+    opencode: make("opencode"),
+    grok: make("grok"),
+    cursor: make("cursor"),
+    google: make("google"),
+  };
 }
 
 /** Empty when nothing is enabled, loading until results arrive, ready otherwise. */

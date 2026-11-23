@@ -1,5 +1,7 @@
 import type Gio from "gi://Gio";
 
+import type { ProviderName } from "../constants.js";
+
 export const LAST_GOOD_MAX_AGE_MS = 30 * 60 * 1000;
 
 export enum ReaderStatus {
@@ -40,7 +42,7 @@ export interface FieldResult<T = unknown> {
 }
 
 export interface ReaderResult {
-  readonly provider: string;
+  readonly provider: ProviderName;
   readonly status: ReaderStatus;
   readonly fields: readonly FieldResult[];
   readonly lastUpdated: number;
@@ -57,7 +59,7 @@ export abstract class BaseReader {
 
   constructor(
     protected readonly settings: Gio.Settings,
-    protected readonly providerName: string,
+    protected readonly providerName: ProviderName,
   ) {}
 
   abstract read(options?: ReadOptions): Promise<ReaderResult>;

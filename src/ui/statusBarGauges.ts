@@ -6,10 +6,8 @@ import { ReaderStatus } from "../readers/base.js";
 import { disposeCairoContext, drawMicroRing, isCairoContext } from "./cairoDrawing.js";
 import type { FieldView } from "./fieldViews.js";
 import type { MicroMeterSpec } from "./gaugeTypes.js";
-import { sectionKey, structureKey } from "./renderStructure.js";
-import { StatusBarRenderer } from "./statusBarRenderer.js";
-import type { StatusBarZonePlan } from "./statusBarSegments.js";
 import { deriveStatusBarSegments } from "./statusBarSegments.js";
+import type { StatusBarZonePlan } from "./statusBarSegments.js";
 import { applyToneClass } from "./tone.js";
 import type { ProviderViewContext } from "./viewContext.js";
 import { viewMessages } from "./viewMessages.js";
@@ -22,16 +20,9 @@ interface GaugeSegmentPlan {
   status: ReaderStatus;
   meter: MicroMeterSpec;
   rows: readonly FieldView[];
-  key: string;
 }
 
 type GaugesPlan = StatusBarZonePlan<GaugeSegmentPlan>;
-
-interface GaugeSegmentWidgets {
-  meter: MicroMeterSpec;
-  gaugeArea: St.DrawingArea;
-  values: St.Label[];
-}
 
 function planGauges(context: ProviderViewContext): GaugesPlan {
   if (context.phase !== "ready") {
@@ -47,7 +38,6 @@ function planGauges(context: ProviderViewContext): GaugesPlan {
       placeholder: message.placeholder,
       placeholderAccessibleText: message.accessibleText,
       showPlaceholder: message.showPlaceholder,
-      key: structureKey([context.locale, context.phase]),
     };
   }
 
@@ -57,33 +47,19 @@ function planGauges(context: ProviderViewContext): GaugesPlan {
     status: segment.result.status,
     meter: segment.meter,
     rows: segment.views,
-    key: sectionKey({
-      provider: segment.provider,
-      displayName: segment.displayName,
-      status: segment.result.status,
-      locale: context.locale,
-      rows: segment.views,
-      hasDetail: false,
-      hasError: segment.health.state === "error" || segment.health.state === "unavailable",
-      hasTimestamp: false,
-    }),
   }));
 
-  return {
-    kind: "segments",
-    segments,
-    key: structureKey([context.locale, ...segments.map((segment) => segment.key)]),
-  };
+  return { kind: "segments", segments };
 }
 
-export class GaugesStatusBarRenderer extends StatusBarRenderer<GaugesPlan> {
-  private _segments: GaugeSegmentWidgets[] = [];
+/** Rebuilds the micro-gauge status bar from one freshly derived plan. */
+export class GaugesStatusBarRenderer {
+  constructor(private readonly parent: St.BoxLayout) {}
 
-  protected plan(context: ProviderViewContext): GaugesPlan {
-    return planGauges(context);
-  }
+  render(context: ProviderViewContext): void {
+    this.dispose();
+    const plan = planGauges(context);
 
-  protected build(plan: GaugesPlan): void {
     if (plan.kind === "placeholder") {
       if (!plan.showPlaceholder) return;
       const placeholder = new St.Label({
@@ -108,18 +84,14 @@ export class GaugesStatusBarRenderer extends StatusBarRenderer<GaugesPlan> {
         style_class: "pl-micro-gauge-canvas",
         y_align: Clutter.ActorAlign.CENTER,
       });
-      const segmentWidgets: GaugeSegmentWidgets = {
-        meter: segmentPlan.meter,
-        gaugeArea,
-        values: [],
-      };
+      const meter = segmentPlan.meter;
 
       gaugeArea.connect("repaint", (area: St.DrawingArea) => {
         const rawCr = area.get_context();
         if (!isCairoContext(rawCr)) return;
         try {
           const [w, h] = area.get_surface_size();
-          drawMicroRing(rawCr, w, h, segmentWidgets.meter);
+          drawMicroRing(rawCr, w, h, meter);
         } finally {
           disposeCairoContext(rawCr);
         }
@@ -133,7 +105,7 @@ export class GaugesStatusBarRenderer extends StatusBarRenderer<GaugesPlan> {
       });
       segment.add_child(nameLabel);
 
-      segmentWidgets.values = segmentPlan.rows.map((row) => {
+      for (const row of segmentPlan.rows) {
         const valueLabel = new St.Label({
           text: row.valueText,
           style_class: "pl-status-value",
@@ -142,35 +114,18 @@ export class GaugesStatusBarRenderer extends StatusBarRenderer<GaugesPlan> {
         valueLabel.accessible_name = row.accessibleText;
         applyToneClass(valueLabel, row.tone);
         segment.add_child(valueLabel);
-        return valueLabel;
-      });
+      }
 
       this.parent.add_child(segment);
-      this._segments.push(segmentWidgets);
     }
   }
 
-  protected update(plan: GaugesPlan): void {
-    if (plan.kind === "placeholder") return;
-
-    plan.segments.forEach((segmentPlan, index) => {
-      const widgets = this._segments[index];
-      if (!widgets) return;
-
-      widgets.meter = segmentPlan.meter;
-      widgets.gaugeArea.queue_repaint();
-
-      segmentPlan.rows.forEach((row, rowIndex) => {
-        const valueLabel = widgets.values[rowIndex];
-        if (!valueLabel) return;
-        valueLabel.text = row.valueText;
-        valueLabel.accessible_name = row.accessibleText;
-        applyToneClass(valueLabel, row.tone);
-      });
-    });
-  }
-
-  protected onDispose(): void {
-    this._segments = [];
+  dispose(): void {
+    let child = this.parent.get_first_child();
+    while (child) {
+      const next = child.get_next_sibling();
+      child.destroy();
+      child = next;
+    }
   }
 }

@@ -90,12 +90,12 @@ describe("BaseReader", () => {
   const settings = {} as Gio.Settings;
 
   beforeEach(() => {
-    reader = new TestReader(settings, "test-provider");
+    reader = new TestReader(settings, "codex");
   });
 
   describe("constructor", () => {
     it("stores providerName", () => {
-      expect(reader["providerName"]).toBe("test-provider");
+      expect(reader["providerName"]).toBe("codex");
     });
 
     it("stores settings", () => {
@@ -255,7 +255,7 @@ describe("BaseReader", () => {
     it("returns OK status", () => {
       const result = reader.testOkResult([], ["path1"]);
       expect(result.status).toBe(ReaderStatus.OK);
-      expect(result.provider).toBe("test-provider");
+      expect(result.provider).toBe("codex");
       expect(result.pathsTried).toEqual(["path1"]);
     });
 
@@ -300,13 +300,13 @@ describe("BaseReader", () => {
     it("returns PARTIAL with lastError when some fields are UNAVAILABLE", () => {
       const result = reader.testClassifyResult([okField("a"), unavailableField("b")], ["p1"]);
       expect(result.status).toBe(ReaderStatus.PARTIAL);
-      expect(result.lastError).toBe("test-provider: some fields unavailable.");
+      expect(result.lastError).toBe("codex: some fields unavailable.");
     });
 
     it("returns PARTIAL with lastError when some fields are ERROR", () => {
       const result = reader.testClassifyResult([okField("a"), errorField("b")], ["p1"]);
       expect(result.status).toBe(ReaderStatus.PARTIAL);
-      expect(result.lastError).toBe("test-provider: some fields unavailable.");
+      expect(result.lastError).toBe("codex: some fields unavailable.");
     });
 
     it("returns PARTIAL when some fields are UNAVAILABLE and some ERROR", () => {
@@ -315,7 +315,7 @@ describe("BaseReader", () => {
         ["p1"],
       );
       expect(result.status).toBe(ReaderStatus.PARTIAL);
-      expect(result.lastError).toBe("test-provider: some fields unavailable.");
+      expect(result.lastError).toBe("codex: some fields unavailable.");
     });
 
     it("uses prefix in PARTIAL lastError", () => {
@@ -343,7 +343,7 @@ describe("BaseReader", () => {
     it("returns ERROR when fields array is empty", () => {
       const result = reader.testClassifyResult([], ["p1"]);
       expect(result.status).toBe(ReaderStatus.ERROR);
-      expect(result.lastError).toContain("test-provider");
+      expect(result.lastError).toContain("codex");
     });
 
     it("uses prefix in error message", () => {
@@ -353,7 +353,7 @@ describe("BaseReader", () => {
 
     it("uses providerName as default prefix", () => {
       const result = reader.testClassifyResult([], ["p1"]);
-      expect(result.lastError).toContain("test-provider");
+      expect(result.lastError).toContain("codex");
     });
   });
 });

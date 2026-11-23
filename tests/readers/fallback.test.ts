@@ -57,7 +57,7 @@ describe("last-known-good", () => {
     status: FieldStatus.OK,
   };
   const good: ReaderResult = {
-    provider: "test-provider",
+    provider: "codex",
     status: ReaderStatus.OK,
     fields: [field],
     lastUpdated: Date.now(),
@@ -65,7 +65,7 @@ describe("last-known-good", () => {
   };
 
   it("returns an error when nothing was ever read", () => {
-    const reader = new LastGoodTestReader(settings, "test-provider");
+    const reader = new LastGoodTestReader(settings, "codex");
     const result = reader.lastGoodOrError("all paths failed", ["disk"]);
 
     expect(result.status).toBe(ReaderStatus.ERROR);
@@ -74,13 +74,13 @@ describe("last-known-good", () => {
   });
 
   it("carries a recent result over as PARTIAL", () => {
-    const reader = new LastGoodTestReader(settings, "test-provider");
+    const reader = new LastGoodTestReader(settings, "codex");
     reader.setLastGood(good);
 
     const result = reader.lastGoodOrError("all paths failed", ["disk"]);
 
     expect(result.status).toBe(ReaderStatus.PARTIAL);
-    expect(result.provider).toBe("test-provider");
+    expect(result.provider).toBe("codex");
     expect(result.fields).toBe(good.fields);
     expect(result.lastUpdated).toBe(good.lastUpdated);
     expect(result.lastError).toBe("all paths failed");
@@ -88,27 +88,27 @@ describe("last-known-good", () => {
   });
 
   it("rejects results older than the max age", () => {
-    const reader = new LastGoodTestReader(settings, "test-provider");
+    const reader = new LastGoodTestReader(settings, "codex");
     reader.setLastGood({ ...good, lastUpdated: Date.now() - LAST_GOOD_MAX_AGE_MS - 5_000 });
 
     expect(reader.lastGoodOrError("all paths failed", []).status).toBe(ReaderStatus.ERROR);
   });
 
   it("accepts results just inside the max age", () => {
-    const reader = new LastGoodTestReader(settings, "test-provider");
+    const reader = new LastGoodTestReader(settings, "codex");
     reader.setLastGood({ ...good, lastUpdated: Date.now() - LAST_GOOD_MAX_AGE_MS + 5_000 });
 
     expect(reader.lastGoodOrError("all paths failed", []).status).toBe(ReaderStatus.PARTIAL);
   });
 
   it("_finalizeResult remembers usable results", () => {
-    const reader = new LastGoodTestReader(settings, "test-provider");
+    const reader = new LastGoodTestReader(settings, "codex");
     const partial: ReaderResult = { ...good, status: ReaderStatus.PARTIAL };
 
     expect(reader.finalize(partial, ["disk"], "fallback")).toBe(partial);
 
     const error: ReaderResult = {
-      provider: "test-provider",
+      provider: "codex",
       status: ReaderStatus.ERROR,
       fields: [],
       lastUpdated: Date.now(),
@@ -122,9 +122,9 @@ describe("last-known-good", () => {
   });
 
   it("_finalizeResult does not remember error results", () => {
-    const reader = new LastGoodTestReader(settings, "test-provider");
+    const reader = new LastGoodTestReader(settings, "codex");
     const error: ReaderResult = {
-      provider: "test-provider",
+      provider: "codex",
       status: ReaderStatus.ERROR,
       fields: [],
       lastUpdated: Date.now(),

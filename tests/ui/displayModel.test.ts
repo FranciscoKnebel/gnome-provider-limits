@@ -39,7 +39,7 @@ describe("deriveDisplayModel", () => {
     expect(model?.panelViews.map((view) => view.name)).toEqual(["plan_type"]);
     expect(model?.badges.card).toBe("live");
     expect(model?.badges.cardText).toBe("Live");
-    expect(model?.tone).toBe("warning");
+    expect(model?.health.tone).toBe("warning");
     expect(model?.meter.ratio).toBeCloseTo(0.64, 5);
     expect(model?.diagnostic.bannerKind).toBeNull();
   });
@@ -89,6 +89,6 @@ describe("deriveDisplayModel", () => {
       t: (text) => text,
     });
     expect(direct).toBeDefined();
-    expect(models[0].structureKey).toBe(direct?.structureKey ?? "");
+    expect(direct?.provider).toBe(models[0].provider);
   });
 });

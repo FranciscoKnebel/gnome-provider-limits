@@ -3,8 +3,6 @@ import { currentRefreshInterval, shouldRender } from "../../src/helpers/refresh.
 import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
 import type { FieldDef, ReaderResult } from "../../src/readers/base.js";
 import { fieldTone, getFieldRows, percentTone } from "../../src/ui/fieldRows.js";
-import type { FieldRow } from "../../src/ui/fieldRows.js";
-import { sectionKey, structureKey } from "../../src/ui/renderStructure.js";
 
 const bracketT = (s: string) => `[${s}]`;
 
@@ -380,82 +378,6 @@ describe("formatters", () => {
       expect(percentTone(undefined)).toBeUndefined();
       expect(percentTone(Number.NaN)).toBeUndefined();
       expect(percentTone("42")).toBeUndefined();
-    });
-  });
-
-  describe("sectionKey", () => {
-    const rows: FieldRow[] = [
-      { label: "Used %", valueText: "42%", tone: "ok", accessibleText: "Used %: 42%" },
-      { label: "Plan", valueText: "plus", accessibleText: "Plan: plus" },
-    ];
-
-    const base = {
-      provider: "codex",
-      displayName: "Codex",
-      status: ReaderStatus.OK,
-      locale: "en",
-      rows,
-      hasDetail: false,
-      hasError: false,
-      hasTimestamp: true,
-    };
-
-    it("is stable when only values, tones, or accessible text change", () => {
-      const changedRows: FieldRow[] = [
-        { label: "Used %", valueText: "91%", tone: "critical", accessibleText: "Used %: 91%" },
-        { label: "Plan", valueText: "pro", accessibleText: "Plan: pro" },
-      ];
-      expect(sectionKey({ ...base, rows: changedRows })).toBe(sectionKey(base));
-    });
-
-    it("is stable when only the error text content changes", () => {
-      const withError: FieldRow[] = [
-        { label: "Used %", valueText: "—", errorText: "first failure" },
-      ];
-      const withOtherError: FieldRow[] = [
-        { label: "Used %", valueText: "—", errorText: "second failure" },
-      ];
-      expect(sectionKey({ ...base, rows: withError })).toBe(
-        sectionKey({ ...base, rows: withOtherError }),
-      );
-    });
-
-    it("changes when the error presence changes", () => {
-      const withError: FieldRow[] = [{ label: "Used %", valueText: "—", errorText: "boom" }];
-      expect(sectionKey({ ...base, rows: withError })).not.toBe(sectionKey(base));
-    });
-
-    it("changes when row order or labels change", () => {
-      const reordered: FieldRow[] = [rows[1], rows[0]];
-      expect(sectionKey({ ...base, rows: reordered })).not.toBe(sectionKey(base));
-      const renamed: FieldRow[] = [{ ...rows[0], label: "Other" }, rows[1]];
-      expect(sectionKey({ ...base, rows: renamed })).not.toBe(sectionKey(base));
-    });
-
-    it("changes when provider, display name, status, locale, or flags change", () => {
-      expect(sectionKey({ ...base, provider: "claude" })).not.toBe(sectionKey(base));
-      expect(sectionKey({ ...base, displayName: "Codex Pro" })).not.toBe(sectionKey(base));
-      expect(sectionKey({ ...base, status: ReaderStatus.ERROR })).not.toBe(sectionKey(base));
-      expect(sectionKey({ ...base, locale: "pt-BR" })).not.toBe(sectionKey(base));
-      expect(sectionKey({ ...base, hasDetail: true })).not.toBe(sectionKey(base));
-      expect(sectionKey({ ...base, hasError: true })).not.toBe(sectionKey(base));
-      expect(sectionKey({ ...base, hasTimestamp: false })).not.toBe(sectionKey(base));
-    });
-
-    it("does not collide when parts contain control characters", () => {
-      const first = sectionKey({ ...base, provider: "codex\u0003x", displayName: "y" });
-      const second = sectionKey({ ...base, provider: "codex", displayName: "x\u0003y" });
-      expect(first).not.toBe(second);
-    });
-  });
-
-  describe("structureKey", () => {
-    it("keeps adjacent parts distinct when they contain separators", () => {
-      expect(structureKey(["a\u0004b", "c"])).not.toBe(structureKey(["a", "b\u0004c"]));
-    });
-
-    it("is stable for identical parts", () => {
-      expect(structureKey(["en", "1", "key"])).toBe(structureKey(["en", "1", "key"]));
     });
   });
 });

@@ -2,7 +2,6 @@ import Clutter from "gi://Clutter";
 import type Gio from "gi://Gio";
 import GLib from "gi://GLib";
 import St from "gi://St";
-import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
 import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
@@ -16,7 +15,6 @@ import {
 } from "./matrixPlan.js";
 import type { MatrixDetailRow, PanelMatrixPlan, ProviderMatrixPlan } from "./matrixPlan.js";
 import type { PanelRenderContext, PanelShell, PanelStyleSection } from "./panelShell.js";
-import { PlanRenderer, type RenderPlan } from "./planRenderer.js";
 import { applyQuietToneClass, applyToneClass } from "./tone.js";
 import { clampFillRatio } from "./usageSnapshot.js";
 import { viewContextFor, type ProviderViewContext } from "./viewContext.js";
@@ -27,48 +25,13 @@ interface CompactToolbarControls {
   readonly expandAllLabel: St.Label;
 }
 
-interface DetailRowWidgets {
-  microBar: St.Label | null;
-  value: St.Label;
-  error: St.Label | null;
-}
-
-interface DetailGroupWidgets {
-  heading: St.Label;
-  rows: DetailRowWidgets[];
-}
-
-interface ProviderSectionWidgets {
-  provider: ProviderName;
-  headerRow: PopupMenu.PopupBaseMenuItem;
-  chevronLabel: St.Label;
-  titleLabel: St.Label;
-  badgeLabel: St.Label | null;
-  fiveSegLabel: St.Label | null;
-  summaryLabel: St.Label;
-  hairlineTrack: St.BoxLayout;
-  hairlineFill: St.Widget;
-  fillState: { ratio: number | null };
-  detailLabel: St.Label | null;
-  errorLabel: St.Label | null;
-  groups: DetailGroupWidgets[];
-  lastUpdatedLabel: St.Label | null;
-}
-
-type CompactRenderPlan = PanelMatrixPlan & RenderPlan;
-
-export class CompactPanelSection
-  extends PlanRenderer<CompactRenderPlan, PanelRenderContext>
-  implements PanelStyleSection
-{
+/** Rebuilds the compact panel body from one freshly derived plan. */
+export class CompactPanelSection implements PanelStyleSection {
   private _settings: Gio.Settings;
   private _lastRefreshAt: number | null = null;
   private _lastView: ProviderViewContext;
   private _expandedOverrides: Map<ProviderName, boolean> = new Map();
   private _controls: CompactToolbarControls;
-
-  private _sections: ProviderSectionWidgets[] = [];
-  private _emptyMessageLabel: St.Label | null = null;
   readonly shell: PanelShell;
 
   constructor(
@@ -77,7 +40,6 @@ export class CompactPanelSection
     fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>,
     shell: PanelShell,
   ) {
-    super();
     this._settings = settings;
     this.shell = shell;
     this._controls = this._buildToolbar();
@@ -96,19 +58,20 @@ export class CompactPanelSection
     this.shell.destroy();
   }
 
-  protected plan(context: PanelRenderContext): CompactRenderPlan {
+  render(context: PanelRenderContext): void {
     this._lastRefreshAt = context.lastRefreshAt;
     this._lastView = context.view;
-    return this._buildPlan(context.view);
-  }
+    const plan = this._buildPlan(context.view);
 
-  protected clear(): void {
     this.shell.clearBody();
-  }
-
-  protected override onDispose(): void {
-    this._sections = [];
-    this._emptyMessageLabel = null;
+    if (plan.phase !== "ready") {
+      if (plan.messageText) this.shell.addEmptyStateRow(plan.messageText);
+    } else {
+      plan.providers.forEach((providerPlan, index) => {
+        this._addProviderSection(providerPlan, index > 0);
+      });
+    }
+    this._syncToolbar(plan);
   }
 
   setRunning(running: boolean): void {
@@ -209,106 +172,7 @@ export class CompactPanelSection
       : _("Expand all");
   }
 
-  protected build(plan: CompactRenderPlan): void {
-    if (plan.phase !== "ready") {
-      if (plan.messageText) {
-        this._emptyMessageLabel = this.shell.addEmptyStateRow(plan.messageText);
-      }
-      this._syncToolbar(plan);
-      return;
-    }
-
-    plan.providers.forEach((providerPlan, index) => {
-      this._sections.push(this._addProviderSection(providerPlan, index > 0));
-    });
-
-    this._syncToolbar(plan);
-  }
-
-  protected update(plan: CompactRenderPlan): void {
-    if (plan.phase !== "ready") {
-      if (this._emptyMessageLabel && plan.messageText) {
-        this._emptyMessageLabel.text = plan.messageText;
-        this._emptyMessageLabel.accessible_name = plan.messageText;
-      }
-      this._syncToolbar(plan);
-      return;
-    }
-
-    plan.providers.forEach((providerPlan, index) => {
-      const section = this._sections[index];
-      if (!section) return;
-
-      section.headerRow.accessible_name = providerPlan.headerAccessibleName;
-      section.chevronLabel.text = providerPlan.chevron;
-      section.titleLabel.text = providerPlan.displayName;
-      if (section.badgeLabel) {
-        section.badgeLabel.text = providerPlan.statusBadge;
-        applyQuietToneClass(
-          section.badgeLabel,
-          providerPlan.status === "partial" ? "warning" : "error",
-        );
-      }
-      if (section.fiveSegLabel) {
-        section.fiveSegLabel.text = providerPlan.fiveSegmentBar;
-        applyQuietToneClass(section.fiveSegLabel, providerPlan.headerTone);
-      }
-      section.summaryLabel.text = providerPlan.primarySummary;
-      applyQuietToneClass(section.summaryLabel, providerPlan.headerTone);
-
-      section.fillState.ratio = providerPlan.fillRatio;
-      this._syncHairlineBar(
-        section.hairlineTrack,
-        section.hairlineFill,
-        providerPlan.fillRatio,
-        providerPlan.headerTone,
-      );
-
-      if (section.detailLabel && providerPlan.detailText) {
-        section.detailLabel.text = providerPlan.detailText;
-        section.detailLabel.accessible_name = providerPlan.detailText;
-      }
-
-      if (section.errorLabel && providerPlan.errorText) {
-        section.errorLabel.text = providerPlan.errorText;
-        section.errorLabel.accessible_name = providerPlan.errorText;
-      }
-
-      providerPlan.groups.forEach((groupPlan, groupIdx) => {
-        const groupWidgets = section.groups[groupIdx];
-        if (!groupWidgets) return;
-        groupWidgets.heading.text = groupPlan.title;
-
-        groupPlan.rows.forEach((rowPlan, rowIdx) => {
-          const rowWidgets = groupWidgets.rows[rowIdx];
-          if (!rowWidgets) return;
-
-          if (rowWidgets.microBar && rowPlan.microBar !== null) {
-            rowWidgets.microBar.text = rowPlan.microBar;
-            applyQuietToneClass(rowWidgets.microBar, rowPlan.tone);
-          }
-
-          rowWidgets.value.text = rowPlan.valueText;
-          rowWidgets.value.accessible_name = rowPlan.accessibleText;
-          applyToneClass(rowWidgets.value, rowPlan.tone);
-
-          if (rowWidgets.error && rowPlan.errorText) {
-            rowWidgets.error.text = rowPlan.errorText;
-            rowWidgets.error.accessible_name = rowPlan.errorText;
-          }
-        });
-      });
-
-      if (section.lastUpdatedLabel && providerPlan.lastUpdatedText) {
-        section.lastUpdatedLabel.text = providerPlan.lastUpdatedText;
-        section.lastUpdatedLabel.accessible_name = providerPlan.lastUpdatedText;
-      }
-    });
-
-    this._syncToolbar(plan);
-  }
-
-  private _addProviderSection(plan: ProviderMatrixPlan, divided: boolean): ProviderSectionWidgets {
+  private _addProviderSection(plan: ProviderMatrixPlan, divided: boolean): void {
     const headerRow = this.shell.addStaticRow();
     headerRow.add_style_class_name("provider-limits-matrix-header");
     if (divided) {
@@ -363,9 +227,8 @@ export class CompactPanelSection
     });
     leftTitleBox.add_child(titleLabel);
 
-    let badgeLabel: St.Label | null = null;
     if (plan.statusBadge) {
-      badgeLabel = new St.Label({
+      const badgeLabel = new St.Label({
         text: plan.statusBadge,
         style_class: "provider-limits-status-badge",
         y_align: Clutter.ActorAlign.CENTER,
@@ -380,9 +243,8 @@ export class CompactPanelSection
       y_align: Clutter.ActorAlign.CENTER,
     });
 
-    let fiveSegLabel: St.Label | null = null;
     if (plan.fiveSegmentBar) {
-      fiveSegLabel = new St.Label({
+      const fiveSegLabel = new St.Label({
         text: plan.fiveSegmentBar,
         style_class: "provider-limits-micro-bar",
         y_align: Clutter.ActorAlign.CENTER,
@@ -425,24 +287,7 @@ export class CompactPanelSection
     headerRow.add_child(headerStack);
     this.shell.addBodyItem(headerRow);
 
-    if (!plan.expanded) {
-      return {
-        provider: plan.provider,
-        headerRow,
-        chevronLabel,
-        titleLabel,
-        badgeLabel,
-        fiveSegLabel,
-        summaryLabel,
-        hairlineTrack,
-        hairlineFill,
-        fillState,
-        detailLabel: null,
-        errorLabel: null,
-        groups: [],
-        lastUpdatedLabel: null,
-      };
-    }
+    if (!plan.expanded) return;
 
     const detailRow = this.shell.addStaticRow();
     detailRow.add_style_class_name("provider-limits-matrix-detail");
@@ -453,9 +298,8 @@ export class CompactPanelSection
       style_class: "provider-limits-matrix-table",
     });
 
-    let detailLabel: St.Label | null = null;
     if (plan.detailText !== null) {
-      detailLabel = new St.Label({
+      const detailLabel = new St.Label({
         text: plan.detailText,
         style_class: "provider-limits-callout-partial",
         x_expand: true,
@@ -466,9 +310,8 @@ export class CompactPanelSection
       table.add_child(detailLabel);
     }
 
-    let errorLabel: St.Label | null = null;
     if (plan.errorText !== null) {
-      errorLabel = new St.Label({
+      const errorLabel = new St.Label({
         text: plan.errorText,
         style_class: "provider-limits-callout-error provider-limits-error",
         x_expand: true,
@@ -479,7 +322,7 @@ export class CompactPanelSection
       table.add_child(errorLabel);
     }
 
-    const groups: DetailGroupWidgets[] = plan.groups.map((groupPlan) => {
+    for (const groupPlan of plan.groups) {
       const heading = new St.Label({
         text: groupPlan.title,
         style_class: "provider-limits-group-heading",
@@ -489,13 +332,11 @@ export class CompactPanelSection
       heading.accessible_name = groupPlan.title;
       table.add_child(heading);
 
-      const rows = groupPlan.rows.map((rowPlan) => this._buildMatrixRow(table, rowPlan));
-      return { heading, rows };
-    });
+      for (const rowPlan of groupPlan.rows) this._buildMatrixRow(table, rowPlan);
+    }
 
-    let lastUpdatedLabel: St.Label | null = null;
     if (plan.lastUpdatedText !== null) {
-      lastUpdatedLabel = new St.Label({
+      const lastUpdatedLabel = new St.Label({
         text: plan.lastUpdatedText,
         style_class: "provider-limits-dim provider-limits-last-updated provider-limits-tnum",
         x_expand: true,
@@ -507,26 +348,9 @@ export class CompactPanelSection
 
     detailRow.add_child(table);
     this.shell.addBodyItem(detailRow);
-
-    return {
-      provider: plan.provider,
-      headerRow,
-      chevronLabel,
-      titleLabel,
-      badgeLabel,
-      fiveSegLabel,
-      summaryLabel,
-      hairlineTrack,
-      hairlineFill,
-      fillState,
-      detailLabel,
-      errorLabel,
-      groups,
-      lastUpdatedLabel,
-    };
   }
 
-  private _buildMatrixRow(table: St.BoxLayout, rowPlan: MatrixDetailRow): DetailRowWidgets {
+  private _buildMatrixRow(table: St.BoxLayout, rowPlan: MatrixDetailRow): void {
     const line = new St.BoxLayout({
       x_expand: true,
       style_class: "provider-limits-matrix-row",
@@ -543,9 +367,8 @@ export class CompactPanelSection
     labelLabel.accessible_name = rowPlan.labelText;
     line.add_child(labelLabel);
 
-    let microBarLabel: St.Label | null = null;
     if (rowPlan.microBar !== null) {
-      microBarLabel = new St.Label({
+      const microBarLabel = new St.Label({
         text: rowPlan.microBar,
         style_class: "provider-limits-micro-bar",
         y_align: Clutter.ActorAlign.CENTER,
@@ -566,9 +389,8 @@ export class CompactPanelSection
 
     table.add_child(line);
 
-    let errorLabel: St.Label | null = null;
     if (rowPlan.errorText) {
-      errorLabel = new St.Label({
+      const errorLabel = new St.Label({
         text: rowPlan.errorText,
         style_class: "provider-limits-error provider-limits-row-error",
         x_expand: true,
@@ -578,8 +400,6 @@ export class CompactPanelSection
       errorLabel.accessible_name = rowPlan.errorText;
       table.add_child(errorLabel);
     }
-
-    return { microBar: microBarLabel, value: valueLabel, error: errorLabel };
   }
 
   private _syncHairlineBar(

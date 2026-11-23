@@ -15,6 +15,7 @@ import {
   type ProviderName,
 } from "./constants.js";
 import { configureTranslations, gettext as _ } from "./helpers/gettext.js";
+import { resolveLocale } from "./helpers/locale.js";
 import { logError } from "./helpers/log.js";
 import { normalizeProvidersOrder } from "./helpers/provider-settings.js";
 import { readerResultsEqual } from "./helpers/reader.js";
@@ -23,11 +24,13 @@ import { type BaseReader, type ReaderResult, ReaderStatus } from "./readers/base
 import { ClaudeReader } from "./readers/claude.js";
 import { CodexReader } from "./readers/codex.js";
 import { CursorReader } from "./readers/cursor.js";
+import { PROVIDER_FIELDS } from "./readers/fields.js";
 import { GoogleReader } from "./readers/google.js";
 import { GrokReader } from "./readers/grok.js";
 import { OpenCodeReader } from "./readers/opencode.js";
 import { PanelWidget } from "./ui/panel.js";
 import { StatusBarWidget } from "./ui/statusBar.js";
+import { viewContextFor } from "./ui/viewContext.js";
 
 const PROVIDER_LIMITS_UUID = "gnome-provider-limits@franciscoknebel.com";
 const MIN_REFRESH_INDICATOR_MS = 2000;
@@ -318,8 +321,20 @@ const ProviderLimitsIndicator = GObject.registerClass(
 
     private _render(): void {
       if (this._destroyed) return;
-      this._statusBar.render(this._results);
-      this._panel.render(this._results, this._lastRefreshAt);
+      const view = viewContextFor(
+        this._settings,
+        this._readers,
+        this._results,
+        PROVIDER_FIELDS,
+        resolveLocale(
+          this._settings.get_string("language"),
+          GLib.getenv("LC_MESSAGES"),
+          GLib.getenv("LANG"),
+        ),
+        _,
+      );
+      this._statusBar.render(view);
+      this._panel.render(view, this._lastRefreshAt);
     }
 
     private _getCurrentInterval(): number {

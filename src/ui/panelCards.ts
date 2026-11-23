@@ -11,38 +11,18 @@ import type {
   CardBadgeKind,
   CardKeyValueRow,
   CardProgressRow,
-  PanelPlan,
   ProviderCardPlan,
 } from "./cardPlan.js";
 import type { PanelRenderContext, PanelShell, PanelStyleSection } from "./panelShell.js";
-import { PlanRenderer, type RenderPlan } from "./planRenderer.js";
 import { applyHealthToneClass, applyToneClass } from "./tone.js";
 import type { ViewPhase } from "./viewContext.js";
 import { viewMessages } from "./viewMessages.js";
 
 interface ProgressRowWidgets {
-  value: St.Label;
   track: St.BoxLayout;
   fill: St.BoxLayout;
   fillPercent: number;
   hasValue: boolean;
-  resetLabel: St.Label | null;
-  errorLabel: St.Label | null;
-}
-
-interface KeyValueRowWidgets {
-  value: St.Label;
-  errorLabel: St.Label | null;
-}
-
-interface CardWidgets {
-  healthDot: St.BoxLayout;
-  badgeLabel: St.Label;
-  lastUpdatedLabel: St.Label | null;
-  bannerLabel: St.Label | null;
-  progressRows: ProgressRowWidgets[];
-  limitMetaRows: KeyValueRowWidgets[];
-  telemetryRows: KeyValueRowWidgets[];
 }
 
 function badgeStyleClass(kind: CardBadgeKind): string {
@@ -64,13 +44,8 @@ function bannerStyleClass(kind: BannerKind): string {
     : "pl-diagnostic-banner pl-banner-error";
 }
 
-type CardsRenderPlan = PanelPlan & RenderPlan;
-
-export class CardsPanelSection
-  extends PlanRenderer<CardsRenderPlan, PanelRenderContext>
-  implements PanelStyleSection
-{
-  private _cards: CardWidgets[] = [];
+/** Rebuilds the cards panel body from one freshly derived plan. */
+export class CardsPanelSection implements PanelStyleSection {
   private _phase: ViewPhase = "ready";
   private _emptyTitleLabel: St.Label | null = null;
   readonly shell: PanelShell;
@@ -81,7 +56,6 @@ export class CardsPanelSection
     _fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>,
     shell: PanelShell,
   ) {
-    super();
     this.shell = shell;
   }
 
@@ -89,19 +63,22 @@ export class CardsPanelSection
     this.shell.destroy();
   }
 
-  protected plan(context: PanelRenderContext): CardsRenderPlan {
-    const panel = planPanel(context.view, this.shell.isRunning());
-    return { ...panel, key: panel.structureKey };
-  }
-
-  protected clear(): void {
-    this.shell.clearBody();
-  }
-
-  protected override onDispose(): void {
-    this._cards = [];
-    this._phase = "ready";
+  render(context: PanelRenderContext): void {
+    const plan = planPanel(context.view, this.shell.isRunning());
+    this._phase = plan.phase;
     this._emptyTitleLabel = null;
+    this.shell.clearBody();
+
+    if (plan.phase !== "ready" && plan.emptyTitle) {
+      this._emptyTitleLabel = this.shell.addEmptyStateRow(
+        plan.emptyTitle,
+        plan.emptySubtitle ?? undefined,
+      );
+    } else {
+      for (const cardPlan of plan.cards) this._addCard(cardPlan);
+    }
+
+    this._syncLoadingMessage(this.shell.isRunning());
   }
 
   setRunning(running: boolean): void {
@@ -122,92 +99,7 @@ export class CardsPanelSection
     }
   }
 
-  protected build(plan: CardsRenderPlan): void {
-    this._phase = plan.phase;
-    this._emptyTitleLabel = null;
-
-    if (plan.phase !== "ready" && plan.emptyTitle) {
-      this._emptyTitleLabel = this.shell.addEmptyStateRow(
-        plan.emptyTitle,
-        plan.emptySubtitle ?? undefined,
-      );
-    } else {
-      for (const cardPlan of plan.cards) {
-        this._cards.push(this._addCard(cardPlan));
-      }
-    }
-
-    this._syncLoadingMessage(this.shell.isRunning());
-  }
-
-  protected update(plan: CardsRenderPlan): void {
-    if (plan.phase !== "ready" && this._emptyTitleLabel && plan.emptyTitle) {
-      this._emptyTitleLabel.text = plan.emptyTitle;
-      this._emptyTitleLabel.accessible_name = plan.emptyTitle;
-    }
-
-    plan.cards.forEach((cardPlan, index) => {
-      const card = this._cards[index];
-      if (!card) return;
-
-      applyHealthToneClass(card.healthDot, cardPlan.healthTone);
-      card.badgeLabel.text = cardPlan.badgeText;
-      card.badgeLabel.accessible_name = cardPlan.badgeText;
-
-      if (card.lastUpdatedLabel && cardPlan.lastUpdatedText) {
-        card.lastUpdatedLabel.text = cardPlan.lastUpdatedText;
-        card.lastUpdatedLabel.accessible_name = cardPlan.lastUpdatedText;
-      }
-
-      if (card.bannerLabel && cardPlan.bannerText) {
-        card.bannerLabel.text = cardPlan.bannerText;
-        card.bannerLabel.accessible_name = cardPlan.bannerText;
-      }
-
-      cardPlan.limitProgressRows.forEach((row, rowIndex) => {
-        const widgets = card.progressRows[rowIndex];
-        if (!widgets) return;
-        widgets.value.text = row.valueText;
-        widgets.value.accessible_name = row.accessibleText;
-        applyToneClass(widgets.value, row.tone);
-        applyToneClass(widgets.fill, row.tone);
-        widgets.fillPercent = row.fillPercent;
-        widgets.hasValue = row.hasValue;
-        this._syncProgressFill(widgets);
-
-        if (widgets.resetLabel && row.resetText) {
-          widgets.resetLabel.text = row.resetText;
-          widgets.resetLabel.accessible_name = row.resetText;
-        }
-        if (widgets.errorLabel && row.errorText) {
-          widgets.errorLabel.text = row.errorText;
-          widgets.errorLabel.accessible_name = row.errorText;
-        }
-      });
-
-      this._updateKeyValueRows(card.limitMetaRows, cardPlan.limitMetaRows);
-      this._updateKeyValueRows(card.telemetryRows, cardPlan.telemetryRows);
-    });
-  }
-
-  private _updateKeyValueRows(
-    widgetRows: readonly KeyValueRowWidgets[],
-    planRows: readonly CardKeyValueRow[],
-  ): void {
-    planRows.forEach((row, rowIndex) => {
-      const widgets = widgetRows[rowIndex];
-      if (!widgets) return;
-      widgets.value.text = row.valueText;
-      widgets.value.accessible_name = row.accessibleText;
-      applyToneClass(widgets.value, row.tone);
-      if (widgets.errorLabel && row.errorText) {
-        widgets.errorLabel.text = row.errorText;
-        widgets.errorLabel.accessible_name = row.errorText;
-      }
-    });
-  }
-
-  private _addCard(plan: ProviderCardPlan): CardWidgets {
+  private _addCard(plan: ProviderCardPlan): void {
     const host = this.shell.addStaticRow();
     host.add_style_class_name("pl-card-host");
     host.accessible_name = `${plan.displayName} (${plan.badgeText})`;
@@ -254,9 +146,8 @@ export class CardsPanelSection
 
     header.add_child(leftHeader);
 
-    let lastUpdatedLabel: St.Label | null = null;
     if (plan.lastUpdatedText !== null) {
-      lastUpdatedLabel = new St.Label({
+      const lastUpdatedLabel = new St.Label({
         text: plan.lastUpdatedText,
         style_class: "provider-limits-dim pl-card-updated",
         x_expand: true,
@@ -269,13 +160,12 @@ export class CardsPanelSection
 
     card.add_child(header);
 
-    let bannerLabel: St.Label | null = null;
     if (plan.bannerKind !== null && plan.bannerText !== null) {
       const bannerBox = new St.BoxLayout({
         style_class: bannerStyleClass(plan.bannerKind),
         x_expand: true,
       });
-      bannerLabel = new St.Label({
+      const bannerLabel = new St.Label({
         text: plan.bannerText,
         style_class: "pl-diagnostic-text",
         x_expand: true,
@@ -287,8 +177,8 @@ export class CardsPanelSection
       card.add_child(bannerBox);
     }
 
-    const progressRows = plan.limitProgressRows.map((row) => this._buildProgressRow(card, row));
-    const limitMetaRows = plan.limitMetaRows.map((row) => this._buildKeyValueRow(card, row));
+    for (const row of plan.limitProgressRows) this._buildProgressRow(card, row);
+    for (const row of plan.limitMetaRows) this._buildKeyValueRow(card, row);
 
     if (
       plan.telemetryRows.length > 0 &&
@@ -302,23 +192,13 @@ export class CardsPanelSection
       );
     }
 
-    const telemetryRows = plan.telemetryRows.map((row) => this._buildKeyValueRow(card, row));
+    for (const row of plan.telemetryRows) this._buildKeyValueRow(card, row);
 
     host.add_child(card);
     this.shell.addBodyItem(host);
-
-    return {
-      healthDot,
-      badgeLabel,
-      lastUpdatedLabel,
-      bannerLabel,
-      progressRows,
-      limitMetaRows,
-      telemetryRows,
-    };
   }
 
-  private _buildProgressRow(parent: St.BoxLayout, row: CardProgressRow): ProgressRowWidgets {
+  private _buildProgressRow(parent: St.BoxLayout, row: CardProgressRow): void {
     const container = new St.BoxLayout({
       vertical: true,
       x_expand: true,
@@ -363,9 +243,8 @@ export class CardsPanelSection
     track.add_child(fill);
     container.add_child(track);
 
-    let resetLabel: St.Label | null = null;
     if (row.resetText) {
-      resetLabel = new St.Label({
+      const resetLabel = new St.Label({
         text: row.resetText,
         style_class: "provider-limits-dim pl-progress-meta",
         x_expand: true,
@@ -375,9 +254,8 @@ export class CardsPanelSection
       container.add_child(resetLabel);
     }
 
-    let errorLabel: St.Label | null = null;
     if (row.errorText) {
-      errorLabel = new St.Label({
+      const errorLabel = new St.Label({
         text: row.errorText,
         style_class: "provider-limits-error pl-field-error",
         x_expand: true,
@@ -389,13 +267,10 @@ export class CardsPanelSection
     }
 
     const widgets: ProgressRowWidgets = {
-      value: valueWidget,
       track,
       fill,
       fillPercent: row.fillPercent,
       hasValue: row.hasValue,
-      resetLabel,
-      errorLabel,
     };
 
     this._syncProgressFill(widgets);
@@ -404,7 +279,6 @@ export class CardsPanelSection
     });
 
     parent.add_child(container);
-    return widgets;
   }
 
   private _syncProgressFill(widgets: ProgressRowWidgets): void {
@@ -422,7 +296,7 @@ export class CardsPanelSection
     }
   }
 
-  private _buildKeyValueRow(parent: St.BoxLayout, row: CardKeyValueRow): KeyValueRowWidgets {
+  private _buildKeyValueRow(parent: St.BoxLayout, row: CardKeyValueRow): void {
     const container = new St.BoxLayout({
       vertical: true,
       x_expand: true,
@@ -454,9 +328,8 @@ export class CardsPanelSection
     line.add_child(valueWidget);
     container.add_child(line);
 
-    let errorLabel: St.Label | null = null;
     if (row.errorText) {
-      errorLabel = new St.Label({
+      const errorLabel = new St.Label({
         text: row.errorText,
         style_class: "provider-limits-error pl-field-error",
         x_expand: true,
@@ -468,6 +341,5 @@ export class CardsPanelSection
     }
 
     parent.add_child(container);
-    return { value: valueWidget, errorLabel };
   }
 }

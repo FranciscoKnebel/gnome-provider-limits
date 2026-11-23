@@ -24,9 +24,8 @@ export type StatusBarZonePlan<TSegment> =
       readonly placeholder: string;
       readonly placeholderAccessibleText: string;
       readonly showPlaceholder: boolean;
-      readonly key: string;
     }
-  | { readonly kind: "segments"; readonly segments: readonly TSegment[]; readonly key: string };
+  | { readonly kind: "segments"; readonly segments: readonly TSegment[] };
 
 export function deriveStatusBarSegments(context: ProviderViewContext): StatusBarProviderSegment[] {
   return deriveDisplayModels(context).map((model) => ({
@@ -34,18 +33,9 @@ export function deriveStatusBarSegments(context: ProviderViewContext): StatusBar
     displayName: model.shortDisplayName,
     result: model.result,
     fieldDefs: context.fieldDefs[model.provider],
-    statusFields: context.statusFields[model.provider] ?? [],
+    statusFields: context.statusFields[model.provider],
     views: model.statusViews,
     meter: model.meter,
-    health: {
-      state: model.state,
-      tone: model.tone,
-      attention: model.attention,
-      worstTone: model.worstTone,
-      hasUsableField: model.hasUsableField,
-      lastKnownGood: model.lastKnownGood,
-      stateTag: model.stateTag,
-      stateAccessibleText: model.stateAccessibleText,
-    },
+    health: model.health,
   }));
 }

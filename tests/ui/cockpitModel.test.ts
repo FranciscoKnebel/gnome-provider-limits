@@ -29,7 +29,6 @@ import {
   cycleTab,
   getAvailableTabs,
   partitionProviderPanel,
-  providerDetailStructureKey,
   resolveActiveTab,
 } from "../../src/ui/cockpitModel.js";
 import { deriveDisplayModel } from "../../src/ui/displayModel.js";
@@ -466,72 +465,6 @@ describe("buildOverviewRowModel, tabs & structure keys", () => {
     expect(cycleTab("overview", enabled, -1)).toBe("opencode");
     expect(cycleTab("claude", enabled, 1)).toBe("codex");
     expect(cycleTab("overview", [], 1)).toBe("overview");
-  });
-
-  it("produces stable providerDetailStructureKey values that change only on structural changes", () => {
-    const baseResult: ReaderResult = {
-      provider: "codex",
-      status: ReaderStatus.OK,
-      lastUpdated: 100,
-      fields: [
-        { name: "used_percent_primary", value: 20, status: FieldStatus.OK },
-        { name: "plan_type", value: "plus", status: FieldStatus.OK },
-      ],
-    };
-    const updatedResult: ReaderResult = {
-      provider: "codex",
-      status: ReaderStatus.OK,
-      lastUpdated: 200,
-      fields: [
-        { name: "used_percent_primary", value: 85, status: FieldStatus.OK },
-        { name: "plan_type", value: "pro", status: FieldStatus.OK },
-      ],
-    };
-
-    const p1 = partitionProviderPanel(
-      CODEX_FIELDS,
-      baseResult,
-      ["used_percent_primary", "plan_type"],
-      "en",
-    );
-    const p2 = partitionProviderPanel(
-      CODEX_FIELDS,
-      updatedResult,
-      ["used_percent_primary", "plan_type"],
-      "en",
-    );
-    const p3 = partitionProviderPanel(CODEX_FIELDS, updatedResult, ["used_percent_primary"], "en");
-
-    const k1 = providerDetailStructureKey({
-      provider: "codex",
-      displayName: "Codex",
-      status: "ok",
-      locale: "en",
-      hasCallout: false,
-      hasTimestamp: true,
-      partition: p1,
-    });
-    const k2 = providerDetailStructureKey({
-      provider: "codex",
-      displayName: "Codex",
-      status: "ok",
-      locale: "en",
-      hasCallout: false,
-      hasTimestamp: true,
-      partition: p2,
-    });
-    const k3 = providerDetailStructureKey({
-      provider: "codex",
-      displayName: "Codex",
-      status: "ok",
-      locale: "en",
-      hasCallout: false,
-      hasTimestamp: true,
-      partition: p3,
-    });
-
-    expect(k1).toBe(k2);
-    expect(k3).not.toBe(k1);
   });
 });
 

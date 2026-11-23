@@ -6,7 +6,6 @@ import { deriveDisplayModel } from "./displayModel.js";
 import { fieldTone, type FieldTone } from "./fieldRows.js";
 import type { GaugeGeometry, GaugeTone, MicroMeterSpec } from "./gaugeTypes.js";
 import type { Presentation } from "./providerHealth.js";
-import { structureKey } from "./renderStructure.js";
 import { clampRatio } from "./usageSnapshot.js";
 
 export type CockpitTab = "overview" | ProviderName;
@@ -123,7 +122,7 @@ export function partitionProviderPanel(
   t?: (s: string) => string,
 ): PartitionedProviderPanel {
   const tr = t ?? ((s: string) => s);
-  const provider = result.provider as ProviderName;
+  const provider = result.provider;
   const model = deriveDisplayModel(provider, result, {
     fieldDefs: fieldsDefs,
     statusFields: [],
@@ -258,7 +257,7 @@ export function buildOverviewRowModel(options: {
   }
 
   const facts = model.usage.overview;
-  const resolvedTone = model.hasUsableField ? model.worstTone : undefined;
+  const resolvedTone = model.health.hasUsableField ? model.health.worstTone : undefined;
   const primaryText = facts.valueText;
   const secondaryText = facts.resetText;
 
@@ -302,36 +301,4 @@ export function cycleTab(
   const idx = tabs.indexOf(resolved);
   const nextIdx = (idx + direction + tabs.length) % tabs.length;
   return tabs[nextIdx];
-}
-
-export function providerDetailStructureKey(options: {
-  provider: ProviderName;
-  displayName: string;
-  status: string;
-  locale: string;
-  hasCallout: boolean;
-  hasTimestamp: boolean;
-  partition: PartitionedProviderPanel;
-}): string {
-  const gaugeKeys = options.partition.gauges.map((gauge) =>
-    [
-      gauge.fieldName,
-      gauge.hasResetSlot ? "1" : "0",
-      gauge.errorText === undefined ? "0" : "1",
-    ].join(":"),
-  );
-  const bentoKeys = options.partition.bentoTiles.map((tile) =>
-    [tile.fieldName, tile.errorText === undefined ? "0" : "1"].join(":"),
-  );
-
-  return structureKey([
-    options.provider,
-    options.displayName,
-    options.status,
-    options.locale,
-    options.hasCallout ? "1" : "0",
-    options.hasTimestamp ? "1" : "0",
-    ...gaugeKeys,
-    ...bentoKeys,
-  ]);
 }

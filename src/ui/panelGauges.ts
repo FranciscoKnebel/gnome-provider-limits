@@ -13,28 +13,13 @@ import { DetailRenderer } from "./panelGaugesDetail.js";
 import type { OverviewHost } from "./panelGaugesOverview.js";
 import { OverviewRenderer } from "./panelGaugesOverview.js";
 import type { PanelRenderContext, PanelShell, PanelStyleSection } from "./panelShell.js";
-import { structureKey } from "./renderStructure.js";
 import { viewContextFor, type ViewPhase } from "./viewContext.js";
 import { viewMessages } from "./viewMessages.js";
 
 type BodyState =
-  | { kind: "none" }
-  | { kind: "empty"; phase: ViewPhase; tab?: ProviderName }
+  | { kind: "empty"; phase: ViewPhase }
   | { kind: "overview" }
   | { kind: "detail"; provider: ProviderName };
-
-function bodyStructureKey(state: BodyState, locale: string): string {
-  switch (state.kind) {
-    case "none":
-      return structureKey([locale, "none"]);
-    case "empty":
-      return structureKey([locale, state.phase, state.tab ?? ""]);
-    case "overview":
-      return structureKey([locale, "overview"]);
-    case "detail":
-      return structureKey([locale, "detail", state.provider]);
-  }
-}
 
 /** Thin coordinator: owns tab state and delegates rendering to focused renderers. */
 export class GaugesPanelSection implements PanelStyleSection {
@@ -43,7 +28,6 @@ export class GaugesPanelSection implements PanelStyleSection {
   private _activeTab: CockpitTab = "overview";
   private _enabledProviders: ProviderName[] = [];
   private _lastContext: PanelRenderContext;
-  private _state: BodyState = { kind: "none" };
   readonly shell: PanelShell;
 
   constructor(
@@ -105,26 +89,33 @@ export class GaugesPanelSection implements PanelStyleSection {
     this._lastContext = context;
     const results = context.view.results;
     const locale = context.view.locale;
-
     const enabledProviders = [...context.view.activeProviders];
 
     this._enabledProviders = enabledProviders;
     this._activeTab = resolveActiveTab(this._activeTab, enabledProviders);
-
     this._overview.syncTabHeader(enabledProviders, results, locale);
 
+    this.shell.clearBody();
     const nextState = this._resolveBodyState(context.view.phase, results);
-    this._transitionBody(locale, nextState);
+
+    if (nextState.kind === "empty") {
+      const message = viewMessages({
+        phase: nextState.phase,
+        surface: "gauges",
+        t: _,
+        running: false,
+      });
+      this.shell.addEmptyStateRow(message.title, message.subtitle);
+      return;
+    }
 
     if (nextState.kind === "overview") {
       this._overview.render({ enabledProviders, results, locale });
       return;
     }
 
-    if (nextState.kind === "detail") {
-      const result = results.get(nextState.provider);
-      if (result) this._detail.render({ provider: nextState.provider, result, locale });
-    }
+    const result = results.get(nextState.provider);
+    if (result) this._detail.render({ provider: nextState.provider, result, locale });
   }
 
   setRunning(running: boolean): void {
@@ -135,48 +126,14 @@ export class GaugesPanelSection implements PanelStyleSection {
     phase: ViewPhase,
     results: ReadonlyMap<ProviderName, ReaderResult>,
   ): BodyState {
-    if (phase === "empty" || phase === "loading") {
-      return { kind: "empty", phase };
-    }
+    if (phase === "empty" || phase === "loading") return { kind: "empty", phase };
 
-    if (this._activeTab === "overview") {
-      return { kind: "overview" };
-    }
+    if (this._activeTab === "overview") return { kind: "overview" };
 
     const result = results.get(this._activeTab);
-    if (!result) {
-      return { kind: "empty", phase: "loading", tab: this._activeTab };
-    }
+    if (!result) return { kind: "empty", phase: "loading" };
 
     return { kind: "detail", provider: this._activeTab };
-  }
-
-  private _transitionBody(locale: string, nextState: BodyState): void {
-    const previousKey = bodyStructureKey(this._state, locale);
-    const nextKey = bodyStructureKey(nextState, locale);
-    const rebuild = previousKey !== nextKey;
-    this._state = nextState;
-
-    if (nextState.kind === "empty") {
-      if (rebuild) {
-        this.shell.clearBody();
-        this._overview.reset();
-        this._detail.reset();
-        const message = viewMessages({
-          phase: nextState.phase,
-          surface: "gauges",
-          t: _,
-          running: false,
-        });
-        this.shell.addEmptyStateRow(message.title, message.subtitle);
-      }
-      return;
-    }
-
-    if (rebuild) {
-      this._overview.reset();
-      this._detail.reset();
-    }
   }
 
   private _handleArrowNavigation(event: Clutter.Event): boolean {

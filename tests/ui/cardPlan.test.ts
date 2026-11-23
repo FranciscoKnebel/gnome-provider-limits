@@ -541,7 +541,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       expect(unavailableCard.bannerText).toBe("Unavailable");
     });
 
-    it("plans empty disabled and loading states in planPanel and preserves key across value updates", () => {
+    it("plans empty disabled and loading states in planPanel", () => {
       const disabledPlan = planPanel(
         panelContext({
           providers: ["codex"],
@@ -577,7 +577,6 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         false,
       );
       expect(waitingPlan.emptyTitle).toBe("Waiting for provider data…");
-      expect(waitingPlan.structureKey).toBe(loadingPlan.structureKey);
 
       const customDefs: readonly FieldDef[] = [
         {
@@ -632,7 +631,10 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       );
 
       expect(firstActive.phase).toBe("ready");
-      expect(secondActive.structureKey).toBe(firstActive.structureKey);
+      expect(secondActive.phase).toBe("ready");
+      expect(secondActive.cards[0].limitProgressRows[0].valueText).not.toBe(
+        firstActive.cards[0].limitProgressRows[0].valueText,
+      );
     });
   });
 });

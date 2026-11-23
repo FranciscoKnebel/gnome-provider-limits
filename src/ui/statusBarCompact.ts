@@ -5,18 +5,10 @@ import type { ProviderName } from "../constants.js";
 import { ReaderStatus } from "../readers/base.js";
 import { statusBadgeText } from "./providerHealth.js";
 import type { ProviderAttention } from "./providerHealth.js";
-import { structureKey } from "./renderStructure.js";
-import { StatusBarRenderer } from "./statusBarRenderer.js";
 import { deriveStatusBarSegments } from "./statusBarSegments.js";
 import { applyStatusAttentionClass } from "./tone.js";
-import type { ProviderViewContext, ViewPhase } from "./viewContext.js";
+import type { ProviderViewContext } from "./viewContext.js";
 import { viewMessages } from "./viewMessages.js";
-
-interface CompactPooledSegment {
-  box: St.BoxLayout;
-  nameLabel: St.Label;
-  metricsLabel: St.Label | null;
-}
 
 interface CompactBadgePlan {
   provider: ProviderName;
@@ -24,15 +16,13 @@ interface CompactBadgePlan {
   metricsText: string;
   attention: ProviderAttention;
   accessibleText: string;
-  key: string;
 }
 
 interface CompactPlan {
-  phase: ViewPhase;
+  phase: string;
   placeholderText: string | null;
   placeholderAccessibleText: string;
   badges: readonly CompactBadgePlan[];
-  key: string;
 }
 
 function planCompact(context: ProviderViewContext): CompactPlan {
@@ -51,7 +41,6 @@ function planCompact(context: ProviderViewContext): CompactPlan {
       placeholderText: null,
       placeholderAccessibleText: message.accessibleText,
       badges: [],
-      key: structureKey(["empty", context.locale]),
     };
   }
 
@@ -66,7 +55,6 @@ function planCompact(context: ProviderViewContext): CompactPlan {
         metricsText: "!",
         attention: segment.health.attention,
         accessibleText: `${shortLabel} ${badgeWord}`.trim(),
-        key: JSON.stringify([segment.provider, shortLabel, 1]),
       };
     }
 
@@ -83,7 +71,6 @@ function planCompact(context: ProviderViewContext): CompactPlan {
       metricsText,
       attention: segment.health.attention,
       accessibleText,
-      key: JSON.stringify([segment.provider, shortLabel, metricsText ? 1 : 0]),
     };
   });
 
@@ -93,7 +80,6 @@ function planCompact(context: ProviderViewContext): CompactPlan {
       placeholderText: message.placeholder,
       placeholderAccessibleText: message.accessibleText,
       badges: [],
-      key: structureKey(["loading", context.locale]),
     };
   }
 
@@ -102,19 +88,17 @@ function planCompact(context: ProviderViewContext): CompactPlan {
     placeholderText: null,
     placeholderAccessibleText: "",
     badges,
-    key: structureKey(["ready", context.locale, ...badges.map((badge) => badge.key)]),
   };
 }
 
-export class CompactStatusBarRenderer extends StatusBarRenderer<CompactPlan> {
-  private _segments: CompactPooledSegment[] = [];
-  private _placeholder: St.Label | null = null;
+/** Rebuilds the compact status bar from one freshly derived plan. */
+export class CompactStatusBarRenderer {
+  constructor(private readonly parent: St.BoxLayout) {}
 
-  protected plan(context: ProviderViewContext): CompactPlan {
-    return planCompact(context);
-  }
+  render(context: ProviderViewContext): void {
+    this.dispose();
+    const plan = planCompact(context);
 
-  protected build(plan: CompactPlan): void {
     if (plan.phase === "loading" && plan.placeholderText) {
       const placeholder = new St.Label({
         text: plan.placeholderText,
@@ -123,7 +107,6 @@ export class CompactStatusBarRenderer extends StatusBarRenderer<CompactPlan> {
       });
       placeholder.accessible_name = plan.placeholderAccessibleText;
       this.parent.add_child(placeholder);
-      this._placeholder = placeholder;
       return;
     }
 
@@ -158,36 +141,15 @@ export class CompactStatusBarRenderer extends StatusBarRenderer<CompactPlan> {
 
       applyStatusAttentionClass(segment, metricsLabel ?? nameLabel, badge.attention);
       this.parent.add_child(segment);
-      this._segments.push({ box: segment, nameLabel, metricsLabel });
     });
   }
 
-  protected update(plan: CompactPlan): void {
-    if (plan.phase === "loading" && this._placeholder && plan.placeholderText) {
-      this._placeholder.text = plan.placeholderText;
-      return;
+  dispose(): void {
+    let child = this.parent.get_first_child();
+    while (child) {
+      const next = child.get_next_sibling();
+      child.destroy();
+      child = next;
     }
-
-    plan.badges.forEach((badge, index) => {
-      const pooled = this._segments[index];
-      if (!pooled) return;
-
-      pooled.box.accessible_name = badge.accessibleText;
-      pooled.nameLabel.text = badge.shortLabel;
-      if (pooled.metricsLabel) {
-        pooled.metricsLabel.text = badge.metricsText;
-        pooled.metricsLabel.accessible_name = badge.accessibleText;
-      }
-      applyStatusAttentionClass(
-        pooled.box,
-        pooled.metricsLabel ?? pooled.nameLabel,
-        badge.attention,
-      );
-    });
-  }
-
-  protected onDispose(): void {
-    this._segments = [];
-    this._placeholder = null;
   }
 }

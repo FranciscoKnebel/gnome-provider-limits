@@ -1,18 +1,16 @@
 import type Gio from "gi://Gio";
-import GLib from "gi://GLib";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
 import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
-import { resolveLocale } from "../helpers/locale.js";
-import type { BaseReader, FieldDef, ReaderResult } from "../readers/base.js";
+import type { BaseReader, FieldDef } from "../readers/base.js";
 import { PROVIDER_FIELDS } from "../readers/fields.js";
 import { CardsPanelSection } from "./panelCards.js";
 import { CompactPanelSection } from "./panelCompact.js";
 import { GaugesPanelSection } from "./panelGauges.js";
 import { PanelShell, type PanelStyleSection } from "./panelShell.js";
-import { resolvePanelStyle, type PanelStyle, type StyleDispatch } from "./styles.js";
-import { viewContextFor } from "./viewContext.js";
+import { resolvePanelStyle, type PanelStyle } from "./styles.js";
+import type { ProviderViewContext } from "./viewContext.js";
 
 export type { PanelStyle } from "./styles.js";
 export type { PanelStyleSection } from "./panelShell.js";
@@ -24,7 +22,7 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
   private readonly _openPreferences: () => void;
   private readonly _onRefresh: () => void;
   private readonly _closeMenu: () => void;
-  private readonly _sections: StyleDispatch<PanelStyle, () => PanelStyleSection>;
+  private readonly _sections: Record<PanelStyle, () => PanelStyleSection>;
   private _currentStyle: PanelStyle | null = null;
   private _currentSection: PanelStyleSection | null = null;
 
@@ -104,20 +102,8 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     return section;
   }
 
-  render(results: Map<ProviderName, ReaderResult>, lastRefreshAt: number | null): void {
+  render(view: ProviderViewContext, lastRefreshAt: number | null): void {
     const section = this._ensureSection();
-    const view = viewContextFor(
-      this._settings,
-      this._readers,
-      results,
-      this._fieldDefs,
-      resolveLocale(
-        this._settings.get_string("language"),
-        GLib.getenv("LC_MESSAGES"),
-        GLib.getenv("LANG"),
-      ),
-      _,
-    );
     section.render({ lastRefreshAt, view });
     section.shell.setLastRefreshAt(lastRefreshAt);
   }

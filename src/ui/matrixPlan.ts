@@ -4,7 +4,6 @@ import type { FieldCategory } from "../readers/fields.js";
 import { deriveDisplayModels } from "./displayModel.js";
 import type { ProviderDisplayViews } from "./displayModel.js";
 import type { FieldTone } from "./fieldRows.js";
-import { structureKey } from "./renderStructure.js";
 import { clampFillRatio } from "./usageSnapshot.js";
 import type { ProviderViewContext, ViewPhase } from "./viewContext.js";
 import { viewMessages } from "./viewMessages.js";
@@ -42,7 +41,6 @@ export interface ProviderMatrixPlan {
   readonly errorText: string | null;
   readonly groups: readonly MatrixRowGroup[];
   readonly lastUpdatedText: string | null;
-  readonly key: string;
 }
 
 export interface PanelMatrixPlan {
@@ -51,7 +49,6 @@ export interface PanelMatrixPlan {
   readonly allExpanded: boolean;
   readonly canToggleAll: boolean;
   readonly providers: readonly ProviderMatrixPlan[];
-  readonly key: string;
 }
 
 const FILLED_SEGMENT = "▰";
@@ -129,19 +126,6 @@ function groupsFromViews(views: ProviderDisplayViews, tr: (s: string) => string)
   return groups;
 }
 
-function groupStructure(groups: readonly MatrixRowGroup[]): string[] {
-  return groups.map((group) =>
-    [
-      group.category,
-      ...group.rows.map((row) =>
-        [row.name, row.microBar !== null ? "1" : "0", row.errorText !== undefined ? "1" : "0"].join(
-          ":",
-        ),
-      ),
-    ].join("|"),
-  );
-}
-
 export function planPanelMatrix(
   context: ProviderViewContext,
   expandedOverrides: ReadonlyMap<ProviderName, boolean>,
@@ -161,7 +145,6 @@ export function planPanelMatrix(
       allExpanded: false,
       canToggleAll: false,
       providers: [],
-      key: structureKey([context.phase, context.locale]),
     };
   }
 
@@ -189,17 +172,6 @@ export function planPanelMatrix(
     if (facts.summaryText) accessibleParts.push(facts.summaryText);
     const headerAccessibleName = accessibleParts.join(" ");
 
-    const providerKey = structureKey([
-      model.structureKey,
-      expanded ? "1" : "0",
-      statusBadge ? "1" : "0",
-      fiveSegmentBar ? "1" : "0",
-      detailText !== null ? "1" : "0",
-      errorText !== null ? "1" : "0",
-      lastUpdatedText !== null ? "1" : "0",
-      ...groupStructure(groups),
-    ]);
-
     providers.push({
       provider: model.provider,
       displayName: model.displayName,
@@ -216,7 +188,6 @@ export function planPanelMatrix(
       errorText,
       groups,
       lastUpdatedText,
-      key: providerKey,
     });
   }
 
@@ -228,6 +199,5 @@ export function planPanelMatrix(
     allExpanded,
     canToggleAll: providers.length > 0,
     providers,
-    key: structureKey(["ready", context.locale, ...providers.map((provider) => provider.key)]),
   };
 }

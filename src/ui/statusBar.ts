@@ -1,27 +1,27 @@
 import Clutter from "gi://Clutter";
 import Gio from "gi://Gio";
-import GLib from "gi://GLib";
 import GObject from "gi://GObject";
 import St from "gi://St";
 
 import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
-import { resolveLocale } from "../helpers/locale.js";
-import type { BaseReader, FieldDef, ReaderResult } from "../readers/base.js";
-import { PROVIDER_FIELDS } from "../readers/fields.js";
+import type { BaseReader } from "../readers/base.js";
 import { CompactStatusBarRenderer } from "./statusBarCompact.js";
 import { GaugesStatusBarRenderer } from "./statusBarGauges.js";
 import { PillsStatusBarRenderer } from "./statusBarPills.js";
-import { StatusBarRenderer } from "./statusBarRenderer.js";
-import { resolveStatusBarStyle, type StatusBarStyle, type StyleDispatch } from "./styles.js";
-import { viewContextFor } from "./viewContext.js";
+import { resolveStatusBarStyle, type StatusBarStyle } from "./styles.js";
+import type { ProviderViewContext } from "./viewContext.js";
 
 export type { StatusBarStyle } from "./styles.js";
-export type { StatusBarRenderer } from "./statusBarRenderer.js";
 
-type RendererFactory = (parent: St.BoxLayout) => StatusBarRenderer;
+interface StatusBarSectionRenderer {
+  render(context: ProviderViewContext): void;
+  dispose(): void;
+}
 
-const RENDERER_FACTORIES: StyleDispatch<StatusBarStyle, RendererFactory> = {
+type RendererFactory = (parent: St.BoxLayout) => StatusBarSectionRenderer;
+
+const RENDERER_FACTORIES: Record<StatusBarStyle, RendererFactory> = {
   pills: (parent) => new PillsStatusBarRenderer(parent),
   gauges: (parent) => new GaugesStatusBarRenderer(parent),
   compact: (parent) => new CompactStatusBarRenderer(parent),
@@ -30,46 +30,29 @@ const RENDERER_FACTORIES: StyleDispatch<StatusBarStyle, RendererFactory> = {
 export const StatusBarWidget = GObject.registerClass(
   class StatusBarWidget extends St.BoxLayout {
     declare _settings: Gio.Settings;
-    declare _readers: Map<ProviderName, BaseReader>;
-    declare _fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>;
     declare _style: StatusBarStyle | null;
-    declare _renderer: StatusBarRenderer | null;
+    declare _renderer: StatusBarSectionRenderer | null;
 
-    _init(settings: Gio.Settings, readers: Map<ProviderName, BaseReader>) {
+    _init(settings: Gio.Settings, _readers: Map<ProviderName, BaseReader>) {
       super._init({
         style_class: "provider-limits-status-bar",
         y_align: Clutter.ActorAlign.CENTER,
       });
       this._settings = settings;
-      this._readers = readers;
-      this._fieldDefs = PROVIDER_FIELDS;
       this._style = null;
       this._renderer = null;
       this.accessible_name = _("Provider Limits");
     }
 
-    render(results: Map<ProviderName, ReaderResult>): void {
+    render(view: ProviderViewContext): void {
       const style = resolveStatusBarStyle(this._settings.get_string("status-bar-style"));
-      const context = viewContextFor(
-        this._settings,
-        this._readers,
-        results,
-        this._fieldDefs,
-        resolveLocale(
-          this._settings.get_string("language"),
-          GLib.getenv("LC_MESSAGES"),
-          GLib.getenv("LANG"),
-        ),
-        _,
-      );
-
       if (this._style !== style) {
         this._renderer?.dispose();
         this._renderer = RENDERER_FACTORIES[style](this);
         this._style = style;
       }
 
-      this._renderer?.render(context);
+      this._renderer?.render(view);
     }
   },
 );

@@ -460,7 +460,6 @@ describe("matrixPlan", () => {
         ]),
       );
 
-      expect(expandedPlan.key).not.toBe(collapsedPlan.key);
       const grokExpanded = expandedPlan.providers.find((p) => p.provider === "grok");
       expect(grokExpanded?.groups[0].rows[1].tone).toBe("critical");
 
@@ -471,42 +470,6 @@ describe("matrixPlan", () => {
       const claudeExpanded = expandedPlan.providers.find((p) => p.provider === "claude");
       expect(claudeExpanded?.primarySummary).toBe("(unavailable)");
       expect(claudeExpanded?.errorText).toBe("Error");
-    });
-
-    it("keeps panel structure key identical on in-place value and timestamp refreshes", () => {
-      const makeResults = (pct: number, ts: number) =>
-        new Map<ProviderName, ReaderResult>([
-          [
-            "codex",
-            {
-              provider: "codex",
-              status: ReaderStatus.OK,
-              lastUpdated: ts,
-              fields: [
-                { name: "used_percent_primary", value: pct, status: FieldStatus.OK },
-                { name: "used_percent_secondary", value: pct, status: FieldStatus.OK },
-                { name: "plan_type", value: "plus", status: FieldStatus.OK },
-              ],
-            },
-          ],
-        ]);
-
-      const first = planPanelMatrix(
-        matrixContext({
-          activeProviders: ["codex"],
-          results: makeResults(25, 1_700_000_000_000),
-        }),
-        new Map(),
-      );
-      const second = planPanelMatrix(
-        matrixContext({
-          activeProviders: ["codex"],
-          results: makeResults(88, 1_700_000_060_000),
-        }),
-        new Map(),
-      );
-
-      expect(first.key).toBe(second.key);
     });
   });
 

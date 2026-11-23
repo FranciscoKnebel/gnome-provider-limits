@@ -6,7 +6,7 @@ import { GAUGE_START_ANGLE, TONE_RGB } from "./cairoDrawing.js";
 import type { FieldView, UsageFacts } from "./fieldViews.js";
 import { deriveFieldViews, meterFromViews, projectUsageFacts } from "./fieldViews.js";
 import type { MicroMeterSpec } from "./gaugeTypes.js";
-import type { ProviderAttention, ProviderState, ProviderTone } from "./providerHealth.js";
+import type { ProviderHealth } from "./providerHealth.js";
 import type { Presentation } from "./providerHealth.js";
 import {
   badgeForZone,
@@ -15,7 +15,6 @@ import {
   overviewBadgeText,
   statusBadgeText,
 } from "./providerHealth.js";
-import { structureKey } from "./renderStructure.js";
 import type { ProviderViewContext } from "./viewContext.js";
 
 export type DisplayBannerKind = "warning" | "error";
@@ -52,14 +51,7 @@ export interface ProviderDisplayModel {
   readonly result: ReaderResult;
   readonly status: ReaderStatus;
   readonly isHardError: boolean;
-  readonly state: ProviderState;
-  readonly tone: ProviderTone;
-  readonly attention: ProviderAttention;
-  readonly worstTone: FieldView["tone"];
-  readonly hasUsableField: boolean;
-  readonly lastKnownGood: boolean;
-  readonly stateTag: string | null;
-  readonly stateAccessibleText: string | null;
+  readonly health: ProviderHealth;
   readonly badges: DisplayBadges;
   readonly statusViews: readonly FieldView[];
   readonly panelViews: readonly FieldView[];
@@ -72,7 +64,6 @@ export interface ProviderDisplayModel {
   readonly summaryText: string;
   readonly lastUpdatedText: string | null;
   readonly diagnostic: DisplayDiagnostic;
-  readonly structureKey: string;
 }
 
 /** Everything deriveDisplayModel needs, with no surrounding provider context. */
@@ -126,43 +117,6 @@ function pairResetViews(views: readonly FieldView[]): {
     consumed.add(view.resetName);
   }
   return { pairs, consumed };
-}
-
-function modelStructureKey(
-  model: Omit<ProviderDisplayModel, "structureKey">,
-  options: DisplayModelOptions,
-): string {
-  const parts: string[] = [
-    model.provider,
-    model.displayName,
-    model.shortDisplayName,
-    model.status,
-    options.locale,
-    model.badges.card,
-    model.badges.cardText,
-    model.badges.overview,
-    model.badges.overviewText,
-    model.badges.status ? "1" : "0",
-    model.diagnostic.bannerKind ?? "",
-    model.diagnostic.errorText !== null ? "1" : "0",
-    model.diagnostic.detailText !== null ? "1" : "0",
-    model.lastUpdatedText === null ? "0" : "1",
-    options.statusFields.join(","),
-    options.panelFields.join(","),
-    ...model.statusViews.map((view) => [view.name, view.type, view.category].join(":")),
-    ...model.panelViews.map((view) =>
-      [
-        view.name,
-        view.type,
-        view.category,
-        view.resetName ?? "",
-        view.hasResetSlot ? "1" : "0",
-        view.errorText ? "1" : "0",
-        view.resetText ? "1" : "0",
-      ].join(":"),
-    ),
-  ];
-  return structureKey(parts);
 }
 
 /** Assemble one provider's display model from explicit options, no fake context. */
@@ -232,21 +186,14 @@ export function deriveDisplayModel(
       ? tr("Last updated: %s").replace("%s", formatAbsoluteTimestamp(result.lastUpdated, locale))
       : null;
 
-  const partialModel: Omit<ProviderDisplayModel, "structureKey"> = {
+  const model: ProviderDisplayModel = {
     provider,
     displayName: options.displayName,
     shortDisplayName: options.shortDisplayName,
     result,
     status: result.status,
     isHardError,
-    state: health.state,
-    tone: health.tone,
-    attention: health.attention,
-    worstTone: health.worstTone,
-    hasUsableField: health.hasUsableField,
-    lastKnownGood: health.lastKnownGood,
-    stateTag: health.stateTag,
-    stateAccessibleText: health.stateAccessibleText,
+    health,
     badges,
     statusViews,
     panelViews,
@@ -266,10 +213,7 @@ export function deriveDisplayModel(
     },
   };
 
-  return {
-    ...partialModel,
-    structureKey: modelStructureKey(partialModel, options),
-  };
+  return model;
 }
 
 /** Thin loop over the active results, delegating all assembly to deriveDisplayModel. */
@@ -281,10 +225,10 @@ export function deriveDisplayModels(context: ProviderViewContext): ProviderDispl
     if (!result) continue;
     const model = deriveDisplayModel(provider, result, {
       fieldDefs: context.fieldDefs[provider],
-      statusFields: context.statusFields[provider] ?? [],
-      panelFields: context.panelFields[provider] ?? [],
-      displayName: context.displayNames[provider] ?? provider,
-      shortDisplayName: context.shortDisplayNames[provider] ?? provider,
+      statusFields: context.statusFields[provider],
+      panelFields: context.panelFields[provider],
+      displayName: context.displayNames[provider],
+      shortDisplayName: context.shortDisplayNames[provider],
       locale: context.locale,
       t: context.t,
     });

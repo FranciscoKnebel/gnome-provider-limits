@@ -6,7 +6,6 @@ import type { ProviderDisplayModel } from "./displayModel.js";
 import { clampPercent, type FieldTone } from "./fieldRows.js";
 import type { FieldView } from "./fieldViews.js";
 import type { Presentation, ProviderTone } from "./providerHealth.js";
-import { structureKey } from "./renderStructure.js";
 import { providerRecord, type ProviderViewContext, type ViewPhase } from "./viewContext.js";
 import { viewMessages } from "./viewMessages.js";
 
@@ -50,7 +49,6 @@ export interface ProviderCardPlan {
   limitProgressRows: CardProgressRow[];
   limitMetaRows: CardKeyValueRow[];
   telemetryRows: CardKeyValueRow[];
-  key: string;
 }
 
 export interface PanelPlan {
@@ -58,7 +56,6 @@ export interface PanelPlan {
   emptyTitle: string | null;
   emptySubtitle: string | null;
   cards: ProviderCardPlan[];
-  structureKey: string;
 }
 
 export function computeBarWidthPx(
@@ -144,7 +141,7 @@ function cardFromModel(model: ProviderDisplayModel, tr: (s: string) => string): 
     provider: model.provider,
     displayName: model.displayName,
     status: model.status,
-    healthTone: model.tone,
+    healthTone: model.health.tone,
     badgeKind: model.badges.card,
     badgeText: model.badges.cardText,
     lastUpdatedText: model.lastUpdatedText,
@@ -153,7 +150,6 @@ function cardFromModel(model: ProviderDisplayModel, tr: (s: string) => string): 
     limitProgressRows,
     limitMetaRows,
     telemetryRows,
-    key: model.structureKey,
   };
 }
 
@@ -187,10 +183,6 @@ export function planPanel(context: ProviderViewContext, running: boolean): Panel
       emptyTitle: message.title,
       emptySubtitle: message.subtitle || null,
       cards: [],
-      structureKey: structureKey([
-        context.locale,
-        `empty:${context.phase === "empty" ? "disabled" : "loading"}`,
-      ]),
     };
   }
 
@@ -205,6 +197,5 @@ export function planPanel(context: ProviderViewContext, running: boolean): Panel
     emptyTitle: null,
     emptySubtitle: null,
     cards,
-    structureKey: structureKey([context.locale, ...cards.map((c) => c.key)]),
   };
 }

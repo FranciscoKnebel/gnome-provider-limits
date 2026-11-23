@@ -5,57 +5,38 @@ import type { ProviderName } from "../constants.js";
 import { ReaderStatus } from "../readers/base.js";
 import type { FieldView } from "./fieldViews.js";
 import type { ProviderTone } from "./providerHealth.js";
-import { structureKey } from "./renderStructure.js";
-import { StatusBarRenderer } from "./statusBarRenderer.js";
 import { deriveStatusBarSegments } from "./statusBarSegments.js";
 import { applyHealthToneClass, applyToneClass } from "./tone.js";
-import type { ProviderViewContext, ViewPhase } from "./viewContext.js";
+import type { ProviderViewContext } from "./viewContext.js";
 import { viewMessages } from "./viewMessages.js";
-
-interface PillWidgets {
-  dot: St.BoxLayout;
-  values: St.Label[];
-}
 
 interface PillPlan {
   provider: ProviderName;
   displayName: string;
-  status: ReaderStatus;
-  healthTone: ProviderTone;
   isPartial: boolean;
+  healthTone: ProviderTone;
   stateTag: string | null;
   stateAccessibleText: string | null;
   rows: readonly FieldView[];
-  key: string;
 }
 
 interface PillsPlan {
-  readonly key: string;
-  readonly phase: ViewPhase;
+  readonly phase: string;
   readonly placeholder: string;
   readonly placeholderAccessibleText: string;
   readonly showPlaceholder: boolean;
-  pills: readonly PillPlan[];
+  readonly pills: readonly PillPlan[];
 }
 
 function planPills(context: ProviderViewContext): PillsPlan {
   const pills: PillPlan[] = deriveStatusBarSegments(context).map((segment) => ({
     provider: segment.provider,
     displayName: segment.displayName,
-    status: segment.result.status,
-    healthTone: segment.health.tone,
     isPartial: segment.result.status === ReaderStatus.PARTIAL,
+    healthTone: segment.health.tone,
     stateTag: segment.health.stateTag,
     stateAccessibleText: segment.health.stateAccessibleText,
     rows: segment.views,
-    key: JSON.stringify([
-      segment.provider,
-      segment.displayName,
-      segment.result.status,
-      context.locale,
-      segment.health.stateTag ?? "",
-      segment.views.map((row) => row.name ?? row.label),
-    ]),
   }));
 
   const message = viewMessages({
@@ -65,11 +46,6 @@ function planPills(context: ProviderViewContext): PillsPlan {
     running: false,
   });
   return {
-    key: structureKey([
-      context.locale,
-      context.phase === "loading" ? "loading" : "ready",
-      ...pills.map((pill) => pill.key),
-    ]),
     phase: context.phase,
     placeholder: message.placeholder,
     placeholderAccessibleText: message.accessibleText,
@@ -78,14 +54,14 @@ function planPills(context: ProviderViewContext): PillsPlan {
   };
 }
 
-export class PillsStatusBarRenderer extends StatusBarRenderer<PillsPlan> {
-  private _pills: PillWidgets[] = [];
+/** Rebuilds the status bar pills from one freshly derived plan. */
+export class PillsStatusBarRenderer {
+  constructor(private readonly parent: St.BoxLayout) {}
 
-  protected plan(context: ProviderViewContext): PillsPlan {
-    return planPills(context);
-  }
+  render(context: ProviderViewContext): void {
+    this.dispose();
+    const plan = planPills(context);
 
-  protected build(plan: PillsPlan): void {
     if (plan.showPlaceholder) {
       const loadingPill = new St.BoxLayout({
         style_class: "pl-status-pill pl-status-pill-loading",
@@ -144,7 +120,7 @@ export class PillsStatusBarRenderer extends StatusBarRenderer<PillsPlan> {
         pill.add_child(stateLabel);
       }
 
-      const values = pillPlan.rows.map((row) => {
+      for (const row of pillPlan.rows) {
         const valueLabel = new St.Label({
           text: row.valueText,
           style_class: "pl-status-value",
@@ -153,32 +129,18 @@ export class PillsStatusBarRenderer extends StatusBarRenderer<PillsPlan> {
         valueLabel.accessible_name = row.accessibleText ?? `${row.label}: ${row.valueText}`;
         applyToneClass(valueLabel, row.tone);
         pill.add_child(valueLabel);
-        return valueLabel;
-      });
+      }
 
       this.parent.add_child(pill);
-      this._pills.push({ dot, values });
     }
   }
 
-  protected update(plan: PillsPlan): void {
-    plan.pills.forEach((pillPlan, index) => {
-      const widgets = this._pills[index];
-      if (!widgets) return;
-
-      applyHealthToneClass(widgets.dot, pillPlan.healthTone);
-
-      pillPlan.rows.forEach((row, rowIndex) => {
-        const valueLabel = widgets.values[rowIndex];
-        if (!valueLabel) return;
-        valueLabel.text = row.valueText;
-        valueLabel.accessible_name = row.accessibleText ?? `${row.label}: ${row.valueText}`;
-        applyToneClass(valueLabel, row.tone);
-      });
-    });
-  }
-
-  protected onDispose(): void {
-    this._pills = [];
+  dispose(): void {
+    let child = this.parent.get_first_child();
+    while (child) {
+      const next = child.get_next_sibling();
+      child.destroy();
+      child = next;
+    }
   }
 }

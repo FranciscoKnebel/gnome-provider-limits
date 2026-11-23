@@ -4,6 +4,7 @@ import { assert, load, timers } from "../helpers/node-harness.mjs";
 
 function indicator() {
   const glib = timers();
+  glib.getenv = () => null;
   let disposed = false;
   const calls = [];
   const K = load("src/extension.ts", "ProviderLimitsIndicator", {
@@ -23,6 +24,10 @@ function indicator() {
     currentRefreshInterval: () => 10,
     ReaderStatus: { ERROR: "ERROR" },
     DEFAULT_REFRESH_SHORT_INTERVAL_SECONDS: 10,
+    PROVIDER_FIELDS: {},
+    resolveLocale: () => "en",
+    viewContextFor: () => ({ marker: "view" }),
+    _: (message) => message,
   });
   const i = new K();
   Object.assign(i, {
@@ -37,7 +42,7 @@ function indicator() {
     _renderDebounceId: null,
     _settingsChangedIds: [],
     _menuStateChangedId: 0,
-    _settings: { get_strv: () => ["codex"], get_int: () => 10 },
+    _settings: { get_strv: () => ["codex"], get_int: () => 10, get_string: () => "" },
     menu: { isOpen: true },
     _statusBar: {
       render: (r) => {

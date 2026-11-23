@@ -6,42 +6,15 @@ import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import type { ProviderName } from "../constants.js";
 import { formatAbsoluteTimestamp } from "../formatters.js";
 import { gettext as _ } from "../helpers/gettext.js";
-import { providerDisplayName } from "../helpers/provider-settings.js";
 import type { FieldDef, ReaderResult } from "../readers/base.js";
 import { ReaderStatus } from "../readers/base.js";
 import { disposeCairoContext, drawRadialGauge, isCairoContext } from "./cairoDrawing.js";
-import { partitionProviderPanel, providerDetailStructureKey } from "./cockpitModel.js";
+import { partitionProviderPanel } from "./cockpitModel.js";
 import type { BentoTileItem, PartitionedProviderPanel, RadialGaugeItem } from "./cockpitModel.js";
-import type { GaugeGeometry } from "./gaugeTypes.js";
 import type { PanelShell } from "./panelShell.js";
-import { PlanRenderer, type RenderPlan } from "./planRenderer.js";
 import { applyToneClass } from "./tone.js";
 
 const RADIAL_GAUGE_SIZE = 80;
-
-interface GaugeCardWidgets {
-  geometry: GaugeGeometry;
-  drawingArea: St.DrawingArea;
-  valueLabel: St.Label;
-  titleLabel: St.Label;
-  resetLabel: St.Label | null;
-  errorLabel: St.Label | null;
-  card: St.BoxLayout;
-}
-
-interface BentoTileWidgets {
-  valueLabel: St.Label;
-  errorLabel: St.Label | null;
-  tile: St.BoxLayout;
-}
-
-interface DetailViewWidgets {
-  calloutBadge: St.Label | null;
-  calloutText: St.Label | null;
-  gauges: GaugeCardWidgets[];
-  bentoTiles: BentoTileWidgets[];
-  lastUpdatedLabel: St.Label | null;
-}
 
 interface CalloutPlan {
   kind: "warning" | "error";
@@ -62,31 +35,28 @@ interface DetailRenderContext {
   readonly locale: string;
 }
 
-interface DetailRenderPlan extends RenderPlan {
+interface DetailRenderPlan {
   readonly callout: CalloutPlan | null;
   readonly isError: boolean;
   readonly partition: PartitionedProviderPanel;
   readonly lastUpdatedText: string | null;
 }
 
-/** Radial gauges, bento tiles and callouts for the gauges panel detail view. */
-export class DetailRenderer extends PlanRenderer<DetailRenderPlan, DetailRenderContext> {
+/** Rebuilds radial gauges, bento tiles and callouts from one freshly derived plan. */
+export class DetailRenderer {
   private readonly _host: DetailHost;
-  private _widgets: DetailViewWidgets | null = null;
 
   constructor(host: DetailHost) {
-    super();
     this._host = host;
   }
 
-  reset(): void {
-    this.dispose();
+  render(context: DetailRenderContext): void {
+    const plan = this._derivePlan(context);
+    this._build(plan);
   }
 
-  protected plan(context: DetailRenderContext): DetailRenderPlan {
+  private _derivePlan(context: DetailRenderContext): DetailRenderPlan {
     const { provider, result, locale } = context;
-    const displayName = providerDisplayName(this._host.settings, provider);
-    const fieldsDefs = this._host.fieldDefs[provider];
     const isError =
       result.status === ReaderStatus.ERROR || result.status === ReaderStatus.UNAVAILABLE;
 
@@ -108,7 +78,7 @@ export class DetailRenderer extends PlanRenderer<DetailRenderPlan, DetailRenderC
     const partition: PartitionedProviderPanel = isError
       ? { gauges: [], gaugeRows: [], bentoTiles: [], bentoRows: [] }
       : partitionProviderPanel(
-          fieldsDefs,
+          this._host.fieldDefs[provider],
           result,
           this._host.settings.get_strv(`${provider}-panel-fields`),
           locale,
@@ -120,25 +90,7 @@ export class DetailRenderer extends PlanRenderer<DetailRenderPlan, DetailRenderC
         ? formatAbsoluteTimestamp(result.lastUpdated, locale)
         : null;
 
-    const key = providerDetailStructureKey({
-      provider,
-      displayName,
-      status: result.status,
-      locale,
-      hasCallout: callout !== null,
-      hasTimestamp: lastUpdatedText !== null,
-      partition,
-    });
-
-    return { key, callout, isError, partition, lastUpdatedText };
-  }
-
-  protected clear(): void {
-    this._host.shell.clearBody();
-  }
-
-  protected override onDispose(): void {
-    this._widgets = null;
+    return { callout, isError, partition, lastUpdatedText };
   }
 
   private _addRow(styleClass: string | null): PopupMenu.PopupBaseMenuItem {
@@ -147,11 +99,8 @@ export class DetailRenderer extends PlanRenderer<DetailRenderPlan, DetailRenderC
     return row;
   }
 
-  protected build(plan: DetailRenderPlan): void {
+  private _build(plan: DetailRenderPlan): void {
     const { callout, isError, partition, lastUpdatedText } = plan;
-
-    let calloutBadge: St.Label | null = null;
-    let calloutText: St.Label | null = null;
 
     if (callout !== null) {
       const row = this._addRow(null);
@@ -164,14 +113,14 @@ export class DetailRenderer extends PlanRenderer<DetailRenderPlan, DetailRenderC
             : "pl-callout pl-callout-warning",
       });
 
-      calloutBadge = new St.Label({
+      const calloutBadge = new St.Label({
         text: callout.badge,
         style_class:
           callout.kind === "error" ? "pl-badge pl-badge-error" : "pl-badge pl-badge-cached",
         x_align: Clutter.ActorAlign.START,
       });
 
-      calloutText = new St.Label({
+      const calloutText = new St.Label({
         text: callout.text,
         style_class: callout.kind === "error" ? "provider-limits-error" : "provider-limits-dim",
         x_expand: true,
@@ -186,18 +135,13 @@ export class DetailRenderer extends PlanRenderer<DetailRenderPlan, DetailRenderC
       this._host.shell.addBodyItem(row);
     }
 
-    const gauges: GaugeCardWidgets[] = [];
-    const bentoTiles: BentoTileWidgets[] = [];
-
     if (!isError) {
       for (const gaugeRow of partition.gaugeRows) {
         const row = this._addRow("pl-gauge-row-item");
         const rowBox = new St.BoxLayout({ style_class: "pl-gauge-row", x_expand: true });
 
         for (const gauge of gaugeRow) {
-          const cardWidgets = this._buildGaugeCard(gauge);
-          rowBox.add_child(cardWidgets.card);
-          gauges.push(cardWidgets);
+          rowBox.add_child(this._buildGaugeCard(gauge));
         }
 
         row.add_child(rowBox);
@@ -209,9 +153,7 @@ export class DetailRenderer extends PlanRenderer<DetailRenderPlan, DetailRenderC
         const rowBox = new St.BoxLayout({ style_class: "pl-bento-row", x_expand: true });
 
         for (const tile of bentoRow) {
-          const tileWidgets = this._buildBentoTile(tile);
-          rowBox.add_child(tileWidgets.tile);
-          bentoTiles.push(tileWidgets);
+          rowBox.add_child(this._buildBentoTile(tile));
         }
 
         row.add_child(rowBox);
@@ -232,11 +174,10 @@ export class DetailRenderer extends PlanRenderer<DetailRenderPlan, DetailRenderC
       }
     }
 
-    let lastUpdatedLabel: St.Label | null = null;
     if (lastUpdatedText !== null) {
       const row = this._host.shell.addStaticRow();
       const text = _("Last updated: %s").replace("%s", lastUpdatedText);
-      lastUpdatedLabel = new St.Label({
+      const lastUpdatedLabel = new St.Label({
         text,
         style_class: "provider-limits-dim pl-provider-updated",
         x_expand: true,
@@ -246,11 +187,9 @@ export class DetailRenderer extends PlanRenderer<DetailRenderPlan, DetailRenderC
       row.add_child(lastUpdatedLabel);
       this._host.shell.addBodyItem(row);
     }
-
-    this._widgets = { calloutBadge, calloutText, gauges, bentoTiles, lastUpdatedLabel };
   }
 
-  private _buildGaugeCard(gauge: RadialGaugeItem): GaugeCardWidgets {
+  private _buildGaugeCard(gauge: RadialGaugeItem): St.BoxLayout {
     const card = new St.BoxLayout({
       vertical: true,
       x_expand: true,
@@ -296,9 +235,8 @@ export class DetailRenderer extends PlanRenderer<DetailRenderPlan, DetailRenderC
     card.add_child(ringOverlay);
     card.add_child(titleLabel);
 
-    let resetLabel: St.Label | null = null;
     if (gauge.hasResetSlot && gauge.resetText !== null) {
-      resetLabel = new St.Label({
+      const resetLabel = new St.Label({
         text: gauge.resetText,
         style_class: "provider-limits-dim pl-gauge-reset",
         x_align: Clutter.ActorAlign.CENTER,
@@ -307,9 +245,8 @@ export class DetailRenderer extends PlanRenderer<DetailRenderPlan, DetailRenderC
       card.add_child(resetLabel);
     }
 
-    let errorLabel: St.Label | null = null;
     if (gauge.errorText) {
-      errorLabel = new St.Label({
+      const errorLabel = new St.Label({
         text: gauge.errorText,
         style_class: "provider-limits-error pl-gauge-error",
         x_align: Clutter.ActorAlign.CENTER,
@@ -319,22 +256,13 @@ export class DetailRenderer extends PlanRenderer<DetailRenderPlan, DetailRenderC
       card.add_child(errorLabel);
     }
 
-    const widgets: GaugeCardWidgets = {
-      geometry: gauge.geometry,
-      drawingArea,
-      valueLabel,
-      titleLabel,
-      resetLabel,
-      errorLabel,
-      card,
-    };
-
+    const geometry = gauge.geometry;
     drawingArea.connect("repaint", (area: St.DrawingArea) => {
       const rawCr: unknown = area.get_context();
       try {
         if (isCairoContext(rawCr)) {
           const [w, h] = area.get_surface_size();
-          drawRadialGauge(rawCr, w, h, widgets.geometry);
+          drawRadialGauge(rawCr, w, h, geometry);
         }
       } finally {
         disposeCairoContext(rawCr);
@@ -342,10 +270,10 @@ export class DetailRenderer extends PlanRenderer<DetailRenderPlan, DetailRenderC
     });
     drawingArea.queue_repaint();
 
-    return widgets;
+    return card;
   }
 
-  private _buildBentoTile(tileData: BentoTileItem): BentoTileWidgets {
+  private _buildBentoTile(tileData: BentoTileItem): St.BoxLayout {
     const tile = new St.BoxLayout({
       vertical: true,
       x_expand: true,
@@ -372,9 +300,8 @@ export class DetailRenderer extends PlanRenderer<DetailRenderPlan, DetailRenderC
     tile.add_child(caption);
     tile.add_child(valueLabel);
 
-    let errorLabel: St.Label | null = null;
     if (tileData.errorText) {
-      errorLabel = new St.Label({
+      const errorLabel = new St.Label({
         text: tileData.errorText,
         style_class: "provider-limits-error pl-bento-error",
         x_align: Clutter.ActorAlign.START,
@@ -384,51 +311,6 @@ export class DetailRenderer extends PlanRenderer<DetailRenderPlan, DetailRenderC
       tile.add_child(errorLabel);
     }
 
-    return { valueLabel, errorLabel, tile };
-  }
-
-  protected update(plan: DetailRenderPlan): void {
-    const { callout, partition, lastUpdatedText } = plan;
-    const widgets = this._widgets;
-    if (!widgets) return;
-
-    if (callout !== null && widgets.calloutBadge && widgets.calloutText) {
-      widgets.calloutBadge.text = callout.badge;
-      widgets.calloutText.text = callout.text;
-      widgets.calloutText.accessible_name = `${callout.badge}: ${callout.text}`;
-    }
-
-    partition.gauges.forEach((gauge, idx) => {
-      const cardWidgets = widgets.gauges[idx];
-      if (!cardWidgets) return;
-      cardWidgets.geometry = gauge.geometry;
-      cardWidgets.drawingArea.queue_repaint();
-      cardWidgets.valueLabel.text = gauge.geometry.centerText;
-      applyToneClass(cardWidgets.valueLabel, gauge.geometry.fieldTone);
-      cardWidgets.titleLabel.text = gauge.translatedLabel;
-      cardWidgets.card.accessible_name = gauge.accessibleText;
-      if (cardWidgets.resetLabel && gauge.resetText !== null) {
-        cardWidgets.resetLabel.text = gauge.resetText;
-      }
-      if (cardWidgets.errorLabel && gauge.errorText) {
-        cardWidgets.errorLabel.text = gauge.errorText;
-      }
-    });
-
-    partition.bentoTiles.forEach((tileData, idx) => {
-      const tileWidgets = widgets.bentoTiles[idx];
-      if (!tileWidgets) return;
-      tileWidgets.valueLabel.text = tileData.valueText;
-      tileWidgets.tile.accessible_name = tileData.accessibleText;
-      if (tileWidgets.errorLabel && tileData.errorText) {
-        tileWidgets.errorLabel.text = tileData.errorText;
-      }
-    });
-
-    if (widgets.lastUpdatedLabel && lastUpdatedText !== null) {
-      const text = _("Last updated: %s").replace("%s", lastUpdatedText);
-      widgets.lastUpdatedLabel.text = text;
-      widgets.lastUpdatedLabel.accessible_name = text;
-    }
+    return tile;
   }
 }

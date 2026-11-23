@@ -105,7 +105,7 @@ test("Panel swaps style sections on setting change and forwards render and runni
   };
   // Style ownership is central: the indicator re-renders on key change, so the
   // panel observes a new style through render(), not through its own signal handler.
-  const fireStyleChange = () => panel.render(results, 100);
+  const fireStyleChange = () => panel.render(view, 100);
   const openPreferences = () => {};
   const onRefresh = () => {};
   const closeMenu = () => {};
@@ -117,8 +117,7 @@ test("Panel swaps style sections on setting change and forwards render and runni
   assert.equal(created[0].shell.options.openPreferences, openPreferences);
   assert.equal(created[0].shell.options.closeMenu, closeMenu);
 
-  const results = new Map([["codex", {}]]);
-  panel.render(results, 100);
+  panel.render(view, 100);
   assert.equal(created[0].rendered.length, 1);
   assert.equal(created[0].rendered[0].lastRefreshAt, 100);
   assert.equal(created[0].shell.lastRefreshAt, 100);
