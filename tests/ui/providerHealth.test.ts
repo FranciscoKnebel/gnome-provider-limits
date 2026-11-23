@@ -59,6 +59,7 @@ describe("providerHealth pure helpers", () => {
     const result: ReaderResult = {
       provider: "codex",
       status: ReaderStatus.PARTIAL,
+      fromCache: true,
       lastUpdated: 1_700_000_000_000,
       pathsTried: ["oauth-api", "last-known-good"],
       fields: [{ name: "used_percent_primary", value: 72, status: FieldStatus.OK }],

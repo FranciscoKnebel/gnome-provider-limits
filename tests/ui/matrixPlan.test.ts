@@ -2,7 +2,6 @@ import { PROVIDER_NAMES, type ProviderName } from "../../src/constants.js";
 import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
 import type { FieldDef, ReaderResult } from "../../src/readers/base.js";
 import { PROVIDER_FIELDS } from "../../src/readers/fields.js";
-import { displayFacts } from "../../src/ui/displayModel.js";
 import { clampFillRatio, type FieldTone } from "../../src/ui/fieldRows.js";
 import {
   areAllProvidersExpanded,
@@ -184,6 +183,7 @@ describe("matrixPlan", () => {
           {
             provider: "codex",
             status: ReaderStatus.OK,
+            fromCache: false,
             lastUpdated: Date.now(),
             fields: [
               { name: "used_percent_primary", value: 32, status: FieldStatus.OK },
@@ -196,6 +196,7 @@ describe("matrixPlan", () => {
           {
             provider: "claude",
             status: ReaderStatus.PARTIAL,
+            fromCache: false,
             lastUpdated: Date.now(),
             fields: [
               { name: "used_percent_session", value: 82, status: FieldStatus.OK },
@@ -208,6 +209,7 @@ describe("matrixPlan", () => {
           {
             provider: "opencode",
             status: ReaderStatus.ERROR,
+            fromCache: false,
             lastUpdated: Date.now(),
             lastError: "auth failed",
             fields: [],
@@ -218,6 +220,7 @@ describe("matrixPlan", () => {
           {
             provider: "grok",
             status: ReaderStatus.DISABLED,
+            fromCache: false,
             lastUpdated: Date.now(),
             fields: [],
           },
@@ -229,12 +232,12 @@ describe("matrixPlan", () => {
       expect(models).toHaveSize(3);
       expect(models.map((model) => model.shortDisplayName)).toEqual(["codex", "claude", "opc"]);
       expect(models[0].statusViews.map((view) => view.valueText).join("·")).toContain("32%·");
-      expect(displayFacts(models[0]).health.attention).toBe("quiet");
+      expect(models[0].facts.health.attention).toBe("quiet");
       expect(models[1].statusViews.map((view) => view.valueText).join("·")).toContain("82%·");
-      expect(displayFacts(models[1]).health.attention).toBe("critical");
+      expect(models[1].facts.health.attention).toBe("critical");
       expect(models[2].result.status).toBe(ReaderStatus.ERROR);
-      expect(displayFacts(models[2]).health.state).toBe("error");
-      expect(displayFacts(models[2]).health.attention).toBe("error");
+      expect(models[2].facts.health.state).toBe("error");
+      expect(models[2].facts.health.attention).toBe("error");
     });
 
     it("keeps model identity stable across value and attention changes", () => {
@@ -245,6 +248,7 @@ describe("matrixPlan", () => {
             {
               provider: "codex",
               status: ReaderStatus.OK,
+              fromCache: false,
               lastUpdated: Date.now(),
               fields: [{ name: "used_percent_primary", value: pct, status: FieldStatus.OK }],
             },
@@ -256,8 +260,8 @@ describe("matrixPlan", () => {
       const second = segmentsContext(makeResults(91), statusFields).models;
 
       expect(identity(second)).toEqual(identity(first));
-      expect(displayFacts(first[0]).health.attention).toBe("quiet");
-      expect(displayFacts(second[0]).health.attention).toBe("critical");
+      expect(first[0].facts.health.attention).toBe("quiet");
+      expect(second[0].facts.health.attention).toBe("critical");
     });
   });
 
@@ -313,6 +317,7 @@ describe("matrixPlan", () => {
           {
             provider: "opencode",
             status: ReaderStatus.PARTIAL,
+            fromCache: false,
             lastUpdated: 1_700_000_000_000,
             lastError: "Showing recent cached limits",
             fields: [
@@ -399,6 +404,7 @@ describe("matrixPlan", () => {
           {
             provider: "grok",
             status: ReaderStatus.OK,
+            fromCache: false,
             lastUpdated: Date.now(),
             fields: [
               { name: "remaining_percent_credits", value: 30, status: FieldStatus.OK },
@@ -416,6 +422,7 @@ describe("matrixPlan", () => {
           {
             provider: "codex",
             status: ReaderStatus.ERROR,
+            fromCache: false,
             lastUpdated: Date.now(),
             lastError: "Codex login required",
             fields: [],
@@ -426,6 +433,7 @@ describe("matrixPlan", () => {
           {
             provider: "claude",
             status: ReaderStatus.UNAVAILABLE,
+            fromCache: false,
             lastUpdated: Date.now(),
             fields: [],
           },

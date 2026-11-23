@@ -2,7 +2,7 @@ import type Gio from "gi://Gio";
 import type St from "gi://St";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
-import { CardsPanelSection } from "./panelCards.js";
+import { CardsPanelSection } from "./panelCardsRenderer.js";
 import { CompactPanelSection, createExpandAllControl } from "./panelCompact.js";
 import { GaugesPanelSection } from "./panelGauges.js";
 import { PanelShell, type PanelStyleSection } from "./panelShell.js";

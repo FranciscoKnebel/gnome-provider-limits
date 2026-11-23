@@ -1,7 +1,7 @@
 import type { ProviderName } from "../constants.js";
 import type { ReaderStatus } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
-import { classifyPanelViews, displayFacts, type ProviderDisplayModel } from "./displayModel.js";
+import { classifyPanelViews, type ProviderDisplayModel } from "./displayModel.js";
 import { clampFillRatio, type FieldTone } from "./fieldRows.js";
 import { STYLE_REGISTRY } from "./styles.js";
 import type { ProviderViewContext, ViewPhase } from "./viewContext.js";
@@ -154,7 +154,7 @@ export function planPanelMatrix(
   const providers: ProviderMatrixPlan[] = [];
 
   for (const model of models) {
-    const modelFacts = displayFacts(model);
+    const modelFacts = model.facts;
     const expanded = resolveProviderExpanded(model.provider, enabledCount, expandedOverrides);
     const chevron: "▾" | "▸" = expanded ? "▾" : "▸";
     const statusBadge = modelFacts.badges.status;

@@ -3,7 +3,6 @@ import St from "gi://St";
 
 import type { ProviderName } from "../constants.js";
 import { ReaderStatus } from "../readers/base.js";
-import { displayFacts } from "./displayModel.js";
 import type { ProviderAttention } from "./providerHealth.js";
 import { StatusBarRenderer, type ZonePlan } from "./statusBarRenderer.js";
 import { STYLE_REGISTRY } from "./styles.js";
@@ -34,7 +33,7 @@ function planCompact(context: ProviderViewContext): CompactPlan {
   }
 
   const segments: CompactBadgePlan[] = context.models.map((model) => {
-    const { health, badges } = displayFacts(model);
+    const { health, badges } = model.facts;
     const shortLabel = model.shortDisplayName || model.provider;
     const badgeWord = badges.status;
 

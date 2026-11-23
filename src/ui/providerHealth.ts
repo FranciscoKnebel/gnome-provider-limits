@@ -1,5 +1,5 @@
 import type { FieldDef, FieldResult, ReaderResult } from "../readers/base.js";
-import { FieldStatus, ReaderStatus } from "../readers/base.js";
+import { FieldStatus, isLimitReached, ReaderStatus } from "../readers/base.js";
 import type { FieldTone } from "./fieldRows.js";
 import { fieldTone } from "./fieldRows.js";
 import type { FieldView } from "./fieldViews.js";
@@ -85,11 +85,6 @@ export function worstFieldTone(tones: readonly (FieldTone | undefined)[]): Field
   return worst;
 }
 
-export function isLimitReached(fields: readonly FieldResult[] | undefined): boolean {
-  const field = fields?.find((candidate) => candidate.name === "limit_reached");
-  return field?.status === FieldStatus.OK && field.value === true;
-}
-
 export function collectFieldTones(
   rows: readonly { readonly tone?: FieldTone }[],
   fields?: readonly FieldResult[],
@@ -108,10 +103,7 @@ export function collectFieldTones(
 }
 
 export function isLastKnownGood(result: ReaderResult): boolean {
-  return (
-    result.status === ReaderStatus.PARTIAL &&
-    (result.pathsTried?.includes("last-known-good") ?? false)
-  );
+  return result.status === ReaderStatus.PARTIAL && result.fromCache;
 }
 
 export function deriveState(

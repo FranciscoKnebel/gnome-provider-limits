@@ -59,6 +59,7 @@ describe("last-known-good", () => {
   const good: ReaderResult = {
     provider: "codex",
     status: ReaderStatus.OK,
+    fromCache: false,
     fields: [field],
     lastUpdated: Date.now(),
     pathsTried: ["oauth-api"],
@@ -110,6 +111,7 @@ describe("last-known-good", () => {
     const error: ReaderResult = {
       provider: "codex",
       status: ReaderStatus.ERROR,
+      fromCache: false,
       fields: [],
       lastUpdated: Date.now(),
       lastError: "inner failure",
@@ -126,6 +128,7 @@ describe("last-known-good", () => {
     const error: ReaderResult = {
       provider: "codex",
       status: ReaderStatus.ERROR,
+      fromCache: false,
       fields: [],
       lastUpdated: Date.now(),
       lastError: "inner failure",

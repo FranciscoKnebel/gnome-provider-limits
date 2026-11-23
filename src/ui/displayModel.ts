@@ -1,14 +1,13 @@
 import type { ProviderName } from "../constants.js";
 import { formatAbsoluteTimestamp } from "../formatters.js";
 import type { FieldDef, ReaderResult } from "../readers/base.js";
-import { ReaderStatus } from "../readers/base.js";
-import type { FieldCategory } from "../readers/fields.js";
+import { isHardError, ReaderStatus } from "../readers/base.js";
 import { emptyMeter } from "./cairoDrawing.js";
 import type { FieldView, UsageFacts } from "./fieldViews.js";
 import { deriveFieldViews, meterFromViews, projectUsageFacts, selectViews } from "./fieldViews.js";
 import type { GaugeSpec } from "./gaugeTypes.js";
 import type { ProviderHealth } from "./providerHealth.js";
-import type { Presentation, ProviderTone } from "./providerHealth.js";
+import type { Presentation } from "./providerHealth.js";
 import {
   badgeForZone,
   cardBadgeText,
@@ -19,13 +18,9 @@ import {
 import {
   consumedResetNames,
   deriveResetPairings,
-  resetDetailText,
   resetSlotText,
   type ResetPairing,
 } from "./resetModel.js";
-import { STYLE_REGISTRY } from "./styles.js";
-import type { ProviderViewContext, ViewPhase } from "./viewContext.js";
-import { phaseResult } from "./viewMessages.js";
 
 export type DisplayBannerKind = "warning" | "error";
 
@@ -56,7 +51,7 @@ export interface ProviderDisplayUsage {
   readonly overview: UsageFacts;
 }
 
-/** Identity plus the already-derived view sets. Presentational facts live in displayFacts(). */
+/** Identity, derived view sets and their eagerly computed presentational facts. */
 export interface ProviderDisplayModel {
   readonly provider: ProviderName;
   readonly displayName: string;
@@ -66,9 +61,10 @@ export interface ProviderDisplayModel {
   readonly statusViews: readonly FieldView[];
   readonly panelViews: readonly FieldView[];
   readonly resets: ReadonlyMap<string, ResetPairing>;
+  readonly facts: ProviderDisplayFacts;
 }
 
-/** Derived once per model on first use; never duplicated in plan builders. */
+/** Surface-agnostic presentational facts, computed once with the model. */
 export interface ProviderDisplayFacts {
   readonly health: ProviderHealth;
   readonly badges: DisplayBadges;
@@ -77,6 +73,7 @@ export interface ProviderDisplayFacts {
   readonly diagnostic: DisplayDiagnostic;
   readonly callout: DisplayCallout | null;
   readonly lastUpdatedText: string | null;
+  readonly isHardError: boolean;
 }
 
 /** Everything deriveDisplayModel needs, with no surrounding provider context. */
@@ -137,24 +134,6 @@ export function classifyPanelViews(
   return { all, progress, keyValue, limit, telemetry };
 }
 
-interface DisplayDerivation extends DisplayModelOptions {
-  readonly views: readonly FieldView[];
-}
-
-const DERIVATIONS = new WeakMap<ProviderDisplayModel, DisplayDerivation>();
-const FACTS = new WeakMap<ProviderDisplayModel, ProviderDisplayFacts>();
-
-/** Memoized presentational facts for one canonical model. */
-export function displayFacts(model: ProviderDisplayModel): ProviderDisplayFacts {
-  const cached = FACTS.get(model);
-  if (cached) return cached;
-  const derivation = DERIVATIONS.get(model);
-  if (!derivation) throw new Error("Display facts require a model built by deriveDisplayModel.");
-  const facts = deriveDisplayFacts(model, derivation);
-  FACTS.set(model, facts);
-  return facts;
-}
-
 function deriveDiagnostics(
   result: ReaderResult,
   isHardError: boolean,
@@ -179,7 +158,7 @@ function deriveDiagnostics(
   } else if (result.status === ReaderStatus.PARTIAL && result.lastError) {
     callout = {
       kind: "warning",
-      badge: result.pathsTried?.includes("last-known-good") ? tr("Cached") : tr("Partial"),
+      badge: result.fromCache ? tr("Cached") : tr("Partial"),
       text: result.lastError,
     };
   }
@@ -196,13 +175,14 @@ function deriveDiagnostics(
 }
 
 function deriveDisplayFacts(
-  model: ProviderDisplayModel,
-  derivation: DisplayDerivation,
+  model: Omit<ProviderDisplayModel, "facts">,
+  derivation: DisplayModelOptions & {
+    readonly views: readonly FieldView[];
+    readonly hardError: boolean;
+  },
 ): ProviderDisplayFacts {
   const { result } = model;
-  const { fieldDefs, statusFields, locale, t: tr, views } = derivation;
-  const isHardError =
-    result.status === ReaderStatus.ERROR || result.status === ReaderStatus.UNAVAILABLE;
+  const { fieldDefs, statusFields, locale, t: tr, views, hardError } = derivation;
 
   const resetTextFor = (view: FieldView): string | null => {
     const pairing = model.resets.get(view.name);
@@ -233,9 +213,9 @@ function deriveDisplayFacts(
     ),
   };
 
-  const { diagnostic, callout } = deriveDiagnostics(result, isHardError, tr);
+  const { diagnostic, callout } = deriveDiagnostics(result, hardError, tr);
   const lastUpdatedText =
-    !isHardError && Number.isFinite(result.lastUpdated)
+    !hardError && Number.isFinite(result.lastUpdated)
       ? tr("Last updated: %s").replace("%s", formatAbsoluteTimestamp(result.lastUpdated, locale))
       : null;
 
@@ -243,12 +223,13 @@ function deriveDisplayFacts(
     health,
     badges,
     usage,
-    meter: isHardError
+    meter: hardError
       ? emptyMeter("critical", true)
       : meterFromViews([...model.statusViews, ...model.panelViews]),
     diagnostic,
     callout,
     lastUpdatedText,
+    isHardError: hardError,
   };
 }
 
@@ -261,19 +242,18 @@ export function deriveDisplayModel(
   if (result.status === ReaderStatus.DISABLED) return undefined;
 
   const { fieldDefs, statusFields, panelFields, locale, t: tr } = options;
-  const isHardError =
-    result.status === ReaderStatus.ERROR || result.status === ReaderStatus.UNAVAILABLE;
+  const hardError = isHardError(result);
   const searchOrder = [...new Set([...statusFields, ...panelFields])];
   const viewOptions = { zone: "status" as const, locale, t: tr };
-  const allViews = isHardError ? [] : deriveFieldViews(fieldDefs, result, searchOrder, viewOptions);
-  const panelSource = isHardError
+  const allViews = hardError ? [] : deriveFieldViews(fieldDefs, result, searchOrder, viewOptions);
+  const panelSource = hardError
     ? []
     : deriveFieldViews(fieldDefs, result, searchOrder, { ...viewOptions, zone: "panel" as const });
   const statusViews = selectViews(allViews, statusFields);
   const panelViews = selectViews(panelSource, panelFields);
   const resets = deriveResetPairings(fieldDefs, result, allViews, searchOrder, panelFields);
 
-  const model: ProviderDisplayModel = {
+  const modelBase = {
     provider,
     displayName: options.displayName,
     shortDisplayName: options.shortDisplayName,
@@ -283,8 +263,8 @@ export function deriveDisplayModel(
     panelViews,
     resets,
   };
-  DERIVATIONS.set(model, { ...options, views: allViews });
-  return model;
+  const facts = deriveDisplayFacts(modelBase, { ...options, views: allViews, hardError });
+  return { ...modelBase, facts };
 }
 
 /** Only the inputs needed to derive the canonical display model set. */
@@ -320,155 +300,4 @@ export function deriveDisplayModels(input: DisplayModelDerivationInput): Provide
   }
 
   return models;
-}
-
-import type { FieldTone } from "./fieldRows.js";
-
-export type CardBadgeKind = Presentation["cardBadge"];
-export type BannerKind = "warning" | "error";
-
-export interface CardProgressRow {
-  kind: "progress";
-  name: string;
-  label: string;
-  valueText: string;
-  fillPercent: number;
-  hasValue: boolean;
-  tone?: FieldTone;
-  resetText?: string;
-  errorText?: string;
-  accessibleText: string;
-}
-
-export interface CardKeyValueRow {
-  kind: "kv";
-  name: string;
-  category: FieldCategory;
-  label: string;
-  valueText: string;
-  tone?: FieldTone;
-  errorText?: string;
-  accessibleText: string;
-}
-
-export interface ProviderCardPlan {
-  provider: ProviderName;
-  displayName: string;
-  status: ReaderStatus;
-  healthTone: ProviderTone;
-  badgeKind: CardBadgeKind;
-  badgeText: string;
-  lastUpdatedText: string | null;
-  bannerKind: BannerKind | null;
-  bannerText: string | null;
-  limitProgressRows: CardProgressRow[];
-  limitMetaRows: CardKeyValueRow[];
-  telemetryRows: CardKeyValueRow[];
-}
-
-export interface PanelPlan {
-  phase: ViewPhase;
-  emptyTitle: string | null;
-  emptySubtitle: string | null;
-  cards: ProviderCardPlan[];
-}
-
-function keyValueRow(view: FieldView): CardKeyValueRow {
-  return {
-    kind: "kv",
-    name: view.name,
-    category: view.category,
-    label: view.labelText,
-    valueText: view.valueText,
-    accessibleText: view.accessibleText,
-    ...(view.tone ? { tone: view.tone } : {}),
-    ...(view.errorText ? { errorText: view.errorText } : {}),
-  };
-}
-
-function progressRow(
-  view: FieldView,
-  pairing: ResetPairing | undefined,
-  locale: string,
-  t: (s: string) => string,
-): CardProgressRow {
-  const detail =
-    pairing?.inPanel === true && pairing.claimed
-      ? resetDetailText(pairing, "panel", locale, t)
-      : undefined;
-  const errorText = view.errorText ?? (detail ? (pairing?.errorText ?? undefined) : undefined);
-  const accessibleText = detail ? `${view.accessibleText}, ${detail}` : view.accessibleText;
-
-  return {
-    kind: "progress",
-    name: view.name,
-    label: view.labelText,
-    valueText: view.valueText,
-    fillPercent: view.fillPercent ?? 0,
-    hasValue: view.fillPercent !== undefined,
-    accessibleText,
-    ...(view.tone ? { tone: view.tone } : {}),
-    ...(detail ? { resetText: detail } : {}),
-    ...(errorText ? { errorText } : {}),
-  };
-}
-
-/** Pure card projection from one canonical model; the only card derivation. */
-export function cardFromModel(
-  model: ProviderDisplayModel,
-  locale: string,
-  t: (s: string) => string,
-): ProviderCardPlan {
-  const groups = classifyPanelViews(model);
-  const facts = displayFacts(model);
-  const limitProgressRows: CardProgressRow[] = [];
-  const limitMetaRows: CardKeyValueRow[] = [];
-  const telemetryRows: CardKeyValueRow[] = [];
-
-  for (const view of groups.limit.progress) {
-    limitProgressRows.push(progressRow(view, model.resets.get(view.name), locale, t));
-  }
-  for (const view of groups.limit.keyValue) {
-    limitMetaRows.push(keyValueRow(view));
-  }
-  for (const view of groups.telemetry.keyValue) {
-    telemetryRows.push(keyValueRow(view));
-  }
-
-  return {
-    provider: model.provider,
-    displayName: model.displayName,
-    status: model.status,
-    healthTone: facts.health.tone,
-    badgeKind: facts.badges.card,
-    badgeText: facts.badges.cardText,
-    lastUpdatedText: facts.lastUpdatedText,
-    bannerKind: facts.diagnostic.bannerKind,
-    bannerText: facts.diagnostic.bannerText,
-    limitProgressRows,
-    limitMetaRows,
-    telemetryRows,
-  };
-}
-
-export function planPanel(context: ProviderViewContext, running: boolean): PanelPlan {
-  const phase = phaseResult(context, STYLE_REGISTRY.panel.cards, running);
-
-  if (phase.kind === "placeholder") {
-    return {
-      phase: phase.phase,
-      emptyTitle: phase.message.title || null,
-      emptySubtitle: phase.message.subtitle || null,
-      cards: [],
-    };
-  }
-
-  const cards = context.models.map((model) => cardFromModel(model, context.locale, context.t));
-
-  return {
-    phase: "ready",
-    emptyTitle: null,
-    emptySubtitle: null,
-    cards,
-  };
 }

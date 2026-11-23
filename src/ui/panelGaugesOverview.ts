@@ -11,7 +11,6 @@ import { providerDisplayName } from "../helpers/provider-settings.js";
 import { connectRepaint, drawMiniCapsule } from "./cairoDrawing.js";
 import { buildOverviewRowModel, getAvailableTabs, loadingOverviewRow } from "./cockpitModel.js";
 import type { CockpitTab, OverviewBadgeKind, OverviewRowModel } from "./cockpitModel.js";
-import { displayFacts } from "./displayModel.js";
 import type { ProviderDisplayModel } from "./displayModel.js";
 import type { PanelShell } from "./panelShell.js";
 import { applyHealthToneClass, applyToneClass } from "./tone.js";
@@ -79,7 +78,7 @@ class TabBarRenderer {
           y_align: Clutter.ActorAlign.CENTER,
         });
         const tabModel = modelsByProvider.get(tab);
-        applyHealthToneClass(healthDot, tabModel ? displayFacts(tabModel).health.tone : "idle");
+        applyHealthToneClass(healthDot, tabModel ? tabModel.facts.health.tone : "idle");
         content.add_child(healthDot);
       }
 

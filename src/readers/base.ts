@@ -48,6 +48,16 @@ export interface ReaderResult {
   readonly lastUpdated: number;
   readonly lastError?: string | null;
   readonly pathsTried?: readonly string[];
+  readonly fromCache: boolean;
+}
+
+export function isHardError(result: ReaderResult): boolean {
+  return result.status === ReaderStatus.ERROR || result.status === ReaderStatus.UNAVAILABLE;
+}
+
+export function isLimitReached(fields: readonly FieldResult[] | undefined): boolean {
+  const field = fields?.find((candidate) => candidate.name === "limit_reached");
+  return field?.status === FieldStatus.OK && field.value === true;
 }
 
 export interface ReadOptions {
@@ -148,6 +158,7 @@ export abstract class BaseReader {
       fields,
       lastUpdated: Date.now(),
       pathsTried,
+      fromCache: false,
     };
   }
 
@@ -163,6 +174,7 @@ export abstract class BaseReader {
       lastUpdated: Date.now(),
       lastError: lastError ?? null,
       pathsTried,
+      fromCache: false,
     };
   }
 
@@ -174,6 +186,7 @@ export abstract class BaseReader {
       lastUpdated: Date.now(),
       lastError: message,
       pathsTried,
+      fromCache: false,
     };
   }
 
@@ -208,6 +221,7 @@ export abstract class BaseReader {
       lastUpdated: lastGood.lastUpdated,
       lastError: message,
       pathsTried: [...pathsTried, "last-known-good"],
+      fromCache: true,
     };
   }
 

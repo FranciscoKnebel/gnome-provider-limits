@@ -1,6 +1,6 @@
 import type { ProviderName } from "../constants.js";
 import { GAUGE_END_ANGLE, emptyMeter, gaugeArc } from "./cairoDrawing.js";
-import { classifyPanelViews, displayFacts, type ProviderDisplayModel } from "./displayModel.js";
+import { classifyPanelViews, type ProviderDisplayModel } from "./displayModel.js";
 import type { FieldTone } from "./fieldRows.js";
 import type { FieldView } from "./fieldViews.js";
 import type { GaugeSpec, GaugeTone, RadialGaugeGeometry } from "./gaugeTypes.js";
@@ -145,7 +145,7 @@ export function loadingOverviewRow(provider: ProviderName, displayName: string):
 
 export function buildOverviewRowModel(model: ProviderDisplayModel): OverviewRowModel {
   const { provider, displayName } = model;
-  const facts = displayFacts(model);
+  const facts = model.facts;
   const badgeKind: OverviewBadgeKind = facts.badges.overview;
   const badgeText = facts.badges.overviewText;
   const meter = facts.meter;

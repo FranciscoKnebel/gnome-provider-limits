@@ -34,7 +34,7 @@ import {
   partitionProviderPanel,
   resolveActiveTab,
 } from "../../src/ui/cockpitModel.js";
-import { deriveDisplayModel, displayFacts } from "../../src/ui/displayModel.js";
+import { deriveDisplayModel } from "../../src/ui/displayModel.js";
 
 function panelModel(
   fieldDefs: readonly FieldDef[],
@@ -85,6 +85,7 @@ function gaugeView(fieldName: string, value: unknown): FieldView {
   const result: ReaderResult = {
     provider: "codex",
     status: ReaderStatus.OK,
+    fromCache: false,
     lastUpdated: 0,
     fields: value === null ? [] : [{ name: fieldName, value, status: FieldStatus.OK }],
   };
@@ -202,6 +203,7 @@ describe("meterFromViews", () => {
   const okResult: ReaderResult = {
     provider: "codex",
     status: ReaderStatus.OK,
+    fromCache: false,
     lastUpdated: 1_700_000_000,
     fields: [
       { name: "used_percent_primary", value: 30, status: FieldStatus.OK },
@@ -238,6 +240,7 @@ describe("meterFromViews", () => {
     const emptyOkResult: ReaderResult = {
       provider: "codex",
       status: ReaderStatus.OK,
+      fromCache: false,
       lastUpdated: 1_700_000_000,
       fields: [{ name: "used_percent_primary", value: null, status: FieldStatus.UNAVAILABLE }],
     };
@@ -258,6 +261,7 @@ describe("meterFromViews", () => {
       const result: ReaderResult = {
         provider: "codex",
         status,
+        fromCache: false,
         lastUpdated: 1_700_000_000,
         fields: [],
         lastError: "Auth expired",
@@ -272,9 +276,9 @@ describe("meterFromViews", () => {
         t: (message) => message,
       });
       expect(model).toBeDefined();
-      expect(displayFacts(model!).meter.isError).toBeTrue();
-      expect(displayFacts(model!).meter.hasValue).toBeFalse();
-      expect(displayFacts(model!).meter.tone).toBe("critical");
+      expect(model!.facts.meter.isError).toBeTrue();
+      expect(model!.facts.meter.hasValue).toBeFalse();
+      expect(model!.facts.meter.tone).toBe("critical");
     }
   });
 });
@@ -301,6 +305,7 @@ describe("partitionProviderPanel & chunking", () => {
     const result: ReaderResult = {
       provider: "codex",
       status: ReaderStatus.OK,
+      fromCache: false,
       lastUpdated: 1_700_000_000,
       fields: [
         { name: "used_percent_primary", value: 40, status: FieldStatus.OK },
@@ -354,6 +359,7 @@ describe("partitionProviderPanel & chunking", () => {
     const result: ReaderResult = {
       provider: "codex",
       status: ReaderStatus.OK,
+      fromCache: false,
       lastUpdated: 1_700_000_000,
       fields: [{ name: "reset_at_primary", value: futureEpoch, status: FieldStatus.OK }],
     };
@@ -371,6 +377,7 @@ describe("partitionProviderPanel & chunking", () => {
     const result: ReaderResult = {
       provider: "claude",
       status: ReaderStatus.PARTIAL,
+      fromCache: false,
       lastUpdated: 1_700_000_000,
       fields: [
         {
@@ -422,6 +429,7 @@ describe("buildOverviewRowModel, tabs & structure keys", () => {
       result: {
         provider: "codex",
         status: ReaderStatus.OK,
+        fromCache: false,
         lastUpdated: 1_700_000_000,
         fields: [
           { name: "used_percent_primary", value: 55, status: FieldStatus.OK },
@@ -444,6 +452,7 @@ describe("buildOverviewRowModel, tabs & structure keys", () => {
       result: {
         provider: "claude",
         status: ReaderStatus.PARTIAL,
+        fromCache: true,
         lastUpdated: 1_700_000_000,
         pathsTried: ["oauth-api", "last-known-good"],
         lastError: "HTTP 503",
@@ -464,6 +473,7 @@ describe("buildOverviewRowModel, tabs & structure keys", () => {
       result: {
         provider: "opencode",
         status: ReaderStatus.PARTIAL,
+        fromCache: false,
         lastUpdated: 1_700_000_000,
         pathsTried: ["sqlite"],
         fields: [{ name: "total_cost", value: 4.5, status: FieldStatus.OK }],
@@ -483,6 +493,7 @@ describe("buildOverviewRowModel, tabs & structure keys", () => {
       result: {
         provider: "grok",
         status: ReaderStatus.ERROR,
+        fromCache: false,
         lastUpdated: 1_700_000_000,
         lastError: "Missing auth.json",
         fields: [],

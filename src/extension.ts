@@ -250,6 +250,7 @@ const ProviderLimitsIndicator = GObject.registerClass(
               lastError:
                 result.reason instanceof Error ? result.reason.message : String(result.reason),
               pathsTried: [],
+              fromCache: false,
             });
             const prev = previousResults.get(name);
             if (!prev || prev.status !== ReaderStatus.ERROR) anyChanged = true;

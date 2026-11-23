@@ -3,7 +3,6 @@ import St from "gi://St";
 
 import type { ProviderName } from "../constants.js";
 import { ReaderStatus } from "../readers/base.js";
-import { displayFacts } from "./displayModel.js";
 import type { FieldView } from "./fieldViews.js";
 import type { ProviderTone } from "./providerHealth.js";
 import { StatusBarRenderer, type ZonePlan } from "./statusBarRenderer.js";
@@ -43,7 +42,7 @@ function planPills(context: ProviderViewContext): PillsPlan {
   }
 
   const segments: PillPlan[] = context.models.map((model) => {
-    const { health } = displayFacts(model);
+    const { health } = model.facts;
     return {
       provider: model.provider,
       displayName: model.shortDisplayName,

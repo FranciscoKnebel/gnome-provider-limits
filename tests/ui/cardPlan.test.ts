@@ -8,14 +8,9 @@ import {
   OPENCODE_FIELDS,
   PROVIDER_FIELDS,
 } from "../../src/readers/fields.js";
-import {
-  cardFromModel,
-  deriveDisplayModel,
-  displayFacts,
-  planPanel,
-  type ProviderCardPlan,
-} from "../../src/ui/displayModel.js";
+import { deriveDisplayModel } from "../../src/ui/displayModel.js";
 import { deriveFieldViews } from "../../src/ui/fieldViews.js";
+import { cardFromModel, planPanel, type ProviderCardPlan } from "../../src/ui/panelCards.js";
 import type { ProviderTone } from "../../src/ui/providerHealth.js";
 import {
   deriveProviderHealth,
@@ -174,6 +169,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       const result: ReaderResult = {
         provider: "grok",
         status: ReaderStatus.OK,
+        fromCache: false,
         lastUpdated: 1_700_000_000_000,
         fields: [{ name: "remaining_percent_credits", value: 15, status: FieldStatus.OK }],
       };
@@ -237,6 +233,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       const result: ReaderResult = {
         provider: "codex",
         status: ReaderStatus.OK,
+        fromCache: false,
         lastUpdated: 1_700_000_000_000,
         fields: [{ name: "used_percent_primary", value: 92, status: FieldStatus.OK }],
       };
@@ -264,6 +261,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         result: {
           provider: "codex",
           status: ReaderStatus.ERROR,
+          fromCache: false,
           lastUpdated: Date.now(),
           lastError: "Run codex login.",
           fields: [],
@@ -280,6 +278,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         result: {
           provider: "codex",
           status: ReaderStatus.OK,
+          fromCache: false,
           lastUpdated: Date.now(),
           fields: [],
         },
@@ -319,6 +318,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
           {
             provider: "codex",
             status: ReaderStatus.OK,
+            fromCache: false,
             lastUpdated: 1000,
             fields: [{ name: "used_percent_primary", value: 40, status: FieldStatus.OK }],
           },
@@ -328,6 +328,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
           {
             provider: "claude",
             status: ReaderStatus.PARTIAL,
+            fromCache: false,
             lastUpdated: 1000,
             lastError: "cached",
             fields: [{ name: "used_percent_session", value: 60, status: FieldStatus.OK }],
@@ -338,6 +339,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
           {
             provider: "opencode",
             status: ReaderStatus.ERROR,
+            fromCache: false,
             lastUpdated: 1000,
             lastError: "offline",
             fields: [],
@@ -348,6 +350,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
           {
             provider: "grok",
             status: ReaderStatus.DISABLED,
+            fromCache: false,
             lastUpdated: 1000,
             fields: [],
           },
@@ -357,16 +360,12 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       const models = segmentsContext(results, statusFields).models;
 
       expect(models).toHaveSize(3);
-      expect(models.map((model) => displayFacts(model).health.tone)).toEqual([
-        "ok",
-        "partial",
-        "error",
-      ]);
-      expect(displayFacts(models[0]).health.stateTag).toBeNull();
-      expect(displayFacts(models[1]).health.stateTag).toBe("~");
-      expect(displayFacts(models[1]).health.stateAccessibleText).toBe("Cached");
-      expect(displayFacts(models[2]).health.stateTag).toBe("(error)");
-      expect(displayFacts(models[2]).meter.isError).toBeTrue();
+      expect(models.map((model) => model.facts.health.tone)).toEqual(["ok", "partial", "error"]);
+      expect(models[0].facts.health.stateTag).toBeNull();
+      expect(models[1].facts.health.stateTag).toBe("~");
+      expect(models[1].facts.health.stateAccessibleText).toBe("Cached");
+      expect(models[2].facts.health.stateTag).toBe("(error)");
+      expect(models[2].facts.meter.isError).toBeTrue();
       expect(models.map((model) => model.shortDisplayName)).toEqual([
         "CODEX",
         "CLAUDE",
@@ -382,6 +381,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
             {
               provider: "codex",
               status: ReaderStatus.OK,
+              fromCache: false,
               lastUpdated: 1000,
               fields: [{ name: "used_percent_primary", value, status: FieldStatus.OK }],
             },
@@ -392,11 +392,11 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       const second = segmentsContext(makeResults(88), statusFields).models;
 
       expect(identity(second)).toEqual(identity(first));
-      expect(displayFacts(first[0]).health.tone).toBe("ok");
-      expect(displayFacts(second[0]).health.tone).toBe("critical");
-      expect(displayFacts(first[0]).meter.ratio).toBeCloseTo(0.4, 5);
-      expect(displayFacts(second[0]).meter.ratio).toBeCloseTo(0.88, 5);
-      expect(displayFacts(second[0]).meter.tone).toBe("critical");
+      expect(first[0].facts.health.tone).toBe("ok");
+      expect(second[0].facts.health.tone).toBe("critical");
+      expect(first[0].facts.meter.ratio).toBeCloseTo(0.4, 5);
+      expect(second[0].facts.meter.ratio).toBeCloseTo(0.88, 5);
+      expect(second[0].facts.meter.tone).toBe("critical");
     });
   });
 
@@ -406,6 +406,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       const result: ReaderResult = {
         provider: "opencode",
         status: ReaderStatus.OK,
+        fromCache: false,
         lastUpdated: now,
         fields: [
           { name: "used_percent_weekly", value: 72, status: FieldStatus.OK },
@@ -452,6 +453,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         result: {
           provider: "codex",
           status: ReaderStatus.OK,
+          fromCache: false,
           lastUpdated: now,
           fields: [{ name: "reset_at_secondary", value: now + 3_600_000, status: FieldStatus.OK }],
         },
@@ -472,6 +474,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         result: {
           provider: "codex",
           status: ReaderStatus.OK,
+          fromCache: false,
           lastUpdated: now,
           fields: [
             { name: "used_percent_secondary", value: 30, status: FieldStatus.OK },
@@ -501,6 +504,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         result: {
           provider: "claude",
           status: ReaderStatus.PARTIAL,
+          fromCache: false,
           lastUpdated: Date.now(),
           lastError: "CLI fallback failed; showing Last-Known-Good.",
           fields: [{ name: "used_percent_weekly", value: 25, status: FieldStatus.OK }],
@@ -520,6 +524,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         result: {
           provider: "codex",
           status: ReaderStatus.ERROR,
+          fromCache: false,
           lastUpdated: Date.now(),
           lastError: "Run codex login.",
           fields: [],
@@ -540,6 +545,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         result: {
           provider: "grok",
           status: ReaderStatus.UNAVAILABLE,
+          fromCache: false,
           lastUpdated: Date.now(),
           fields: [],
         },
@@ -607,6 +613,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
               {
                 provider: "codex",
                 status: ReaderStatus.OK,
+                fromCache: false,
                 lastUpdated: 1000,
                 fields: [{ name: "used_percent_primary", value: 20, status: FieldStatus.OK }],
               },
@@ -628,6 +635,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
               {
                 provider: "codex",
                 status: ReaderStatus.OK,
+                fromCache: false,
                 lastUpdated: 2000,
                 fields: [{ name: "used_percent_primary", value: 95, status: FieldStatus.OK }],
               },

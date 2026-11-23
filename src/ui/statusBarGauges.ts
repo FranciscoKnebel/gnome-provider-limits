@@ -4,7 +4,6 @@ import St from "gi://St";
 import type { ProviderName } from "../constants.js";
 import { ReaderStatus } from "../readers/base.js";
 import { connectRepaint, drawMicroRing } from "./cairoDrawing.js";
-import { displayFacts } from "./displayModel.js";
 import type { FieldView } from "./fieldViews.js";
 import type { GaugeSpec } from "./gaugeTypes.js";
 import { StatusBarRenderer, type ZonePlan } from "./statusBarRenderer.js";
@@ -47,7 +46,7 @@ function planGauges(context: ProviderViewContext): GaugesPlan {
     provider: model.provider,
     displayName: model.shortDisplayName,
     status: model.result.status,
-    meter: displayFacts(model).meter,
+    meter: model.facts.meter,
     rows: model.statusViews.map((view) => ({
       view,
       valueText: view.valueText,

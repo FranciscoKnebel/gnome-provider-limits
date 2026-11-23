@@ -1,12 +1,11 @@
 import { formatField } from "../formatters.js";
 import type { FieldDef, FieldType, FieldZone, ReaderResult } from "../readers/base.js";
-import { FieldStatus, ReaderStatus } from "../readers/base.js";
+import { FieldStatus, isHardError, isLimitReached, ReaderStatus } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
 import { emptyMeter, gaugeArc } from "./cairoDrawing.js";
 import type { FieldTone } from "./fieldRows.js";
 import { clampFillRatio, clampPercent, fieldTone } from "./fieldRows.js";
 import type { GaugeSpec } from "./gaugeTypes.js";
-import { isLimitReached } from "./providerHealth.js";
 
 /**
  * The one formatted projection of a field. Text is rendered at derivation for
@@ -177,7 +176,7 @@ export function projectUsageFacts(
   options: UsageProjectionOptions,
 ): UsageFacts {
   const tr = options.t;
-  if (result.status === ReaderStatus.ERROR || result.status === ReaderStatus.UNAVAILABLE) {
+  if (isHardError(result)) {
     return {
       valueText: "—",
       fillRatio: null,
