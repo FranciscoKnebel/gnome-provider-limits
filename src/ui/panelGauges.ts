@@ -98,6 +98,7 @@ export class GaugesPanelSection implements PanelStyleSection {
       const message = viewMessages({
         phase: nextState.phase,
         surface: "gauges",
+        running: false,
         t: context.view.t,
       });
       this.shell.addEmptyStateRow(message.title, message.subtitle);

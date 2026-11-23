@@ -27,6 +27,7 @@ function planCompact(context: ProviderViewContext): CompactPlan {
   const message = viewMessages({
     phase: context.phase,
     surface: "compact",
+    running: false,
     t: context.t,
   });
 

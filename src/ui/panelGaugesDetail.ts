@@ -6,7 +6,7 @@ import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import type { FieldDef } from "../readers/base.js";
-import { disposeCairoContext, drawRadialGauge, isCairoContext } from "./cairoDrawing.js";
+import { connectRepaint, drawRadialGauge } from "./cairoDrawing.js";
 import { partitionProviderPanel } from "./cockpitModel.js";
 import type { BentoTileItem, PartitionedProviderPanel, RadialGaugeItem } from "./cockpitModel.js";
 import type { DisplayCallout, ProviderDisplayModel } from "./displayModel.js";
@@ -225,19 +225,7 @@ export class DetailRenderer {
       card.add_child(errorLabel);
     }
 
-    const geometry = gauge.geometry;
-    drawingArea.connect("repaint", (area: St.DrawingArea) => {
-      const rawCr: unknown = area.get_context();
-      try {
-        if (isCairoContext(rawCr)) {
-          const [w, h] = area.get_surface_size();
-          drawRadialGauge(rawCr, w, h, geometry);
-        }
-      } finally {
-        disposeCairoContext(rawCr);
-      }
-    });
-    drawingArea.queue_repaint();
+    connectRepaint(drawingArea, drawRadialGauge, gauge.geometry);
 
     return card;
   }

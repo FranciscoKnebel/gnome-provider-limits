@@ -143,6 +143,7 @@ export function planPanelMatrix(
     const message = viewMessages({
       phase: context.phase,
       surface: "matrix",
+      running: false,
       t: tr,
     });
     return {

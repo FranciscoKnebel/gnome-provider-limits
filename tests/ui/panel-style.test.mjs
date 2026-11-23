@@ -81,6 +81,7 @@ test("Panel swaps style sections on setting change and forwards render and runni
     GaugesPanelSection: GaugesStub,
     CardsPanelSection: CardsStub,
     CompactPanelSection: CompactStub,
+    createExpandAllControl: () => ({ button: new Actor(), label: new Actor() }),
     PanelShell: ShellStub,
     resolvePanelStyle,
     viewContextFor: () => view,

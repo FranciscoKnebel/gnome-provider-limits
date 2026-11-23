@@ -69,11 +69,6 @@ export function computeBarWidthPx(
   return Math.min(effectiveTrack, Math.max(4, Math.round((effectiveTrack * clamped) / 100)));
 }
 
-/** The cards-specific refresh title, kept out of the phase/surface message map. */
-export function cardsLoadingTitle(running: boolean, t: (s: string) => string): string {
-  return running ? t("Loading provider limits…") : t("Waiting for provider data…");
-}
-
 function keyValueRow(row: DisplayRow): CardKeyValueRow {
   return {
     kind: "kv",
@@ -164,14 +159,14 @@ export function planPanel(context: ProviderViewContext, running: boolean): Panel
   const message = viewMessages({
     phase: context.phase,
     surface: "cards",
+    running,
     t: context.t,
   });
 
   if (context.phase !== "ready") {
     return {
       phase: context.phase,
-      emptyTitle:
-        context.phase === "loading" ? cardsLoadingTitle(running, context.t) : message.title,
+      emptyTitle: message.title || null,
       emptySubtitle: message.subtitle || null,
       cards: [],
     };

@@ -140,6 +140,7 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
     let refreshes = 0;
     let closes = 0;
     let preferences = 0;
+    const extraControl = style === "compact" ? new Actor({ text: "expand" }) : null;
     const shell = new PanelShell({
       settings: { get_string: () => "en" },
       onRefresh: () => refreshes++,
@@ -147,6 +148,7 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
       closeMenu: () => closes++,
       translate: (message) => message,
       footerVariant: style,
+      extraControls: extraControl ? [extraControl] : [],
     });
 
     const footer = shell.footer;
@@ -155,7 +157,34 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
 
     if (style === "compact") {
       assert.equal(shell.items[0], footer.row, `${style}: toolbar stays above the scroll area`);
-      assert.equal(footer.row.children.length, 0, `${style}: the section owns the HUD toolbar`);
+      assert.equal(footer.row.children.length, 2, `${style}: the shell owns the HUD toolbar`);
+      const [leading, actions] = footer.row.children;
+      assert.equal(
+        leading.style_class,
+        "provider-limits-hud-toolbar-left",
+        `${style}: leading box class comes from the footer config`,
+      );
+      assert.deepEqual(
+        leading.children.map((child) => child.text),
+        ["Provider Limits", ""],
+        `${style}: title leads the leading box and the timestamp is hidden initially`,
+      );
+      assert.equal(leading.children[1], footer.lastRefreshLabel);
+      assert.equal(
+        actions.style_class,
+        "provider-limits-hud-actions",
+        `${style}: actions box class comes from the footer config`,
+      );
+      assert.deepEqual(
+        actions.children,
+        [extraControl, footer.refreshControl, footer.settingsControl],
+        `${style}: extra controls lead the action box`,
+      );
+      assert.equal(
+        footer.lastRefreshLabel.style_class,
+        "provider-limits-hud-meta provider-limits-tnum",
+        `${style}: timestamp variant comes from the footer config`,
+      );
     } else {
       assert.equal(
         shell.items[shell.items.length - 1],

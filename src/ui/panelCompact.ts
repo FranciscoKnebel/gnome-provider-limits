@@ -20,10 +20,28 @@ import type { PanelRenderContext, PanelShell, PanelStyleSection } from "./panelS
 import { applyQuietToneClass, applyToneClass } from "./tone.js";
 import { emptyViewContext, type ProviderViewContext } from "./viewContext.js";
 
-interface CompactToolbarControls {
-  readonly titleLabel: St.Label;
-  readonly expandAllButton: St.Button;
-  readonly expandAllLabel: St.Label;
+export interface ExpandAllControl {
+  readonly button: St.Button;
+  readonly label: St.Label;
+}
+
+/** Compact's one extra footer control, assembled by the shared shell. */
+export function createExpandAllControl(): ExpandAllControl {
+  const label = new St.Label({
+    text: "▾",
+    style_class: "provider-limits-toolbar-glyph",
+    y_align: Clutter.ActorAlign.CENTER,
+  });
+  const button = new St.Button({
+    child: label,
+    style_class: "provider-limits-icon-button",
+    reactive: true,
+    can_focus: true,
+    visible: false,
+    y_align: Clutter.ActorAlign.CENTER,
+  });
+  button.accessible_name = _("Expand all");
+  return { button, label };
 }
 
 /** Rebuilds the compact panel body from one freshly derived plan. */
@@ -32,17 +50,21 @@ export class CompactPanelSection implements PanelStyleSection {
   private _lastRefreshAt: number | null = null;
   private _lastView: ProviderViewContext;
   private _expandedOverrides: Map<ProviderName, boolean> = new Map();
-  private _controls: CompactToolbarControls;
+  private readonly _expandAll: ExpandAllControl;
   readonly shell: PanelShell;
 
   constructor(
     settings: Gio.Settings,
     fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>,
     shell: PanelShell,
+    expandAll: ExpandAllControl,
   ) {
     this._settings = settings;
     this.shell = shell;
-    this._controls = this._buildToolbar();
+    this._expandAll = expandAll;
+    bindActivation(expandAll.button, () => this._toggleAllProviders(), {
+      pointerSignals: ["clicked"],
+    });
     this._lastView = emptyViewContext(fieldDefs, this._currentLocale(), _);
     this.render({ lastRefreshAt: null, view: this._lastView });
   }
@@ -105,64 +127,10 @@ export class CompactPanelSection implements PanelStyleSection {
     this.render({ lastRefreshAt: this._lastRefreshAt, view: this._lastView });
   }
 
-  /** The compact toolbar is owned here; the shell only supplies the shared footer actors. */
-  private _buildToolbar(): CompactToolbarControls {
-    const footer = this.shell.footer;
-
-    const leftBox = new St.BoxLayout({
-      style_class: "provider-limits-hud-toolbar-left",
-      x_expand: true,
-      y_align: Clutter.ActorAlign.CENTER,
-    });
-    const titleLabel = new St.Label({
-      text: _("Provider Limits"),
-      style_class: "provider-limits-hud-title",
-      y_align: Clutter.ActorAlign.CENTER,
-    });
-    titleLabel.accessible_name = titleLabel.text;
-    leftBox.add_child(titleLabel);
-    leftBox.add_child(footer.lastRefreshLabel);
-
-    const actionsBox = new St.BoxLayout({
-      style_class: "provider-limits-hud-actions",
-      y_align: Clutter.ActorAlign.CENTER,
-    });
-    const expandAllLabel = new St.Label({
-      text: "▾",
-      style_class: "provider-limits-toolbar-glyph",
-      y_align: Clutter.ActorAlign.CENTER,
-    });
-    const expandAllButton = new St.Button({
-      child: expandAllLabel,
-      style_class: "provider-limits-icon-button",
-      reactive: true,
-      can_focus: true,
-      visible: false,
-      y_align: Clutter.ActorAlign.CENTER,
-    });
-    expandAllButton.accessible_name = _("Expand all");
-    bindActivation(expandAllButton, () => this._toggleAllProviders(), {
-      pointerSignals: ["clicked"],
-    });
-    actionsBox.add_child(expandAllButton);
-    actionsBox.add_child(footer.refreshControl);
-    actionsBox.add_child(footer.settingsControl);
-
-    footer.row.add_child(leftBox);
-    footer.row.add_child(actionsBox);
-
-    return { titleLabel, expandAllButton, expandAllLabel };
-  }
-
   private _syncToolbar(plan: PanelMatrixPlan): void {
-    this._controls.titleLabel.text = _("Provider Limits");
-    this._controls.titleLabel.accessible_name = this._controls.titleLabel.text;
-
-    this._controls.expandAllButton.visible = plan.canToggleAll;
-    this._controls.expandAllLabel.text = plan.allExpanded ? "▴" : "▾";
-    this._controls.expandAllButton.accessible_name = plan.allExpanded
-      ? _("Collapse all")
-      : _("Expand all");
+    this._expandAll.button.visible = plan.canToggleAll;
+    this._expandAll.label.text = plan.allExpanded ? "▴" : "▾";
+    this._expandAll.button.accessible_name = plan.allExpanded ? _("Collapse all") : _("Expand all");
   }
 
   private _addProviderSection(plan: ProviderMatrixPlan, divided: boolean): void {

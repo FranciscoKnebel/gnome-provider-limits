@@ -13,6 +13,7 @@ export interface EmptyPresentation {
 export interface ViewMessagesOptions {
   readonly phase: ViewPhase;
   readonly surface: ViewSurface;
+  readonly running: boolean;
   readonly t: (s: string) => string;
 }
 
@@ -37,7 +38,7 @@ function withPlaceholder(placeholder: string, accessibleText: string): EmptyPres
  * renders. Plan builders consume this instead of owning their own message switches.
  */
 export function viewMessages(options: ViewMessagesOptions): EmptyPresentation {
-  const { phase, surface, t: tr } = options;
+  const { phase, surface, running, t: tr } = options;
 
   if (phase === "ready") return NONE;
 
@@ -49,7 +50,7 @@ export function viewMessages(options: ViewMessagesOptions): EmptyPresentation {
           tr("Enable a provider in Settings to monitor usage limits."),
         );
       }
-      return withTitle(tr("Waiting for provider data…"));
+      return withTitle(running ? tr("Loading provider limits…") : tr("Waiting for provider data…"));
 
     case "matrix":
       return withTitle(

@@ -10,7 +10,7 @@ import { bindActivation } from "../helpers/keyboard.js";
 import { providerDisplayName } from "../helpers/provider-settings.js";
 import type { FieldDef, ReaderResult } from "../readers/base.js";
 import { ReaderStatus } from "../readers/base.js";
-import { disposeCairoContext, drawMiniCapsule, isCairoContext } from "./cairoDrawing.js";
+import { connectRepaint, drawMiniCapsule } from "./cairoDrawing.js";
 import { buildOverviewRowModel, getAvailableTabs, loadingOverviewRow } from "./cockpitModel.js";
 import type { CockpitTab, OverviewBadgeKind, OverviewRowModel } from "./cockpitModel.js";
 import type { ProviderDisplayModel } from "./displayModel.js";
@@ -259,22 +259,10 @@ class OverviewRowsRenderer {
       outer.add_child(secondaryLabel);
     }
 
-    const meter = model.meter;
-    barArea.connect("repaint", (area: St.DrawingArea) => {
-      const rawCr: unknown = area.get_context();
-      try {
-        if (isCairoContext(rawCr)) {
-          const [w, h] = area.get_surface_size();
-          drawMiniCapsule(rawCr, w, h, meter);
-        }
-      } finally {
-        disposeCairoContext(rawCr);
-      }
-    });
+    connectRepaint(barArea, drawMiniCapsule, model.meter);
 
     item.add_child(outer);
     this.host.shell.addBodyItem(item);
-    barArea.queue_repaint();
   }
 }
 

@@ -1,4 +1,5 @@
 import type Gio from "gi://Gio";
+import type St from "gi://St";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
 import type { ProviderName } from "../constants.js";
@@ -6,7 +7,7 @@ import { gettext as _ } from "../helpers/gettext.js";
 import type { FieldDef } from "../readers/base.js";
 import { PROVIDER_FIELDS } from "../readers/fields.js";
 import { CardsPanelSection } from "./panelCards.js";
-import { CompactPanelSection } from "./panelCompact.js";
+import { CompactPanelSection, createExpandAllControl } from "./panelCompact.js";
 import { GaugesPanelSection } from "./panelGauges.js";
 import { PanelShell, type PanelStyleSection } from "./panelShell.js";
 import { resolvePanelStyle, type PanelStyle } from "./styles.js";
@@ -40,8 +41,15 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     this._sections = {
       gauges: () => new GaugesPanelSection(settings, this._fieldDefs, this._createShell("gauges")),
       cards: () => new CardsPanelSection(settings, this._fieldDefs, this._createShell("cards")),
-      compact: () =>
-        new CompactPanelSection(settings, this._fieldDefs, this._createShell("compact")),
+      compact: () => {
+        const expandAll = createExpandAllControl();
+        return new CompactPanelSection(
+          settings,
+          this._fieldDefs,
+          this._createShell("compact", [expandAll.button]),
+          expandAll,
+        );
+      },
     };
 
     this._ensureSection();
@@ -51,7 +59,7 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     return resolvePanelStyle(this._settings.get_string("panel-style"));
   }
 
-  private _createShell(variant: PanelStyle): PanelShell {
+  private _createShell(variant: PanelStyle, extraControls: readonly St.Widget[] = []): PanelShell {
     return new PanelShell({
       settings: this._settings,
       onRefresh: this._onRefresh,
@@ -59,6 +67,7 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
       closeMenu: this._closeMenu,
       translate: _,
       footerVariant: variant,
+      extraControls,
     });
   }
 

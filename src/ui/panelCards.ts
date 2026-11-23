@@ -4,7 +4,7 @@ import St from "gi://St";
 
 import type { ProviderName } from "../constants.js";
 import type { FieldDef } from "../readers/base.js";
-import { cardsLoadingTitle, computeBarWidthPx, planPanel } from "./cardPlan.js";
+import { computeBarWidthPx, planPanel } from "./cardPlan.js";
 import type {
   BannerKind,
   CardBadgeKind,
@@ -14,7 +14,6 @@ import type {
 } from "./cardPlan.js";
 import type { PanelRenderContext, PanelShell, PanelStyleSection } from "./panelShell.js";
 import { applyHealthToneClass, applyToneClass } from "./tone.js";
-import type { ViewPhase } from "./viewContext.js";
 
 interface ProgressRowWidgets {
   track: St.BoxLayout;
@@ -44,9 +43,6 @@ function bannerStyleClass(kind: BannerKind): string {
 
 /** Rebuilds the cards panel body from one freshly derived plan. */
 export class CardsPanelSection implements PanelStyleSection {
-  private _phase: ViewPhase = "ready";
-  private _emptyTitleLabel: St.Label | null = null;
-  private _t: (text: string) => string = (text) => text;
   readonly shell: PanelShell;
 
   constructor(
@@ -63,34 +59,17 @@ export class CardsPanelSection implements PanelStyleSection {
 
   render(context: PanelRenderContext): void {
     const plan = planPanel(context.view, this.shell.isRunning());
-    this._phase = plan.phase;
-    this._t = context.view.t;
-    this._emptyTitleLabel = null;
     this.shell.clearBody();
 
     if (plan.phase !== "ready" && plan.emptyTitle) {
-      this._emptyTitleLabel = this.shell.addEmptyStateRow(
-        plan.emptyTitle,
-        plan.emptySubtitle ?? undefined,
-      );
+      this.shell.addEmptyStateRow(plan.emptyTitle, plan.emptySubtitle ?? undefined);
     } else {
       for (const cardPlan of plan.cards) this._addCard(cardPlan);
     }
-
-    this._syncLoadingMessage(this.shell.isRunning());
   }
 
   setRunning(running: boolean): void {
     this.shell.setRunning(running);
-    this._syncLoadingMessage(running);
-  }
-
-  private _syncLoadingMessage(running: boolean): void {
-    if (this._phase === "loading" && this._emptyTitleLabel) {
-      const title = cardsLoadingTitle(running, this._t);
-      this._emptyTitleLabel.text = title;
-      this._emptyTitleLabel.accessible_name = title;
-    }
   }
 
   private _addCard(plan: ProviderCardPlan): void {

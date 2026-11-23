@@ -3,7 +3,7 @@ import St from "gi://St";
 
 import type { ProviderName } from "../constants.js";
 import { ReaderStatus } from "../readers/base.js";
-import { disposeCairoContext, drawMicroRing, isCairoContext } from "./cairoDrawing.js";
+import { connectRepaint, drawMicroRing } from "./cairoDrawing.js";
 import { formatViewText, type FieldView } from "./fieldViews.js";
 import type { GaugeSpec } from "./gaugeTypes.js";
 import { StatusBarRenderer } from "./statusBarRenderer.js";
@@ -36,6 +36,7 @@ function planGauges(context: ProviderViewContext): GaugesPlan {
     const message = viewMessages({
       phase: context.phase,
       surface: "gauges",
+      running: false,
       t: context.t,
     });
     return {
@@ -92,18 +93,7 @@ export class GaugesStatusBarRenderer extends StatusBarRenderer<GaugesPlan> {
         style_class: "pl-micro-gauge-canvas",
         y_align: Clutter.ActorAlign.CENTER,
       });
-      const meter = segmentPlan.meter;
-
-      gaugeArea.connect("repaint", (area: St.DrawingArea) => {
-        const rawCr = area.get_context();
-        if (!isCairoContext(rawCr)) return;
-        try {
-          const [w, h] = area.get_surface_size();
-          drawMicroRing(rawCr, w, h, meter);
-        } finally {
-          disposeCairoContext(rawCr);
-        }
-      });
+      connectRepaint(gaugeArea, drawMicroRing, segmentPlan.meter);
       segment.add_child(gaugeArea);
 
       const nameLabel = new St.Label({

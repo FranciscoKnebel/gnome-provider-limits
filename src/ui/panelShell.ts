@@ -28,10 +28,7 @@ export interface PanelStyleSection {
   destroy(): void;
 }
 
-/**
- * Shared footer actors only. Compact layout containers and their title and
- * expand-all controls are owned by CompactPanelSection.
- */
+/** Shared footer actors exposed to the style sections after construction. */
 export interface PanelFooterActors {
   readonly row: PopupMenu.PopupBaseMenuItem;
   readonly refreshControl: St.Widget;
@@ -47,19 +44,133 @@ interface FooterAction {
   setRunning(running: boolean): void;
 }
 
+interface FooterIconSpec {
+  readonly name: string;
+  readonly styleClass?: string;
+}
+
+interface FooterControlSpec {
+  readonly factory: "button" | "box";
+  readonly refreshClass: string;
+  readonly settingsClass: string;
+  readonly refreshIcon?: FooterIconSpec;
+  readonly settingsIcon?: FooterIconSpec;
+  readonly refreshIconBeforeSpinner?: boolean;
+  readonly refreshLabel: boolean;
+  readonly settingsLabel: boolean;
+  readonly labelClass?: string;
+  readonly refreshContentClass?: string;
+  readonly disabledClass?: string;
+  readonly syncIconVisibility?: boolean;
+}
+
+/** Every difference between footer styles, assembled by the one buildFooter. */
+export interface FooterConfig {
+  readonly style: PanelStyle;
+  readonly rowClass: string;
+  readonly shellClass: string | null;
+  readonly scrollClass: string | undefined;
+  readonly insertionIndex: number | undefined;
+  readonly layout: "toolbar" | "split";
+  readonly toolbarClass?: string;
+  readonly leadingClass?: string;
+  readonly trailingClass?: string;
+  readonly title?: string;
+  readonly titleClass?: string;
+  readonly timestampClass: string;
+  readonly timestampExpanded: boolean;
+  readonly pointerSignal: PointerSignal;
+  readonly control: FooterControlSpec;
+  readonly extraControls: readonly St.Widget[];
+  readonly onRefresh: () => void;
+  readonly openPreferences: () => void;
+  readonly closeMenu: () => void;
+  readonly onFooterKey: (event: Clutter.Event) => boolean;
+}
+
+type FooterSpec = Omit<
+  FooterConfig,
+  "extraControls" | "onRefresh" | "openPreferences" | "closeMenu" | "onFooterKey"
+>;
+
+const FOOTER_SPECS: Record<PanelStyle, FooterSpec> = {
+  gauges: {
+    style: "gauges",
+    rowClass: "pl-footer-row",
+    shellClass: "pl-cockpit-panel",
+    scrollClass: "pl-cockpit-scroll",
+    insertionIndex: undefined,
+    layout: "toolbar",
+    toolbarClass: "pl-footer-toolbar",
+    timestampClass: "provider-limits-dim pl-footer-timestamp",
+    timestampExpanded: true,
+    pointerSignal: "clicked",
+    control: {
+      factory: "button",
+      refreshClass: "pl-footer-button pl-refresh-button",
+      settingsClass: "pl-footer-button pl-settings-button",
+      refreshContentClass: "pl-footer-button-box",
+      refreshLabel: true,
+      settingsLabel: true,
+    },
+  },
+  cards: {
+    style: "cards",
+    rowClass: "pl-panel-footer-row",
+    shellClass: null,
+    scrollClass: "pl-panel-scroll",
+    insertionIndex: undefined,
+    layout: "toolbar",
+    toolbarClass: "pl-panel-footer",
+    timestampClass: "provider-limits-dim pl-footer-timestamp",
+    timestampExpanded: true,
+    pointerSignal: "button-release-event",
+    control: {
+      factory: "box",
+      refreshClass: "pl-footer-action pl-refresh-action",
+      settingsClass: "pl-footer-action pl-settings-action",
+      refreshIcon: { name: "view-refresh-symbolic", styleClass: "pl-footer-icon" },
+      settingsIcon: { name: "preferences-system-symbolic", styleClass: "pl-footer-icon" },
+      labelClass: "pl-footer-action-label",
+      refreshLabel: true,
+      settingsLabel: true,
+      disabledClass: "pl-footer-action-disabled",
+      syncIconVisibility: true,
+    },
+  },
+  compact: {
+    style: "compact",
+    rowClass: "provider-limits-hud-toolbar",
+    shellClass: null,
+    scrollClass: undefined,
+    insertionIndex: 0,
+    layout: "split",
+    leadingClass: "provider-limits-hud-toolbar-left",
+    trailingClass: "provider-limits-hud-actions",
+    title: "Provider Limits",
+    titleClass: "provider-limits-hud-title",
+    timestampClass: "provider-limits-hud-meta provider-limits-tnum",
+    timestampExpanded: false,
+    pointerSignal: "clicked",
+    control: {
+      factory: "button",
+      refreshClass: "provider-limits-icon-button",
+      settingsClass: "provider-limits-icon-button",
+      refreshIcon: { name: "view-refresh-symbolic" },
+      settingsIcon: { name: "emblem-system-symbolic" },
+      refreshIconBeforeSpinner: true,
+      refreshLabel: false,
+      settingsLabel: false,
+    },
+  },
+};
+
 interface FooterBuild {
   readonly actors: PanelFooterActors;
   readonly applyRunning: (running: boolean) => void;
   readonly shellClass: string | null;
   readonly scrollClass: string | undefined;
   readonly insertionIndex: number | undefined;
-}
-
-interface FooterBuilderOptions {
-  readonly onRefresh: () => void;
-  readonly openPreferences: () => void;
-  readonly closeMenu: () => void;
-  readonly onFooterKey: (event: Clutter.Event) => boolean;
 }
 
 function runningText(running: boolean): string {
@@ -199,51 +310,129 @@ function createRefreshControl(
   return { control: hooks.control, setRunning };
 }
 
-function buildGaugesFooter(options: FooterBuilderOptions): FooterBuild {
-  const row = createFooterRow("pl-footer-row");
-  const spinner = createFooterSpinner();
-  const label = createLabel(_("Force refresh"));
-  const control = actionButton({
-    children: [spinner, label],
-    controlClass: "pl-footer-button pl-refresh-button",
-    contentClass: "pl-footer-button-box",
-  });
-  const refresh = createRefreshControl(spinner, options.onRefresh, options.onFooterKey, {
+function createActionWidget(
+  spec: FooterControlSpec,
+  children: readonly St.Widget[],
+  controlClass: string,
+  contentClass?: string,
+): St.Widget {
+  return spec.factory === "button"
+    ? actionButton({ children, controlClass, contentClass })
+    : actionBox({ children, controlClass });
+}
+
+function createFooterRefresh(config: FooterConfig, spinner: Spinner): FooterAction {
+  const spec = config.control;
+  const icon = spec.refreshIcon
+    ? actionIcon(spec.refreshIcon.name, spec.refreshIcon.styleClass)
+    : null;
+  const label = spec.refreshLabel ? createLabel(_("Force refresh"), spec.labelClass) : null;
+  const children: St.Widget[] = [];
+  if (icon && spec.refreshIconBeforeSpinner) children.push(icon);
+  children.push(spinner);
+  if (icon && !spec.refreshIconBeforeSpinner) children.push(icon);
+  if (label) children.push(label);
+
+  const control = createActionWidget(spec, children, spec.refreshClass, spec.refreshContentClass);
+  const disabledClass = spec.disabledClass;
+  return createRefreshControl(spinner, config.onRefresh, config.onFooterKey, {
     control,
-    pointerSignal: "clicked",
+    pointerSignal: config.pointerSignal,
     setText: (text) => {
-      label.text = text;
-      label.accessible_name = text;
+      if (label) {
+        label.text = text;
+        label.accessible_name = text;
+      }
       control.accessible_name = text;
     },
+    ...(spec.syncIconVisibility && icon
+      ? {
+          setIconVisible: (visible: boolean) => {
+            icon.visible = visible;
+          },
+        }
+      : {}),
+    ...(disabledClass !== undefined
+      ? {
+          setDisabled: (disabled: boolean) => {
+            if (disabled) control.add_style_class_name(disabledClass);
+            else control.remove_style_class_name(disabledClass);
+          },
+        }
+      : {}),
   });
+}
 
-  const settingsLabel = createLabel(_("Settings"));
-  const settings = actionButton({
-    children: [settingsLabel],
-    controlClass: "pl-footer-button pl-settings-button",
-  });
-  settings.accessible_name = _("Settings");
+function createFooterSettings(config: FooterConfig): St.Widget {
+  const spec = config.control;
+  const icon = spec.settingsIcon
+    ? actionIcon(spec.settingsIcon.name, spec.settingsIcon.styleClass)
+    : null;
+  const label = spec.settingsLabel ? createLabel(_("Settings"), spec.labelClass) : null;
+  const children: St.Widget[] = [];
+  if (icon) children.push(icon);
+  if (label) children.push(label);
+
+  const control = createActionWidget(spec, children, spec.settingsClass);
+  control.accessible_name = _("Settings");
   bindFooterActivation(
-    settings,
+    control,
     () => {
-      options.closeMenu();
-      options.openPreferences();
+      config.closeMenu();
+      config.openPreferences();
     },
-    "clicked",
-    options.onFooterKey,
+    config.pointerSignal,
+    config.onFooterKey,
   );
+  return control;
+}
 
-  const lastRefreshLabel = createTimestamp("provider-limits-dim pl-footer-timestamp", true);
-  const toolbar = new St.BoxLayout({
-    style_class: "pl-footer-toolbar",
-    x_expand: true,
-    y_align: Clutter.ActorAlign.CENTER,
-  });
-  toolbar.add_child(refresh.control);
-  toolbar.add_child(lastRefreshLabel);
-  toolbar.add_child(settings);
-  row.add_child(toolbar);
+function buildFooter(config: FooterConfig): FooterBuild {
+  const row = createFooterRow(config.rowClass);
+  const spinner = createFooterSpinner();
+  const refresh = createFooterRefresh(config, spinner);
+  const settings = createFooterSettings(config);
+  const lastRefreshLabel = createTimestamp(config.timestampClass, config.timestampExpanded);
+
+  if (config.layout === "split") {
+    const leading = new St.BoxLayout({
+      ...(config.leadingClass !== undefined ? { style_class: config.leadingClass } : {}),
+      x_expand: true,
+      y_align: Clutter.ActorAlign.CENTER,
+    });
+    if (config.title !== undefined && config.titleClass !== undefined) {
+      const title = _(config.title);
+      const titleLabel = new St.Label({
+        text: title,
+        style_class: config.titleClass,
+        y_align: Clutter.ActorAlign.CENTER,
+      });
+      titleLabel.accessible_name = title;
+      leading.add_child(titleLabel);
+    }
+    leading.add_child(lastRefreshLabel);
+
+    const trailing = new St.BoxLayout({
+      ...(config.trailingClass !== undefined ? { style_class: config.trailingClass } : {}),
+      y_align: Clutter.ActorAlign.CENTER,
+    });
+    for (const control of config.extraControls) trailing.add_child(control);
+    trailing.add_child(refresh.control);
+    trailing.add_child(settings);
+
+    row.add_child(leading);
+    row.add_child(trailing);
+  } else {
+    const toolbar = new St.BoxLayout({
+      ...(config.toolbarClass !== undefined ? { style_class: config.toolbarClass } : {}),
+      x_expand: true,
+      y_align: Clutter.ActorAlign.CENTER,
+    });
+    toolbar.add_child(refresh.control);
+    toolbar.add_child(lastRefreshLabel);
+    toolbar.add_child(settings);
+    row.add_child(toolbar);
+  }
 
   return {
     actors: {
@@ -254,133 +443,11 @@ function buildGaugesFooter(options: FooterBuilderOptions): FooterBuild {
       spinner,
     },
     applyRunning: (running) => refresh.setRunning(running),
-    shellClass: "pl-cockpit-panel",
-    scrollClass: "pl-cockpit-scroll",
-    insertionIndex: undefined,
+    shellClass: config.shellClass,
+    scrollClass: config.scrollClass,
+    insertionIndex: config.insertionIndex,
   };
 }
-
-function buildCardsFooter(options: FooterBuilderOptions): FooterBuild {
-  const row = createFooterRow("pl-panel-footer-row");
-  const spinner = createFooterSpinner();
-  const icon = actionIcon("view-refresh-symbolic", "pl-footer-icon");
-  const label = createLabel(_("Force refresh"), "pl-footer-action-label");
-  const control = actionBox({
-    children: icon ? [spinner, icon, label] : [spinner, label],
-    controlClass: "pl-footer-action pl-refresh-action",
-  });
-  const refresh = createRefreshControl(spinner, options.onRefresh, options.onFooterKey, {
-    control,
-    pointerSignal: "button-release-event",
-    setText: (text) => {
-      label.text = text;
-      label.accessible_name = text;
-      control.accessible_name = text;
-    },
-    setIconVisible: (visible) => {
-      if (icon) icon.visible = visible;
-    },
-    setDisabled: (disabled) => {
-      if (disabled) control.add_style_class_name("pl-footer-action-disabled");
-      else control.remove_style_class_name("pl-footer-action-disabled");
-    },
-  });
-
-  const settingsIcon = actionIcon("preferences-system-symbolic", "pl-footer-icon");
-  const settingsLabel = createLabel(_("Settings"), "pl-footer-action-label");
-  const settings = actionBox({
-    children: settingsIcon ? [settingsIcon, settingsLabel] : [settingsLabel],
-    controlClass: "pl-footer-action pl-settings-action",
-  });
-  settings.accessible_name = _("Settings");
-  bindFooterActivation(
-    settings,
-    () => {
-      options.closeMenu();
-      options.openPreferences();
-    },
-    "button-release-event",
-    options.onFooterKey,
-  );
-
-  const lastRefreshLabel = createTimestamp("provider-limits-dim pl-footer-timestamp", true);
-  const toolbar = new St.BoxLayout({
-    style_class: "pl-panel-footer",
-    x_expand: true,
-    y_align: Clutter.ActorAlign.CENTER,
-  });
-  toolbar.add_child(refresh.control);
-  toolbar.add_child(lastRefreshLabel);
-  toolbar.add_child(settings);
-  row.add_child(toolbar);
-
-  return {
-    actors: {
-      row,
-      refreshControl: refresh.control,
-      settingsControl: settings,
-      lastRefreshLabel,
-      spinner,
-    },
-    applyRunning: (running) => refresh.setRunning(running),
-    shellClass: null,
-    scrollClass: "pl-panel-scroll",
-    insertionIndex: undefined,
-  };
-}
-
-function buildCompactFooter(options: FooterBuilderOptions): FooterBuild {
-  const row = createFooterRow("provider-limits-hud-toolbar");
-  const spinner = createFooterSpinner();
-  const icon = actionIcon("view-refresh-symbolic");
-  const control = actionButton({
-    children: icon ? [icon, spinner] : [spinner],
-    controlClass: "provider-limits-icon-button",
-  });
-  const refresh = createRefreshControl(spinner, options.onRefresh, options.onFooterKey, {
-    control,
-    pointerSignal: "clicked",
-    setText: (text) => {
-      control.accessible_name = text;
-    },
-  });
-
-  const settingsIcon = actionIcon("emblem-system-symbolic");
-  const settings = actionButton({
-    children: settingsIcon ? [settingsIcon] : [],
-    controlClass: "provider-limits-icon-button",
-  });
-  settings.accessible_name = _("Settings");
-  bindFooterActivation(
-    settings,
-    () => {
-      options.closeMenu();
-      options.openPreferences();
-    },
-    "clicked",
-    options.onFooterKey,
-  );
-
-  return {
-    actors: {
-      row,
-      refreshControl: refresh.control,
-      settingsControl: settings,
-      lastRefreshLabel: createTimestamp("provider-limits-hud-meta provider-limits-tnum", false),
-      spinner,
-    },
-    applyRunning: (running) => refresh.setRunning(running),
-    shellClass: null,
-    scrollClass: undefined,
-    insertionIndex: 0,
-  };
-}
-
-const FOOTER_BUILDERS: Record<PanelStyle, (options: FooterBuilderOptions) => FooterBuild> = {
-  gauges: buildGaugesFooter,
-  cards: buildCardsFooter,
-  compact: buildCompactFooter,
-};
 
 export interface PanelShellOptions {
   settings: Gio.Settings;
@@ -389,6 +456,7 @@ export interface PanelShellOptions {
   closeMenu: () => void;
   translate: (message: string) => string;
   footerVariant: PanelStyle;
+  extraControls?: readonly St.Widget[];
   onFooterKeyPress?: (event: Clutter.Event) => boolean;
 }
 
@@ -418,14 +486,17 @@ export class PanelShell extends PopupMenu.PopupMenuSection {
     this._footerKeyHandler = options.onFooterKeyPress ?? (() => Clutter.EVENT_PROPAGATE);
 
     const onFooterKey = (event: Clutter.Event): boolean => this._footerKeyHandler(event);
-    const footer = FOOTER_BUILDERS[options.footerVariant]({
+    const config: FooterConfig = {
+      ...FOOTER_SPECS[options.footerVariant],
+      extraControls: options.extraControls ?? [],
       onRefresh: () => {
         if (!this.isRunning()) this._onRefresh();
       },
       openPreferences: this._openPreferences,
       closeMenu: this._closeMenu,
       onFooterKey,
-    });
+    };
+    const footer = buildFooter(config);
     if (footer.shellClass !== null) this.box.add_style_class_name(footer.shellClass);
 
     this._footer = footer.actors;

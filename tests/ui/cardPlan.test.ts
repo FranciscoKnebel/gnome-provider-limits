@@ -323,7 +323,6 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
           segment.provider,
           segment.displayName,
           segment.result.status,
-          segment.statusFields,
           segment.views.map((view) => view.name),
         ]),
       );

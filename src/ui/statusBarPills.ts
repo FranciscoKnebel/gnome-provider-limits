@@ -34,6 +34,7 @@ function planPills(context: ProviderViewContext): PillsPlan {
   const message = viewMessages({
     phase: context.phase,
     surface: "pills",
+    running: false,
     t: context.t,
   });
   if (message.showPlaceholder) {

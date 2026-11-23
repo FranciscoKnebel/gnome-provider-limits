@@ -15,6 +15,7 @@ import {
   GAUGE_START_ANGLE,
   GAUGE_SWEEP_ANGLE,
   TONE_RGB,
+  connectRepaint,
   disposeCairoContext,
   drawMicroRing,
   drawMiniCapsule,
@@ -583,5 +584,42 @@ describe("Cairo vector drawing helpers & context disposal", () => {
     const tinyCapsuleCtx = createMockCairoContext();
     drawMiniCapsule(tinyCapsuleCtx.cr, 2, 1, okMeter);
     expect(tinyCapsuleCtx.ops.length).toBe(0);
+  });
+
+  it("connectRepaint owns the guard, size, disposal and queue for every surface", () => {
+    const calls: string[] = [];
+    const makeArea = (context: unknown) => {
+      const handlers: Array<() => void> = [];
+      return {
+        area: {
+          connect: (signal: string, handler: () => void) => {
+            expect(signal).toBe("repaint");
+            handlers.push(handler);
+          },
+          get_context: () => context,
+          get_surface_size: (): [number, number] => [56, 6],
+          queue_repaint: () => calls.push("queue"),
+        },
+        repaint: () => handlers.forEach((handler) => handler()),
+      };
+    };
+    const draw = (_cr: CairoContextLike, width: number, height: number, spec: string) => {
+      calls.push(`draw:${width}x${height}:${spec}`);
+    };
+
+    const good = createMockCairoContext();
+    const goodArea = makeArea(good.cr);
+    connectRepaint(goodArea.area, draw, "meter");
+    expect(calls).toEqual(["queue"]);
+    goodArea.repaint();
+    expect(calls).toEqual(["queue", "draw:56x6:meter"]);
+    expect(good.disposed()).toBeTrue();
+
+    calls.length = 0;
+    const nonCairo = { $dispose: () => calls.push("dispose") };
+    const nonCairoArea = makeArea(nonCairo);
+    connectRepaint(nonCairoArea.area, draw, "meter");
+    nonCairoArea.repaint();
+    expect(calls).toEqual(["queue", "dispose"]);
   });
 });

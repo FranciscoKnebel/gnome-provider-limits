@@ -93,6 +93,30 @@ export function disposeCairoContext(value: unknown): void {
   }
 }
 
+export interface RepaintArea {
+  connect(signal: string, handler: () => void): unknown;
+  get_context(): unknown;
+  get_surface_size(): [number, number];
+  queue_repaint(): void;
+}
+
+type DrawSpec<TSpec> = (cr: CairoContextLike, width: number, height: number, spec: TSpec) => void;
+
+/** The one repaint handler for every Cairo surface: guard, draw, dispose and queue. */
+export function connectRepaint<TSpec>(area: RepaintArea, draw: DrawSpec<TSpec>, spec: TSpec): void {
+  area.connect("repaint", () => {
+    const rawCr: unknown = area.get_context();
+    try {
+      if (!isCairoContext(rawCr)) return;
+      const [width, height] = area.get_surface_size();
+      draw(rawCr, width, height, spec);
+    } finally {
+      disposeCairoContext(rawCr);
+    }
+  });
+  area.queue_repaint();
+}
+
 export function drawMicroRing(
   cr: CairoContextLike,
   width: number,

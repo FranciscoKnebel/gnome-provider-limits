@@ -165,7 +165,6 @@ describe("matrixPlan", () => {
           segment.provider,
           segment.displayName,
           segment.result.status,
-          segment.statusFields,
           segment.views.map((view) => view.name),
         ]),
       );
