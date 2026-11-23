@@ -10,32 +10,40 @@ import { GaugesStatusBarRenderer } from "./statusBarGauges.js";
 import { PillsStatusBarRenderer } from "./statusBarPills.js";
 import type { StatusBarSectionRenderer } from "./statusBarRenderer.js";
 import { STYLE_CATALOG, type PanelStyle, type StatusBarStyle } from "./styleCatalog.js";
-import type { PanelSurface, StatusBarSurface } from "./viewMessages.js";
 
 export type { PanelStyle, StatusBarStyle } from "./styleCatalog.js";
 
 export type PointerSignal = "clicked" | "button-release-event";
+export type IconSpec = readonly [string, string?];
 
-export interface ShellPlacement {
-  readonly shellClass: string | null;
-  readonly scrollClass: string | undefined;
-  readonly insertionIndex: number | undefined;
+/** Toolbar footer: a single horizontal row, optionally built from St.Buttons. */
+export interface ToolbarFooterSpec {
+  readonly layout: "toolbar";
+  readonly rowClass: string;
+  readonly toolbarClass: string;
+  readonly pointerSignal: PointerSignal;
+  readonly refreshClass: string;
+  readonly settingsClass: string;
+  readonly buttonControls: boolean;
+  readonly refreshIcon?: IconSpec;
+  readonly settingsIcon?: IconSpec;
+  readonly labelClass?: string;
+  readonly disabledClass?: string;
+  readonly refreshContentClass?: string;
 }
 
-export interface FooterSpec {
+/** HUD footer: leading title and timestamp, trailing icon buttons and extra controls. */
+export interface HudFooterSpec {
+  readonly layout: "hud";
   readonly rowClass: string;
   readonly pointerSignal: PointerSignal;
   readonly refreshClass: string;
   readonly settingsClass: string;
-  readonly layout: "toolbar" | "hud";
-  readonly toolbarClass?: string;
-  readonly refreshIcon?: readonly [string, string?];
-  readonly settingsIcon?: readonly [string, string?];
-  readonly labelClass?: string;
-  readonly refreshContentClass?: string;
-  readonly disabledClass?: string;
-  readonly buttonControls?: boolean;
+  readonly refreshIcon: IconSpec;
+  readonly settingsIcon: IconSpec;
 }
+
+export type FooterSpec = ToolbarFooterSpec | HudFooterSpec;
 
 export interface PanelSectionHost {
   readonly settings: Gio.Settings;
@@ -48,19 +56,22 @@ export type StatusBarRendererFactory = (parent: St.BoxLayout) => StatusBarSectio
 export interface StyleSpec<Id extends string> {
   readonly id: Id;
   readonly label: string;
-  readonly surface: PanelSurface | StatusBarSurface;
 }
 
 export interface PanelStyleSpec extends StyleSpec<PanelStyle> {
-  readonly surface: PanelSurface;
   readonly shellPlacement: ShellPlacement;
   readonly footer: FooterSpec;
   readonly factory: PanelSectionFactory;
 }
 
 export interface StatusBarStyleSpec extends StyleSpec<StatusBarStyle> {
-  readonly surface: StatusBarSurface;
   readonly factory: StatusBarRendererFactory;
+}
+
+export interface ShellPlacement {
+  readonly shellClass: string | null;
+  readonly scrollClass: string | undefined;
+  readonly insertionIndex: number | undefined;
 }
 
 export interface StyleRegistry {
@@ -80,12 +91,12 @@ export const STYLE_REGISTRY: StyleRegistry = {
         insertionIndex: undefined,
       },
       footer: {
+        layout: "toolbar",
         rowClass: "pl-footer-row",
         toolbarClass: "pl-footer-toolbar",
         pointerSignal: "clicked",
         refreshClass: "pl-footer-button pl-refresh-button",
         settingsClass: "pl-footer-button pl-settings-button",
-        layout: "toolbar",
         buttonControls: true,
         refreshContentClass: "pl-footer-button-box",
       },
@@ -99,12 +110,13 @@ export const STYLE_REGISTRY: StyleRegistry = {
         insertionIndex: undefined,
       },
       footer: {
+        layout: "toolbar",
         rowClass: "pl-panel-footer-row",
         toolbarClass: "pl-panel-footer",
         pointerSignal: "button-release-event",
         refreshClass: "pl-footer-action pl-refresh-action",
         settingsClass: "pl-footer-action pl-settings-action",
-        layout: "toolbar",
+        buttonControls: false,
         refreshIcon: ["view-refresh-symbolic", "pl-footer-icon"],
         settingsIcon: ["preferences-system-symbolic", "pl-footer-icon"],
         labelClass: "pl-footer-action-label",
@@ -123,12 +135,11 @@ export const STYLE_REGISTRY: StyleRegistry = {
         insertionIndex: 0,
       },
       footer: {
+        layout: "hud",
         rowClass: "provider-limits-hud-toolbar",
         pointerSignal: "clicked",
         refreshClass: "provider-limits-icon-button",
         settingsClass: "provider-limits-icon-button",
-        layout: "hud",
-        buttonControls: true,
         refreshIcon: ["view-refresh-symbolic"],
         settingsIcon: ["emblem-system-symbolic"],
       },

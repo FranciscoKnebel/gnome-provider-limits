@@ -7,8 +7,11 @@ import {
   resolveActiveProviders,
 } from "../helpers/provider-settings.js";
 import type { BaseReader, FieldDef, ReaderResult } from "../readers/base.js";
-import { deriveDisplayModels } from "./displayModel.js";
-import type { ProviderDisplayModel } from "./displayModel.js";
+import {
+  deriveDisplayModel,
+  type DisplayModelOptions,
+  type ProviderDisplayModel,
+} from "./displayModel.js";
 
 export type ViewPhase = "empty" | "loading" | "ready";
 
@@ -61,23 +64,23 @@ export function viewContextFor(
   const displayNames = providerRecord((name) => providerDisplayName(settings, name));
   const phase = resolveViewPhase(activeProviders, results);
 
-  return {
-    phase,
-    activeProviders,
-    results,
-    displayNames,
-    models: deriveDisplayModels({
-      results,
-      fieldDefs,
-      activeProviders,
-      displayNames,
-      shortDisplayNames: providerRecord((name) => providerDisplayNameShort(settings, name)),
-      statusFields: providerRecord((name) => settings.get_strv(`${name}-status-fields`)),
-      panelFields: providerRecord((name) => settings.get_strv(`${name}-panel-fields`)),
-      locale,
-      t,
-    }),
+  const optionsFor = (provider: ProviderName): DisplayModelOptions => ({
+    fieldDefs: fieldDefs[provider],
+    statusFields: settings.get_strv(`${provider}-status-fields`),
+    panelFields: settings.get_strv(`${provider}-panel-fields`),
+    displayName: displayNames[provider],
+    shortDisplayName: providerDisplayNameShort(settings, provider),
     locale,
     t,
-  };
+  });
+
+  const models: ProviderDisplayModel[] = [];
+  for (const provider of activeProviders) {
+    const result = results.get(provider);
+    if (!result) continue;
+    const model = deriveDisplayModel(provider, result, optionsFor(provider));
+    if (model) models.push(model);
+  }
+
+  return { phase, activeProviders, results, displayNames, models, locale, t };
 }

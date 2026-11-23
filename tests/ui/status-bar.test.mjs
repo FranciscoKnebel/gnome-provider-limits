@@ -17,18 +17,18 @@ function loadProviderSettings() {
 }
 
 function loadViewContext() {
-  let derivationInput;
+  const derivations = [];
   const api = load("src/ui/viewContext.ts", "({ viewContextFor, resolveViewPhase })", {
     PROVIDER_NAMES,
     providerRecord: (make) =>
       Object.fromEntries(PROVIDER_NAMES.map((provider) => [provider, make(provider)])),
-    deriveDisplayModels: (input) => {
-      derivationInput = input;
-      return [];
+    deriveDisplayModel: (provider, result, options) => {
+      derivations.push({ provider, result, options });
+      return undefined;
     },
     ...loadProviderSettings(),
   });
-  return { ...api, derivationInput: () => derivationInput };
+  return { ...api, derivations: () => derivations };
 }
 
 function settingsWith(values) {
@@ -61,7 +61,7 @@ test("active providers have one canonical selector across rendering paths", () =
 
 test("the view snapshot exposes one consistent set of provider settings", () => {
   const { resolveActiveProviders } = loadProviderSettings();
-  const { viewContextFor, derivationInput } = loadViewContext();
+  const { viewContextFor, derivations } = loadViewContext();
   const settings = settingsWith({
     "providers-order": ["opencode", "codex"],
     "codex-enabled": true,
@@ -71,7 +71,10 @@ test("the view snapshot exposes one consistent set of provider settings", () => 
     "codex-panel-fields": ["reset_at_primary"],
   });
   const readers = new Map();
-  const results = new Map([["opencode", { status: "ok" }]]);
+  const results = new Map([
+    ["opencode", { status: "ok" }],
+    ["codex", { status: "ok" }],
+  ]);
   const fieldDefs = { codex: [{ name: "used_percent_primary" }] };
   const view = viewContextFor(settings, readers, results, fieldDefs, "en", (text) => text);
 
@@ -84,7 +87,7 @@ test("the view snapshot exposes one consistent set of provider settings", () => 
   assert.equal(view.activeProviders.includes("codex"), true);
   assert.equal(view.activeProviders.includes("claude"), false);
   assert.equal(view.displayNames.codex, "Codex Pro");
-  assert.deepEqual(view.models, []);
+  assert.equal(view.models.length, 0);
   assert.deepEqual(Object.keys(view).sort(), [
     "activeProviders",
     "displayNames",
@@ -95,11 +98,19 @@ test("the view snapshot exposes one consistent set of provider settings", () => 
     "t",
   ]);
 
-  const input = derivationInput();
-  assert.equal(input.shortDisplayNames.codex, "CX");
-  assert.deepEqual(input.statusFields.codex, ["used_percent_primary"]);
-  assert.deepEqual(input.panelFields.codex, ["reset_at_primary"]);
-  assert.equal(input.fieldDefs, fieldDefs);
+  const calls = derivations();
+  assert.deepEqual(
+    calls.map((call) => call.provider),
+    ["opencode", "codex"],
+    "only active providers with results are derived",
+  );
+  const codex = calls.find((call) => call.provider === "codex");
+  assert.equal(codex.options.displayName, "Codex Pro");
+  assert.equal(codex.options.shortDisplayName, "CX");
+  assert.deepEqual(codex.options.statusFields, ["used_percent_primary"]);
+  assert.deepEqual(codex.options.panelFields, ["reset_at_primary"]);
+  assert.equal(codex.options.fieldDefs, fieldDefs.codex);
+  assert.equal(codex.options.locale, "en");
 });
 
 test("view phase comes from enabled providers and results only", () => {

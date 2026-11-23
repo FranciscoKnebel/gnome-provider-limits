@@ -36,6 +36,10 @@ const PROVIDER_LIMITS_UUID = "gnome-provider-limits@franciscoknebel.com";
 const MIN_REFRESH_INDICATOR_MS = 2000;
 const RENDER_DEBOUNCE_MS = 150;
 
+function assertNever(value: never): never {
+  throw new Error(`Unexpected provider: ${String(value)}`);
+}
+
 const ProviderLimitsIndicator = GObject.registerClass(
   class ProviderLimitsIndicator extends PanelMenu.Button {
     declare _extension: Extension;
@@ -206,6 +210,8 @@ const ProviderLimitsIndicator = GObject.registerClass(
           return new CursorReader(this._settings, "cursor");
         case "google":
           return new GoogleReader(this._settings, "google");
+        default:
+          return assertNever(name);
       }
     }
 

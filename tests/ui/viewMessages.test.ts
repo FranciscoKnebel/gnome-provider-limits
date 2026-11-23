@@ -3,23 +3,40 @@ import type { ProviderViewContext, ViewPhase } from "../../src/ui/viewContext.js
 import {
   cardsMessages,
   cardsRunningMessages,
-  PHASE_MESSAGES,
+  cockpitMessages,
+  matrixMessages,
   phaseResult,
+  pillsMessages,
+  statusCompactMessages,
+  statusGaugesMessages,
   type PhaseMessages,
-  type PanelSurface,
-  type StatusBarSurface,
-  type ViewSurface,
 } from "../../src/ui/viewMessages.js";
 
-const PANEL_SURFACES: readonly PanelSurface[] = ["cards", "matrix", "cockpit"];
-const STATUS_SURFACES: readonly StatusBarSurface[] = ["pills", "gauges", "compact"];
-const ALL_SURFACES: readonly ViewSurface[] = [...PANEL_SURFACES, ...STATUS_SURFACES];
+const MESSAGES = {
+  cards: cardsMessages,
+  matrix: matrixMessages,
+  cockpit: cockpitMessages,
+  pills: pillsMessages,
+  gauges: statusGaugesMessages,
+  compact: statusCompactMessages,
+} as const;
 
-function messagesFor(surface: ViewSurface): PhaseMessages {
-  return PHASE_MESSAGES[surface];
+type Surface = keyof typeof MESSAGES;
+const PANEL_SURFACES: readonly Surface[] = ["cards", "matrix", "cockpit"];
+const ALL_SURFACES: readonly Surface[] = [
+  "cards",
+  "matrix",
+  "cockpit",
+  "pills",
+  "gauges",
+  "compact",
+];
+
+function messagesFor(surface: Surface): PhaseMessages {
+  return MESSAGES[surface];
 }
 
-function message(phase: ViewPhase, surface: ViewSurface) {
+function message(phase: ViewPhase, surface: Surface) {
   return messagesFor(surface)(phase, (text) => text);
 }
 

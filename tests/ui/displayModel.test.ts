@@ -2,7 +2,7 @@ import { providerRecord } from "../../src/constants.js";
 import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
 import type { FieldDef, ReaderResult } from "../../src/readers/base.js";
 import { CODEX_FIELDS, PROVIDER_FIELDS } from "../../src/readers/fields.js";
-import { deriveDisplayModel, deriveDisplayModels } from "../../src/ui/displayModel.js";
+import { deriveDisplayModel } from "../../src/ui/displayModel.js";
 import { consumedResetNames, resetDetailText, resetSlotText } from "../../src/ui/resetModel.js";
 import { viewContextFromFixture, type ViewFixtureInput } from "./contextFixture.js";
 
@@ -61,7 +61,7 @@ describe("deriveDisplayModel", () => {
     ).toBeUndefined();
   });
 
-  it("stays a thin loop over active results", () => {
+  it("derives one model per active result and skips disabled results", () => {
     const input: ViewFixtureInput = {
       activeProviders: ["codex", "claude"],
       results: new Map([
@@ -79,7 +79,6 @@ describe("deriveDisplayModel", () => {
     };
 
     const models = viewContextFromFixture(input).models;
-    expect(models).toEqual(deriveDisplayModels(input));
     expect(models.map((model) => model.provider)).toEqual(["codex"]);
     const direct = deriveDisplayModel("codex", result, {
       fieldDefs: CODEX_FIELDS,
@@ -90,8 +89,8 @@ describe("deriveDisplayModel", () => {
       locale: "en",
       t: (text) => text,
     });
-    expect(direct).toBeDefined();
-    expect(direct?.provider).toBe(models[0].provider);
+    if (!direct) throw new Error("missing direct model");
+    expect(models[0]).toEqual(direct);
   });
 });
 

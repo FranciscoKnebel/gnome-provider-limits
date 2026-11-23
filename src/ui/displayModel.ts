@@ -139,7 +139,7 @@ function classifyPanelViews(
 
 function deriveDiagnostics(
   result: ReaderResult,
-  isHardError: boolean,
+  hardError: boolean,
   tr: (s: string) => string,
 ): { diagnostic: DisplayDiagnostic; callout: DisplayCallout | null } {
   let bannerKind: DisplayBannerKind | null = null;
@@ -156,7 +156,7 @@ function deriveDiagnostics(
   }
 
   let callout: DisplayCallout | null = null;
-  if (isHardError) {
+  if (hardError) {
     callout = { kind: "error", badge: tr("Error"), text: result.lastError ?? tr("Error") };
   } else if (result.status === ReaderStatus.PARTIAL && result.lastError) {
     callout = {
@@ -170,7 +170,7 @@ function deriveDiagnostics(
     diagnostic: {
       bannerKind,
       bannerText,
-      errorText: isHardError ? (result.lastError ?? tr("Error")) : null,
+      errorText: hardError ? (result.lastError ?? tr("Error")) : null,
       detailText: result.status === ReaderStatus.PARTIAL ? (result.lastError ?? null) : null,
     },
     callout,
@@ -273,39 +273,4 @@ export function deriveDisplayModel(
   };
   const facts = deriveDisplayFacts(modelBase, { ...options, views: allViews, hardError });
   return { ...modelBase, facts };
-}
-
-/** Only the inputs needed to derive the canonical display model set. */
-export interface DisplayModelDerivationInput {
-  readonly results: ReadonlyMap<ProviderName, ReaderResult>;
-  readonly fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>;
-  readonly activeProviders: readonly ProviderName[];
-  readonly displayNames: Readonly<Record<ProviderName, string>>;
-  readonly shortDisplayNames: Readonly<Record<ProviderName, string>>;
-  readonly statusFields: Readonly<Record<ProviderName, readonly string[]>>;
-  readonly panelFields: Readonly<Record<ProviderName, readonly string[]>>;
-  readonly locale: string;
-  readonly t: (text: string) => string;
-}
-
-/** Thin loop over the active results, delegating all assembly to deriveDisplayModel. */
-export function deriveDisplayModels(input: DisplayModelDerivationInput): ProviderDisplayModel[] {
-  const models: ProviderDisplayModel[] = [];
-
-  for (const provider of input.activeProviders) {
-    const result = input.results.get(provider);
-    if (!result) continue;
-    const model = deriveDisplayModel(provider, result, {
-      fieldDefs: input.fieldDefs[provider],
-      statusFields: input.statusFields[provider],
-      panelFields: input.panelFields[provider],
-      displayName: input.displayNames[provider],
-      shortDisplayName: input.shortDisplayNames[provider],
-      locale: input.locale,
-      t: input.t,
-    });
-    if (model) models.push(model);
-  }
-
-  return models;
 }

@@ -3,9 +3,14 @@ export type ProviderName = (typeof PROVIDER_NAMES)[number];
 
 /** Build a complete record for every provider from the canonical name list. */
 export function providerRecord<T>(make: (provider: ProviderName) => T): Record<ProviderName, T> {
-  const record = {} as Record<ProviderName, T>;
-  for (const provider of PROVIDER_NAMES) record[provider] = make(provider);
-  return record;
+  return {
+    codex: make("codex"),
+    claude: make("claude"),
+    opencode: make("opencode"),
+    grok: make("grok"),
+    cursor: make("cursor"),
+    google: make("google"),
+  };
 }
 
 /** How a provider's configured path is presented in preferences. */

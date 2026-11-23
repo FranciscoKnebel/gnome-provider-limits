@@ -5,7 +5,7 @@ import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
 import { gettext as _ } from "../helpers/gettext.js";
 import { bindActivation } from "../helpers/keyboard.js";
-import type { FooterSpec } from "./styles.js";
+import type { FooterSpec, HudFooterSpec, IconSpec, ToolbarFooterSpec } from "./styles.js";
 
 export interface PanelFooterActors {
   readonly row: PopupMenu.PopupBaseMenuItem;
@@ -46,7 +46,7 @@ function label(text: string, styleClass?: string): St.Label {
   return result;
 }
 
-function icon(spec: readonly [string, string?] | undefined): St.Icon | null {
+function icon(spec: IconSpec | undefined): St.Icon | null {
   if (!spec || typeof St.Icon !== "function") return null;
   return new St.Icon({
     icon_name: spec[0],
@@ -68,37 +68,32 @@ function footerRow(styleClass: string): PopupMenu.PopupBaseMenuItem {
   return item;
 }
 
-function buildRefresh(
-  spec: FooterSpec,
-  options: FooterOptions,
-  spinner: Spinner,
-): { control: St.Widget; setRunning: (running: boolean) => void } {
-  const isHud = spec.layout === "hud";
-  const refreshIcon = icon(spec.refreshIcon);
-  const refreshLabel = isHud ? null : label(_("Force refresh"), spec.labelClass);
-  const children: St.Widget[] = [];
-  if (refreshIcon && isHud) children.push(refreshIcon);
-  children.push(spinner);
-  if (refreshIcon && !isHud) children.push(refreshIcon);
-  if (refreshLabel) children.push(refreshLabel);
-
-  let control: St.Widget;
-  if (spec.buttonControls) {
-    const content = new St.BoxLayout({
-      ...(spec.refreshContentClass ? { style_class: spec.refreshContentClass } : {}),
-      y_align: Clutter.ActorAlign.CENTER,
-    });
-    for (const child of children) content.add_child(child);
-    control = new St.Button({ child: content, style_class: spec.refreshClass, ...ACTION_PROPS });
-  } else {
-    control = new St.BoxLayout({ style_class: spec.refreshClass, ...ACTION_PROPS });
-    for (const child of children) control.add_child(child);
+function actionControl(
+  children: readonly St.Widget[],
+  styleClass: string,
+  contentClass: string | undefined,
+  asButton: boolean,
+): St.Widget {
+  if (!asButton) {
+    const box = new St.BoxLayout({ style_class: styleClass, ...ACTION_PROPS });
+    for (const child of children) box.add_child(child);
+    return box;
   }
-
-  bindActivation(control, options.onRefresh, {
-    pointerSignals: [spec.pointerSignal],
-    onOtherKey: options.onFooterKey,
+  const content = new St.BoxLayout({
+    ...(contentClass ? { style_class: contentClass } : {}),
+    y_align: Clutter.ActorAlign.CENTER,
   });
+  for (const child of children) content.add_child(child);
+  return new St.Button({ child: content, style_class: styleClass, ...ACTION_PROPS });
+}
+
+function applyRunning(
+  control: St.Widget,
+  spinner: Spinner,
+  refreshLabel: St.Label | null,
+  refreshIcon: St.Icon | null,
+  disabledClass: string | undefined,
+): (running: boolean) => void {
   const setRunning = (running: boolean): void => {
     spinner.visible = running;
     if (running) spinner.play();
@@ -109,32 +104,25 @@ function buildRefresh(
       refreshLabel.accessible_name = text;
     }
     control.accessible_name = text;
-    if (refreshIcon && spec.disabledClass) refreshIcon.visible = !running;
+    if (refreshIcon && disabledClass) refreshIcon.visible = !running;
     control.reactive = !running;
-    if (spec.disabledClass) {
-      if (running) control.add_style_class_name(spec.disabledClass);
-      else control.remove_style_class_name(spec.disabledClass);
+    if (disabledClass) {
+      if (running) control.add_style_class_name(disabledClass);
+      else control.remove_style_class_name(disabledClass);
     }
   };
   setRunning(false);
-  return { control, setRunning };
+  return setRunning;
 }
 
-function buildSettings(spec: FooterSpec, options: FooterOptions): St.Widget {
-  const settingsIcon = icon(spec.settingsIcon);
-  const settingsLabel = spec.layout === "hud" ? null : label(_("Settings"), spec.labelClass);
-  const control = spec.buttonControls
-    ? new St.Button({
-        child: (spec.layout === "hud" ? settingsIcon : settingsLabel) ?? undefined,
-        style_class: spec.settingsClass,
-        ...ACTION_PROPS,
-      })
-    : new St.BoxLayout({ style_class: spec.settingsClass, ...ACTION_PROPS });
-  if (!spec.buttonControls) {
-    if (settingsIcon) control.add_child(settingsIcon);
-    if (settingsLabel) control.add_child(settingsLabel);
-  }
-  control.accessible_name = _("Settings");
+function bindRefresh(control: St.Widget, spec: FooterSpec, options: FooterOptions): void {
+  bindActivation(control, options.onRefresh, {
+    pointerSignals: [spec.pointerSignal],
+    onOtherKey: options.onFooterKey,
+  });
+}
+
+function bindSettings(control: St.Widget, spec: FooterSpec, options: FooterOptions): void {
   bindActivation(
     control,
     () => {
@@ -143,63 +131,119 @@ function buildSettings(spec: FooterSpec, options: FooterOptions): St.Widget {
     },
     { pointerSignals: [spec.pointerSignal], onOtherKey: options.onFooterKey },
   );
-  return control;
 }
 
-export function buildPanelFooter(spec: FooterSpec, options: FooterOptions): FooterBuild {
-  const row = footerRow(spec.rowClass);
-  const spinner = createSpinner();
-  const refresh = buildRefresh(spec, options, spinner);
-  const settings = buildSettings(spec, options);
-  const lastRefreshLabel = new St.Label({
+function toolbarTimestamp(): St.Label {
+  return new St.Label({
     text: "",
-    style_class:
-      spec.layout === "toolbar"
-        ? "provider-limits-dim pl-footer-timestamp"
-        : "provider-limits-hud-meta provider-limits-tnum",
-    ...(spec.layout === "toolbar" ? { x_expand: true, x_align: Clutter.ActorAlign.CENTER } : {}),
+    style_class: "provider-limits-dim pl-footer-timestamp",
+    x_expand: true,
+    x_align: Clutter.ActorAlign.CENTER,
     y_align: Clutter.ActorAlign.CENTER,
     visible: false,
   });
+}
 
-  if (spec.layout === "toolbar") {
-    const toolbar = new St.BoxLayout({
-      style_class: spec.toolbarClass,
-      x_expand: true,
-      y_align: Clutter.ActorAlign.CENTER,
-    });
-    toolbar.add_child(refresh.control);
-    toolbar.add_child(lastRefreshLabel);
-    toolbar.add_child(settings);
-    row.add_child(toolbar);
-  } else {
-    const title = _("Provider Limits");
-    const leading = new St.BoxLayout({
-      style_class: "provider-limits-hud-toolbar-left",
-      x_expand: true,
-      y_align: Clutter.ActorAlign.CENTER,
-    });
-    leading.add_child(label(title, "provider-limits-hud-title"));
-    leading.add_child(lastRefreshLabel);
-    const trailing = new St.BoxLayout({
-      style_class: "provider-limits-hud-actions",
-      y_align: Clutter.ActorAlign.CENTER,
-    });
-    for (const control of options.extraControls) trailing.add_child(control);
-    trailing.add_child(refresh.control);
-    trailing.add_child(settings);
-    row.add_child(leading);
-    row.add_child(trailing);
-  }
+function hudTimestamp(): St.Label {
+  return new St.Label({
+    text: "",
+    style_class: "provider-limits-hud-meta provider-limits-tnum",
+    y_align: Clutter.ActorAlign.CENTER,
+    visible: false,
+  });
+}
+
+export function buildToolbarFooter(spec: ToolbarFooterSpec, options: FooterOptions): FooterBuild {
+  const row = footerRow(spec.rowClass);
+  const spinner = createSpinner();
+  const refreshIcon = icon(spec.refreshIcon);
+  const refreshLabel = label(_("Force refresh"), spec.labelClass);
+  const refresh = actionControl(
+    [spinner, ...(refreshIcon ? [refreshIcon] : []), refreshLabel],
+    spec.refreshClass,
+    spec.refreshContentClass,
+    spec.buttonControls,
+  );
+  bindRefresh(refresh, spec, options);
+  const setRunning = applyRunning(refresh, spinner, refreshLabel, refreshIcon, spec.disabledClass);
+
+  const settingsIcon = icon(spec.settingsIcon);
+  const settingsLabel = label(_("Settings"), spec.labelClass);
+  const settings = spec.buttonControls
+    ? new St.Button({ child: settingsLabel, style_class: spec.settingsClass, ...ACTION_PROPS })
+    : actionControl(
+        [...(settingsIcon ? [settingsIcon] : []), settingsLabel],
+        spec.settingsClass,
+        undefined,
+        false,
+      );
+  settings.accessible_name = _("Settings");
+  bindSettings(settings, spec, options);
+
+  const lastRefreshLabel = toolbarTimestamp();
+  const toolbar = new St.BoxLayout({
+    style_class: spec.toolbarClass,
+    x_expand: true,
+    y_align: Clutter.ActorAlign.CENTER,
+  });
+  toolbar.add_child(refresh);
+  toolbar.add_child(lastRefreshLabel);
+  toolbar.add_child(settings);
+  row.add_child(toolbar);
 
   return {
-    actors: {
-      row,
-      refreshControl: refresh.control,
-      settingsControl: settings,
-      lastRefreshLabel,
-      spinner,
-    },
-    applyRunning: refresh.setRunning,
+    actors: { row, refreshControl: refresh, settingsControl: settings, lastRefreshLabel, spinner },
+    applyRunning: setRunning,
   };
+}
+
+export function buildHudFooter(spec: HudFooterSpec, options: FooterOptions): FooterBuild {
+  const row = footerRow(spec.rowClass);
+  const spinner = createSpinner();
+  const refreshIcon = icon(spec.refreshIcon);
+  const refresh = actionControl(
+    [...(refreshIcon ? [refreshIcon] : []), spinner],
+    spec.refreshClass,
+    undefined,
+    true,
+  );
+  bindRefresh(refresh, spec, options);
+  const setRunning = applyRunning(refresh, spinner, null, refreshIcon, undefined);
+
+  const settingsIcon = icon(spec.settingsIcon);
+  const settings = new St.Button({
+    child: settingsIcon ?? undefined,
+    style_class: spec.settingsClass,
+    ...ACTION_PROPS,
+  });
+  settings.accessible_name = _("Settings");
+  bindSettings(settings, spec, options);
+
+  const lastRefreshLabel = hudTimestamp();
+  const title = _("Provider Limits");
+  const leading = new St.BoxLayout({
+    style_class: "provider-limits-hud-toolbar-left",
+    x_expand: true,
+    y_align: Clutter.ActorAlign.CENTER,
+  });
+  leading.add_child(label(title, "provider-limits-hud-title"));
+  leading.add_child(lastRefreshLabel);
+  const trailing = new St.BoxLayout({
+    style_class: "provider-limits-hud-actions",
+    y_align: Clutter.ActorAlign.CENTER,
+  });
+  for (const control of options.extraControls) trailing.add_child(control);
+  trailing.add_child(refresh);
+  trailing.add_child(settings);
+  row.add_child(leading);
+  row.add_child(trailing);
+
+  return {
+    actors: { row, refreshControl: refresh, settingsControl: settings, lastRefreshLabel, spinner },
+    applyRunning: setRunning,
+  };
+}
+
+export function buildPanelFooter(spec: FooterSpec, options: FooterOptions): FooterBuild {
+  return spec.layout === "hud" ? buildHudFooter(spec, options) : buildToolbarFooter(spec, options);
 }

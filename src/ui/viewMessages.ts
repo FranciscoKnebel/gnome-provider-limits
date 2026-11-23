@@ -2,14 +2,6 @@ import type { ProviderViewContext, ViewPhase } from "./viewContext.js";
 
 export type Translate = (text: string) => string;
 
-/** Panel surfaces own their own empty-state copy. */
-export type PanelSurface = "cards" | "matrix" | "cockpit";
-
-/** Status bar surfaces own their own placeholder copy and accessible names. */
-export type StatusBarSurface = "pills" | "gauges" | "compact";
-
-export type ViewSurface = PanelSurface | StatusBarSurface;
-
 export interface EmptyPresentation {
   readonly title: string;
   readonly subtitle: string;
@@ -117,16 +109,6 @@ export const statusGaugesMessages: PhaseMessages = (phase, t) => {
 
 export const statusCompactMessages: PhaseMessages = (phase, t) =>
   phase === "loading" ? withPlaceholder(t, "Reading provider limits…") : EMPTY_PRESENTATION;
-
-/** One lookup for headless copy tests; renderers take the exact message function they need. */
-export const PHASE_MESSAGES: Readonly<Record<ViewSurface, PhaseMessages>> = {
-  cards: cardsMessages,
-  matrix: matrixMessages,
-  cockpit: cockpitMessages,
-  pills: pillsMessages,
-  gauges: statusGaugesMessages,
-  compact: statusCompactMessages,
-};
 
 export type PhaseResult =
   | {
