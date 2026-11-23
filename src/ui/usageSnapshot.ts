@@ -6,8 +6,9 @@ import { clampPercent, fieldTone } from "./fieldRows.js";
 import type { FieldRow, FieldTone } from "./fieldRows.js";
 import { structureKey } from "./renderStructure.js";
 
-export { clampPercent, fieldTone, percentTone } from "./fieldRows.js";
-export type { FieldTone } from "./fieldRows.js";
+// Compatibility aliases: these re-exports are consumed outside this module by
+// cardPlan.ts (clampPercent) and cockpitModel.ts (fieldTone).
+export { clampPercent, fieldTone } from "./fieldRows.js";
 
 const TONE_SEVERITY: Record<FieldTone, number> = {
   ok: 1,
@@ -213,6 +214,7 @@ export function deriveUsageSnapshot(options: UsageSnapshotOptions): UsageSnapsho
   };
 }
 
+// Compatibility alias consumed by cardPlan.ts, cockpitModel.ts and matrixPlan.ts.
 export function usageStructureKey(parts: readonly string[]): string {
   return structureKey(parts);
 }

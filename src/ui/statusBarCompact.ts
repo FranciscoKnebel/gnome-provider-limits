@@ -1,13 +1,14 @@
 import Clutter from "gi://Clutter";
 import St from "gi://St";
 
-import { PROVIDER_NAMES, type ProviderName } from "../constants.js";
+import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
-import type { FieldDef } from "../readers/base.js";
-import { planStatusBar } from "./matrixPlan.js";
-import type { StatusBarPlan as MatrixStatusBarPlan } from "./matrixPlan.js";
+import { ReaderStatus } from "../readers/base.js";
+import { deriveStatusBarSegments, statusBadgeText, toAttention } from "./fieldViews.js";
+import type { ProviderAttention } from "./providerTypes.js";
 import type { StatusBarRenderContext, StatusBarRenderer } from "./statusBar.js";
 import { applyStatusAttentionClass } from "./tone.js";
+import { usageStructureKey } from "./usageSnapshot.js";
 
 interface CompactPooledSegment {
   box: St.BoxLayout;
@@ -15,11 +16,90 @@ interface CompactPooledSegment {
   metricsLabel: St.Label | null;
 }
 
+interface CompactBadgePlan {
+  provider: ProviderName;
+  shortLabel: string;
+  metricsText: string;
+  attention: ProviderAttention;
+  accessibleText: string;
+  key: string;
+}
+
+interface CompactPlan {
+  state: "empty" | "loading" | "ready";
+  placeholderText: string | null;
+  badges: readonly CompactBadgePlan[];
+  key: string;
+}
+
+function planCompact(context: StatusBarRenderContext): CompactPlan {
+  const tr = (text: string) => context.t(text);
+
+  if (!context.order.some((name) => context.isEnabled(name))) {
+    return {
+      state: "empty",
+      placeholderText: null,
+      badges: [],
+      key: usageStructureKey(["empty", context.locale]),
+    };
+  }
+
+  const badges: CompactBadgePlan[] = deriveStatusBarSegments(context)
+    .filter((segment) => context.isEnabled(segment.provider))
+    .map((segment) => {
+      const shortLabel = segment.displayName || segment.provider;
+      const badgeWord = statusBadgeText(segment.health, tr);
+
+      if (segment.health.state === "error" || segment.health.state === "unavailable") {
+        return {
+          provider: segment.provider,
+          shortLabel,
+          metricsText: "!",
+          attention: toAttention(segment.health),
+          accessibleText: `${shortLabel} ${badgeWord}`.trim(),
+          key: JSON.stringify([segment.provider, shortLabel, 1]),
+        };
+      }
+
+      const joined = segment.views.map((view) => view.valueText).join("·");
+      const prefix = segment.result.status === ReaderStatus.PARTIAL ? "~" : "";
+      const metricsText = joined ? `${prefix}${joined}` : prefix;
+      const spokenRows = segment.views.map((view) => view.accessibleText).join(", ");
+      const headerPart = badgeWord ? `${shortLabel} ${badgeWord}` : shortLabel;
+      const accessibleText = spokenRows ? `${headerPart}: ${spokenRows}` : headerPart;
+
+      return {
+        provider: segment.provider,
+        shortLabel,
+        metricsText,
+        attention: toAttention(segment.health),
+        accessibleText,
+        key: JSON.stringify([segment.provider, shortLabel, metricsText ? 1 : 0]),
+      };
+    });
+
+  if (badges.length === 0 && context.results.size === 0) {
+    return {
+      state: "loading",
+      placeholderText: "…",
+      badges: [],
+      key: usageStructureKey(["loading", context.locale]),
+    };
+  }
+
+  return {
+    state: "ready",
+    placeholderText: null,
+    badges,
+    key: usageStructureKey(["ready", context.locale, ...badges.map((badge) => badge.key)]),
+  };
+}
+
 export class CompactStatusBarRenderer implements StatusBarRenderer {
   private _segments: CompactPooledSegment[] = [];
   private _placeholder: St.Label | null = null;
   private _context: StatusBarRenderContext | null = null;
-  private _plan: MatrixStatusBarPlan | null = null;
+  private _plan: CompactPlan | null = null;
 
   constructor(private readonly _parent: St.BoxLayout) {}
 
@@ -116,31 +196,9 @@ export class CompactStatusBarRenderer implements StatusBarRenderer {
     this._plan = null;
   }
 
-  private _planFor(context: StatusBarRenderContext): MatrixStatusBarPlan {
+  private _planFor(context: StatusBarRenderContext): CompactPlan {
     if (this._context === context && this._plan) return this._plan;
-
-    const enabledProviders = new Set<ProviderName>();
-    const shortLabels = {} as Record<ProviderName, string>;
-    const statusFields = {} as Record<ProviderName, readonly string[]>;
-    const fieldDefs: Partial<Record<ProviderName, readonly FieldDef[]>> = {};
-
-    for (const name of PROVIDER_NAMES) {
-      if (context.isEnabled(name)) enabledProviders.add(name);
-      shortLabels[name] = context.shortDisplayName(name);
-      statusFields[name] = context.statusFields(name);
-      fieldDefs[name] = context.fieldDefs(name);
-    }
-
-    this._plan = planStatusBar({
-      order: context.order,
-      enabledProviders,
-      results: context.results,
-      shortLabels,
-      statusFields,
-      fieldDefs,
-      locale: context.locale,
-      t: (text) => context.t(text),
-    });
+    this._plan = planCompact(context);
     this._context = context;
     return this._plan;
   }

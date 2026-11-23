@@ -297,7 +297,6 @@ export const ProviderExpanderRow = GObject.registerClass(
         index?: number;
         totalCount?: number;
         onMove?: (offset: -1 | 1) => void;
-        initialExpanded?: boolean;
       },
     ) {
       super._init({
@@ -313,10 +312,6 @@ export const ProviderExpanderRow = GObject.registerClass(
       this._bindings = [];
 
       bindSetting(this._settings, `${provider}-enabled`, this, "enable-expansion", this._bindings);
-
-      if (options?.initialExpanded && settings.get_boolean(`${provider}-enabled`)) {
-        this.expanded = true;
-      }
 
       this._signalIds.push(
         settings.connect(`changed::${provider}-display-name`, () => {

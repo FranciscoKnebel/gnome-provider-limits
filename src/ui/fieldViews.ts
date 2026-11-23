@@ -5,9 +5,29 @@ import { FieldStatus, ReaderStatus } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
 import { companionResetFieldName, resolveFieldCategory } from "../readers/fields.js";
 import type { FieldTone } from "./fieldRows.js";
-import { fieldTone, getFieldRows } from "./fieldRows.js";
+import { getFieldRows } from "./fieldRows.js";
+import type {
+  CardBadgeValue,
+  OverviewBadgeValue,
+  ProviderAttention,
+  ProviderBadge,
+  ProviderHealth,
+  ProviderState,
+  ProviderStateCore,
+  ProviderTone,
+} from "./providerTypes.js";
+import {
+  ATTENTION_BY_STATE,
+  CARD_BADGE_BY_BADGE,
+  CARD_BADGE_LABEL,
+  OVERVIEW_BADGE_BY_BADGE,
+  OVERVIEW_BADGE_LABEL,
+  STATUS_BADGE_LABEL,
+  TONE_BY_STATE,
+} from "./providerTypes.js";
 import {
   clampFillRatio,
+  collectFieldTones,
   extractWindowSuffix,
   isLimitReached,
   worstFieldTone,
@@ -107,43 +127,6 @@ export function deriveFieldViews(
   });
 }
 
-export type ProviderState =
-  | "ok"
-  | "warning"
-  | "critical"
-  | "partial"
-  | "error"
-  | "unavailable"
-  | "idle"
-  | "loading";
-
-export type ProviderBadge =
-  | "ok"
-  | "cached"
-  | "partial"
-  | "error"
-  | "unavailable"
-  | "idle"
-  | "loading";
-
-export type ProviderTone = "ok" | "warning" | "critical" | "partial" | "error" | "idle";
-
-export type CardBadgeValue = "live" | "cached" | "error" | "unavailable";
-export type OverviewBadgeValue = "ok" | "cached" | "partial" | "error" | "loading";
-export type AttentionValue = "quiet" | "partial" | "warning" | "critical" | "error";
-
-export interface ProviderHealth {
-  readonly status: ReaderStatus;
-  readonly state: ProviderState;
-  readonly tone: ProviderTone;
-  readonly badge: ProviderBadge;
-  readonly stateTag: string | null;
-  readonly stateAccessibleText: string | null;
-  readonly lastKnownGood: boolean;
-  readonly worstTone: FieldTone | undefined;
-  readonly hasUsableField: boolean;
-}
-
 export function isLastKnownGood(result: ReaderResult): boolean {
   return (
     result.status === ReaderStatus.PARTIAL &&
@@ -151,23 +134,29 @@ export function isLastKnownGood(result: ReaderResult): boolean {
   );
 }
 
-function toneForState(state: ProviderState): ProviderTone {
-  switch (state) {
-    case "error":
-    case "unavailable":
-      return "error";
-    case "critical":
-      return "critical";
-    case "partial":
-      return "partial";
-    case "warning":
-      return "warning";
-    case "ok":
-      return "ok";
-    case "idle":
-    case "loading":
-      return "idle";
-  }
+export function deriveProviderState(
+  status: ReaderStatus,
+  tones: readonly (FieldTone | undefined)[],
+  hasUsableField: boolean,
+  lastKnownGood: boolean,
+): ProviderStateCore {
+  const worstTone = worstFieldTone(tones);
+  let state: ProviderState;
+  if (status === ReaderStatus.ERROR) state = "error";
+  else if (status === ReaderStatus.UNAVAILABLE) state = "unavailable";
+  else if (status === ReaderStatus.DISABLED) state = "idle";
+  else if (worstTone === "critical") state = "critical";
+  else if (status === ReaderStatus.PARTIAL) state = "partial";
+  else if (worstTone === "warning") state = "warning";
+  else if (hasUsableField) state = "ok";
+  else state = "idle";
+
+  return {
+    state,
+    tone: TONE_BY_STATE[state],
+    badge: badgeForStatus(status, lastKnownGood),
+    worstTone,
+  };
 }
 
 function badgeForStatus(status: ReaderStatus, lastKnownGood: boolean): ProviderBadge {
@@ -185,6 +174,24 @@ function badgeForStatus(status: ReaderStatus, lastKnownGood: boolean): ProviderB
   }
 }
 
+function localizedStateText(
+  status: ReaderStatus,
+  tr: (s: string) => string,
+): { stateTag: string | null; stateAccessibleText: string | null } {
+  if (status === ReaderStatus.ERROR) {
+    const tag = tr("(error)");
+    return { stateTag: tag, stateAccessibleText: tag };
+  }
+  if (status === ReaderStatus.UNAVAILABLE) {
+    const tag = tr("(unavailable)");
+    return { stateTag: tag, stateAccessibleText: tag };
+  }
+  if (status === ReaderStatus.PARTIAL) {
+    return { stateTag: "~", stateAccessibleText: tr("Cached") };
+  }
+  return { stateTag: null, stateAccessibleText: null };
+}
+
 export function deriveProviderHealth(
   result: ReaderResult,
   views: readonly FieldView[],
@@ -193,55 +200,20 @@ export function deriveProviderHealth(
   hasUsableOverride?: boolean,
 ): ProviderHealth {
   const tr = t ?? ((s: string) => s);
-  const tones: (FieldTone | undefined)[] = views.map((view) => view.tone);
-  if (defs) {
-    for (const def of defs) {
-      if (def.type !== "percent") continue;
-      const field = result.fields.find((candidate) => candidate.name === def.name);
-      if (field?.status === FieldStatus.OK) tones.push(fieldTone(def.name, field.value));
-    }
-  }
-  if (isLimitReached(result.fields)) tones.push("critical");
-
-  const worstTone = worstFieldTone(tones);
+  const tones = collectFieldTones(views, result.fields, defs);
   const hasUsableField =
     hasUsableOverride ??
     (views.some((view) => view.hasValue) ||
       result.fields.some((field) => field.status === FieldStatus.OK));
   const lastKnownGood = isLastKnownGood(result);
-
-  let state: ProviderState;
-  if (result.status === ReaderStatus.ERROR) state = "error";
-  else if (result.status === ReaderStatus.UNAVAILABLE) state = "unavailable";
-  else if (result.status === ReaderStatus.DISABLED) state = "idle";
-  else if (worstTone === "critical") state = "critical";
-  else if (result.status === ReaderStatus.PARTIAL) state = "partial";
-  else if (worstTone === "warning") state = "warning";
-  else if (hasUsableField) state = "ok";
-  else state = "idle";
-
-  let stateTag: string | null = null;
-  let stateAccessibleText: string | null = null;
-  if (result.status === ReaderStatus.ERROR) {
-    stateTag = tr("(error)");
-    stateAccessibleText = stateTag;
-  } else if (result.status === ReaderStatus.UNAVAILABLE) {
-    stateTag = tr("(unavailable)");
-    stateAccessibleText = stateTag;
-  } else if (result.status === ReaderStatus.PARTIAL) {
-    stateTag = "~";
-    stateAccessibleText = tr("Cached");
-  }
+  const core = deriveProviderState(result.status, tones, hasUsableField, lastKnownGood);
+  const stateText = localizedStateText(result.status, tr);
 
   return {
     status: result.status,
-    state,
-    tone: toneForState(state),
-    badge: badgeForStatus(result.status, lastKnownGood),
-    stateTag,
-    stateAccessibleText,
+    ...core,
+    ...stateText,
     lastKnownGood,
-    worstTone,
     hasUsableField,
   };
 }
@@ -252,122 +224,48 @@ export function healthFromStatusAndTones(
   t?: (s: string) => string,
   hasUsableField = false,
 ): ProviderHealth {
-  const views: FieldView[] = tones.map((tone, index) => ({
-    name: `tone_${index}`,
-    type: "text",
-    category: "limit",
-    label: "",
-    value: null,
-    valueText: "",
-    accessibleText: "",
-    ratio: null,
-    hasValue: false,
-    resetName: null,
-    resetText: null,
-    hasResetSlot: false,
-    ...(tone ? { tone } : {}),
-  }));
-  const result: ReaderResult = { provider: "", status, fields: [], lastUpdated: 0 };
-  return deriveProviderHealth(result, views, t, undefined, hasUsableField);
+  const tr = t ?? ((s: string) => s);
+  const core = deriveProviderState(status, tones, hasUsableField, false);
+  const stateText = localizedStateText(status, tr);
+
+  return {
+    status,
+    ...core,
+    ...stateText,
+    lastKnownGood: false,
+    hasUsableField,
+  };
 }
 
 export function toHealthTone(health: ProviderHealth): ProviderTone {
   return health.tone;
 }
 
-export function toAttention(health: ProviderHealth): AttentionValue {
-  switch (health.state) {
-    case "error":
-    case "unavailable":
-      return "error";
-    case "critical":
-      return "critical";
-    case "warning":
-      return "warning";
-    case "partial":
-      return health.worstTone === "warning" ? "warning" : "partial";
-    case "ok":
-    case "idle":
-    case "loading":
-      return "quiet";
-  }
+export function toAttention(health: ProviderHealth): ProviderAttention {
+  if (health.state === "partial" && health.worstTone === "warning") return "warning";
+  return ATTENTION_BY_STATE[health.state];
 }
 
 export function toCardBadge(health: ProviderHealth): CardBadgeValue {
-  switch (health.status) {
-    case ReaderStatus.ERROR:
-      return "error";
-    case ReaderStatus.UNAVAILABLE:
-      return "unavailable";
-    case ReaderStatus.PARTIAL:
-      return "cached";
-    case ReaderStatus.OK:
-    case ReaderStatus.DISABLED:
-      return "live";
-  }
+  return CARD_BADGE_BY_BADGE[health.badge];
 }
 
 export function toOverviewBadge(health: ProviderHealth): OverviewBadgeValue {
-  switch (health.badge) {
-    case "error":
-    case "unavailable":
-      return "error";
-    case "cached":
-      return "cached";
-    case "partial":
-      return "partial";
-    case "loading":
-      return "loading";
-    case "ok":
-    case "idle":
-      return "ok";
-  }
+  return OVERVIEW_BADGE_BY_BADGE[health.badge];
 }
 
 export function cardBadgeText(health: ProviderHealth, t: (s: string) => string): string {
-  switch (health.status) {
-    case ReaderStatus.ERROR:
-      return t("Error");
-    case ReaderStatus.UNAVAILABLE:
-      return t("Unavailable");
-    case ReaderStatus.PARTIAL:
-      return t("Cached");
-    case ReaderStatus.OK:
-    case ReaderStatus.DISABLED:
-      return t("Live");
-  }
+  return t(CARD_BADGE_LABEL[health.badge]);
 }
 
 export function overviewBadgeText(health: ProviderHealth, t: (s: string) => string): string {
   if (health.state === "loading" || health.state === "idle") return "…";
-  switch (health.badge) {
-    case "error":
-    case "unavailable":
-      return t("Error");
-    case "cached":
-      return t("Cached");
-    case "partial":
-      return t("Partial");
-    case "ok":
-      return t("OK");
-    case "idle":
-    case "loading":
-      return "…";
-  }
+  return t(OVERVIEW_BADGE_LABEL[health.badge]);
 }
 
 export function statusBadgeText(health: ProviderHealth, t: (s: string) => string): string {
-  switch (health.status) {
-    case ReaderStatus.PARTIAL:
-      return t("(partial)");
-    case ReaderStatus.ERROR:
-      return t("(error)");
-    case ReaderStatus.UNAVAILABLE:
-      return t("(unavailable)");
-    case ReaderStatus.OK:
-    case ReaderStatus.DISABLED:
-      return "";
-  }
+  const label = STATUS_BADGE_LABEL[health.badge];
+  return label ? t(label) : "";
 }
 
 export interface StatusBarProviderSegment {

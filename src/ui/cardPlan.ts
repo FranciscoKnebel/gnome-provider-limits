@@ -5,7 +5,7 @@ import { FieldStatus, ReaderStatus } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
 import { getProviderFields } from "../readers/fields.js";
 import type { FieldRow, FieldTone } from "./fieldRows.js";
-import type { CardBadgeValue, FieldView } from "./fieldViews.js";
+import type { FieldView } from "./fieldViews.js";
 import {
   cardBadgeText,
   deriveFieldViews,
@@ -14,31 +14,12 @@ import {
   toCardBadge,
   toHealthTone,
 } from "./fieldViews.js";
-import type { HealthTone } from "./tone.js";
+import type { CardBadgeValue, ProviderTone } from "./providerTypes.js";
 import { clampPercent, collectFieldTones, usageStructureKey } from "./usageSnapshot.js";
 
 export type CardBadgeKind = CardBadgeValue;
 export type BannerKind = "warning" | "error";
 export type PanelEmptyState = "none" | "disabled" | "loading";
-
-export interface StatusPillPlan {
-  provider: ProviderName;
-  displayName: string;
-  status: ReaderStatus;
-  healthTone: HealthTone;
-  isPartial: boolean;
-  stateTag: string | null;
-  stateAccessibleText: string | null;
-  rows: FieldRow[];
-  key: string;
-}
-
-export interface StatusBarPlan {
-  loading: boolean;
-  loadingAccessibleText: string;
-  pills: StatusPillPlan[];
-  structureKey: string;
-}
 
 export interface CardProgressRow {
   kind: "progress";
@@ -68,7 +49,7 @@ export interface ProviderCardPlan {
   provider: ProviderName;
   displayName: string;
   status: ReaderStatus;
-  healthTone: HealthTone;
+  healthTone: ProviderTone;
   badgeKind: CardBadgeKind;
   badgeText: string;
   lastUpdatedText: string | null;
@@ -93,7 +74,7 @@ export function computeProviderHealthTone(
   rows: readonly FieldRow[],
   fields?: readonly FieldResult[],
   fieldDefs?: readonly FieldDef[],
-): HealthTone {
+): ProviderTone {
   const hasUsableField =
     rows.some((row) => row.valueText !== "—") ||
     (fields?.some((field) => field.status === FieldStatus.OK) ?? false);
@@ -116,74 +97,6 @@ export function computeBarWidthPx(
   if (clamped <= 0) return 0;
   const effectiveTrack = trackWidth > 0 ? trackWidth : fallbackTrackWidth;
   return Math.min(effectiveTrack, Math.max(4, Math.round((effectiveTrack * clamped) / 100)));
-}
-
-export interface PlanStatusBarOptions {
-  order: readonly ProviderName[];
-  results: ReadonlyMap<ProviderName, ReaderResult>;
-  hasEnabledProviders: boolean;
-  locale: string;
-  getShortDisplayName: (provider: ProviderName) => string;
-  getStatusFields: (provider: ProviderName) => readonly string[];
-  getFieldDefs?: (provider: ProviderName) => readonly FieldDef[] | undefined;
-  t?: (s: string) => string;
-}
-
-export function planStatusBar(options: PlanStatusBarOptions): StatusBarPlan {
-  const tr = options.t ?? ((s: string) => s);
-  const pills: StatusPillPlan[] = [];
-
-  for (const provider of options.order) {
-    const result = options.results.get(provider);
-    if (!result || result.status === ReaderStatus.DISABLED) continue;
-
-    const defs = options.getFieldDefs?.(provider) ?? getProviderFields(provider);
-    const displayName = options.getShortDisplayName(provider);
-    const views = deriveFieldViews(
-      defs,
-      result,
-      options.getStatusFields(provider),
-      "status",
-      options.locale,
-      tr,
-    );
-    const health = deriveProviderHealth(result, views, tr, defs);
-    const rows: FieldRow[] = views;
-    const isPartial = result.status === ReaderStatus.PARTIAL;
-
-    const key = JSON.stringify([
-      provider,
-      displayName,
-      result.status,
-      options.locale,
-      health.stateTag ?? "",
-      rows.map((row) => row.name ?? row.label),
-    ]);
-
-    pills.push({
-      provider,
-      displayName,
-      status: result.status,
-      healthTone: toHealthTone(health),
-      isPartial,
-      stateTag: health.stateTag,
-      stateAccessibleText: health.stateAccessibleText,
-      rows,
-      key,
-    });
-  }
-
-  const loading = pills.length === 0 && options.results.size === 0 && options.hasEnabledProviders;
-  return {
-    loading,
-    loadingAccessibleText: tr("Loading provider limits…"),
-    pills,
-    structureKey: usageStructureKey([
-      options.locale,
-      loading ? "loading" : "ready",
-      ...pills.map((p) => p.key),
-    ]),
-  };
 }
 
 export interface PlanProviderCardOptions {

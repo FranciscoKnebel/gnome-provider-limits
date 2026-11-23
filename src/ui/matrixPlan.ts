@@ -5,7 +5,7 @@ import type { FieldDef, ReaderResult } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
 import { PROVIDER_FIELDS } from "../readers/fields.js";
 import type { FieldTone } from "./fieldRows.js";
-import type { AttentionValue, FieldView } from "./fieldViews.js";
+import type { FieldView } from "./fieldViews.js";
 import {
   deriveFieldViews,
   deriveProviderHealth,
@@ -13,38 +13,10 @@ import {
   statusBadgeText,
   toAttention,
 } from "./fieldViews.js";
+import type { ProviderAttention } from "./providerTypes.js";
 import { clampFillRatio, deriveUsageSnapshot, usageStructureKey } from "./usageSnapshot.js";
 
 export { clampFillRatio };
-
-export type StatusAttention = AttentionValue;
-
-export interface StatusBarBadgePlan {
-  readonly provider: ProviderName;
-  readonly shortLabel: string;
-  readonly metricsText: string;
-  readonly attention: StatusAttention;
-  readonly accessibleText: string;
-  readonly key: string;
-}
-
-export interface StatusBarPlan {
-  readonly state: "empty" | "loading" | "ready";
-  readonly placeholderText: string | null;
-  readonly badges: readonly StatusBarBadgePlan[];
-  readonly key: string;
-}
-
-export interface PlanStatusBarInput {
-  readonly order: readonly ProviderName[];
-  readonly enabledProviders: ReadonlySet<ProviderName>;
-  readonly results: ReadonlyMap<ProviderName, ReaderResult>;
-  readonly shortLabels: Readonly<Record<ProviderName, string>>;
-  readonly statusFields: Readonly<Record<ProviderName, readonly string[]>>;
-  readonly fieldDefs?: Readonly<Partial<Record<ProviderName, readonly FieldDef[]>>>;
-  readonly locale: string;
-  readonly t?: (s: string) => string;
-}
 
 export interface MatrixDetailRow {
   readonly name: string;
@@ -149,7 +121,7 @@ export function toggleAllProvidersExpanded(
 export function resolveStatusAttention(
   status: ReaderStatus,
   tones: readonly (FieldTone | undefined)[],
-): StatusAttention {
+): ProviderAttention {
   return toAttention(healthFromStatusAndTones(status, tones));
 }
 
@@ -158,80 +130,6 @@ function defsFor(
   custom?: Readonly<Partial<Record<ProviderName, readonly FieldDef[]>>>,
 ): readonly FieldDef[] {
   return custom?.[provider] ?? PROVIDER_FIELDS[provider];
-}
-
-export function planStatusBar(input: PlanStatusBarInput): StatusBarPlan {
-  const tr = input.t ?? ((s: string) => s);
-
-  if (input.enabledProviders.size === 0) {
-    return {
-      state: "empty",
-      placeholderText: null,
-      badges: [],
-      key: usageStructureKey(["empty", input.locale]),
-    };
-  }
-
-  const badges: StatusBarBadgePlan[] = [];
-
-  for (const provider of input.order) {
-    if (!input.enabledProviders.has(provider)) continue;
-    const result = input.results.get(provider);
-    if (!result || result.status === ReaderStatus.DISABLED) continue;
-
-    const shortLabel = input.shortLabels[provider] || provider;
-    const defs = defsFor(provider, input.fieldDefs);
-    const configured = [...(input.statusFields[provider] ?? [])];
-    const views = deriveFieldViews(defs, result, configured, "status", input.locale, tr);
-    const health = deriveProviderHealth(result, views, tr, defs);
-    const badgeWord = statusBadgeText(health, tr);
-
-    if (health.state === "error" || health.state === "unavailable") {
-      const badgeKey = JSON.stringify([provider, shortLabel, 1]);
-      badges.push({
-        provider,
-        shortLabel,
-        metricsText: "!",
-        attention: toAttention(health),
-        accessibleText: `${shortLabel} ${badgeWord}`.trim(),
-        key: badgeKey,
-      });
-      continue;
-    }
-
-    const joined = views.map((view) => view.valueText).join("·");
-    const prefix = result.status === ReaderStatus.PARTIAL ? "~" : "";
-    const metricsText = joined ? `${prefix}${joined}` : prefix;
-    const spokenRows = views.map((view) => view.accessibleText).join(", ");
-    const headerPart = badgeWord ? `${shortLabel} ${badgeWord}` : shortLabel;
-    const accessibleText = spokenRows ? `${headerPart}: ${spokenRows}` : headerPart;
-    const badgeKey = JSON.stringify([provider, shortLabel, metricsText ? 1 : 0]);
-
-    badges.push({
-      provider,
-      shortLabel,
-      metricsText,
-      attention: toAttention(health),
-      accessibleText,
-      key: badgeKey,
-    });
-  }
-
-  if (badges.length === 0 && input.results.size === 0) {
-    return {
-      state: "loading",
-      placeholderText: "…",
-      badges: [],
-      key: usageStructureKey(["loading", input.locale]),
-    };
-  }
-
-  return {
-    state: "ready",
-    placeholderText: null,
-    badges,
-    key: usageStructureKey(["ready", input.locale, ...badges.map((b) => b.key)]),
-  };
 }
 
 function groupsFromViews(views: readonly FieldView[], tr: (s: string) => string): MatrixRowGroup[] {

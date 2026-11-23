@@ -25,7 +25,6 @@ const CLAUDE_USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
 const CLI_PROBE_TIMEOUT_SECONDS = 15;
 
 import { CLAUDE_FIELDS } from "./fields.js";
-export { CLAUDE_FIELDS };
 
 Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish");
 

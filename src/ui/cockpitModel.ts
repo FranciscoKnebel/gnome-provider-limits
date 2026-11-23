@@ -4,7 +4,6 @@ import { FieldStatus, ReaderStatus } from "../readers/base.js";
 import type { FieldDef, ReaderResult } from "../readers/base.js";
 import { GAUGE_END_ANGLE, GAUGE_START_ANGLE, GAUGE_SWEEP_ANGLE, TONE_RGB } from "./cairoDrawing.js";
 import type { FieldTone } from "./fieldRows.js";
-import type { OverviewBadgeValue } from "./fieldViews.js";
 import {
   deriveFieldViews,
   deriveProviderHealth,
@@ -12,6 +11,7 @@ import {
   toOverviewBadge,
 } from "./fieldViews.js";
 import type { GaugeGeometry, GaugeTone, MicroMeterSpec, RgbTuple } from "./gaugeTypes.js";
+import type { OverviewBadgeValue } from "./providerTypes.js";
 import {
   clampRatio,
   deriveUsageSnapshot,

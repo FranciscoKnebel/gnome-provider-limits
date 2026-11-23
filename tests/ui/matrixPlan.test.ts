@@ -1,12 +1,17 @@
 import { PROVIDER_NAMES, type ProviderName } from "../../src/constants.js";
 import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
 import type { FieldDef, ReaderResult } from "../../src/readers/base.js";
+import { PROVIDER_FIELDS } from "../../src/readers/fields.js";
+import type {
+  StatusBarProviderSegment,
+  StatusBarSegmentsContext,
+} from "../../src/ui/fieldViews.js";
+import { deriveStatusBarSegments, toAttention } from "../../src/ui/fieldViews.js";
 import {
   areAllProvidersExpanded,
   clampFillRatio,
   formatSegmentedBar,
   planPanelMatrix,
-  planStatusBar,
   resolveProviderExpanded,
   resolveStatusAttention,
   toggleAllProvidersExpanded,
@@ -52,6 +57,21 @@ const PANEL_FIELDS: Record<ProviderName, readonly string[]> = {
   cursor: ["remaining_percent_credits", "used_percent_auto", "remaining_credits"],
   google: ["used_percent_weekly", "used_percent_3p_session", "plan_type"],
 };
+
+function segmentsContext(
+  results: ReadonlyMap<ProviderName, ReaderResult>,
+  statusFields: Readonly<Record<ProviderName, readonly string[]>>,
+): StatusBarSegmentsContext {
+  return {
+    order: PROVIDER_NAMES,
+    results,
+    locale: "en",
+    statusFields: (provider) => statusFields[provider] ?? [],
+    shortDisplayName: (provider) => SHORT_LABELS[provider] || provider,
+    fieldDefs: (provider) => PROVIDER_FIELDS[provider],
+    t: (text) => text,
+  };
+}
 
 function makeClassTracker(): {
   classes: Set<string>;
@@ -104,36 +124,23 @@ describe("matrixPlan", () => {
     });
   });
 
-  describe("planStatusBar", () => {
-    it("returns empty state when no providers are enabled", () => {
-      const plan = planStatusBar({
-        order: PROVIDER_NAMES,
-        enabledProviders: new Set(),
-        results: new Map(),
-        shortLabels: SHORT_LABELS,
-        statusFields: STATUS_FIELDS,
-        locale: "en",
-      });
-      expect(plan.state).toBe("empty");
-      expect(plan.placeholderText).toBeNull();
-      expect(plan.badges).toEqual([]);
+  describe("deriveStatusBarSegments", () => {
+    const identity = (segments: readonly StatusBarProviderSegment[]): string[] =>
+      segments.map((segment) =>
+        JSON.stringify([
+          segment.provider,
+          segment.displayName,
+          segment.result.status,
+          segment.statusFields,
+          segment.views.map((view) => view.name),
+        ]),
+      );
+
+    it("returns no segments when results are empty", () => {
+      expect(deriveStatusBarSegments(segmentsContext(new Map(), STATUS_FIELDS))).toEqual([]);
     });
 
-    it("renders compact ellipsis placeholder before first refresh finishes", () => {
-      const plan = planStatusBar({
-        order: PROVIDER_NAMES,
-        enabledProviders: new Set(["codex", "claude"]),
-        results: new Map(),
-        shortLabels: SHORT_LABELS,
-        statusFields: STATUS_FIELDS,
-        locale: "en",
-      });
-      expect(plan.state).toBe("loading");
-      expect(plan.placeholderText).toBe("…");
-      expect(plan.badges).toEqual([]);
-    });
-
-    it("formats compact joined metrics and quiet-by-default attention", () => {
+    it("skips disabled results and derives short labels, metrics, and attention", () => {
       const futureReset = Date.now() + 2 * 3600 * 1000 + 15 * 60 * 1000;
       const results = new Map<ProviderName, ReaderResult>([
         [
@@ -181,32 +188,20 @@ describe("matrixPlan", () => {
         ],
       ]);
 
-      const plan = planStatusBar({
-        order: PROVIDER_NAMES,
-        enabledProviders: new Set(PROVIDER_NAMES),
-        results,
-        shortLabels: SHORT_LABELS,
-        statusFields: STATUS_FIELDS,
-        locale: "en",
-      });
+      const segments = deriveStatusBarSegments(segmentsContext(results, STATUS_FIELDS));
 
-      expect(plan.state).toBe("ready");
-      expect(plan.badges).toHaveSize(3);
-
-      expect(plan.badges[0].shortLabel).toBe("codex");
-      expect(plan.badges[0].metricsText).toContain("32%·");
-      expect(plan.badges[0].attention).toBe("quiet");
-
-      expect(plan.badges[1].shortLabel).toBe("claude");
-      expect(plan.badges[1].metricsText.startsWith("~82%·")).toBeTrue();
-      expect(plan.badges[1].attention).toBe("critical");
-
-      expect(plan.badges[2].shortLabel).toBe("opc");
-      expect(plan.badges[2].metricsText).toBe("!");
-      expect(plan.badges[2].attention).toBe("error");
+      expect(segments).toHaveSize(3);
+      expect(segments.map((segment) => segment.displayName)).toEqual(["codex", "claude", "opc"]);
+      expect(segments[0].views.map((view) => view.valueText).join("·")).toContain("32%·");
+      expect(toAttention(segments[0].health)).toBe("quiet");
+      expect(segments[1].views.map((view) => view.valueText).join("·")).toContain("82%·");
+      expect(toAttention(segments[1].health)).toBe("critical");
+      expect(segments[2].result.status).toBe(ReaderStatus.ERROR);
+      expect(segments[2].health.state).toBe("error");
+      expect(toAttention(segments[2].health)).toBe("error");
     });
 
-    it("keeps structure key identical across value and attention changes", () => {
+    it("keeps segment identity stable across value and attention changes", () => {
       const makeResults = (pct: number) =>
         new Map<ProviderName, ReaderResult>([
           [
@@ -219,27 +214,14 @@ describe("matrixPlan", () => {
             },
           ],
         ]);
+      const statusFields = { ...STATUS_FIELDS, codex: ["used_percent_primary"] };
 
-      const first = planStatusBar({
-        order: PROVIDER_NAMES,
-        enabledProviders: new Set(["codex"]),
-        results: makeResults(20),
-        shortLabels: SHORT_LABELS,
-        statusFields: { ...STATUS_FIELDS, codex: ["used_percent_primary"] },
-        locale: "en",
-      });
-      const second = planStatusBar({
-        order: PROVIDER_NAMES,
-        enabledProviders: new Set(["codex"]),
-        results: makeResults(91),
-        shortLabels: SHORT_LABELS,
-        statusFields: { ...STATUS_FIELDS, codex: ["used_percent_primary"] },
-        locale: "en",
-      });
+      const first = deriveStatusBarSegments(segmentsContext(makeResults(20), statusFields));
+      const second = deriveStatusBarSegments(segmentsContext(makeResults(91), statusFields));
 
-      expect(first.key).toBe(second.key);
-      expect(first.badges[0].attention).toBe("quiet");
-      expect(second.badges[0].attention).toBe("critical");
+      expect(identity(second)).toEqual(identity(first));
+      expect(toAttention(first[0].health)).toBe("quiet");
+      expect(toAttention(second[0].health)).toBe("critical");
     });
   });
 

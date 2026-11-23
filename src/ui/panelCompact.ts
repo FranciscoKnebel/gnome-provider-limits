@@ -16,8 +16,14 @@ import {
   toggleAllProvidersExpanded,
 } from "./matrixPlan.js";
 import type { MatrixDetailRow, PanelMatrixPlan, ProviderMatrixPlan } from "./matrixPlan.js";
-import type { PanelShell, PanelStyleSection, CompactToolbarControls } from "./panelShell.js";
+import type { PanelShell, PanelStyleSection } from "./panelShell.js";
 import { applyQuietToneClass, applyToneClass } from "./tone.js";
+
+interface CompactToolbarControls {
+  readonly titleLabel: St.Label;
+  readonly expandAllButton: St.Button;
+  readonly expandAllLabel: St.Label;
+}
 
 interface DetailRowWidgets {
   microBar: St.Label | null;
@@ -65,8 +71,7 @@ export class CompactPanelSection implements PanelStyleSection {
     this._settings = settings;
     this._readers = readers;
     this.shell = shell;
-    this._controls = shell.getCompactControls();
-    this._bindButtonActivate(this._controls.expandAllButton, () => this._toggleAllProviders());
+    this._controls = this._buildToolbar();
     this.render(new Map(), null);
   }
 
@@ -164,6 +169,53 @@ export class CompactPanelSection implements PanelStyleSection {
       this._expandedOverrides,
     );
     this.render(this._lastResults, this._lastRefreshAt);
+  }
+
+  /** The compact toolbar is owned here; the shell only supplies the shared footer actors. */
+  private _buildToolbar(): CompactToolbarControls {
+    const footer = this.shell.footer;
+
+    const leftBox = new St.BoxLayout({
+      style_class: "provider-limits-hud-toolbar-left",
+      x_expand: true,
+      y_align: Clutter.ActorAlign.CENTER,
+    });
+    const titleLabel = new St.Label({
+      text: _("Provider Limits"),
+      style_class: "provider-limits-hud-title",
+      y_align: Clutter.ActorAlign.CENTER,
+    });
+    titleLabel.accessible_name = titleLabel.text;
+    leftBox.add_child(titleLabel);
+    leftBox.add_child(footer.lastRefreshLabel);
+
+    const actionsBox = new St.BoxLayout({
+      style_class: "provider-limits-hud-actions",
+      y_align: Clutter.ActorAlign.CENTER,
+    });
+    const expandAllLabel = new St.Label({
+      text: "▾",
+      style_class: "provider-limits-toolbar-glyph",
+      y_align: Clutter.ActorAlign.CENTER,
+    });
+    const expandAllButton = new St.Button({
+      child: expandAllLabel,
+      style_class: "provider-limits-icon-button",
+      reactive: true,
+      can_focus: true,
+      visible: false,
+      y_align: Clutter.ActorAlign.CENTER,
+    });
+    expandAllButton.accessible_name = _("Expand all");
+    this._bindButtonActivate(expandAllButton, () => this._toggleAllProviders());
+    actionsBox.add_child(expandAllButton);
+    actionsBox.add_child(footer.refreshControl);
+    actionsBox.add_child(footer.settingsControl);
+
+    footer.row.add_child(leftBox);
+    footer.row.add_child(actionsBox);
+
+    return { titleLabel, expandAllButton, expandAllLabel };
   }
 
   private _bindButtonActivate(button: St.Button, onActivate: () => void): void {

@@ -1,20 +1,76 @@
 import Clutter from "gi://Clutter";
 import St from "gi://St";
 
-import { planStatusBar } from "./cardPlan.js";
-import type { StatusBarPlan as CardsStatusBarPlan } from "./cardPlan.js";
+import type { ProviderName } from "../constants.js";
+import { ReaderStatus } from "../readers/base.js";
+import type { FieldView } from "./fieldViews.js";
+import { deriveStatusBarSegments } from "./fieldViews.js";
+import type { ProviderTone } from "./providerTypes.js";
 import type { StatusBarRenderContext, StatusBarRenderer } from "./statusBar.js";
 import { applyHealthToneClass, applyToneClass } from "./tone.js";
+import { usageStructureKey } from "./usageSnapshot.js";
 
 interface PillWidgets {
   dot: St.BoxLayout;
   values: St.Label[];
 }
 
+interface PillPlan {
+  provider: ProviderName;
+  displayName: string;
+  status: ReaderStatus;
+  healthTone: ProviderTone;
+  isPartial: boolean;
+  stateTag: string | null;
+  stateAccessibleText: string | null;
+  rows: readonly FieldView[];
+  key: string;
+}
+
+interface PillsPlan {
+  loading: boolean;
+  loadingAccessibleText: string;
+  pills: readonly PillPlan[];
+  structureKey: string;
+}
+
+function planPills(context: StatusBarRenderContext): PillsPlan {
+  const pills: PillPlan[] = deriveStatusBarSegments(context).map((segment) => ({
+    provider: segment.provider,
+    displayName: segment.displayName,
+    status: segment.result.status,
+    healthTone: segment.health.tone,
+    isPartial: segment.result.status === ReaderStatus.PARTIAL,
+    stateTag: segment.health.stateTag,
+    stateAccessibleText: segment.health.stateAccessibleText,
+    rows: segment.views,
+    key: JSON.stringify([
+      segment.provider,
+      segment.displayName,
+      segment.result.status,
+      context.locale,
+      segment.health.stateTag ?? "",
+      segment.views.map((row) => row.name ?? row.label),
+    ]),
+  }));
+
+  const loading = pills.length === 0 && context.results.size === 0 && context.hasEnabledProviders;
+  return {
+    loading,
+    loadingAccessibleText: context.t("Loading provider limits…"),
+    pills,
+    structureKey: usageStructureKey([
+      context.locale,
+      loading ? "loading" : "ready",
+      ...pills.map((pill) => pill.key),
+    ]),
+  };
+}
+
 export class PillsStatusBarRenderer implements StatusBarRenderer {
   private _pills: PillWidgets[] = [];
   private _context: StatusBarRenderContext | null = null;
-  private _plan: CardsStatusBarPlan | null = null;
+  private _plan: PillsPlan | null = null;
 
   constructor(private readonly _parent: St.BoxLayout) {}
 
@@ -130,18 +186,9 @@ export class PillsStatusBarRenderer implements StatusBarRenderer {
     this._plan = null;
   }
 
-  private _planFor(context: StatusBarRenderContext): CardsStatusBarPlan {
+  private _planFor(context: StatusBarRenderContext): PillsPlan {
     if (this._context !== context || !this._plan) {
-      this._plan = planStatusBar({
-        order: context.order,
-        results: context.results,
-        hasEnabledProviders: context.hasEnabledProviders,
-        locale: context.locale,
-        getShortDisplayName: (name) => context.shortDisplayName(name),
-        getStatusFields: (name) => context.statusFields(name),
-        getFieldDefs: (name) => context.fieldDefs(name),
-        t: (text) => context.t(text),
-      });
+      this._plan = planPills(context);
       this._context = context;
     }
     return this._plan;

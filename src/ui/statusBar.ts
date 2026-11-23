@@ -97,15 +97,13 @@ export const StatusBarWidget = GObject.registerClass(
         GLib.getenv("LC_MESSAGES"),
         GLib.getenv("LANG"),
       );
-      const hasEnabledProviders =
-        this._readers.size > 0 ||
-        order.some((name) => this._settings.get_boolean(`${name}-enabled`));
+      const hasEnabledReaders = this._readers.size > 0;
 
       return {
         order,
         results,
         locale,
-        hasEnabledProviders,
+        hasEnabledProviders: hasEnabledReaders,
         shortDisplayName: (name) => providerDisplayNameShort(this._settings, name),
         statusFields: (name) => this._settings.get_strv(`${name}-status-fields`),
         fieldDefs: (name) => this._readers.get(name)?.FIELDS ?? PROVIDER_FIELDS[name],

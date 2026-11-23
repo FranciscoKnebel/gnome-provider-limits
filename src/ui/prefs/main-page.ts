@@ -3,7 +3,12 @@ import Gio from "gi://Gio";
 import GObject from "gi://GObject";
 import Gtk from "gi://Gtk?version=4.0";
 
-import { PANEL_STYLES, STATUS_BAR_STYLES } from "../styles.js";
+import {
+  PANEL_STYLES,
+  STATUS_BAR_STYLES,
+  type PanelStyle,
+  type StatusBarStyle,
+} from "../styles.js";
 import { gettext as _ } from "./gettext.js";
 import { bindSetting, unbindSettings } from "./shared.js";
 import type { SettingsBinding } from "./shared.js";
@@ -96,11 +101,14 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
       });
 
       // 1. Status Bar Style
-      const statusStyleModel = Gtk.StringList.new([
-        _("Capsule pills"),
-        _("Micro-ring gauges"),
-        _("Compact text"),
-      ]);
+      const statusStyleLabels: Record<StatusBarStyle, string> = {
+        pills: _("Capsule pills"),
+        gauges: _("Micro-ring gauges"),
+        compact: _("Compact text"),
+      };
+      const statusStyleModel = Gtk.StringList.new(
+        STATUS_BAR_STYLES.map((style) => statusStyleLabels[style]),
+      );
       const statusStyleRow = new Adw.ComboRow({
         title: _("Status bar style"),
         subtitle: _("Visual presentation of metrics in the top bar."),
@@ -128,11 +136,14 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
       group.add(statusStyleRow);
 
       // 2. Panel Style
-      const panelStyleModel = Gtk.StringList.new([
-        _("Tabbed cockpit & gauges"),
-        _("Quick settings cards"),
-        _("Collapsible matrix HUD"),
-      ]);
+      const panelStyleLabels: Record<PanelStyle, string> = {
+        gauges: _("Tabbed cockpit & gauges"),
+        cards: _("Quick settings cards"),
+        compact: _("Collapsible matrix HUD"),
+      };
+      const panelStyleModel = Gtk.StringList.new(
+        PANEL_STYLES.map((style) => panelStyleLabels[style]),
+      );
       const panelStyleRow = new Adw.ComboRow({
         title: _("Dropdown panel style"),
         subtitle: _("Visual presentation of details in the dropdown panel."),

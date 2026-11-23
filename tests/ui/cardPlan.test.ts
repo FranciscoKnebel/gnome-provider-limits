@@ -1,3 +1,4 @@
+import type { ProviderName } from "../../src/constants.js";
 import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
 import type { FieldDef, ReaderResult } from "../../src/readers/base.js";
 import {
@@ -15,10 +16,29 @@ import {
   computeProviderHealthTone,
   planPanel,
   planProviderCard,
-  planStatusBar,
 } from "../../src/ui/cardPlan.js";
 import { clampPercent, getFieldRows } from "../../src/ui/fieldRows.js";
+import type {
+  StatusBarProviderSegment,
+  StatusBarSegmentsContext,
+} from "../../src/ui/fieldViews.js";
+import { deriveStatusBarSegments } from "../../src/ui/fieldViews.js";
 import { applyHealthToneClass, applyToneClass } from "../../src/ui/tone.js";
+
+function segmentsContext(
+  results: ReadonlyMap<ProviderName, ReaderResult>,
+  statusFields: (provider: ProviderName) => readonly string[],
+): StatusBarSegmentsContext {
+  return {
+    order: ["codex", "claude", "opencode", "grok"],
+    results,
+    locale: "en",
+    statusFields,
+    shortDisplayName: (provider) => provider.toUpperCase(),
+    fieldDefs: (provider) => getProviderFields(provider),
+    t: (text) => text,
+  };
+}
 
 describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
   describe("fields metadata module", () => {
@@ -181,34 +201,30 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
     });
   });
 
-  describe("planStatusBar", () => {
-    it("plans a loading pill when results are empty and providers are enabled", () => {
-      const plan = planStatusBar({
-        order: ["codex", "claude"],
-        results: new Map(),
-        hasEnabledProviders: true,
-        locale: "en",
-        getShortDisplayName: (p) => p,
-        getStatusFields: () => ["used_percent_primary"],
-      });
-      expect(plan.loading).toBeTrue();
-      expect(plan.pills).toEqual([]);
+  describe("deriveStatusBarSegments", () => {
+    const statusFields = (provider: ProviderName): readonly string[] =>
+      provider === "codex"
+        ? ["used_percent_primary"]
+        : provider === "claude"
+          ? ["used_percent_session"]
+          : [];
+
+    const identity = (segments: readonly StatusBarProviderSegment[]): string[] =>
+      segments.map((segment) =>
+        JSON.stringify([
+          segment.provider,
+          segment.displayName,
+          segment.result.status,
+          segment.statusFields,
+          segment.views.map((view) => view.name),
+        ]),
+      );
+
+    it("returns no segments when results are empty", () => {
+      expect(deriveStatusBarSegments(segmentsContext(new Map(), statusFields))).toEqual([]);
     });
 
-    it("renders nothing when no providers are enabled", () => {
-      const plan = planStatusBar({
-        order: ["codex"],
-        results: new Map(),
-        hasEnabledProviders: false,
-        locale: "en",
-        getShortDisplayName: (p) => p,
-        getStatusFields: () => [],
-      });
-      expect(plan.loading).toBeFalse();
-      expect(plan.pills).toEqual([]);
-    });
-
-    it("builds capsule pills with health tones, partial/error tags, and stable structure keys", () => {
+    it("skips disabled results and derives health tones, tags, and short labels", () => {
       const results = new Map<"codex" | "claude" | "opencode" | "grok", ReaderResult>([
         [
           "codex",
@@ -239,45 +255,52 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
             fields: [],
           },
         ],
+        [
+          "grok",
+          {
+            provider: "grok",
+            status: ReaderStatus.DISABLED,
+            lastUpdated: 1000,
+            fields: [],
+          },
+        ],
       ]);
 
-      const first = planStatusBar({
-        order: ["codex", "claude", "opencode", "grok"],
-        results,
-        hasEnabledProviders: true,
-        locale: "en",
-        getShortDisplayName: (p) => p.toUpperCase(),
-        getStatusFields: (p) =>
-          p === "codex" ? ["used_percent_primary"] : p === "claude" ? ["used_percent_session"] : [],
-      });
+      const segments = deriveStatusBarSegments(segmentsContext(results, statusFields));
 
-      expect(first.loading).toBeFalse();
-      expect(first.pills).toHaveSize(3);
-      expect(first.pills[0].healthTone).toBe("ok");
-      expect(first.pills[0].stateTag).toBeNull();
-      expect(first.pills[1].healthTone).toBe("partial");
-      expect(first.pills[1].isPartial).toBeTrue();
-      expect(first.pills[1].stateTag).toBe("~");
-      expect(first.pills[2].healthTone).toBe("error");
-      expect(first.pills[2].stateTag).toBe("(error)");
+      expect(segments).toHaveSize(3);
+      expect(segments.map((segment) => segment.health.tone)).toEqual(["ok", "partial", "error"]);
+      expect(segments[0].health.stateTag).toBeNull();
+      expect(segments[1].health.stateTag).toBe("~");
+      expect(segments[1].health.stateAccessibleText).toBe("Cached");
+      expect(segments[2].health.stateTag).toBe("(error)");
+      expect(segments.map((segment) => segment.displayName)).toEqual([
+        "CODEX",
+        "CLAUDE",
+        "OPENCODE",
+      ]);
+    });
 
-      results.set("codex", {
-        provider: "codex",
-        status: ReaderStatus.OK,
-        lastUpdated: 2000,
-        fields: [{ name: "used_percent_primary", value: 88, status: FieldStatus.OK }],
-      });
-      const second = planStatusBar({
-        order: ["codex", "claude", "opencode", "grok"],
-        results,
-        hasEnabledProviders: true,
-        locale: "en",
-        getShortDisplayName: (p) => p.toUpperCase(),
-        getStatusFields: (p) =>
-          p === "codex" ? ["used_percent_primary"] : p === "claude" ? ["used_percent_session"] : [],
-      });
-      expect(second.pills[0].healthTone).toBe("critical");
-      expect(second.structureKey).toBe(first.structureKey);
+    it("keeps segment identity stable across value updates while health tone escalates", () => {
+      const makeResults = (value: number) =>
+        new Map<ProviderName, ReaderResult>([
+          [
+            "codex",
+            {
+              provider: "codex",
+              status: ReaderStatus.OK,
+              lastUpdated: 1000,
+              fields: [{ name: "used_percent_primary", value, status: FieldStatus.OK }],
+            },
+          ],
+        ]);
+
+      const first = deriveStatusBarSegments(segmentsContext(makeResults(40), statusFields));
+      const second = deriveStatusBarSegments(segmentsContext(makeResults(88), statusFields));
+
+      expect(identity(second)).toEqual(identity(first));
+      expect(first[0].health.tone).toBe("ok");
+      expect(second[0].health.tone).toBe("critical");
     });
   });
 
