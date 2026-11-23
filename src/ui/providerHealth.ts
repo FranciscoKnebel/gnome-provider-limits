@@ -7,6 +7,12 @@ import type { HealthTone, StatusAttention } from "./tone.js";
 
 export type ProviderState = "idle" | "ok" | "partial" | "cached" | "error" | "unavailable";
 
+const PARTIAL_TAG = "(partial)";
+export const ERROR_TAG = "(error)";
+export const UNAVAILABLE_TAG = "(unavailable)";
+export const CACHED_LABEL = "Cached";
+const PILL_PARTIAL_MARKER = "~";
+
 /**
  * The one ordered severity value. Every surface vocabulary is a lookup over
  * this value, so state, tone and attention cannot drift from each other.
@@ -40,6 +46,8 @@ export interface Presentation {
   readonly cardBadge: "live" | "cached" | "error" | "unavailable";
   readonly overviewBadge: "ok" | "cached" | "partial" | "error" | "loading";
   readonly statusTag: string;
+  readonly pillTag: string | null;
+  readonly pillAccessibleText: string | null;
   readonly label: {
     readonly card: string;
     readonly overview: string;
@@ -51,36 +59,48 @@ export const PRESENTATION: Readonly<Record<ProviderState, Presentation>> = {
     cardBadge: "live",
     overviewBadge: "ok",
     statusTag: "",
+    pillTag: null,
+    pillAccessibleText: null,
     label: { card: "Live", overview: "…" },
   },
   ok: {
     cardBadge: "live",
     overviewBadge: "ok",
     statusTag: "",
+    pillTag: null,
+    pillAccessibleText: null,
     label: { card: "Live", overview: "OK" },
   },
   partial: {
     cardBadge: "cached",
     overviewBadge: "partial",
-    statusTag: "(partial)",
-    label: { card: "Cached", overview: "Partial" },
+    statusTag: PARTIAL_TAG,
+    pillTag: PILL_PARTIAL_MARKER,
+    pillAccessibleText: CACHED_LABEL,
+    label: { card: CACHED_LABEL, overview: "Partial" },
   },
   cached: {
     cardBadge: "cached",
     overviewBadge: "cached",
-    statusTag: "(partial)",
-    label: { card: "Cached", overview: "Cached" },
+    statusTag: PARTIAL_TAG,
+    pillTag: PILL_PARTIAL_MARKER,
+    pillAccessibleText: CACHED_LABEL,
+    label: { card: CACHED_LABEL, overview: CACHED_LABEL },
   },
   error: {
     cardBadge: "error",
     overviewBadge: "error",
-    statusTag: "(error)",
+    statusTag: ERROR_TAG,
+    pillTag: ERROR_TAG,
+    pillAccessibleText: ERROR_TAG,
     label: { card: "Error", overview: "Error" },
   },
   unavailable: {
     cardBadge: "unavailable",
     overviewBadge: "error",
-    statusTag: "(unavailable)",
+    statusTag: UNAVAILABLE_TAG,
+    pillTag: UNAVAILABLE_TAG,
+    pillAccessibleText: UNAVAILABLE_TAG,
     label: { card: "Unavailable", overview: "Error" },
   },
 };
@@ -181,22 +201,26 @@ export function deriveSeverity(
   return "idle";
 }
 
-function localizedStateText(
-  status: ReaderStatus,
+/** The pill text is a second field on the same presentation contract, not a second mapping. */
+function pillPresentation(status: ReaderStatus): Presentation {
+  if (status === ReaderStatus.ERROR) return PRESENTATION.error;
+  if (status === ReaderStatus.UNAVAILABLE) return PRESENTATION.unavailable;
+  if (status === ReaderStatus.PARTIAL) return PRESENTATION.partial;
+  return PRESENTATION.idle;
+}
+
+function pillStateText(
+  presentation: Presentation,
   tr: (s: string) => string,
-): { stateTag: string | null; stateAccessibleText: string | null } {
-  if (status === ReaderStatus.ERROR) {
-    const tag = tr("(error)");
-    return { stateTag: tag, stateAccessibleText: tag };
-  }
-  if (status === ReaderStatus.UNAVAILABLE) {
-    const tag = tr("(unavailable)");
-    return { stateTag: tag, stateAccessibleText: tag };
-  }
-  if (status === ReaderStatus.PARTIAL) {
-    return { stateTag: "~", stateAccessibleText: tr("Cached") };
-  }
-  return { stateTag: null, stateAccessibleText: null };
+): Pick<ProviderHealth, "stateTag" | "stateAccessibleText"> {
+  if (presentation.pillTag === null) return { stateTag: null, stateAccessibleText: null };
+  return {
+    stateTag:
+      presentation.pillTag === PILL_PARTIAL_MARKER ? PILL_PARTIAL_MARKER : tr(presentation.pillTag),
+    stateAccessibleText: presentation.pillAccessibleText
+      ? tr(presentation.pillAccessibleText)
+      : null,
+  };
 }
 
 /** The single health contract: all data is required, no injection knobs. */
@@ -224,7 +248,7 @@ export function deriveProviderHealth(
     attention: ATTENTION_BY_SEVERITY[severity],
     worstTone,
     hasUsableField,
-    ...localizedStateText(status, tr),
+    ...pillStateText(pillPresentation(status), tr),
   };
 }
 

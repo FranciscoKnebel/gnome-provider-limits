@@ -6,6 +6,7 @@ import { emptyMeter, gaugeArc } from "./cairoDrawing.js";
 import type { FieldTone } from "./fieldRows.js";
 import { clampFillRatio, clampPercent, fieldTone } from "./fieldRows.js";
 import type { GaugeSpec } from "./gaugeTypes.js";
+import { UNAVAILABLE_TAG } from "./providerHealth.js";
 
 /**
  * The one formatted projection of a field. Text is rendered at derivation for
@@ -182,7 +183,7 @@ export function projectUsageFacts(
       fillRatio: null,
       tone: "error",
       resetText: null,
-      summaryText: result.status === ReaderStatus.ERROR ? tr("Error") : tr("(unavailable)"),
+      summaryText: result.status === ReaderStatus.ERROR ? tr("Error") : tr(UNAVAILABLE_TAG),
     };
   }
 

@@ -381,7 +381,6 @@ export const ProviderExpanderRow = GObject.registerClass(
       bindSetting(this._settings, pathKey, cliRow, "text", this._bindings);
       this.add_row(cliRow);
 
-      // Field Matrix group inside expander
       const matrixGroup = buildFieldMatrixGroup(
         this._settings,
         this._provider,

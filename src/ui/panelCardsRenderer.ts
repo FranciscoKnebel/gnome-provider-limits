@@ -2,6 +2,7 @@ import Clutter from "gi://Clutter";
 import St from "gi://St";
 
 import type { ProviderDisplayModel } from "./displayModel.js";
+import { createErrorLabel } from "./errorLabel.js";
 import type { FieldView } from "./fieldViews.js";
 import {
   computeBarWidthPx,
@@ -25,18 +26,12 @@ interface ProgressRowWidgets {
   hasValue: boolean;
 }
 
-function badgeStyleClass(kind: CardBadgeKind): string {
-  switch (kind) {
-    case "live":
-      return "pl-card-badge pl-badge-live";
-    case "cached":
-      return "pl-card-badge pl-badge-cached";
-    case "unavailable":
-      return "pl-card-badge pl-badge-unavailable";
-    case "error":
-      return "pl-card-badge pl-badge-error";
-  }
-}
+const BADGE_CLASS_BY_KIND: Record<CardBadgeKind, string> = {
+  live: "pl-card-badge pl-badge-live",
+  cached: "pl-card-badge pl-badge-cached",
+  unavailable: "pl-card-badge pl-badge-unavailable",
+  error: "pl-card-badge pl-badge-error",
+};
 
 function bannerStyleClass(kind: BannerKind): string {
   return kind === "warning"
@@ -110,7 +105,7 @@ export class CardsPanelSection extends PanelStyleSection {
 
     const badgeLabel = new St.Label({
       text: badgeText,
-      style_class: badgeStyleClass(facts.badges.card),
+      style_class: BADGE_CLASS_BY_KIND[facts.badges.card],
       y_align: Clutter.ActorAlign.CENTER,
     });
     badgeLabel.accessible_name = badgeText;
@@ -247,13 +242,8 @@ export class CardsPanelSection extends PanelStyleSection {
     }
 
     if (errorText) {
-      const errorLabel = new St.Label({
-        text: errorText,
-        style_class: "provider-limits-error pl-field-error",
-        x_expand: true,
-        x_align: Clutter.ActorAlign.START,
-      });
-      errorLabel.clutter_text.line_wrap = true;
+      const errorLabel = createErrorLabel(errorText, "provider-limits-error pl-field-error");
+      errorLabel.x_align = Clutter.ActorAlign.START;
       errorLabel.accessible_name = errorText;
       container.add_child(errorLabel);
     }
@@ -327,13 +317,8 @@ export class CardsPanelSection extends PanelStyleSection {
     container.add_child(line);
 
     if (errorText) {
-      const errorLabel = new St.Label({
-        text: errorText,
-        style_class: "provider-limits-error pl-field-error",
-        x_expand: true,
-        x_align: Clutter.ActorAlign.START,
-      });
-      errorLabel.clutter_text.line_wrap = true;
+      const errorLabel = createErrorLabel(errorText, "provider-limits-error pl-field-error");
+      errorLabel.x_align = Clutter.ActorAlign.START;
       errorLabel.accessible_name = errorText;
       container.add_child(errorLabel);
     }

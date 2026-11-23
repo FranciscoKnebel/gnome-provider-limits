@@ -270,28 +270,44 @@ describe("matrixPlan", () => {
   });
 
   describe("collapsible session helpers", () => {
-    it("defaults to expanded when <= 2 providers are active and collapsed when > 2", () => {
+    it("uses one defaultExpanded value from the canonical active provider count", () => {
       const emptyOverrides = new Map<ProviderName, boolean>();
-      expect(resolveProviderExpanded("codex", 1, emptyOverrides)).toBeTrue();
-      expect(resolveProviderExpanded("codex", 2, emptyOverrides)).toBeTrue();
-      expect(resolveProviderExpanded("codex", 3, emptyOverrides)).toBeFalse();
-      expect(resolveProviderExpanded("codex", 4, emptyOverrides)).toBeFalse();
+      expect(resolveProviderExpanded("codex", true, emptyOverrides)).toBeTrue();
+      expect(resolveProviderExpanded("codex", false, emptyOverrides)).toBeFalse();
     });
 
     it("respects explicit per-provider overrides and toggles all cleanly", () => {
       const providers: ProviderName[] = ["codex", "claude", "opencode"];
+      const defaultExpanded = providers.length <= 2;
       let overrides = new Map<ProviderName, boolean>([["codex", true]]);
 
-      expect(resolveProviderExpanded("codex", 3, overrides)).toBeTrue();
-      expect(resolveProviderExpanded("claude", 3, overrides)).toBeFalse();
-      expect(areAllProvidersExpanded(providers, 3, overrides)).toBeFalse();
-      expect(areAllProvidersExpanded([], 0, overrides)).toBeFalse();
+      expect(resolveProviderExpanded("codex", defaultExpanded, overrides)).toBeTrue();
+      expect(resolveProviderExpanded("claude", defaultExpanded, overrides)).toBeFalse();
+      expect(areAllProvidersExpanded(providers, defaultExpanded, overrides)).toBeFalse();
+      expect(areAllProvidersExpanded([], defaultExpanded, overrides)).toBeFalse();
 
-      overrides = toggleAllProvidersExpanded(providers, 3, overrides);
-      expect(areAllProvidersExpanded(providers, 3, overrides)).toBeTrue();
+      overrides = toggleAllProvidersExpanded(providers, defaultExpanded, overrides);
+      expect(areAllProvidersExpanded(providers, defaultExpanded, overrides)).toBeTrue();
 
-      overrides = toggleAllProvidersExpanded(providers, 3, overrides);
-      expect(areAllProvidersExpanded(providers, 3, overrides)).toBeFalse();
+      overrides = toggleAllProvidersExpanded(providers, defaultExpanded, overrides);
+      expect(areAllProvidersExpanded(providers, defaultExpanded, overrides)).toBeFalse();
+    });
+
+    it("keeps the default stable when results contain fewer models than active providers", () => {
+      const activeProviders: ProviderName[] = ["codex", "claude", "opencode"];
+      const resultProviders: ProviderName[] = ["codex", "claude"];
+      const defaultExpanded = activeProviders.length <= 2;
+      let overrides = new Map<ProviderName, boolean>();
+
+      expect(defaultExpanded).toBeFalse();
+      expect(resultProviders.length <= 2).toBeTrue();
+      expect(resolveProviderExpanded("codex", defaultExpanded, overrides)).toBeFalse();
+
+      overrides = toggleAllProvidersExpanded(resultProviders, defaultExpanded, overrides);
+      expect(resolveProviderExpanded("codex", defaultExpanded, overrides)).toBeTrue();
+
+      overrides = toggleAllProvidersExpanded(resultProviders, defaultExpanded, overrides);
+      expect(resolveProviderExpanded("codex", defaultExpanded, overrides)).toBeFalse();
     });
   });
 
@@ -358,7 +374,7 @@ describe("matrixPlan", () => {
       const model = context.models[0];
       const facts = model.facts;
       expect(
-        resolveProviderExpanded(model.provider, context.activeProviders.length, new Map()),
+        resolveProviderExpanded(model.provider, context.activeProviders.length <= 2, new Map()),
       ).toBeTrue();
       expect(facts.badges.status).toBe("(partial)");
       expect(facts.usage.header.fillRatio).toBe(0.75);
@@ -455,9 +471,12 @@ describe("matrixPlan", () => {
         fieldDefs: { ...PROVIDER_FIELDS, grok: customDefs },
       });
       const noOverrides = new Map<ProviderName, boolean>();
-      expect(areAllProvidersExpanded(collapsedContext.activeProviders, 3, noOverrides)).toBeFalse();
+      const defaultExpanded = collapsedContext.activeProviders.length <= 2;
+      expect(
+        areAllProvidersExpanded(collapsedContext.activeProviders, defaultExpanded, noOverrides),
+      ).toBeFalse();
       const grokCollapsed = collapsedContext.models.find((model) => model.provider === "grok");
-      expect(resolveProviderExpanded("grok", 3, noOverrides)).toBeFalse();
+      expect(resolveProviderExpanded("grok", defaultExpanded, noOverrides)).toBeFalse();
       expect(grokCollapsed?.facts.usage.header.fillRatio).toBe(1);
       expect(grokCollapsed?.facts.usage.header.tone).toBe("critical");
       expect(grokCollapsed?.facts.usage.header.summaryText).toContain("30%");
@@ -475,7 +494,7 @@ describe("matrixPlan", () => {
         fieldDefs: { ...PROVIDER_FIELDS, grok: customDefs },
       });
       const grokExpanded = expandedContext.models.find((model) => model.provider === "grok");
-      expect(resolveProviderExpanded("grok", 3, overrides)).toBeTrue();
+      expect(resolveProviderExpanded("grok", defaultExpanded, overrides)).toBeTrue();
       expect(grokExpanded?.panelViews.filter((view) => view.category !== "telemetry")[1].tone).toBe(
         "critical",
       );

@@ -6,6 +6,7 @@ import { gettext as _ } from "../helpers/gettext.js";
 import { connectRepaint, drawRadialGauge } from "./cairoDrawing.js";
 import { chunkGauges, chunkPairs, computeGaugeGeometry } from "./cockpitModel.js";
 import type { DisplayCallout, ProviderDisplayModel } from "./displayModel.js";
+import { createErrorLabel } from "./errorLabel.js";
 import type { FieldView } from "./fieldViews.js";
 import type { RadialGaugeGeometry } from "./gaugeTypes.js";
 import type { PanelShell } from "./panelShell.js";
@@ -235,13 +236,11 @@ export class DetailRenderer {
     }
 
     if (gauge.view.errorText) {
-      const errorLabel = new St.Label({
-        text: gauge.view.errorText,
-        style_class: "provider-limits-error pl-gauge-error",
-        x_align: Clutter.ActorAlign.CENTER,
-        x_expand: true,
-      });
-      errorLabel.clutter_text.line_wrap = true;
+      const errorLabel = createErrorLabel(
+        gauge.view.errorText,
+        "provider-limits-error pl-gauge-error",
+      );
+      errorLabel.x_align = Clutter.ActorAlign.CENTER;
       card.add_child(errorLabel);
     }
 
@@ -278,13 +277,8 @@ export class DetailRenderer {
     tile.add_child(valueLabel);
 
     if (view.errorText) {
-      const errorLabel = new St.Label({
-        text: view.errorText,
-        style_class: "provider-limits-error pl-bento-error",
-        x_align: Clutter.ActorAlign.START,
-        x_expand: true,
-      });
-      errorLabel.clutter_text.line_wrap = true;
+      const errorLabel = createErrorLabel(view.errorText, "provider-limits-error pl-bento-error");
+      errorLabel.x_align = Clutter.ActorAlign.START;
       tile.add_child(errorLabel);
     }
 

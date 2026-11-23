@@ -14,29 +14,29 @@ export function formatSegmentedBar(ratio: number, segments = 8): string {
 
 export function resolveProviderExpanded(
   provider: ProviderName,
-  enabledCount: number,
+  defaultExpanded: boolean,
   overrides: ReadonlyMap<ProviderName, boolean>,
 ): boolean {
   const explicit = overrides.get(provider);
   if (explicit !== undefined) return explicit;
-  return enabledCount <= 2;
+  return defaultExpanded;
 }
 
 export function areAllProvidersExpanded(
   providers: readonly ProviderName[],
-  enabledCount: number,
+  defaultExpanded: boolean,
   overrides: ReadonlyMap<ProviderName, boolean>,
 ): boolean {
   if (providers.length === 0) return false;
-  return providers.every((p) => resolveProviderExpanded(p, enabledCount, overrides));
+  return providers.every((p) => resolveProviderExpanded(p, defaultExpanded, overrides));
 }
 
 export function toggleAllProvidersExpanded(
   providers: readonly ProviderName[],
-  enabledCount: number,
+  defaultExpanded: boolean,
   overrides: ReadonlyMap<ProviderName, boolean>,
 ): Map<ProviderName, boolean> {
-  const nextExpanded = !areAllProvidersExpanded(providers, enabledCount, overrides);
+  const nextExpanded = !areAllProvidersExpanded(providers, defaultExpanded, overrides);
   const next = new Map<ProviderName, boolean>(overrides);
   for (const provider of providers) {
     next.set(provider, nextExpanded);

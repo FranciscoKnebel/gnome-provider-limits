@@ -6,6 +6,7 @@ import { gettext as _ } from "../helpers/gettext.js";
 import { bindActivation } from "../helpers/keyboard.js";
 import { ReaderStatus } from "../readers/base.js";
 import type { ProviderDisplayModel } from "./displayModel.js";
+import { createErrorLabel } from "./errorLabel.js";
 import { clampFillRatio } from "./fieldRows.js";
 import type { FieldView, UsageFacts } from "./fieldViews.js";
 import {
@@ -47,6 +48,7 @@ export function createExpandAllControl(): ExpandAllControl {
 export class CompactPanelSection extends PanelStyleSection {
   private _lastRefreshAt: number | null = null;
   private _lastView: ProviderViewContext;
+  private _defaultExpanded = false;
   private _expandedOverrides: Map<ProviderName, boolean> = new Map();
   private readonly _expandAll: ExpandAllControl;
 
@@ -63,6 +65,7 @@ export class CompactPanelSection extends PanelStyleSection {
   override render(context: PanelRenderContext): void {
     this._lastRefreshAt = context.lastRefreshAt;
     this._lastView = context.view;
+    this._defaultExpanded = context.view.activeProviders.length <= 2;
 
     const phase = phaseResult(context.view, matrixMessages);
     this.shell.clearBody();
@@ -73,7 +76,7 @@ export class CompactPanelSection extends PanelStyleSection {
       models.forEach((model, index) => {
         const expanded = resolveProviderExpanded(
           model.provider,
-          context.view.activeProviders.length,
+          this._defaultExpanded,
           this._expandedOverrides,
         );
         this._addProviderSection(model, index > 0, expanded);
@@ -83,8 +86,11 @@ export class CompactPanelSection extends PanelStyleSection {
   }
 
   private _toggleProvider(provider: ProviderName, forceState?: boolean): void {
-    const enabledCount = this._lastView.models.length;
-    const current = resolveProviderExpanded(provider, enabledCount, this._expandedOverrides);
+    const current = resolveProviderExpanded(
+      provider,
+      this._defaultExpanded,
+      this._expandedOverrides,
+    );
     const next = forceState ?? !current;
     if (next === current) return;
     this._expandedOverrides.set(provider, next);
@@ -96,7 +102,7 @@ export class CompactPanelSection extends PanelStyleSection {
     if (providers.length === 0) return;
     this._expandedOverrides = toggleAllProvidersExpanded(
       providers,
-      providers.length,
+      this._defaultExpanded,
       this._expandedOverrides,
     );
     this.render({ lastRefreshAt: this._lastRefreshAt, view: this._lastView });
@@ -106,7 +112,7 @@ export class CompactPanelSection extends PanelStyleSection {
     const providers = this._lastView.activeProviders;
     const allExpanded = areAllProvidersExpanded(
       providers,
-      providers.length,
+      this._defaultExpanded,
       this._expandedOverrides,
     );
     this._expandAll.button.visible = this._lastView.models.length > 0;
@@ -269,13 +275,11 @@ export class CompactPanelSection extends PanelStyleSection {
     }
 
     if (facts.diagnostic.errorText !== null) {
-      const errorLabel = new St.Label({
-        text: facts.diagnostic.errorText,
-        style_class: "provider-limits-callout-error provider-limits-error",
-        x_expand: true,
-        x_align: Clutter.ActorAlign.START,
-      });
-      errorLabel.clutter_text.line_wrap = true;
+      const errorLabel = createErrorLabel(
+        facts.diagnostic.errorText,
+        "provider-limits-callout-error provider-limits-error",
+      );
+      errorLabel.x_align = Clutter.ActorAlign.START;
       errorLabel.accessible_name = facts.diagnostic.errorText;
       table.add_child(errorLabel);
     }
@@ -382,13 +386,11 @@ export class CompactPanelSection extends PanelStyleSection {
     table.add_child(line);
 
     if (view.errorText) {
-      const errorLabel = new St.Label({
-        text: view.errorText,
-        style_class: "provider-limits-error provider-limits-row-error",
-        x_expand: true,
-        x_align: Clutter.ActorAlign.START,
-      });
-      errorLabel.clutter_text.line_wrap = true;
+      const errorLabel = createErrorLabel(
+        view.errorText,
+        "provider-limits-error provider-limits-row-error",
+      );
+      errorLabel.x_align = Clutter.ActorAlign.START;
       errorLabel.accessible_name = view.errorText;
       table.add_child(errorLabel);
     }

@@ -10,6 +10,7 @@ import type { ProviderHealth } from "./providerHealth.js";
 import type { Presentation } from "./providerHealth.js";
 import {
   cardBadgeText,
+  CACHED_LABEL,
   deriveProviderHealth,
   overviewBadgeText,
   PRESENTATION,
@@ -159,7 +160,7 @@ function deriveDiagnostics(
   } else if (result.status === ReaderStatus.PARTIAL && result.lastError) {
     callout = {
       kind: "warning",
-      badge: result.fromCache ? tr("Cached") : tr("Partial"),
+      badge: result.fromCache ? tr(CACHED_LABEL) : tr("Partial"),
       text: result.lastError,
     };
   }
