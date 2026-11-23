@@ -2,16 +2,17 @@ import Clutter from "gi://Clutter";
 import St from "gi://St";
 
 import type { ProviderName } from "../constants.js";
-import { gettext as _ } from "../helpers/gettext.js";
 import { ReaderStatus } from "../readers/base.js";
 import { disposeCairoContext, drawMicroRing, isCairoContext } from "./cairoDrawing.js";
-import type { FieldView, StatusBarZonePlan } from "./fieldViews.js";
-import { deriveStatusBarSegments } from "./fieldViews.js";
+import type { FieldView } from "./fieldViews.js";
 import type { MicroMeterSpec } from "./gaugeTypes.js";
 import { sectionKey, structureKey } from "./renderStructure.js";
 import { StatusBarRenderer } from "./statusBarRenderer.js";
+import type { StatusBarZonePlan } from "./statusBarSegments.js";
+import { deriveStatusBarSegments } from "./statusBarSegments.js";
 import { applyToneClass } from "./tone.js";
 import type { ProviderViewContext } from "./viewContext.js";
+import { viewMessages } from "./viewMessages.js";
 
 const MICRO_GAUGE_SIZE = 14;
 
@@ -34,9 +35,19 @@ interface GaugeSegmentWidgets {
 
 function planGauges(context: ProviderViewContext): GaugesPlan {
   if (context.phase !== "ready") {
+    const message = viewMessages({
+      phase: context.phase,
+      surface: "gauges",
+      locale: context.locale,
+      t: context.t,
+      running: false,
+    });
     return {
       kind: "placeholder",
-      hasEnabled: context.phase === "loading",
+      phase: context.phase,
+      placeholder: message.placeholder,
+      placeholderAccessibleText: message.accessibleText,
+      showPlaceholder: message.showPlaceholder,
       key: structureKey([context.locale, context.phase]),
     };
   }
@@ -75,13 +86,13 @@ export class GaugesStatusBarRenderer extends StatusBarRenderer<GaugesPlan> {
 
   protected build(plan: GaugesPlan): void {
     if (plan.kind === "placeholder") {
-      if (!plan.hasEnabled) return;
+      if (!plan.showPlaceholder) return;
       const placeholder = new St.Label({
-        text: "…",
+        text: plan.placeholder,
         style_class: "pl-status-placeholder",
         y_align: Clutter.ActorAlign.CENTER,
       });
-      placeholder.accessible_name = _("Refreshing…");
+      placeholder.accessible_name = plan.placeholderAccessibleText;
       this.parent.add_child(placeholder);
       return;
     }

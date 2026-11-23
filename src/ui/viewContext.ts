@@ -69,39 +69,3 @@ export function viewContextFor(
     phase: resolveViewPhase(activeProviders, results),
   };
 }
-
-export interface SingleProviderViewOptions {
-  readonly provider: ProviderName;
-  readonly result: ReaderResult;
-  readonly displayName: string;
-  readonly shortDisplayName?: string;
-  readonly fieldDefs: readonly FieldDef[];
-  readonly statusFields?: readonly string[];
-  readonly panelFields?: readonly string[];
-  readonly locale: string;
-  readonly t: (text: string) => string;
-}
-
-/** View of one provider for model builders that work outside the shell. */
-export function singleProvider(options: SingleProviderViewOptions): ProviderViewContext {
-  const { provider, result, displayName, locale, t } = options;
-  const shortDisplayName = options.shortDisplayName ?? displayName;
-  const statusFields = options.statusFields ?? [];
-  const panelFields = options.panelFields ?? [];
-
-  return {
-    order: [provider],
-    results: new Map<ProviderName, ReaderResult>([[provider, result]]),
-    fieldDefs: providerRecord<readonly FieldDef[]>((name) =>
-      name === provider ? options.fieldDefs : [],
-    ),
-    activeProviders: [provider],
-    displayNames: providerRecord((name) => (name === provider ? displayName : name)),
-    shortDisplayNames: providerRecord((name) => (name === provider ? shortDisplayName : name)),
-    statusFields: providerRecord((name) => (name === provider ? statusFields : [])),
-    panelFields: providerRecord((name) => (name === provider ? panelFields : [])),
-    locale,
-    t,
-    phase: "ready",
-  };
-}

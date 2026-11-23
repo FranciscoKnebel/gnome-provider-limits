@@ -1,0 +1,94 @@
+import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
+import type { ReaderResult } from "../../src/readers/base.js";
+import { CODEX_FIELDS, PROVIDER_FIELDS } from "../../src/readers/fields.js";
+import { deriveDisplayModel, deriveDisplayModels } from "../../src/ui/displayModel.js";
+import { providerRecord } from "../../src/ui/viewContext.js";
+import type { ProviderViewContext } from "../../src/ui/viewContext.js";
+
+const result: ReaderResult = {
+  provider: "codex",
+  status: ReaderStatus.OK,
+  lastUpdated: 1_700_000_000_000,
+  fields: [
+    { name: "used_percent_primary", value: 64, status: FieldStatus.OK },
+    { name: "reset_at_primary", value: 1_700_003_600, status: FieldStatus.OK },
+    { name: "plan_type", value: "plus", status: FieldStatus.OK },
+  ],
+};
+
+describe("deriveDisplayModel", () => {
+  it("assembles one provider from explicit options with no surrounding context", () => {
+    const model = deriveDisplayModel("codex", result, {
+      fieldDefs: CODEX_FIELDS,
+      statusFields: ["used_percent_primary", "reset_at_primary"],
+      panelFields: ["plan_type"],
+      displayName: "Codex Pro",
+      shortDisplayName: "CX",
+      locale: "en",
+      t: (text) => text,
+    });
+
+    expect(model).toBeDefined();
+    expect(model?.provider).toBe("codex");
+    expect(model?.displayName).toBe("Codex Pro");
+    expect(model?.shortDisplayName).toBe("CX");
+    expect(model?.statusViews.map((view) => view.name)).toEqual([
+      "used_percent_primary",
+      "reset_at_primary",
+    ]);
+    expect(model?.panelViews.map((view) => view.name)).toEqual(["plan_type"]);
+    expect(model?.badges.card).toBe("live");
+    expect(model?.badges.cardText).toBe("Live");
+    expect(model?.tone).toBe("warning");
+    expect(model?.meter.ratio).toBeCloseTo(0.64, 5);
+    expect(model?.diagnostic.bannerKind).toBeNull();
+  });
+
+  it("returns nothing for a disabled result, matching the context loop", () => {
+    const disabled: ReaderResult = { ...result, status: ReaderStatus.DISABLED };
+    expect(
+      deriveDisplayModel("codex", disabled, {
+        fieldDefs: CODEX_FIELDS,
+        statusFields: [],
+        panelFields: [],
+        displayName: "Codex",
+        shortDisplayName: "Codex",
+        locale: "en",
+        t: (text) => text,
+      }),
+    ).toBeUndefined();
+  });
+
+  it("stays a thin loop over active results", () => {
+    const context: ProviderViewContext = {
+      order: ["codex", "claude"],
+      activeProviders: ["codex", "claude"],
+      results: new Map([
+        ["codex", result],
+        ["claude", { ...result, provider: "claude", status: ReaderStatus.DISABLED }],
+      ]),
+      fieldDefs: PROVIDER_FIELDS,
+      displayNames: providerRecord((provider) => provider),
+      shortDisplayNames: providerRecord((provider) => provider.toUpperCase()),
+      statusFields: providerRecord(() => []),
+      panelFields: providerRecord(() => []),
+      locale: "en",
+      t: (text) => text,
+      phase: "ready",
+    };
+
+    const models = deriveDisplayModels(context);
+    expect(models.map((model) => model.provider)).toEqual(["codex"]);
+    const direct = deriveDisplayModel("codex", result, {
+      fieldDefs: CODEX_FIELDS,
+      statusFields: [],
+      panelFields: [],
+      displayName: "codex",
+      shortDisplayName: "CODEX",
+      locale: "en",
+      t: (text) => text,
+    });
+    expect(direct).toBeDefined();
+    expect(models[0].structureKey).toBe(direct?.structureKey ?? "");
+  });
+});

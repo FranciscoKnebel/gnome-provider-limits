@@ -2,13 +2,12 @@ import type { ProviderName } from "../constants.js";
 import { formatField } from "../formatters.js";
 import type { FieldDef, ReaderResult } from "../readers/base.js";
 import { GAUGE_END_ANGLE, GAUGE_START_ANGLE, GAUGE_SWEEP_ANGLE, TONE_RGB } from "./cairoDrawing.js";
+import { deriveDisplayModel } from "./displayModel.js";
 import { fieldTone, type FieldTone } from "./fieldRows.js";
-import { deriveDisplayModels } from "./fieldViews.js";
 import type { GaugeGeometry, GaugeTone, MicroMeterSpec, RgbTuple } from "./gaugeTypes.js";
-import type { Presentation } from "./providerTypes.js";
+import type { Presentation } from "./providerHealth.js";
 import { structureKey } from "./renderStructure.js";
 import { clampRatio } from "./usageSnapshot.js";
-import { singleProvider } from "./viewContext.js";
 
 export type CockpitTab = "overview" | ProviderName;
 
@@ -129,16 +128,15 @@ export function partitionProviderPanel(
 ): PartitionedProviderPanel {
   const tr = t ?? ((s: string) => s);
   const provider = result.provider as ProviderName;
-  const context = singleProvider({
-    provider,
-    result,
-    displayName: provider,
+  const model = deriveDisplayModel(provider, result, {
     fieldDefs: fieldsDefs,
+    statusFields: [],
     panelFields: panelFieldNames,
+    displayName: provider,
+    shortDisplayName: provider,
     locale,
     t: tr,
   });
-  const model = deriveDisplayModels(context)[0];
   const views = model?.panelViews ?? [];
   const consumedResets = model?.consumedResets ?? new Set<string>();
 
@@ -232,18 +230,15 @@ export function buildOverviewRowModel(options: {
   const tr = t ?? ((s: string) => s);
 
   const model = result
-    ? deriveDisplayModels(
-        singleProvider({
-          provider,
-          result,
-          displayName,
-          fieldDefs: fieldsDefs,
-          statusFields: statusFieldNames,
-          panelFields: panelFieldNames,
-          locale,
-          t: tr,
-        }),
-      )[0]
+    ? deriveDisplayModel(provider, result, {
+        fieldDefs: fieldsDefs,
+        statusFields: statusFieldNames,
+        panelFields: panelFieldNames,
+        displayName,
+        shortDisplayName: displayName,
+        locale,
+        t: tr,
+      })
     : undefined;
   if (!model) return loadingOverviewRow(provider, displayName);
 

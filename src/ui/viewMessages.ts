@@ -1,0 +1,86 @@
+import type { ViewPhase } from "./viewContext.js";
+
+export type ViewSurface = "cards" | "matrix" | "pills" | "gauges" | "compact";
+
+export interface EmptyPresentation {
+  readonly title: string;
+  readonly subtitle: string;
+  readonly placeholder: string;
+  readonly accessibleText: string;
+  readonly showPlaceholder: boolean;
+}
+
+export interface ViewMessagesOptions {
+  readonly phase: ViewPhase;
+  readonly surface: ViewSurface;
+  readonly locale: string;
+  readonly t: (s: string) => string;
+  readonly running: boolean;
+}
+
+const NONE: EmptyPresentation = {
+  title: "",
+  subtitle: "",
+  placeholder: "",
+  accessibleText: "",
+  showPlaceholder: false,
+};
+
+function withTitle(title: string, subtitle = ""): EmptyPresentation {
+  return { ...NONE, title, subtitle };
+}
+
+function withPlaceholder(placeholder: string, accessibleText: string): EmptyPresentation {
+  return { ...NONE, placeholder, accessibleText, showPlaceholder: true };
+}
+
+/**
+ * The one mapping from a view phase to the words and placeholder every surface
+ * renders. Plan builders consume this instead of owning their own message switches.
+ */
+export function viewMessages(options: ViewMessagesOptions): EmptyPresentation {
+  const { phase, surface, t: tr, running } = options;
+
+  if (phase === "ready") return NONE;
+
+  switch (surface) {
+    case "cards":
+      if (phase === "empty") {
+        return withTitle(
+          tr("No providers enabled"),
+          tr("Enable a provider in Settings to monitor usage limits."),
+        );
+      }
+      return withTitle(running ? tr("Loading provider limits…") : tr("Waiting for provider data…"));
+
+    case "matrix":
+      return withTitle(
+        phase === "empty"
+          ? tr("No providers enabled. Open Settings to enable a provider.")
+          : tr("Reading provider limits…"),
+      );
+
+    case "pills":
+      return phase === "loading" ? withPlaceholder("…", tr("Loading provider limits…")) : NONE;
+
+    case "gauges":
+      if (phase === "empty") {
+        return withTitle(
+          tr("No providers enabled"),
+          tr("Enable a provider in Settings to monitor usage limits."),
+        );
+      }
+      return {
+        title: tr("Reading provider limits…"),
+        subtitle: tr("Waiting for initial refresh to complete."),
+        placeholder: "…",
+        accessibleText: tr("Refreshing…"),
+        showPlaceholder: true,
+      };
+
+    case "compact":
+      return phase === "loading" ? withPlaceholder("…", tr("Reading provider limits…")) : NONE;
+  }
+
+  return NONE;
+}

@@ -214,7 +214,7 @@ export class CompactPanelSection
   }
 
   protected build(plan: CompactRenderPlan): void {
-    if (plan.state !== "ready") {
+    if (plan.phase !== "ready") {
       if (plan.messageText) {
         this._emptyMessageLabel = this.shell.addEmptyStateRow(plan.messageText);
       }
@@ -230,7 +230,7 @@ export class CompactPanelSection
   }
 
   protected update(plan: CompactRenderPlan): void {
-    if (plan.state !== "ready") {
+    if (plan.phase !== "ready") {
       if (this._emptyMessageLabel && plan.messageText) {
         this._emptyMessageLabel.text = plan.messageText;
         this._emptyMessageLabel.accessible_name = plan.messageText;

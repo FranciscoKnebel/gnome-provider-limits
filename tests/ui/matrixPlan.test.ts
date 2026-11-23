@@ -286,7 +286,7 @@ describe("matrixPlan", () => {
         matrixContext({ activeProviders: [], results: new Map(), phase: "empty" }),
         new Map(),
       );
-      expect(emptyPlan.state).toBe("empty");
+      expect(emptyPlan.phase).toBe("empty");
       expect(emptyPlan.messageText).toContain("No providers enabled");
       expect(emptyPlan.canToggleAll).toBeFalse();
 
@@ -294,7 +294,7 @@ describe("matrixPlan", () => {
         matrixContext({ activeProviders: ["codex"], results: new Map(), phase: "loading" }),
         new Map(),
       );
-      expect(loadingPlan.state).toBe("loading");
+      expect(loadingPlan.phase).toBe("loading");
       expect(loadingPlan.messageText).toContain("Reading provider limits");
       expect(loadingPlan.canToggleAll).toBeFalse();
     });
@@ -333,7 +333,7 @@ describe("matrixPlan", () => {
         new Map(),
       );
 
-      expect(plan.state).toBe("ready");
+      expect(plan.phase).toBe("ready");
       expect(plan.allExpanded).toBeTrue();
       expect(plan.providers).toHaveSize(1);
 

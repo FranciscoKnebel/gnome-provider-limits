@@ -15,7 +15,10 @@ import {
   deriveDisplayModels,
   deriveFieldViews,
   deriveProviderHealth,
+  deriveState,
   deriveStatusBarSegments,
+  deriveTone,
+  worstFieldTone,
 } from "../../src/ui/fieldViews.js";
 import type { ProviderTone } from "../../src/ui/providerTypes.js";
 import { applyHealthToneClass, applyToneClass } from "../../src/ui/tone.js";
@@ -77,7 +80,8 @@ function toneOf(
   hasUsableField: boolean,
   lastKnownGood = false,
 ): ProviderTone {
-  return deriveProviderHealth(status, { tones, hasUsableField, lastKnownGood }).tone;
+  const worst = worstFieldTone(tones);
+  return deriveTone(deriveState(status, worst, hasUsableField, lastKnownGood), worst);
 }
 
 describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
@@ -227,6 +231,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
           result,
           views,
           fieldDefs: CODEX_FIELDS,
+          t: (text) => text,
         }).tone,
       ).toBe("critical");
     });
@@ -546,7 +551,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         }),
         false,
       );
-      expect(disabledPlan.emptyState).toBe("disabled");
+      expect(disabledPlan.phase).toBe("empty");
       expect(disabledPlan.emptyTitle).toBe("No providers enabled");
       expect(disabledPlan.emptySubtitle).toContain("Settings");
 
@@ -559,7 +564,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         }),
         true,
       );
-      expect(loadingPlan.emptyState).toBe("loading");
+      expect(loadingPlan.phase).toBe("loading");
       expect(loadingPlan.emptyTitle).toBe("Loading provider limits…");
 
       const waitingPlan = planPanel(
@@ -626,7 +631,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         false,
       );
 
-      expect(firstActive.emptyState).toBe("none");
+      expect(firstActive.phase).toBe("ready");
       expect(secondActive.structureKey).toBe(firstActive.structureKey);
     });
   });

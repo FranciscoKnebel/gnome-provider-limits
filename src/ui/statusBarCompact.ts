@@ -2,14 +2,15 @@ import Clutter from "gi://Clutter";
 import St from "gi://St";
 
 import type { ProviderName } from "../constants.js";
-import { gettext as _ } from "../helpers/gettext.js";
 import { ReaderStatus } from "../readers/base.js";
-import { deriveStatusBarSegments, statusBadgeText } from "./fieldViews.js";
-import type { ProviderAttention } from "./providerTypes.js";
+import { statusBadgeText } from "./providerHealth.js";
+import type { ProviderAttention } from "./providerHealth.js";
 import { structureKey } from "./renderStructure.js";
 import { StatusBarRenderer } from "./statusBarRenderer.js";
+import { deriveStatusBarSegments } from "./statusBarSegments.js";
 import { applyStatusAttentionClass } from "./tone.js";
-import type { ProviderViewContext } from "./viewContext.js";
+import type { ProviderViewContext, ViewPhase } from "./viewContext.js";
+import { viewMessages } from "./viewMessages.js";
 
 interface CompactPooledSegment {
   box: St.BoxLayout;
@@ -27,8 +28,9 @@ interface CompactBadgePlan {
 }
 
 interface CompactPlan {
-  state: "empty" | "loading" | "ready";
+  phase: ViewPhase;
   placeholderText: string | null;
+  placeholderAccessibleText: string;
   badges: readonly CompactBadgePlan[];
   key: string;
 }
@@ -36,10 +38,19 @@ interface CompactPlan {
 function planCompact(context: ProviderViewContext): CompactPlan {
   const tr = (text: string) => context.t(text);
 
+  const message = viewMessages({
+    phase: context.phase,
+    surface: "compact",
+    locale: context.locale,
+    t: context.t,
+    running: false,
+  });
+
   if (context.phase === "empty") {
     return {
-      state: "empty",
+      phase: "empty",
       placeholderText: null,
+      placeholderAccessibleText: message.accessibleText,
       badges: [],
       key: structureKey(["empty", context.locale]),
     };
@@ -79,16 +90,18 @@ function planCompact(context: ProviderViewContext): CompactPlan {
 
   if (context.phase === "loading") {
     return {
-      state: "loading",
-      placeholderText: "…",
+      phase: "loading",
+      placeholderText: message.placeholder,
+      placeholderAccessibleText: message.accessibleText,
       badges: [],
       key: structureKey(["loading", context.locale]),
     };
   }
 
   return {
-    state: "ready",
+    phase: "ready",
     placeholderText: null,
+    placeholderAccessibleText: "",
     badges,
     key: structureKey(["ready", context.locale, ...badges.map((badge) => badge.key)]),
   };
@@ -103,13 +116,13 @@ export class CompactStatusBarRenderer extends StatusBarRenderer<CompactPlan> {
   }
 
   protected build(plan: CompactPlan): void {
-    if (plan.state === "loading" && plan.placeholderText) {
+    if (plan.phase === "loading" && plan.placeholderText) {
       const placeholder = new St.Label({
         text: plan.placeholderText,
         style_class: "provider-limits-status-placeholder provider-limits-tnum",
         y_align: Clutter.ActorAlign.CENTER,
       });
-      placeholder.accessible_name = _("Reading provider limits…");
+      placeholder.accessible_name = plan.placeholderAccessibleText;
       this.parent.add_child(placeholder);
       this._placeholder = placeholder;
       return;
@@ -151,7 +164,7 @@ export class CompactStatusBarRenderer extends StatusBarRenderer<CompactPlan> {
   }
 
   protected update(plan: CompactPlan): void {
-    if (plan.state === "loading" && this._placeholder && plan.placeholderText) {
+    if (plan.phase === "loading" && this._placeholder && plan.placeholderText) {
       this._placeholder.text = plan.placeholderText;
       return;
     }

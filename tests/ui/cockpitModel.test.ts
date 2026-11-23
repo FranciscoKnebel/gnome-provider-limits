@@ -33,9 +33,9 @@ import {
   resolveActiveTab,
   toneToRgb,
 } from "../../src/ui/cockpitModel.js";
-import { deriveDisplayModels, deriveFieldViews, meterFromViews } from "../../src/ui/fieldViews.js";
+import { deriveDisplayModel } from "../../src/ui/displayModel.js";
+import { deriveFieldViews, meterFromViews } from "../../src/ui/fieldViews.js";
 import { clampRatio, extractWindowSuffix } from "../../src/ui/usageSnapshot.js";
-import { singleProvider } from "../../src/ui/viewContext.js";
 
 interface RecordedCairoOp {
   readonly op: string;
@@ -223,16 +223,15 @@ describe("meterFromViews", () => {
         fields: [],
         lastError: "Auth expired",
       };
-      const [model] = deriveDisplayModels(
-        singleProvider({
-          provider: "codex",
-          result,
-          displayName: "Codex",
-          fieldDefs: CODEX_FIELDS,
-          locale: "en",
-          t: (message) => message,
-        }),
-      );
+      const model = deriveDisplayModel("codex", result, {
+        fieldDefs: CODEX_FIELDS,
+        statusFields: [],
+        panelFields: [],
+        displayName: "Codex",
+        shortDisplayName: "Codex",
+        locale: "en",
+        t: (message) => message,
+      });
       expect(model).toBeDefined();
       expect(model?.meter.isError).toBeTrue();
       expect(model?.meter.hasValue).toBeFalse();

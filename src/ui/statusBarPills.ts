@@ -2,15 +2,15 @@ import Clutter from "gi://Clutter";
 import St from "gi://St";
 
 import type { ProviderName } from "../constants.js";
-import { gettext as _ } from "../helpers/gettext.js";
 import { ReaderStatus } from "../readers/base.js";
 import type { FieldView } from "./fieldViews.js";
-import { deriveStatusBarSegments } from "./fieldViews.js";
-import type { ProviderTone } from "./providerTypes.js";
+import type { ProviderTone } from "./providerHealth.js";
 import { structureKey } from "./renderStructure.js";
 import { StatusBarRenderer } from "./statusBarRenderer.js";
+import { deriveStatusBarSegments } from "./statusBarSegments.js";
 import { applyHealthToneClass, applyToneClass } from "./tone.js";
-import type { ProviderViewContext } from "./viewContext.js";
+import type { ProviderViewContext, ViewPhase } from "./viewContext.js";
+import { viewMessages } from "./viewMessages.js";
 
 interface PillWidgets {
   dot: St.BoxLayout;
@@ -31,8 +31,10 @@ interface PillPlan {
 
 interface PillsPlan {
   readonly key: string;
-  loading: boolean;
-  loadingAccessibleText: string;
+  readonly phase: ViewPhase;
+  readonly placeholder: string;
+  readonly placeholderAccessibleText: string;
+  readonly showPlaceholder: boolean;
   pills: readonly PillPlan[];
 }
 
@@ -56,15 +58,23 @@ function planPills(context: ProviderViewContext): PillsPlan {
     ]),
   }));
 
-  const loading = context.phase === "loading";
+  const message = viewMessages({
+    phase: context.phase,
+    surface: "pills",
+    locale: context.locale,
+    t: context.t,
+    running: false,
+  });
   return {
     key: structureKey([
       context.locale,
-      loading ? "loading" : "ready",
+      context.phase === "loading" ? "loading" : "ready",
       ...pills.map((pill) => pill.key),
     ]),
-    loading,
-    loadingAccessibleText: _("Loading provider limits…"),
+    phase: context.phase,
+    placeholder: message.placeholder,
+    placeholderAccessibleText: message.accessibleText,
+    showPlaceholder: message.showPlaceholder,
     pills,
   };
 }
@@ -77,7 +87,7 @@ export class PillsStatusBarRenderer extends StatusBarRenderer<PillsPlan> {
   }
 
   protected build(plan: PillsPlan): void {
-    if (plan.loading) {
+    if (plan.showPlaceholder) {
       const loadingPill = new St.BoxLayout({
         style_class: "pl-status-pill pl-status-pill-loading",
         y_align: Clutter.ActorAlign.CENTER,
@@ -90,11 +100,11 @@ export class PillsStatusBarRenderer extends StatusBarRenderer<PillsPlan> {
       loadingPill.add_child(dot);
 
       const loadingLabel = new St.Label({
-        text: "…",
+        text: plan.placeholder,
         style_class: "pl-status-value pl-status-loading-label",
         y_align: Clutter.ActorAlign.CENTER,
       });
-      loadingLabel.accessible_name = plan.loadingAccessibleText;
+      loadingLabel.accessible_name = plan.placeholderAccessibleText;
       loadingPill.add_child(loadingLabel);
       this.parent.add_child(loadingPill);
       return;

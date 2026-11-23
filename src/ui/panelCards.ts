@@ -11,13 +11,14 @@ import type {
   CardBadgeKind,
   CardKeyValueRow,
   CardProgressRow,
-  PanelEmptyState,
   PanelPlan,
   ProviderCardPlan,
 } from "./cardPlan.js";
 import type { PanelRenderContext, PanelShell, PanelStyleSection } from "./panelShell.js";
 import { PlanRenderer, type RenderPlan } from "./planRenderer.js";
 import { applyHealthToneClass, applyToneClass } from "./tone.js";
+import type { ViewPhase } from "./viewContext.js";
+import { viewMessages } from "./viewMessages.js";
 
 interface ProgressRowWidgets {
   value: St.Label;
@@ -71,7 +72,7 @@ export class CardsPanelSection
 {
   private _running = false;
   private _cards: CardWidgets[] = [];
-  private _emptyState: PanelEmptyState = "none";
+  private _phase: ViewPhase = "ready";
   private _emptyTitleLabel: St.Label | null = null;
   readonly shell: PanelShell;
 
@@ -100,26 +101,31 @@ export class CardsPanelSection
 
   protected override onDispose(): void {
     this._cards = [];
-    this._emptyState = "none";
+    this._phase = "ready";
     this._emptyTitleLabel = null;
   }
 
   setRunning(running: boolean): void {
     this._running = running;
     this.shell.setRunning(running);
-    if (this._emptyState === "loading" && this._emptyTitleLabel) {
-      this._emptyTitleLabel.text = running
-        ? _("Loading provider limits…")
-        : _("Waiting for provider data…");
-      this._emptyTitleLabel.accessible_name = this._emptyTitleLabel.text;
+    if (this._phase === "loading" && this._emptyTitleLabel) {
+      const message = viewMessages({
+        phase: "loading",
+        surface: "cards",
+        locale: "",
+        t: _,
+        running,
+      });
+      this._emptyTitleLabel.text = message.title;
+      this._emptyTitleLabel.accessible_name = message.title;
     }
   }
 
   protected build(plan: CardsRenderPlan): void {
-    this._emptyState = plan.emptyState;
+    this._phase = plan.phase;
     this._emptyTitleLabel = null;
 
-    if (plan.emptyState !== "none" && plan.emptyTitle) {
+    if (plan.phase !== "ready" && plan.emptyTitle) {
       this._emptyTitleLabel = this.shell.addEmptyStateRow(
         plan.emptyTitle,
         plan.emptySubtitle ?? undefined,
@@ -134,7 +140,7 @@ export class CardsPanelSection
   }
 
   protected update(plan: CardsRenderPlan): void {
-    if (plan.emptyState !== "none" && this._emptyTitleLabel && plan.emptyTitle) {
+    if (plan.phase !== "ready" && this._emptyTitleLabel && plan.emptyTitle) {
       this._emptyTitleLabel.text = plan.emptyTitle;
       this._emptyTitleLabel.accessible_name = plan.emptyTitle;
     }

@@ -15,41 +15,24 @@ import { OverviewRenderer } from "./panelGaugesOverview.js";
 import type { PanelRenderContext, PanelShell, PanelStyleSection } from "./panelShell.js";
 import { structureKey } from "./renderStructure.js";
 import { viewContextFor, type ViewPhase } from "./viewContext.js";
+import { viewMessages } from "./viewMessages.js";
 
 type BodyState =
   | { kind: "none" }
-  | { kind: "empty"; reason: "no-providers" | "initial-load" | "detail-load"; tab?: ProviderName }
+  | { kind: "empty"; phase: ViewPhase; tab?: ProviderName }
   | { kind: "overview" }
   | { kind: "detail"; provider: ProviderName };
-
-type EmptyState = Extract<BodyState, { kind: "empty" }>;
 
 function bodyStructureKey(state: BodyState, locale: string): string {
   switch (state.kind) {
     case "none":
       return structureKey([locale, "none"]);
     case "empty":
-      return structureKey([locale, state.reason, state.tab ?? ""]);
+      return structureKey([locale, state.phase, state.tab ?? ""]);
     case "overview":
       return structureKey([locale, "overview"]);
     case "detail":
       return structureKey([locale, "detail", state.provider]);
-  }
-}
-
-function emptyStateText(state: EmptyState): { title: string; subtitle: string } {
-  switch (state.reason) {
-    case "no-providers":
-      return {
-        title: _("No providers enabled"),
-        subtitle: _("Enable a provider in Settings to monitor usage limits."),
-      };
-    case "initial-load":
-    case "detail-load":
-      return {
-        title: _("Reading provider limits…"),
-        subtitle: _("Waiting for initial refresh to complete."),
-      };
   }
 }
 
@@ -155,12 +138,8 @@ export class GaugesPanelSection implements PanelStyleSection {
     phase: ViewPhase,
     results: ReadonlyMap<ProviderName, ReaderResult>,
   ): BodyState {
-    if (phase === "empty") {
-      return { kind: "empty", reason: "no-providers" };
-    }
-
-    if (phase === "loading") {
-      return { kind: "empty", reason: "initial-load" };
+    if (phase === "empty" || phase === "loading") {
+      return { kind: "empty", phase };
     }
 
     if (this._activeTab === "overview") {
@@ -169,7 +148,7 @@ export class GaugesPanelSection implements PanelStyleSection {
 
     const result = results.get(this._activeTab);
     if (!result) {
-      return { kind: "empty", reason: "detail-load", tab: this._activeTab };
+      return { kind: "empty", phase: "loading", tab: this._activeTab };
     }
 
     return { kind: "detail", provider: this._activeTab };
@@ -186,8 +165,14 @@ export class GaugesPanelSection implements PanelStyleSection {
         this.shell.clearBody();
         this._overview.reset();
         this._detail.reset();
-        const { title, subtitle } = emptyStateText(nextState);
-        this.shell.addEmptyStateRow(title, subtitle);
+        const message = viewMessages({
+          phase: nextState.phase,
+          surface: "gauges",
+          locale,
+          t: _,
+          running: false,
+        });
+        this.shell.addEmptyStateRow(message.title, message.subtitle);
       }
       return;
     }

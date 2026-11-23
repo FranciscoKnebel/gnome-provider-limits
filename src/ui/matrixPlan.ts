@@ -1,13 +1,14 @@
 import type { ProviderName } from "../constants.js";
 import { ReaderStatus } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
+import { deriveDisplayModels } from "./displayModel.js";
+import type { ProviderDisplayViews } from "./displayModel.js";
 import type { FieldTone } from "./fieldRows.js";
-import type { ProviderDisplayViews } from "./fieldViews.js";
-import { deriveDisplayModels, deriveProviderHealth } from "./fieldViews.js";
-import type { ProviderAttention } from "./providerTypes.js";
+import { attentionFromTones, type ProviderAttention } from "./providerHealth.js";
 import { structureKey } from "./renderStructure.js";
 import { clampFillRatio } from "./usageSnapshot.js";
-import type { ProviderViewContext } from "./viewContext.js";
+import type { ProviderViewContext, ViewPhase } from "./viewContext.js";
+import { viewMessages } from "./viewMessages.js";
 
 export interface MatrixDetailRow {
   readonly name: string;
@@ -46,7 +47,7 @@ export interface ProviderMatrixPlan {
 }
 
 export interface PanelMatrixPlan {
-  readonly state: "empty" | "loading" | "ready";
+  readonly phase: ViewPhase;
   readonly messageText: string | null;
   readonly allExpanded: boolean;
   readonly canToggleAll: boolean;
@@ -100,7 +101,7 @@ export function resolveStatusAttention(
   status: ReaderStatus,
   tones: readonly (FieldTone | undefined)[],
 ): ProviderAttention {
-  return deriveProviderHealth(status, { tones }).attention;
+  return attentionFromTones(status, tones);
 }
 
 function groupsFromViews(views: ProviderDisplayViews, tr: (s: string) => string): MatrixRowGroup[] {
@@ -155,27 +156,21 @@ export function planPanelMatrix(
 ): PanelMatrixPlan {
   const tr = context.t;
 
-  if (context.phase === "empty") {
-    const msg = tr("No providers enabled. Open Settings to enable a provider.");
+  if (context.phase !== "ready") {
+    const message = viewMessages({
+      phase: context.phase,
+      surface: "matrix",
+      locale: context.locale,
+      t: tr,
+      running: false,
+    });
     return {
-      state: "empty",
-      messageText: msg,
+      phase: context.phase,
+      messageText: message.title,
       allExpanded: false,
       canToggleAll: false,
       providers: [],
-      key: structureKey(["empty", context.locale]),
-    };
-  }
-
-  if (context.phase === "loading") {
-    const msg = tr("Reading provider limits…");
-    return {
-      state: "loading",
-      messageText: msg,
-      allExpanded: false,
-      canToggleAll: false,
-      providers: [],
-      key: structureKey(["loading", context.locale]),
+      key: structureKey([context.phase, context.locale]),
     };
   }
 
@@ -237,7 +232,7 @@ export function planPanelMatrix(
   const allExpanded = areAllProvidersExpanded(activeProviders, enabledCount, expandedOverrides);
 
   return {
-    state: "ready",
+    phase: "ready",
     messageText: null,
     allExpanded,
     canToggleAll: providers.length > 0,
