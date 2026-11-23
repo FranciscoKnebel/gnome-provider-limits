@@ -48,22 +48,8 @@ describe("readers/fields & helpers/reorder", () => {
       }
     }
 
-    expect(
-      resolveFieldCategory({
-        name: "custom_cost",
-        label: "Cost",
-        type: "cost",
-        defaultZone: "panel",
-      }),
-    ).toBe("telemetry");
-    expect(
-      resolveFieldCategory({
-        name: "custom_pct",
-        label: "Pct",
-        type: "percent",
-        defaultZone: "status",
-      }),
-    ).toBe("limit");
+    expect(resolveFieldCategory({ name: "custom_cost", type: "cost" })).toBe("telemetry");
+    expect(resolveFieldCategory({ name: "custom_pct", type: "percent" })).toBe("limit");
   });
 
   it("matches GSettings schema defaults for status-fields and panel-fields", () => {

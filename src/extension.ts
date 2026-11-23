@@ -94,6 +94,10 @@ const ProviderLimitsIndicator = GObject.registerClass(
       box.add_child(this._statusBar);
       this.add_child(box);
 
+      // PanelMenu.Button always creates a real PopupMenu (only PopupDummyMenu when
+      // dontCreateMenu=true, which we never pass). The type is a union though, so
+      // narrow to PopupMenu.PopupMenu before using addMenuItem.
+      const menu = this.menu as PopupMenu.PopupMenu;
       this._panel = new PanelWidget(
         this._settings,
         this._readers,
@@ -103,11 +107,8 @@ const ProviderLimitsIndicator = GObject.registerClass(
         () => {
           void this.refresh({ force: true });
         },
+        () => menu.close(),
       );
-      // PanelMenu.Button always creates a real PopupMenu (only PopupDummyMenu when
-      // dontCreateMenu=true, which we never pass). The type is a union though, so
-      // narrow to PopupMenu.PopupMenu before using addMenuItem.
-      const menu = this.menu as PopupMenu.PopupMenu;
       menu.addMenuItem(this._panel);
 
       this._initReaders();

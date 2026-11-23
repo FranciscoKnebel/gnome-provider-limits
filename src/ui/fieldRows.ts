@@ -1,12 +1,7 @@
 import { formatField } from "../formatters.js";
-import type {
-  BaseReader,
-  FieldCategory,
-  FieldDef,
-  FieldType,
-  ReaderResult,
-} from "../readers/base.js";
+import type { FieldDef, FieldType, ReaderResult } from "../readers/base.js";
 import { FieldStatus, ReaderStatus } from "../readers/base.js";
+import type { FieldCategory } from "../readers/fields.js";
 import { companionResetFieldName, resolveFieldCategory } from "../readers/fields.js";
 
 export type FieldTone = "ok" | "warning" | "critical";
@@ -45,13 +40,7 @@ export function fieldTone(fieldName: string, value: unknown): FieldTone | undefi
   return percentTone(value);
 }
 
-export type FieldDefSource = Pick<BaseReader, "FIELDS"> | readonly FieldDef[] | undefined;
-
-function extractFieldDefs(source: FieldDefSource): readonly FieldDef[] {
-  if (!source) return [];
-  if (Array.isArray(source)) return source;
-  return (source as Pick<BaseReader, "FIELDS">).FIELDS;
-}
+export type FieldDefSource = readonly FieldDef[] | undefined;
 
 export function getFieldRows(
   reader: FieldDefSource,
@@ -61,7 +50,7 @@ export function getFieldRows(
   locale: string,
   t?: (s: string) => string,
 ): FieldRow[] {
-  const fieldDefs = extractFieldDefs(reader);
+  const fieldDefs = reader ?? [];
   if (fieldDefs.length === 0) return [];
 
   const rows: FieldRow[] = [];

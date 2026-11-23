@@ -8,6 +8,11 @@ src/readers/grok.ts
 src/readers/cursor.ts
 src/readers/google.ts
 src/ui/statusBar.ts
+src/ui/statusBarGauges.ts
+src/ui/statusBarCompact.ts
 src/ui/panel.ts
+src/ui/panelCards.ts
+src/ui/panelCompact.ts
+src/ui/panelGauges.ts
 src/ui/prefs/main-page.ts
 src/ui/prefs/provider-page.ts

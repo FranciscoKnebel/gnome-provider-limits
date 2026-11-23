@@ -3,9 +3,18 @@ import { formatField } from "../formatters.js";
 import { FieldStatus, ReaderStatus } from "../readers/base.js";
 import type { FieldDef, ReaderResult } from "../readers/base.js";
 import { GAUGE_END_ANGLE, GAUGE_START_ANGLE, GAUGE_SWEEP_ANGLE, TONE_RGB } from "./cairoDrawing.js";
-import { fieldTone } from "./fieldRows.js";
-import type { FieldTone } from "./fieldRows.js";
-import { structureKey } from "./renderStructure.js";
+import {
+  clampRatio,
+  deriveUsageSnapshot,
+  extractWindowSuffix,
+  fieldTone,
+  isLimitReached,
+  selectPercentField,
+  usageStructureKey,
+} from "./usageSnapshot.js";
+import type { FieldTone } from "./usageSnapshot.js";
+
+export { clampRatio, extractWindowSuffix };
 export {
   CAIRO_LINE_CAP_ROUND,
   GAUGE_END_ANGLE,
@@ -90,13 +99,6 @@ export interface OverviewRowModel {
   readonly accessibleText: string;
 }
 
-export function clampRatio(percentValue: unknown): number | null {
-  if (typeof percentValue !== "number" || !Number.isFinite(percentValue)) {
-    return null;
-  }
-  return Math.min(1, Math.max(0, percentValue / 100));
-}
-
 export function toneToRgb(tone: GaugeTone): RgbTuple {
   return TONE_RGB[tone];
 }
@@ -140,11 +142,6 @@ export function computeGaugeGeometry(fieldName: string, rawValue: unknown): Gaug
   };
 }
 
-export function extractWindowSuffix(fieldName: string): string | null {
-  const match = /^(?:used|remaining)_percent_(.+)$/.exec(fieldName);
-  return match ? match[1] : null;
-}
-
 export function computeStatusMicroMeter(
   fieldsDefs: readonly FieldDef[],
   result: ReaderResult,
@@ -162,19 +159,20 @@ export function computeStatusMicroMeter(
     };
   }
 
-  let candidateName: string | null = null;
-  for (const name of statusFieldNames) {
-    const def = fieldsDefs.find((f) => f.name === name);
-    if (def?.type === "percent") {
-      candidateName = name;
-      break;
-    }
+  if (isLimitReached(result.fields)) {
+    return {
+      ratio: 1,
+      hasValue: true,
+      startAngle: GAUGE_START_ANGLE,
+      endAngle: GAUGE_START_ANGLE + GAUGE_SWEEP_ANGLE,
+      tone: "critical",
+      rgb: TONE_RGB.critical,
+      isError: false,
+    };
   }
 
-  if (candidateName === null) {
-    const fallbackDef = fieldsDefs.find((f) => f.type === "percent");
-    candidateName = fallbackDef?.name ?? null;
-  }
+  const candidateName: string | null =
+    selectPercentField(fieldsDefs, statusFieldNames, result.fields)?.name ?? null;
 
   if (candidateName !== null) {
     const field = result.fields.find((f) => f.name === candidateName);
@@ -423,52 +421,41 @@ export function buildOverviewRowModel(options: {
   }
 
   const searchOrder = [...statusFieldNames, ...panelFieldNames];
-  let primaryPercentDef: FieldDef | undefined;
-  for (const name of searchOrder) {
-    const def = fieldsDefs.find((f) => f.name === name);
-    if (def?.type === "percent") {
-      primaryPercentDef = def;
-      break;
-    }
-  }
-  if (!primaryPercentDef) {
-    primaryPercentDef = fieldsDefs.find((f) => f.type === "percent");
-  }
+  const snapshot = deriveUsageSnapshot({
+    fieldDefs: fieldsDefs,
+    result,
+    preferredFieldNames: searchOrder,
+    locale,
+    t: tr,
+  });
+  const resolvedTone = snapshot.tone === "error" ? undefined : snapshot.tone;
 
   let primaryText = "—";
-  let resolvedTone: FieldTone | undefined;
-  let secondaryText: string | null = null;
+  if (snapshot.fieldName !== null && snapshot.value !== null) {
+    primaryText = formatField({
+      type: "percent",
+      value: snapshot.value,
+      zone: "status",
+      locale,
+      t: tr,
+    });
+  }
 
-  if (primaryPercentDef) {
-    const field = result.fields.find((f) => f.name === primaryPercentDef.name);
-    if (field?.status === FieldStatus.OK && field.value !== null && field.value !== undefined) {
-      primaryText = formatField({
-        type: "percent",
-        value: field.value,
+  let secondaryText: string | null = null;
+  if (snapshot.resetFieldName !== null) {
+    const resetField = result.fields.find((f) => f.name === snapshot.resetFieldName);
+    if (
+      resetField?.status === FieldStatus.OK &&
+      resetField.value !== null &&
+      resetField.value !== undefined
+    ) {
+      secondaryText = `↻ ${formatField({
+        type: "timestamp",
+        value: resetField.value,
         zone: "status",
         locale,
         t: tr,
-      });
-      resolvedTone = fieldTone(primaryPercentDef.name, field.value);
-    }
-
-    const suffix = extractWindowSuffix(primaryPercentDef.name);
-    if (suffix !== null) {
-      const resetField = result.fields.find((f) => f.name === "reset_at_" + suffix);
-      if (
-        resetField?.status === FieldStatus.OK &&
-        resetField.value !== null &&
-        resetField.value !== undefined
-      ) {
-        const formattedReset = formatField({
-          type: "timestamp",
-          value: resetField.value,
-          zone: "status",
-          locale,
-          t: tr,
-        });
-        secondaryText = `↻ ${formattedReset}`;
-      }
+      })}`;
     }
   }
 
@@ -533,7 +520,7 @@ export function providerDetailStructureKey(options: {
     b.errorText === undefined ? 0 : 1,
   ]);
 
-  return structureKey([
+  return usageStructureKey([
     options.provider,
     options.displayName,
     options.status,

@@ -1,12 +1,18 @@
 import { type ProviderName } from "../constants.js";
 import { formatAbsoluteTimestamp } from "../formatters.js";
-import type { FieldCategory, FieldDef, FieldResult, ReaderResult } from "../readers/base.js";
+import type { FieldDef, FieldResult, ReaderResult } from "../readers/base.js";
 import { FieldStatus, ReaderStatus } from "../readers/base.js";
+import type { FieldCategory } from "../readers/fields.js";
 import { getProviderFields } from "../readers/fields.js";
-import { clampPercent, fieldTone, getFieldRows } from "./fieldRows.js";
+import { getFieldRows } from "./fieldRows.js";
 import type { FieldRow, FieldTone } from "./fieldRows.js";
-import { structureKey } from "./renderStructure.js";
 import type { HealthTone } from "./tone.js";
+import {
+  clampPercent,
+  collectFieldTones,
+  usageStructureKey,
+  worstFieldTone,
+} from "./usageSnapshot.js";
 
 export type CardBadgeKind = "live" | "cached" | "error" | "unavailable";
 export type BannerKind = "warning" | "error";
@@ -79,41 +85,6 @@ export interface PanelPlan {
   structureKey: string;
 }
 
-const TONE_SEVERITY: Record<FieldTone, number> = {
-  ok: 1,
-  warning: 2,
-  critical: 3,
-};
-
-function worstFieldTone(
-  rows: readonly FieldRow[],
-  fields?: readonly FieldResult[],
-  fieldDefs?: readonly FieldDef[],
-): FieldTone | undefined {
-  let worst: FieldTone | undefined;
-  const consider = (candidate: FieldTone | undefined) => {
-    if (!candidate) return;
-    if (!worst || TONE_SEVERITY[candidate] > TONE_SEVERITY[worst]) {
-      worst = candidate;
-    }
-  };
-
-  for (const row of rows) {
-    consider(row.tone);
-  }
-
-  if (fields && fieldDefs) {
-    for (const def of fieldDefs) {
-      if (def.type !== "percent") continue;
-      const field = fields.find((f) => f.name === def.name);
-      if (!field || field.status !== FieldStatus.OK) continue;
-      consider(fieldTone(def.name, field.value));
-    }
-  }
-
-  return worst;
-}
-
 export function computeProviderHealthTone(
   status: ReaderStatus,
   rows: readonly FieldRow[],
@@ -123,7 +94,7 @@ export function computeProviderHealthTone(
   if (status === ReaderStatus.DISABLED) return "idle";
   if (status === ReaderStatus.ERROR || status === ReaderStatus.UNAVAILABLE) return "error";
 
-  const worst = worstFieldTone(rows, fields, fieldDefs);
+  const worst = worstFieldTone(collectFieldTones(rows, fields, fieldDefs));
   if (worst === "critical") return "critical";
   if (status === ReaderStatus.PARTIAL) return "partial";
   if (worst === "warning") return "warning";
@@ -220,7 +191,7 @@ export function planStatusBar(options: PlanStatusBarOptions): StatusBarPlan {
     loading,
     loadingAccessibleText: tr("Loading provider limits…"),
     pills,
-    structureKey: structureKey([
+    structureKey: usageStructureKey([
       options.locale,
       loading ? "loading" : "ready",
       ...pills.map((p) => p.key),
@@ -434,7 +405,7 @@ export function planPanel(options: PlanPanelOptions): PanelPlan {
         emptyTitle: tr("No providers enabled"),
         emptySubtitle: tr("Enable a provider in Settings to monitor usage limits."),
         cards: [],
-        structureKey: structureKey([options.locale, "empty:disabled"]),
+        structureKey: usageStructureKey([options.locale, "empty:disabled"]),
       };
     }
 
@@ -445,7 +416,7 @@ export function planPanel(options: PlanPanelOptions): PanelPlan {
         : tr("Waiting for provider data…"),
       emptySubtitle: null,
       cards: [],
-      structureKey: structureKey([options.locale, "empty:loading"]),
+      structureKey: usageStructureKey([options.locale, "empty:loading"]),
     };
   }
 
@@ -454,6 +425,6 @@ export function planPanel(options: PlanPanelOptions): PanelPlan {
     emptyTitle: null,
     emptySubtitle: null,
     cards,
-    structureKey: structureKey([options.locale, ...cards.map((c) => c.key)]),
+    structureKey: usageStructureKey([options.locale, ...cards.map((c) => c.key)]),
   };
 }
