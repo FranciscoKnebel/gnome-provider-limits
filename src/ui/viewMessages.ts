@@ -2,40 +2,35 @@ import type { ProviderViewContext, ViewPhase } from "./viewContext.js";
 
 export type Translate = (text: string) => string;
 
-export interface EmptyPresentation {
+export interface TitlePresentation {
+  readonly kind: "title";
   readonly title: string;
   readonly subtitle: string;
+}
+
+export interface SpinnerPresentation {
+  readonly kind: "spinner";
   readonly placeholder: string;
   readonly accessibleText: string;
-  readonly showPlaceholder: boolean;
 }
+
+export type EmptyPresentation = TitlePresentation | SpinnerPresentation;
 
 /** The only contract a plan builder needs from the copy layer. */
 export type PhaseMessages = (phase: ViewPhase, t: Translate) => EmptyPresentation;
 
-const EMPTY_PRESENTATION: EmptyPresentation = {
-  title: "",
-  subtitle: "",
-  placeholder: "",
-  accessibleText: "",
-  showPlaceholder: false,
-};
+const NO_PRESENTATION: EmptyPresentation = { kind: "title", title: "", subtitle: "" };
 
-function withTitle(title: string, subtitle = ""): EmptyPresentation {
-  return { ...EMPTY_PRESENTATION, title, subtitle };
+function withTitle(title: string, subtitle = ""): TitlePresentation {
+  return { kind: "title", title, subtitle };
 }
 
-function withPlaceholder(accessibleText: string, placeholder = "…"): EmptyPresentation {
-  return {
-    ...EMPTY_PRESENTATION,
-    placeholder,
-    accessibleText,
-    showPlaceholder: true,
-  };
+function withPlaceholder(accessibleText: string, placeholder = "…"): SpinnerPresentation {
+  return { kind: "spinner", placeholder, accessibleText };
 }
 
 /** Canonical no-providers copy, shared by every surface that shows an empty state. */
-export function noProvidersPresentation(t: Translate): EmptyPresentation {
+export function noProvidersPresentation(t: Translate): TitlePresentation {
   return withTitle(
     t("No providers enabled"),
     t("Enable a provider in Settings to monitor usage limits."),
@@ -46,7 +41,7 @@ type TitleFactory = (t: Translate) => string;
 
 function cardsCopy(title: TitleFactory): PhaseMessages {
   return (phase, t) => {
-    if (phase === "ready") return EMPTY_PRESENTATION;
+    if (phase === "ready") return NO_PRESENTATION;
     if (phase === "empty") return noProvidersPresentation(t);
     return withTitle(title(t));
   };
@@ -59,7 +54,7 @@ export const cardsMessages: PhaseMessages = cardsCopy((t) => t("Waiting for prov
 export const cardsRunningMessages: PhaseMessages = cardsCopy((t) => t("Loading provider limits…"));
 
 export const matrixMessages: PhaseMessages = (phase, t) => {
-  if (phase === "ready") return EMPTY_PRESENTATION;
+  if (phase === "ready") return NO_PRESENTATION;
   return withTitle(
     phase === "empty"
       ? t("No providers enabled. Open Settings to enable a provider.")
@@ -67,28 +62,22 @@ export const matrixMessages: PhaseMessages = (phase, t) => {
   );
 };
 
-/** One canonical placeholder contract for gauges-style panel and status surfaces. */
-const gaugesPlaceholderMessages: PhaseMessages = (phase, t) => {
-  if (phase === "ready") return EMPTY_PRESENTATION;
+/** Panel gauges copy: the shell renders the title and subtitle as an empty-state row. */
+export const cockpitMessages: PhaseMessages = (phase, t) => {
+  if (phase === "ready") return NO_PRESENTATION;
   if (phase === "empty") return noProvidersPresentation(t);
-  return {
-    title: t("Reading provider limits…"),
-    subtitle: t("Waiting for initial refresh to complete."),
-    placeholder: "…",
-    accessibleText: t("Refreshing…"),
-    showPlaceholder: true,
-  };
+  return withTitle(t("Reading provider limits…"), t("Waiting for initial refresh to complete."));
 };
 
-export const cockpitMessages: PhaseMessages = gaugesPlaceholderMessages;
+/** Status gauges copy: only the spinner placeholder is rendered on this surface. */
+export const statusGaugesMessages: PhaseMessages = (phase, t) =>
+  phase === "loading" ? withPlaceholder(t("Refreshing…")) : NO_PRESENTATION;
 
 export const pillsMessages: PhaseMessages = (phase, t) =>
-  phase === "loading" ? withPlaceholder(t("Loading provider limits…")) : EMPTY_PRESENTATION;
-
-export const statusGaugesMessages: PhaseMessages = gaugesPlaceholderMessages;
+  phase === "loading" ? withPlaceholder(t("Loading provider limits…")) : NO_PRESENTATION;
 
 export const statusCompactMessages: PhaseMessages = (phase, t) =>
-  phase === "loading" ? withPlaceholder(t("Reading provider limits…")) : EMPTY_PRESENTATION;
+  phase === "loading" ? withPlaceholder(t("Reading provider limits…")) : NO_PRESENTATION;
 
 export type PhaseResult =
   | {
@@ -99,13 +88,7 @@ export type PhaseResult =
   | { readonly kind: "ready" };
 
 function hasNothingToShow(message: EmptyPresentation): boolean {
-  return (
-    message.title === "" &&
-    message.subtitle === "" &&
-    message.placeholder === "" &&
-    message.accessibleText === "" &&
-    !message.showPlaceholder
-  );
+  return message.kind === "title" && message.title === "" && message.subtitle === "";
 }
 
 /** The one phase-to-placeholder decision shared by every surface. */

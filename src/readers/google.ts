@@ -11,7 +11,6 @@ import {
   type Env,
 } from "../helpers/paths.js";
 import { BaseReader, FieldStatus, type FieldResult, type ReaderResult } from "./base.js";
-import { type FieldName } from "./fields.js";
 import {
   GOOGLE_CLOUDCODE_DAILY_URL,
   GOOGLE_OAUTH_TOKEN_URL,
@@ -529,8 +528,6 @@ export class GoogleReader extends BaseReader<"google"> {
     plan: string | null,
     endpointUsed: string,
   ): FieldResult[] {
-    const optionalField = <T>(name: FieldName<"google">, value: T | null) =>
-      this._makeField(name, value, value !== null ? FieldStatus.OK : FieldStatus.UNAVAILABLE);
     return [
       ...this._makeWindowFields(
         {
@@ -576,8 +573,8 @@ export class GoogleReader extends BaseReader<"google"> {
           reset_at: usage.thirdPartyWeekly?.resetAt ?? null,
         },
       ),
-      optionalField("limit_reached", usage.limitReached),
-      optionalField("plan_type", plan),
+      this._makeOptionalField("limit_reached", usage.limitReached),
+      this._makeOptionalField("plan_type", plan),
       this._makeField("usage_source", hostFromEndpoint(endpointUsed), FieldStatus.OK),
     ];
   }

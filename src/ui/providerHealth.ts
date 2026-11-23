@@ -220,10 +220,13 @@ export interface ProviderHealthData {
   readonly t: (s: string) => string;
 }
 
-export function deriveProviderHealth(
-  status: ReaderStatus,
-  { result, views, fieldDefs, t: tr }: ProviderHealthData,
-): ProviderHealth {
+export function deriveProviderHealth({
+  result,
+  views,
+  fieldDefs,
+  t: tr,
+}: ProviderHealthData): ProviderHealth {
+  const { status } = result;
   const worstTone = worstFieldTone(collectFieldTones(views, result.fields, fieldDefs));
   const hasUsableField =
     views.some((view) => view.hasValue) ||

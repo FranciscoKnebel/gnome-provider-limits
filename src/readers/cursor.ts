@@ -16,7 +16,6 @@ import {
   type CursorAuth,
   type CursorUsage,
 } from "./cursorParser.js";
-import { type FieldName } from "./fields.js";
 
 const CURSOR_EXCHANGE_URL = `${CURSOR_BACKEND_URL}/auth/exchange_user_api_key`;
 const CURSOR_USAGE_URL = `${CURSOR_BACKEND_URL}/aiserver.v1.DashboardService/GetCurrentPeriodUsage`;
@@ -289,8 +288,6 @@ export class CursorReader extends BaseReader<"cursor"> {
     plan: string | null,
     resetAtCredits: number | null,
   ): FieldResult[] {
-    const optionalField = <T>(name: FieldName<"cursor">, value: T | null) =>
-      this._makeField(name, value, value !== null ? FieldStatus.OK : FieldStatus.UNAVAILABLE);
     return [
       ...this._makeWindowFields(
         {
@@ -313,10 +310,10 @@ export class CursorReader extends BaseReader<"cursor"> {
         usage.usedPercentApi,
         FieldStatus.OK,
       ),
-      optionalField("remaining_credits", usage.remainingCredits),
-      optionalField("spend_limit_used", usage.spendLimitUsed),
-      optionalField("limit_reached", usage.limitReached),
-      optionalField("plan_type", plan),
+      this._makeOptionalField("remaining_credits", usage.remainingCredits),
+      this._makeOptionalField("spend_limit_used", usage.spendLimitUsed),
+      this._makeOptionalField("limit_reached", usage.limitReached),
+      this._makeOptionalField("plan_type", plan),
       this._makeField("usage_source", "api2.cursor.sh", FieldStatus.OK),
     ];
   }

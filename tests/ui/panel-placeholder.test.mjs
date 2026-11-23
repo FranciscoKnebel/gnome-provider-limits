@@ -29,7 +29,11 @@ function shellStub() {
 test("addPlaceholderIfNeeded clears the body and builds the shared empty-state row", () => {
   const add = helperFor(() => ({
     kind: "placeholder",
-    message: { title: "No providers enabled", subtitle: "Enable a provider in Settings." },
+    message: {
+      kind: "title",
+      title: "No providers enabled",
+      subtitle: "Enable a provider in Settings.",
+    },
   }));
   const shell = shellStub();
 
@@ -41,13 +45,16 @@ test("addPlaceholderIfNeeded clears the body and builds the shared empty-state r
 test("addPlaceholderIfNeeded omits empty subtitles and title-less placeholders", () => {
   const noSubtitle = helperFor(() => ({
     kind: "placeholder",
-    message: { title: "Reading provider limits…", subtitle: "" },
+    message: { kind: "title", title: "Reading provider limits…", subtitle: "" },
   }));
   const shell = shellStub();
   assert.equal(noSubtitle(shell, {}, messages()), true);
   assert.deepEqual(shell.calls.rows, [["Reading provider limits…", undefined]]);
 
-  const titleless = helperFor(() => ({ kind: "placeholder", message: { title: "" } }));
+  const titleless = helperFor(() => ({
+    kind: "placeholder",
+    message: { kind: "spinner", placeholder: "…", accessibleText: "Refreshing…" },
+  }));
   const shell2 = shellStub();
   assert.equal(titleless(shell2, {}, messages()), false);
   assert.deepEqual(shell2.calls.rows, []);

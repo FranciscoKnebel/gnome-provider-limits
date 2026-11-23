@@ -235,7 +235,7 @@ describe("providerHealth pure helpers", () => {
               pathsTried: [],
               fields: [],
             };
-            const health = deriveProviderHealth(status, {
+            const health = deriveProviderHealth({
               result,
               views: [viewFor(tone, hasUsableField)],
               fieldDefs: [],
@@ -282,7 +282,7 @@ describe("providerHealth pure helpers", () => {
       locale: "en",
       t: (text) => text,
     });
-    const health = deriveProviderHealth(result.status, {
+    const health = deriveProviderHealth({
       result,
       views,
       fieldDefs: CODEX_FIELDS,
@@ -300,7 +300,7 @@ describe("providerHealth pure helpers", () => {
     expect(health.stateAccessibleText).toBe("T:Cached");
 
     const errorResult: ReaderResult = { ...result, status: ReaderStatus.ERROR, pathsTried: [] };
-    const errorHealth = deriveProviderHealth(errorResult.status, {
+    const errorHealth = deriveProviderHealth({
       result: errorResult,
       views,
       fieldDefs: CODEX_FIELDS,

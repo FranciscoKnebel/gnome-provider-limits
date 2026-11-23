@@ -119,19 +119,20 @@ export class CardsPanelSection extends PanelStyleSection {
 
     card.add_child(header);
 
-    if (facts.diagnostic.bannerKind !== null && facts.diagnostic.bannerText !== null) {
+    const diagnostic = facts.diagnostic;
+    if (diagnostic.kind !== null && diagnostic.text !== null) {
       const bannerBox = new St.BoxLayout({
-        style_class: bannerStyleClass(facts.diagnostic.bannerKind),
+        style_class: bannerStyleClass(diagnostic.kind),
         x_expand: true,
       });
       const bannerLabel = new St.Label({
-        text: facts.diagnostic.bannerText,
+        text: diagnostic.text,
         style_class: "pl-diagnostic-text",
         x_expand: true,
         x_align: Clutter.ActorAlign.START,
       });
       bannerLabel.clutter_text.line_wrap = true;
-      bannerLabel.accessible_name = facts.diagnostic.bannerText;
+      bannerLabel.accessible_name = diagnostic.text;
       bannerBox.add_child(bannerLabel);
       card.add_child(bannerBox);
     }

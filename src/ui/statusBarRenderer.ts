@@ -5,9 +5,9 @@ import type { ProviderDisplayModel } from "./displayModel.js";
 import type { ProviderViewContext } from "./viewContext.js";
 import {
   phaseResult,
-  type EmptyPresentation,
   type PhaseMessages,
   type PhaseResult,
+  type SpinnerPresentation,
 } from "./viewMessages.js";
 
 /** The lifecycle every status bar section renderer implements. */
@@ -36,9 +36,9 @@ export abstract class StatusBarRenderer implements StatusBarSectionRenderer {
   /** Renders a placeholder when present. Acts as a guard so callers can fall through to segments. */
   protected renderPlaceholder(
     phase: PhaseResult,
-    factory: (message: EmptyPresentation) => St.Widget,
+    factory: (message: SpinnerPresentation) => St.Widget,
   ): boolean {
-    if (phase.kind !== "placeholder" || !phase.message.showPlaceholder) return false;
+    if (phase.kind !== "placeholder" || phase.message.kind !== "spinner") return false;
     this.parent.add_child(factory(phase.message));
     return true;
   }
@@ -47,7 +47,7 @@ export abstract class StatusBarRenderer implements StatusBarSectionRenderer {
   protected renderPlaceholderFor(
     context: ProviderViewContext,
     messages: PhaseMessages,
-    factory: (message: EmptyPresentation) => St.Widget,
+    factory: (message: SpinnerPresentation) => St.Widget,
   ): boolean {
     return this.renderPlaceholder(phaseResult(context, messages), factory);
   }

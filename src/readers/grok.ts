@@ -5,7 +5,6 @@ import { gettext as _ } from "../helpers/gettext.js";
 import { HttpClient, TokenError } from "../helpers/http.js";
 import { logWarn } from "../helpers/log.js";
 import { BaseReader, FieldStatus, type FieldResult, type ReaderResult } from "./base.js";
-import { type FieldName } from "./fields.js";
 import { type GrokUsage, normalizeGrokUsagePayload, parseGrokAuth } from "./grokParser.js";
 
 const GROK_BASE_URL = "https://cli-chat-proxy.grok.com/v1";
@@ -110,8 +109,6 @@ export class GrokReader extends BaseReader<"grok"> {
   }
 
   private _fieldsFromUsage(usage: GrokUsage, plan: string | null): FieldResult[] {
-    const optionalField = (name: FieldName<"grok">, value: unknown) =>
-      this._makeField(name, value, value !== null ? FieldStatus.OK : FieldStatus.UNAVAILABLE);
     return [
       ...this._makeWindowFields(
         {
@@ -124,9 +121,9 @@ export class GrokReader extends BaseReader<"grok"> {
           reset_at: usage.resetAt,
         },
       ),
-      optionalField("prepaid_balance", usage.prepaidBalance),
-      optionalField("unified_billing", usage.unifiedBilling),
-      optionalField("plan_type", plan),
+      this._makeOptionalField("prepaid_balance", usage.prepaidBalance),
+      this._makeOptionalField("unified_billing", usage.unifiedBilling),
+      this._makeOptionalField("plan_type", plan),
       this._makeField("usage_source", "cli-chat-proxy.grok.com", FieldStatus.OK),
     ];
   }

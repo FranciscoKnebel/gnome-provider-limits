@@ -5,7 +5,7 @@ import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { bindActivation } from "../helpers/keyboard.js";
 import { ReaderStatus } from "../readers/base.js";
-import type { ProviderDisplayModel } from "./displayModel.js";
+import { diagnosticMessage, type ProviderDisplayModel } from "./displayModel.js";
 import { createErrorLabel } from "./errorLabel.js";
 import { clampFillRatio } from "./fieldRows.js";
 import type { FieldView, UsageFacts } from "./fieldViews.js";
@@ -131,7 +131,12 @@ export class CompactPanelSection extends PanelStyleSection {
     const statusBadge = facts.badges.status;
     const fiveSegmentBar = header.fillRatio !== null ? formatSegmentedBar(header.fillRatio, 5) : "";
     const headerTone = header.tone;
-    const showRows = facts.diagnostic.errorText === null;
+    const diagnostic = facts.diagnostic;
+    const errorText =
+      diagnostic.kind === "error" ? diagnosticMessage(model.result, diagnostic) : null;
+    const detailText =
+      diagnostic.kind === "warning" ? diagnosticMessage(model.result, diagnostic) : null;
+    const showRows = errorText === null;
 
     const accessibleParts = [model.displayName];
     if (statusBadge) accessibleParts.push(statusBadge);
@@ -265,25 +270,25 @@ export class CompactPanelSection extends PanelStyleSection {
       style_class: "provider-limits-matrix-table",
     });
 
-    if (facts.diagnostic.detailText !== null) {
+    if (detailText !== null) {
       const detailLabel = new St.Label({
-        text: facts.diagnostic.detailText,
+        text: detailText,
         style_class: "provider-limits-callout-partial",
         x_expand: true,
         x_align: Clutter.ActorAlign.START,
       });
       detailLabel.clutter_text.line_wrap = true;
-      detailLabel.accessible_name = facts.diagnostic.detailText;
+      detailLabel.accessible_name = detailText;
       table.add_child(detailLabel);
     }
 
-    if (facts.diagnostic.errorText !== null) {
+    if (errorText !== null) {
       const errorLabel = createErrorLabel(
-        facts.diagnostic.errorText,
+        errorText,
         "provider-limits-callout-error provider-limits-error",
       );
       errorLabel.x_align = Clutter.ActorAlign.START;
-      errorLabel.accessible_name = facts.diagnostic.errorText;
+      errorLabel.accessible_name = errorText;
       table.add_child(errorLabel);
     }
 

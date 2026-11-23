@@ -1,6 +1,6 @@
 import type { ProviderName } from "../constants.js";
 import { GAUGE_END_ANGLE, emptyMeter, gaugeArc } from "./cairoDrawing.js";
-import type { ProviderDisplayModel } from "./displayModel.js";
+import { diagnosticMessage, type ProviderDisplayModel } from "./displayModel.js";
 import type { FieldTone } from "./fieldRows.js";
 import type { FieldView } from "./fieldViews.js";
 import type { GaugeSpec, GaugeTone, RadialGaugeGeometry } from "./gaugeTypes.js";
@@ -76,7 +76,7 @@ export function buildOverviewRowModel(model: ProviderDisplayModel): OverviewRowM
   const meter = facts.meter;
 
   if (badgeKind === "error") {
-    const errSummary = facts.diagnostic.errorText ?? "Error";
+    const errSummary = diagnosticMessage(model.result, facts.diagnostic) ?? "Error";
     return {
       provider,
       displayName,

@@ -32,6 +32,7 @@ const ALL_SURFACES: readonly Surface[] = [
   "gauges",
   "compact",
 ];
+const NO_PRESENTATION = { kind: "title", title: "", subtitle: "" } as const;
 
 function messagesFor(surface: Surface): PhaseMessages {
   return MESSAGES[surface];
@@ -54,8 +55,7 @@ function view(phase: ViewPhase): ProviderViewContext {
 }
 
 describe("viewMessages", () => {
-  it("shares one canonical gauges placeholder and one no-providers copy", () => {
-    expect(cockpitMessages).toBe(statusGaugesMessages);
+  it("shares one canonical no-providers copy across panel surfaces", () => {
     expect(cockpitMessages("empty", (text) => text)).toEqual(
       noProvidersPresentation((text) => text),
     );
@@ -64,75 +64,89 @@ describe("viewMessages", () => {
 
   it("returns one empty presentation for ready on every surface", () => {
     for (const surface of ALL_SURFACES) {
-      expect(message("ready", surface)).toEqual({
-        title: "",
-        subtitle: "",
-        placeholder: "",
-        accessibleText: "",
-        showPlaceholder: false,
-      });
+      expect(message("ready", surface)).toEqual(NO_PRESENTATION);
     }
   });
 
   it("maps cards empty and loading messages", () => {
     const empty = message("empty", "cards");
-    expect(empty.title).toBe("No providers enabled");
-    expect(empty.subtitle).toBe("Enable a provider in Settings to monitor usage limits.");
-    expect(empty.showPlaceholder).toBeFalse();
-    expect(message("loading", "cards").title).toBe("Waiting for provider data…");
+    expect(empty.kind).toBe("title");
+    if (empty.kind === "title") {
+      expect(empty.title).toBe("No providers enabled");
+      expect(empty.subtitle).toBe("Enable a provider in Settings to monitor usage limits.");
+    }
+    const loading = message("loading", "cards");
+    expect(loading.kind).toBe("title");
+    if (loading.kind === "title") expect(loading.title).toBe("Waiting for provider data…");
   });
 
   it("keeps the cards-only running copy outside the shared contract", () => {
-    expect(cardsRunningMessages("loading", (text) => text).title).toBe("Loading provider limits…");
+    const running = cardsRunningMessages("loading", (text) => text);
+    expect(running.kind).toBe("title");
+    if (running.kind === "title") expect(running.title).toBe("Loading provider limits…");
     expect(cardsRunningMessages("empty", (text) => text)).toEqual(
       cardsMessages("empty", (text) => text),
     );
   });
 
   it("maps matrix empty and loading messages", () => {
-    expect(message("empty", "matrix").title).toBe(
-      "No providers enabled. Open Settings to enable a provider.",
-    );
-    expect(message("loading", "matrix").title).toBe("Reading provider limits…");
+    const empty = message("empty", "matrix");
+    const loading = message("loading", "matrix");
+    expect(empty.kind).toBe("title");
+    expect(loading.kind).toBe("title");
+    if (empty.kind === "title") {
+      expect(empty.title).toBe("No providers enabled. Open Settings to enable a provider.");
+    }
+    if (loading.kind === "title") expect(loading.title).toBe("Reading provider limits…");
   });
 
   it("maps cockpit panel empty and loading messages", () => {
     const empty = message("empty", "cockpit");
-    expect(empty.title).toBe("No providers enabled");
-    expect(empty.subtitle).toBe("Enable a provider in Settings to monitor usage limits.");
+    expect(empty.kind).toBe("title");
+    if (empty.kind === "title") {
+      expect(empty.title).toBe("No providers enabled");
+      expect(empty.subtitle).toBe("Enable a provider in Settings to monitor usage limits.");
+    }
     const loading = message("loading", "cockpit");
-    expect(loading.title).toBe("Reading provider limits…");
-    expect(loading.subtitle).toBe("Waiting for initial refresh to complete.");
-    expect(loading.placeholder).toBe("…");
-    expect(loading.accessibleText).toBe("Refreshing…");
-    expect(loading.showPlaceholder).toBeTrue();
+    expect(loading.kind).toBe("title");
+    if (loading.kind === "title") {
+      expect(loading.title).toBe("Reading provider limits…");
+      expect(loading.subtitle).toBe("Waiting for initial refresh to complete.");
+    }
   });
 
-  it("maps status bar placeholder surfaces without leaking panel text", () => {
+  it("maps status bar spinner surfaces without leaking panel text", () => {
     const pills = message("loading", "pills");
-    expect(pills.placeholder).toBe("…");
-    expect(pills.accessibleText).toBe("Loading provider limits…");
-    expect(pills.showPlaceholder).toBeTrue();
-    expect(message("empty", "pills").showPlaceholder).toBeFalse();
+    expect(pills.kind).toBe("spinner");
+    if (pills.kind === "spinner") {
+      expect(pills.placeholder).toBe("…");
+      expect(pills.accessibleText).toBe("Loading provider limits…");
+    }
+    expect(message("empty", "pills")).toEqual(NO_PRESENTATION);
 
     const gauges = message("loading", "gauges");
-    expect(gauges.title).toBe("Reading provider limits…");
-    expect(gauges.subtitle).toBe("Waiting for initial refresh to complete.");
-    expect(gauges.placeholder).toBe("…");
-    expect(gauges.accessibleText).toBe("Refreshing…");
-    expect(gauges.showPlaceholder).toBeTrue();
-    expect(message("empty", "gauges").showPlaceholder).toBeFalse();
+    expect(gauges.kind).toBe("spinner");
+    if (gauges.kind === "spinner") {
+      expect(gauges.placeholder).toBe("…");
+      expect(gauges.accessibleText).toBe("Refreshing…");
+    }
+    expect(message("empty", "gauges")).toEqual(NO_PRESENTATION);
 
     const compact = message("loading", "compact");
-    expect(compact.placeholder).toBe("…");
-    expect(compact.accessibleText).toBe("Reading provider limits…");
-    expect(compact.showPlaceholder).toBeTrue();
-    expect(message("empty", "compact").showPlaceholder).toBeFalse();
+    expect(compact.kind).toBe("spinner");
+    if (compact.kind === "spinner") {
+      expect(compact.placeholder).toBe("…");
+      expect(compact.accessibleText).toBe("Reading provider limits…");
+    }
+    expect(message("empty", "compact")).toEqual(NO_PRESENTATION);
   });
 
   it("translates mapped text through the supplied translator", () => {
     const result = messagesFor("matrix")("empty", (text) => `T:${text}`);
-    expect(result.title).toBe("T:No providers enabled. Open Settings to enable a provider.");
+    expect(result.kind).toBe("title");
+    if (result.kind === "title") {
+      expect(result.title).toBe("T:No providers enabled. Open Settings to enable a provider.");
+    }
   });
 });
 
@@ -144,8 +158,9 @@ describe("phaseResult", () => {
   });
 
   it("returns ready for status surfaces with an empty view and no words to show", () => {
-    expect(phaseResult(view("empty"), messagesFor("pills"))).toEqual({ kind: "ready" });
-    expect(phaseResult(view("empty"), messagesFor("compact"))).toEqual({ kind: "ready" });
+    for (const surface of ["pills", "gauges", "compact"] as const) {
+      expect(phaseResult(view("empty"), messagesFor(surface))).toEqual({ kind: "ready" });
+    }
   });
 
   it("returns a typed placeholder carrying the derived message for every loading surface", () => {

@@ -95,6 +95,13 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
     return { name, value: value ?? null, status, error: error ?? null };
   }
 
+  protected _makeOptionalField<T, Name extends FieldName<P>>(
+    name: Name,
+    value: T | null,
+  ): FieldResult<T, Name> {
+    return this._makeField(name, value, value !== null ? FieldStatus.OK : FieldStatus.UNAVAILABLE);
+  }
+
   protected _makePercentFieldPair(
     names: PercentFieldNames<P>,
     usedPct: number | null | undefined,

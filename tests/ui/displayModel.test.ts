@@ -2,7 +2,7 @@ import { providerRecord } from "../../src/constants.js";
 import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
 import type { FieldDef, ReaderResult } from "../../src/readers/base.js";
 import { CODEX_FIELDS, PROVIDER_FIELDS } from "../../src/readers/fields.js";
-import { deriveDisplayModel } from "../../src/ui/displayModel.js";
+import { deriveDisplayModel, diagnosticMessage } from "../../src/ui/displayModel.js";
 import { consumedResetNames, resetDetailText, resetSlotText } from "../../src/ui/resetModel.js";
 import { viewContextFromFixture, type ViewFixtureInput } from "./contextFixture.js";
 
@@ -43,7 +43,7 @@ describe("deriveDisplayModel", () => {
     expect(model!.facts.badges.cardText).toBe("Live");
     expect(model!.facts.health.tone).toBe("warning");
     expect(model!.facts.meter.ratio).toBeCloseTo(0.64, 5);
-    expect(model!.facts.diagnostic.bannerKind).toBeNull();
+    expect(model!.facts.diagnostic.kind).toBeNull();
   });
 
   it("returns nothing for a disabled result, matching the context loop", () => {
@@ -161,44 +161,50 @@ describe("deriveDisplayModel owns diagnostics and reset pairing", () => {
     ]);
   });
 
-  it("derives the panel callout with the same diagnostic classification", () => {
-    const cached = modelFor(
-      {
-        ...result,
-        status: ReaderStatus.PARTIAL,
-        fromCache: true,
-        pathsTried: ["oauth-api", "last-known-good"],
-        lastError: "HTTP 503",
-      },
-      [],
-    );
-    expect(cached.facts.callout).toEqual({
+  it("derives one diagnostic selected by every callout renderer", () => {
+    const cachedResult: ReaderResult = {
+      ...result,
+      status: ReaderStatus.PARTIAL,
+      fromCache: true,
+      pathsTried: ["oauth-api", "last-known-good"],
+      lastError: "HTTP 503",
+    };
+    const cached = modelFor(cachedResult, []);
+    expect(cached.facts.diagnostic).toEqual({
       kind: "warning",
       badge: "Cached",
       text: "HTTP 503",
     });
-    expect(cached.facts.diagnostic.bannerKind).toBe("warning");
+    expect(diagnosticMessage(cachedResult, cached.facts.diagnostic)).toBe("HTTP 503");
 
-    const partial = modelFor(
-      { ...result, status: ReaderStatus.PARTIAL, lastError: "CLI failed" },
-      [],
-    );
-    expect(partial.facts.callout?.badge).toBe("Partial");
+    const partialResult: ReaderResult = {
+      ...result,
+      status: ReaderStatus.PARTIAL,
+      lastError: "CLI failed",
+    };
+    const partial = modelFor(partialResult, []);
+    expect(partial.facts.diagnostic.badge).toBe("Partial");
 
-    const error = modelFor({ ...result, status: ReaderStatus.ERROR, lastError: "Login" }, []);
+    const errorResult: ReaderResult = { ...result, status: ReaderStatus.ERROR, lastError: "Login" };
+    const error = modelFor(errorResult, []);
     expect(error.result.status).toBe(ReaderStatus.ERROR);
-    expect(error.facts.callout).toEqual({ kind: "error", badge: "Error", text: "Login" });
+    expect(error.facts.diagnostic).toEqual({ kind: "error", badge: "Error", text: "Login" });
 
-    const unavailable = modelFor({ ...result, status: ReaderStatus.UNAVAILABLE }, []);
-    expect(unavailable.facts.diagnostic.bannerText).toBe("Unavailable");
-    expect(unavailable.facts.callout).toEqual({
+    const unavailableResult: ReaderResult = {
+      ...result,
+      status: ReaderStatus.UNAVAILABLE,
+    };
+    const unavailable = modelFor(unavailableResult, []);
+    expect(unavailable.facts.diagnostic).toEqual({
       kind: "error",
       badge: "Error",
-      text: "Error",
+      text: "Unavailable",
     });
+    expect(diagnosticMessage(unavailableResult, unavailable.facts.diagnostic)).toBe("Error");
 
     const healthy = modelFor(result, []);
-    expect(healthy.facts.callout).toBeNull();
+    expect(healthy.facts.diagnostic.kind).toBeNull();
+    expect(diagnosticMessage(result, healthy.facts.diagnostic)).toBeNull();
     expect(healthy.facts.lastUpdatedText).toContain("Last updated:");
   });
 });

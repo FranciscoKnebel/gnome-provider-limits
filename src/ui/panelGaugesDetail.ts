@@ -5,7 +5,7 @@ import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { connectRepaint, drawRadialGauge } from "./cairoDrawing.js";
 import { chunkGauges, chunkPairs, computeGaugeGeometry } from "./cockpitModel.js";
-import type { DisplayCallout, ProviderDisplayModel } from "./displayModel.js";
+import { diagnosticMessage, type Diagnostic, type ProviderDisplayModel } from "./displayModel.js";
 import { createErrorLabel } from "./errorLabel.js";
 import type { FieldView } from "./fieldViews.js";
 import type { RadialGaugeGeometry } from "./gaugeTypes.js";
@@ -33,7 +33,8 @@ interface GaugeRenderItem {
 }
 
 interface DetailRenderPlan {
-  readonly callout: DisplayCallout | null;
+  readonly diagnostic: Diagnostic;
+  readonly calloutText: string | null;
   readonly isError: boolean;
   readonly gaugeRows: readonly (readonly GaugeRenderItem[])[];
   readonly gaugeCount: number;
@@ -69,7 +70,8 @@ export class DetailRenderer {
     const bentoViews = isError ? [] : facts.views.keyValue;
 
     return {
-      callout: facts.callout,
+      diagnostic: facts.diagnostic,
+      calloutText: diagnosticMessage(model.result, facts.diagnostic),
       isError,
       gaugeRows: chunkGauges(gauges),
       gaugeCount: gauges.length,
@@ -86,35 +88,43 @@ export class DetailRenderer {
   }
 
   private _build(plan: DetailRenderPlan): void {
-    const { callout, isError, gaugeRows, gaugeCount, bentoRows, bentoCount, lastUpdatedText } =
-      plan;
+    const {
+      diagnostic,
+      calloutText: message,
+      isError,
+      gaugeRows,
+      gaugeCount,
+      bentoRows,
+      bentoCount,
+      lastUpdatedText,
+    } = plan;
 
-    if (callout !== null) {
+    if (diagnostic.kind !== null && diagnostic.badge !== null && message !== null) {
       const row = this._addRow(null);
       const box = new St.BoxLayout({
         vertical: true,
         x_expand: true,
         style_class:
-          callout.kind === "error"
+          diagnostic.kind === "error"
             ? "pl-callout pl-callout-error"
             : "pl-callout pl-callout-warning",
       });
 
       const calloutBadge = new St.Label({
-        text: callout.badge,
+        text: diagnostic.badge,
         style_class:
-          callout.kind === "error" ? "pl-badge pl-badge-error" : "pl-badge pl-badge-cached",
+          diagnostic.kind === "error" ? "pl-badge pl-badge-error" : "pl-badge pl-badge-cached",
         x_align: Clutter.ActorAlign.START,
       });
 
       const calloutText = new St.Label({
-        text: callout.text,
-        style_class: callout.kind === "error" ? "provider-limits-error" : "provider-limits-dim",
+        text: message,
+        style_class: diagnostic.kind === "error" ? "provider-limits-error" : "provider-limits-dim",
         x_expand: true,
         x_align: Clutter.ActorAlign.START,
       });
       calloutText.clutter_text.line_wrap = true;
-      calloutText.accessible_name = `${callout.badge}: ${callout.text}`;
+      calloutText.accessible_name = `${diagnostic.badge}: ${message}`;
 
       box.add_child(calloutBadge);
       box.add_child(calloutText);

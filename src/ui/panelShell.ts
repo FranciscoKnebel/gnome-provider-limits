@@ -30,7 +30,7 @@ export function addPlaceholderIfNeeded(
 ): boolean {
   shell.clearBody();
   const phase = phaseResult(view, messages);
-  if (phase.kind !== "placeholder" || !phase.message.title) return false;
+  if (phase.kind !== "placeholder" || phase.message.kind !== "title") return false;
   shell.addEmptyStateRow(phase.message.title, phase.message.subtitle || undefined);
   return true;
 }

@@ -32,10 +32,11 @@ function providerModel(provider) {
     provider,
     displayName: provider,
     status: "ok",
+    result: { lastError: null },
     facts: {
       badges: { status: "" },
       usage: { header: { fillRatio: 0.5, tone: "ok", summaryText: "50%" } },
-      diagnostic: { errorText: null, detailText: null },
+      diagnostic: { kind: null, text: null, badge: null },
       panelViews: [],
       lastUpdatedText: null,
     },
@@ -93,6 +94,7 @@ function loadCompact() {
     addPlaceholderIfNeeded,
     matrixMessages: () => ({}),
     createErrorLabel: (text, styleClass) => new Label({ text, style_class: styleClass }),
+    diagnosticMessage: (_result, diagnostic) => diagnostic.text,
   });
   return { ...api, activations };
 }
