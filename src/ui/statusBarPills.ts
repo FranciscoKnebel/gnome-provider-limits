@@ -61,7 +61,6 @@ function planPills(context: ProviderViewContext): PillsPlan {
   const message = viewMessages({
     phase: context.phase,
     surface: "pills",
-    locale: context.locale,
     t: context.t,
     running: false,
   });

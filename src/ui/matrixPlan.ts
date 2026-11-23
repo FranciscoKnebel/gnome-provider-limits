@@ -4,7 +4,6 @@ import type { FieldCategory } from "../readers/fields.js";
 import { deriveDisplayModels } from "./displayModel.js";
 import type { ProviderDisplayViews } from "./displayModel.js";
 import type { FieldTone } from "./fieldRows.js";
-import { attentionFromTones, type ProviderAttention } from "./providerHealth.js";
 import { structureKey } from "./renderStructure.js";
 import { clampFillRatio } from "./usageSnapshot.js";
 import type { ProviderViewContext, ViewPhase } from "./viewContext.js";
@@ -97,13 +96,6 @@ export function toggleAllProvidersExpanded(
   return next;
 }
 
-export function resolveStatusAttention(
-  status: ReaderStatus,
-  tones: readonly (FieldTone | undefined)[],
-): ProviderAttention {
-  return attentionFromTones(status, tones);
-}
-
 function groupsFromViews(views: ProviderDisplayViews, tr: (s: string) => string): MatrixRowGroup[] {
   const toDetailRow = (view: ProviderDisplayViews["limit"][number]): MatrixDetailRow => ({
     name: view.name,
@@ -160,7 +152,6 @@ export function planPanelMatrix(
     const message = viewMessages({
       phase: context.phase,
       surface: "matrix",
-      locale: context.locale,
       t: tr,
       running: false,
     });

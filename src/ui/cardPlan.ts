@@ -177,7 +177,6 @@ export function planPanel(context: ProviderViewContext, running: boolean): Panel
   const message = viewMessages({
     phase: context.phase,
     surface: "cards",
-    locale: context.locale,
     t: tr,
     running,
   });

@@ -150,7 +150,8 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
     });
 
     const footer = shell.footer;
-    assert.equal(footer.running, false, `${style}: footer owns its initial running state`);
+    assert.equal(footer.spinner.playing, false, `${style}: spinner idle initially`);
+    assert.equal(footer.refreshControl.reactive, true, `${style}: refresh enabled initially`);
 
     if (style === "compact") {
       assert.equal(shell.items[0], footer.row, `${style}: toolbar stays above the scroll area`);
@@ -254,7 +255,12 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
     );
     assert.equal(shell.footer.settingsControl, persistent.settings, `${style}: settings persists`);
     assert.equal(shell.footer.spinner.playing, true, `${style}: spinner plays while running`);
-    assert.equal(shell.footer.running, true, `${style}: footer owns its running state`);
+    assert.equal(shell.footer.spinner.visible, true, `${style}: spinner visible while running`);
+    assert.equal(
+      shell.footer.refreshControl.reactive,
+      false,
+      `${style}: refresh disabled while running`,
+    );
     assert.equal(
       shell.footer.refreshControl.styleClasses.has("pl-footer-action-disabled"),
       style === "cards",
@@ -269,7 +275,8 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
     footer.refreshControl.fire(pointerSignal);
     assert.equal(refreshes, 1, `${style}: refresh stays disabled while running`);
     shell.setRunning(false);
-    assert.equal(footer.running, false, `${style}: footer running state clears`);
+    assert.equal(footer.spinner.playing, false, `${style}: spinner stops when running clears`);
+    assert.equal(footer.spinner.visible, false, `${style}: spinner hidden when running clears`);
     footer.refreshControl.fire(pointerSignal);
     assert.equal(refreshes, 2, `${style}: refresh re-enabled after running`);
 

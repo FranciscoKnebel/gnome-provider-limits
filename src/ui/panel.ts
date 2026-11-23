@@ -27,7 +27,6 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
   private readonly _sections: StyleDispatch<PanelStyle, () => PanelStyleSection>;
   private _currentStyle: PanelStyle | null = null;
   private _currentSection: PanelStyleSection | null = null;
-  private _running = false;
 
   constructor(
     settings: Gio.Settings,
@@ -90,11 +89,9 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
 
   private _switchSection(): PanelStyleSection {
     const newStyle = this._resolveStyle();
+    let running = false;
     if (this._currentSection) {
-      const oldShell = this._currentSection.shell;
-      if (typeof this.box?.remove_child === "function" && oldShell.actor) {
-        this.box.remove_child(oldShell.actor);
-      }
+      running = this._currentSection.shell.isRunning();
       this._currentSection.destroy();
       this._currentSection = null;
     }
@@ -103,7 +100,7 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     const section = this._sections[newStyle]();
     this._currentSection = section;
     this.addMenuItem(section.shell);
-    section.setRunning(this._running);
+    section.setRunning(running);
     return section;
   }
 
@@ -126,7 +123,6 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
   }
 
   setRunning(running: boolean): void {
-    this._running = running;
     this._currentSection?.setRunning(running);
   }
 

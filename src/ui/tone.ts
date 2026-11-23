@@ -1,5 +1,5 @@
 import type { FieldTone } from "./fieldRows.js";
-import type { ProviderAttention, ProviderTone } from "./providerTypes.js";
+import type { ProviderAttention, ProviderTone } from "./providerHealth.js";
 
 export interface ToneClassTarget {
   add_style_class_name(styleClass: string): void;

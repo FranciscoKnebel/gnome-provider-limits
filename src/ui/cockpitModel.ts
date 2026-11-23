@@ -4,7 +4,7 @@ import type { FieldDef, ReaderResult } from "../readers/base.js";
 import { GAUGE_END_ANGLE, GAUGE_START_ANGLE, GAUGE_SWEEP_ANGLE, TONE_RGB } from "./cairoDrawing.js";
 import { deriveDisplayModel } from "./displayModel.js";
 import { fieldTone, type FieldTone } from "./fieldRows.js";
-import type { GaugeGeometry, GaugeTone, MicroMeterSpec, RgbTuple } from "./gaugeTypes.js";
+import type { GaugeGeometry, GaugeTone, MicroMeterSpec } from "./gaugeTypes.js";
 import type { Presentation } from "./providerHealth.js";
 import { structureKey } from "./renderStructure.js";
 import { clampRatio } from "./usageSnapshot.js";
@@ -50,10 +50,6 @@ export interface OverviewRowModel {
   readonly secondaryText: string | null;
   readonly tone: FieldTone | undefined;
   readonly accessibleText: string;
-}
-
-export function toneToRgb(tone: GaugeTone): RgbTuple {
-  return TONE_RGB[tone];
 }
 
 export function computeGaugeGeometry(

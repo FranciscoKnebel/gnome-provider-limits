@@ -9,18 +9,18 @@ import {
   PROVIDER_FIELDS,
 } from "../../src/readers/fields.js";
 import { computeBarWidthPx, planPanel, planProviderCard } from "../../src/ui/cardPlan.js";
+import { deriveDisplayModels } from "../../src/ui/displayModel.js";
 import { clampPercent, getFieldRows } from "../../src/ui/fieldRows.js";
-import type { StatusBarProviderSegment } from "../../src/ui/fieldViews.js";
+import { deriveFieldViews } from "../../src/ui/fieldViews.js";
+import type { ProviderTone } from "../../src/ui/providerHealth.js";
 import {
-  deriveDisplayModels,
-  deriveFieldViews,
   deriveProviderHealth,
   deriveState,
-  deriveStatusBarSegments,
   deriveTone,
   worstFieldTone,
-} from "../../src/ui/fieldViews.js";
-import type { ProviderTone } from "../../src/ui/providerTypes.js";
+} from "../../src/ui/providerHealth.js";
+import type { StatusBarProviderSegment } from "../../src/ui/statusBarSegments.js";
+import { deriveStatusBarSegments } from "../../src/ui/statusBarSegments.js";
 import { applyHealthToneClass, applyToneClass } from "../../src/ui/tone.js";
 import {
   providerRecord,

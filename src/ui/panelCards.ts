@@ -70,7 +70,6 @@ export class CardsPanelSection
   extends PlanRenderer<CardsRenderPlan, PanelRenderContext>
   implements PanelStyleSection
 {
-  private _running = false;
   private _cards: CardWidgets[] = [];
   private _phase: ViewPhase = "ready";
   private _emptyTitleLabel: St.Label | null = null;
@@ -91,7 +90,7 @@ export class CardsPanelSection
   }
 
   protected plan(context: PanelRenderContext): CardsRenderPlan {
-    const panel = planPanel(context.view, this._running);
+    const panel = planPanel(context.view, this.shell.isRunning());
     return { ...panel, key: panel.structureKey };
   }
 
@@ -106,13 +105,15 @@ export class CardsPanelSection
   }
 
   setRunning(running: boolean): void {
-    this._running = running;
     this.shell.setRunning(running);
+    this._syncLoadingMessage(running);
+  }
+
+  private _syncLoadingMessage(running: boolean): void {
     if (this._phase === "loading" && this._emptyTitleLabel) {
       const message = viewMessages({
         phase: "loading",
         surface: "cards",
-        locale: "",
         t: _,
         running,
       });
@@ -136,7 +137,7 @@ export class CardsPanelSection
       }
     }
 
-    this.setRunning(this._running);
+    this._syncLoadingMessage(this.shell.isRunning());
   }
 
   protected update(plan: CardsRenderPlan): void {

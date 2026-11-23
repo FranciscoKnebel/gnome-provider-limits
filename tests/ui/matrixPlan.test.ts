@@ -2,16 +2,16 @@ import { PROVIDER_NAMES, type ProviderName } from "../../src/constants.js";
 import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
 import type { FieldDef, ReaderResult } from "../../src/readers/base.js";
 import { PROVIDER_FIELDS } from "../../src/readers/fields.js";
-import type { StatusBarProviderSegment } from "../../src/ui/fieldViews.js";
-import { deriveStatusBarSegments } from "../../src/ui/fieldViews.js";
 import {
   areAllProvidersExpanded,
   formatSegmentedBar,
   planPanelMatrix,
   resolveProviderExpanded,
-  resolveStatusAttention,
   toggleAllProvidersExpanded,
 } from "../../src/ui/matrixPlan.js";
+import { attentionFromTones } from "../../src/ui/providerHealth.js";
+import type { StatusBarProviderSegment } from "../../src/ui/statusBarSegments.js";
+import { deriveStatusBarSegments } from "../../src/ui/statusBarSegments.js";
 import {
   applyQuietToneClass,
   applyStatusAttentionClass,
@@ -137,19 +137,19 @@ describe("matrixPlan", () => {
     });
   });
 
-  describe("resolveStatusAttention", () => {
+  describe("attentionFromTones", () => {
     it("stays quiet by default for ok or missing tones on OK status", () => {
-      expect(resolveStatusAttention(ReaderStatus.OK, ["ok", undefined])).toBe("quiet");
-      expect(resolveStatusAttention(ReaderStatus.OK, [])).toBe("quiet");
+      expect(attentionFromTones(ReaderStatus.OK, ["ok", undefined])).toBe("quiet");
+      expect(attentionFromTones(ReaderStatus.OK, [])).toBe("quiet");
     });
 
     it("escalates to partial, warning, critical, and error", () => {
-      expect(resolveStatusAttention(ReaderStatus.PARTIAL, ["ok"])).toBe("partial");
-      expect(resolveStatusAttention(ReaderStatus.PARTIAL, ["warning"])).toBe("warning");
-      expect(resolveStatusAttention(ReaderStatus.OK, ["ok", "warning"])).toBe("warning");
-      expect(resolveStatusAttention(ReaderStatus.OK, ["warning", "critical"])).toBe("critical");
-      expect(resolveStatusAttention(ReaderStatus.ERROR, ["ok"])).toBe("error");
-      expect(resolveStatusAttention(ReaderStatus.UNAVAILABLE, [])).toBe("error");
+      expect(attentionFromTones(ReaderStatus.PARTIAL, ["ok"])).toBe("partial");
+      expect(attentionFromTones(ReaderStatus.PARTIAL, ["warning"])).toBe("warning");
+      expect(attentionFromTones(ReaderStatus.OK, ["ok", "warning"])).toBe("warning");
+      expect(attentionFromTones(ReaderStatus.OK, ["warning", "critical"])).toBe("critical");
+      expect(attentionFromTones(ReaderStatus.ERROR, ["ok"])).toBe("error");
+      expect(attentionFromTones(ReaderStatus.UNAVAILABLE, [])).toBe("error");
     });
   });
 

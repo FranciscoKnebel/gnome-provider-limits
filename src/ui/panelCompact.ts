@@ -62,7 +62,6 @@ export class CompactPanelSection
   implements PanelStyleSection
 {
   private _settings: Gio.Settings;
-  private _running = false;
   private _lastRefreshAt: number | null = null;
   private _lastView: ProviderViewContext;
   private _expandedOverrides: Map<ProviderName, boolean> = new Map();
@@ -113,7 +112,6 @@ export class CompactPanelSection
   }
 
   setRunning(running: boolean): void {
-    this._running = running;
     this.shell.setRunning(running);
   }
 
@@ -209,8 +207,6 @@ export class CompactPanelSection
     this._controls.expandAllButton.accessible_name = plan.allExpanded
       ? _("Collapse all")
       : _("Expand all");
-
-    this.setRunning(this._running);
   }
 
   protected build(plan: CompactRenderPlan): void {

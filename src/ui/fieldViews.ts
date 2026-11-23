@@ -9,43 +9,6 @@ import type { GaugeTone, MicroMeterSpec } from "./gaugeTypes.js";
 import { isLimitReached } from "./providerHealth.js";
 import { clampFillRatio, extractWindowSuffix } from "./usageSnapshot.js";
 
-export type {
-  BadgeZone,
-  ProviderAttention,
-  ProviderHealth,
-  ProviderHealthData,
-  ProviderState,
-  ProviderTone,
-  Presentation,
-} from "./providerHealth.js";
-export {
-  PRESENTATION,
-  attentionFromTones,
-  badgeForZone,
-  cardBadgeText,
-  collectFieldTones,
-  deriveAttention,
-  deriveProviderHealth,
-  deriveState,
-  deriveTone,
-  isLastKnownGood,
-  overviewBadgeText,
-  statusBadgeText,
-  worstFieldTone,
-} from "./providerHealth.js";
-export type {
-  DisplayBadges,
-  DisplayBannerKind,
-  DisplayDiagnostic,
-  DisplayModelOptions,
-  ProviderDisplayModel,
-  ProviderDisplayUsage,
-  ProviderDisplayViews,
-} from "./displayModel.js";
-export { deriveDisplayModel, deriveDisplayModels } from "./displayModel.js";
-export type { StatusBarProviderSegment, StatusBarZonePlan } from "./statusBarSegments.js";
-export { deriveStatusBarSegments } from "./statusBarSegments.js";
-
 export interface FieldView {
   readonly name: string;
   readonly type: FieldType;

@@ -40,7 +40,6 @@ function bodyStructureKey(state: BodyState, locale: string): string {
 export class GaugesPanelSection implements PanelStyleSection {
   private readonly _overview: OverviewRenderer;
   private readonly _detail: DetailRenderer;
-  private _running = false;
   private _activeTab: CockpitTab = "overview";
   private _enabledProviders: ProviderName[] = [];
   private _lastContext: PanelRenderContext;
@@ -113,7 +112,6 @@ export class GaugesPanelSection implements PanelStyleSection {
     this._activeTab = resolveActiveTab(this._activeTab, enabledProviders);
 
     this._overview.syncTabHeader(enabledProviders, results, locale);
-    this.shell.setRunning(this._running);
 
     const nextState = this._resolveBodyState(context.view.phase, results);
     this._transitionBody(locale, nextState);
@@ -130,7 +128,6 @@ export class GaugesPanelSection implements PanelStyleSection {
   }
 
   setRunning(running: boolean): void {
-    this._running = running;
     this.shell.setRunning(running);
   }
 
@@ -168,7 +165,6 @@ export class GaugesPanelSection implements PanelStyleSection {
         const message = viewMessages({
           phase: nextState.phase,
           surface: "gauges",
-          locale,
           t: _,
           running: false,
         });

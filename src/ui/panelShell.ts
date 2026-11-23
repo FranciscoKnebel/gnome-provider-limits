@@ -38,7 +38,6 @@ export interface PanelFooterActors {
   readonly settingsControl: St.Widget;
   readonly lastRefreshLabel: St.Label;
   readonly spinner: Spinner;
-  readonly running: boolean;
 }
 
 interface ActionBuildOptions {
@@ -375,6 +374,7 @@ export class PanelShell extends PopupMenu.PopupMenuSection {
   private readonly _applyFooterRunning: (running: boolean) => void;
   private _footerKeyHandler: (event: Clutter.Event) => boolean;
   private _bodyKeyHandler: ((event: Clutter.Event) => boolean) | null = null;
+  private _running = false;
 
   constructor(options: PanelShellOptions) {
     super();
@@ -500,7 +500,12 @@ export class PanelShell extends PopupMenu.PopupMenuSection {
     this._footerKeyHandler = handler;
   }
 
+  isRunning(): boolean {
+    return this._running;
+  }
+
   setRunning(running: boolean): void {
+    this._running = running;
     this._applyFooterRunning(running);
   }
 
@@ -529,7 +534,6 @@ export class PanelShell extends PopupMenu.PopupMenuSection {
   }
 
   private _buildFooter(config: ShellConfig): FooterBuild {
-    let running = false;
     const row = this._createFooterRow(config.footerRowClass);
 
     const spinner = new Spinner(14, { animate: true, hideOnStop: true });
@@ -540,7 +544,7 @@ export class PanelShell extends PopupMenu.PopupMenuSection {
       labelText: _("Force refresh"),
       spinner,
       onActivate: () => {
-        if (!running) this._onRefresh();
+        if (!this.isRunning()) this._onRefresh();
       },
       onFooterKey,
       isRefresh: true,
@@ -560,7 +564,6 @@ export class PanelShell extends PopupMenu.PopupMenuSection {
     config.footer.build({ row, lastRefreshLabel, refresh, settings });
 
     const applyRunning = (value: boolean): void => {
-      running = value;
       spinner.visible = value;
       if (value) spinner.play();
       else spinner.stop();
@@ -576,9 +579,6 @@ export class PanelShell extends PopupMenu.PopupMenuSection {
         settingsControl: settings.control,
         lastRefreshLabel,
         spinner,
-        get running() {
-          return running;
-        },
       },
       applyRunning,
     };

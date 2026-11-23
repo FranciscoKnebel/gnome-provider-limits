@@ -31,7 +31,6 @@ import {
   partitionProviderPanel,
   providerDetailStructureKey,
   resolveActiveTab,
-  toneToRgb,
 } from "../../src/ui/cockpitModel.js";
 import { deriveDisplayModel } from "../../src/ui/displayModel.js";
 import { deriveFieldViews, meterFromViews } from "../../src/ui/fieldViews.js";
@@ -103,10 +102,9 @@ describe("cockpitModel gauge math", () => {
     expect(clampRatio("50")).toBeNull();
   });
 
-  it("toneToRgb maps semantic tones to RGB tuples in [0, 1]", () => {
+  it("TONE_RGB maps semantic tones to RGB tuples in [0, 1]", () => {
     for (const tone of ["ok", "warning", "critical", "neutral"] as const) {
-      const rgb = toneToRgb(tone);
-      expect(rgb).toEqual(TONE_RGB[tone]);
+      const rgb = TONE_RGB[tone];
       for (const channel of rgb) {
         expect(channel).toBeGreaterThanOrEqual(0);
         expect(channel).toBeLessThanOrEqual(1);

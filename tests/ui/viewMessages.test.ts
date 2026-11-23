@@ -3,7 +3,7 @@ import { viewMessages } from "../../src/ui/viewMessages.js";
 import type { ViewSurface } from "../../src/ui/viewMessages.js";
 
 function message(phase: ViewPhase, surface: ViewSurface, running = false) {
-  return viewMessages({ phase, surface, locale: "en", t: (text) => text, running });
+  return viewMessages({ phase, surface, t: (text) => text, running });
 }
 
 describe("viewMessages", () => {
@@ -62,7 +62,6 @@ describe("viewMessages", () => {
     const result = viewMessages({
       phase: "empty",
       surface: "matrix",
-      locale: "pt_BR",
       t: (text) => `T:${text}`,
       running: false,
     });

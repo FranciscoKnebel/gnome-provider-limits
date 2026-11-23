@@ -13,7 +13,6 @@ export interface EmptyPresentation {
 export interface ViewMessagesOptions {
   readonly phase: ViewPhase;
   readonly surface: ViewSurface;
-  readonly locale: string;
   readonly t: (s: string) => string;
   readonly running: boolean;
 }

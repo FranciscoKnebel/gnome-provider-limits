@@ -38,7 +38,6 @@ function planGauges(context: ProviderViewContext): GaugesPlan {
     const message = viewMessages({
       phase: context.phase,
       surface: "gauges",
-      locale: context.locale,
       t: context.t,
       running: false,
     });

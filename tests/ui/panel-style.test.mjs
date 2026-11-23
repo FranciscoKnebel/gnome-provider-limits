@@ -32,12 +32,19 @@ test("Panel swaps style sections on setting change and forwards render and runni
       this.options = options;
       this.actor = this;
       this.destroyed = false;
+      this.running = false;
     }
     destroy() {
       this.destroyed = true;
     }
     setLastRefreshAt(lastRefreshAt) {
       this.lastRefreshAt = lastRefreshAt;
+    }
+    setRunning(running) {
+      this.running = running;
+    }
+    isRunning() {
+      return this.running;
     }
   }
   const created = [];
@@ -57,6 +64,7 @@ test("Panel swaps style sections on setting change and forwards render and runni
     }
     setRunning(running) {
       this.running = running;
+      this.shell.setRunning(running);
     }
     destroy() {
       this.destroyed = true;
