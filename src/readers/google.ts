@@ -10,7 +10,14 @@ import {
   resolveGooglePrimaryAuthPaths,
   type Env,
 } from "../helpers/paths.js";
-import { BaseReader, FieldStatus, type ReaderResult } from "./base.js";
+import {
+  BaseReader,
+  FieldStatus,
+  type FieldDef,
+  type FieldResult,
+  type ReaderResult,
+} from "./base.js";
+import { GOOGLE_FIELDS } from "./fields.js";
 import {
   GOOGLE_CLOUDCODE_DAILY_URL,
   GOOGLE_OAUTH_TOKEN_URL,
@@ -74,6 +81,10 @@ export class GoogleReader extends BaseReader {
   private _http: HttpClient | null = null;
   private _destroyed = false;
   private _cancellable: Gio.Cancellable | null = null;
+
+  override get FIELDS(): readonly FieldDef[] {
+    return GOOGLE_FIELDS;
+  }
 
   override destroy(): void {
     this._destroyed = true;
@@ -509,30 +520,7 @@ export class GoogleReader extends BaseReader {
       this._assertAlive();
       if (cancellable.is_cancelled()) return cancelledResult();
 
-      const optionalField = <T>(name: string, value: T | null) =>
-        this._makeField(name, value, value !== null ? FieldStatus.OK : FieldStatus.UNAVAILABLE);
-
-      const fields = [
-        ...this._makeWindowFields("session", {
-          used_percent: usage.session?.usedPercent ?? null,
-          reset_at: usage.session?.resetAt ?? null,
-        }),
-        ...this._makeWindowFields("weekly", {
-          used_percent: usage.weekly?.usedPercent ?? null,
-          reset_at: usage.weekly?.resetAt ?? null,
-        }),
-        ...this._makeWindowFields("3p_session", {
-          used_percent: usage.thirdPartySession?.usedPercent ?? null,
-          reset_at: usage.thirdPartySession?.resetAt ?? null,
-        }),
-        ...this._makeWindowFields("3p_weekly", {
-          used_percent: usage.thirdPartyWeekly?.usedPercent ?? null,
-          reset_at: usage.thirdPartyWeekly?.resetAt ?? null,
-        }),
-        optionalField("limit_reached", usage.limitReached),
-        optionalField("plan_type", plan),
-        this._makeField("usage_source", hostFromEndpoint(endpointUsed), FieldStatus.OK),
-      ];
+      const fields = this._fieldsFromUsage(usage, plan, endpointUsed);
 
       return this._finalizeResult(
         this._classifyResult(fields, pathsTried, "Google"),
@@ -544,5 +532,35 @@ export class GoogleReader extends BaseReader {
         this._cancellable = null;
       }
     }
+  }
+
+  private _fieldsFromUsage(
+    usage: GoogleUsage,
+    plan: string | null,
+    endpointUsed: string,
+  ): FieldResult[] {
+    const optionalField = <T>(name: string, value: T | null) =>
+      this._makeField(name, value, value !== null ? FieldStatus.OK : FieldStatus.UNAVAILABLE);
+    return [
+      ...this._makeWindowFields("session", {
+        used_percent: usage.session?.usedPercent ?? null,
+        reset_at: usage.session?.resetAt ?? null,
+      }),
+      ...this._makeWindowFields("weekly", {
+        used_percent: usage.weekly?.usedPercent ?? null,
+        reset_at: usage.weekly?.resetAt ?? null,
+      }),
+      ...this._makeWindowFields("3p_session", {
+        used_percent: usage.thirdPartySession?.usedPercent ?? null,
+        reset_at: usage.thirdPartySession?.resetAt ?? null,
+      }),
+      ...this._makeWindowFields("3p_weekly", {
+        used_percent: usage.thirdPartyWeekly?.usedPercent ?? null,
+        reset_at: usage.thirdPartyWeekly?.resetAt ?? null,
+      }),
+      optionalField("limit_reached", usage.limitReached),
+      optionalField("plan_type", plan),
+      this._makeField("usage_source", hostFromEndpoint(endpointUsed), FieldStatus.OK),
+    ];
   }
 }

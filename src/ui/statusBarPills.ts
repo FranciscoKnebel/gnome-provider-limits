@@ -3,9 +3,11 @@ import St from "gi://St";
 
 import type { ProviderName } from "../constants.js";
 import { ReaderStatus } from "../readers/base.js";
-import { formatViewText, type FieldView } from "./fieldViews.js";
+import { displayFacts } from "./displayModel.js";
+import type { FieldView } from "./fieldViews.js";
 import type { ProviderTone } from "./providerHealth.js";
 import { StatusBarRenderer, type ZonePlan } from "./statusBarRenderer.js";
+import { STYLE_REGISTRY } from "./styles.js";
 import { applyHealthToneClass, applyToneClass } from "./tone.js";
 import type { ProviderViewContext } from "./viewContext.js";
 import { phaseResult } from "./viewMessages.js";
@@ -29,7 +31,7 @@ interface PillPlan {
 type PillsPlan = ZonePlan<PillPlan>;
 
 function planPills(context: ProviderViewContext): PillsPlan {
-  const phase = phaseResult(context, "pills", false);
+  const phase = phaseResult(context, STYLE_REGISTRY.statusBar.pills, false);
   if (phase.kind === "placeholder") {
     return {
       kind: "placeholder",
@@ -40,18 +42,22 @@ function planPills(context: ProviderViewContext): PillsPlan {
     };
   }
 
-  const segments: PillPlan[] = context.models.map((model) => ({
-    provider: model.provider,
-    displayName: model.shortDisplayName,
-    isPartial: model.result.status === ReaderStatus.PARTIAL,
-    healthTone: model.health.tone,
-    stateTag: model.health.stateTag,
-    stateAccessibleText: model.health.stateAccessibleText,
-    rows: model.statusViews.map((view) => ({
-      view,
-      ...formatViewText(view, "status", context.locale, context.t),
-    })),
-  }));
+  const segments: PillPlan[] = context.models.map((model) => {
+    const { health } = displayFacts(model);
+    return {
+      provider: model.provider,
+      displayName: model.shortDisplayName,
+      isPartial: model.result.status === ReaderStatus.PARTIAL,
+      healthTone: health.tone,
+      stateTag: health.stateTag,
+      stateAccessibleText: health.stateAccessibleText,
+      rows: model.statusViews.map((view) => ({
+        view,
+        valueText: view.valueText,
+        accessibleText: view.accessibleText,
+      })),
+    };
+  });
   return { kind: "segments", segments };
 }
 

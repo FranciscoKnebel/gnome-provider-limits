@@ -5,7 +5,7 @@ import { HttpClient, HttpError, TokenError } from "../helpers/http.js";
 import { logWarn } from "../helpers/log.js";
 import { resolveCodexHome } from "../helpers/paths.js";
 import { querySqlite } from "../helpers/sqlite.js";
-import type { FieldResult, ReadOptions, ReaderResult } from "./base.js";
+import type { FieldDef, FieldResult, ReadOptions, ReaderResult } from "./base.js";
 import { BaseReader, FieldStatus } from "./base.js";
 import {
   codexWindowMinutes,
@@ -18,6 +18,7 @@ import {
   parseCodexLogBody,
   summarizeCodexResetCredits,
 } from "./codexParser.js";
+import { CODEX_FIELDS } from "./fields.js";
 
 const CODEX_ALL_PATHS_FAILED = "Codex: all paths failed. Run `codex login`.";
 const CODEX_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
@@ -29,6 +30,10 @@ export class CodexReader extends BaseReader {
   private _http: HttpClient | null = null;
   private _cancellable: Gio.Cancellable | null = null;
   private _destroyed = false;
+
+  override get FIELDS(): readonly FieldDef[] {
+    return CODEX_FIELDS;
+  }
 
   async read(_options?: ReadOptions): Promise<ReaderResult> {
     this._cancellable?.cancel();
@@ -234,20 +239,17 @@ export class CodexReader extends BaseReader {
     resetCredits: CodexResetCredits | null | undefined,
   ): FieldResult[] {
     const summary = summarizeCodexResetCredits(resetCredits);
-    const fields: FieldResult[] = [
+    const expireStatus =
+      summary.expiresAt !== null || summary.available === 0
+        ? FieldStatus.OK
+        : FieldStatus.UNAVAILABLE;
+    return [
       this._makeField(
         "reset_credits_available",
         summary.available,
         summary.available !== null ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
       ),
+      this._makeField("reset_credits_expire_at", summary.expiresAt, expireStatus),
     ];
-
-    if (summary.expiresAt !== null) {
-      fields.push(this._makeField("reset_credits_expire_at", summary.expiresAt, FieldStatus.OK));
-    } else if (summary.available !== null && summary.available > 0) {
-      fields.push(this._makeField("reset_credits_expire_at", null, FieldStatus.UNAVAILABLE));
-    }
-
-    return fields;
   }
 }

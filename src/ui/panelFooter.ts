@@ -146,7 +146,7 @@ function buildSettings(spec: FooterSpec, options: FooterOptions): St.Widget {
   return control;
 }
 
-function buildFooter(spec: FooterSpec, options: FooterOptions): FooterBuild {
+export function buildPanelFooter(spec: FooterSpec, options: FooterOptions): FooterBuild {
   const row = footerRow(spec.rowClass);
   const spinner = createSpinner();
   const refresh = buildRefresh(spec, options, spinner);
@@ -202,9 +202,4 @@ function buildFooter(spec: FooterSpec, options: FooterOptions): FooterBuild {
     },
     applyRunning: refresh.setRunning,
   };
-}
-
-/** Build the footer from the spec owned by the style registry. */
-export function buildPanelFooter(spec: FooterSpec, options: FooterOptions): FooterBuild {
-  return buildFooter(spec, options);
 }

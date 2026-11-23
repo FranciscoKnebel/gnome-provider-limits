@@ -5,7 +5,13 @@ import { gettext as _ } from "../helpers/gettext.js";
 import { HttpClient, TokenError } from "../helpers/http.js";
 import { logWarn } from "../helpers/log.js";
 import { expandHomePath, resolveCursorAuthPaths } from "../helpers/paths.js";
-import { BaseReader, FieldStatus, type ReaderResult } from "./base.js";
+import {
+  BaseReader,
+  FieldStatus,
+  type FieldDef,
+  type FieldResult,
+  type ReaderResult,
+} from "./base.js";
 import {
   CURSOR_BACKEND_URL,
   normalizeCursorUsagePayload,
@@ -14,7 +20,9 @@ import {
   parseCursorExchangeResponse,
   parseCursorPlanInfo,
   type CursorAuth,
+  type CursorUsage,
 } from "./cursorParser.js";
+import { CURSOR_FIELDS } from "./fields.js";
 
 const CURSOR_EXCHANGE_URL = `${CURSOR_BACKEND_URL}/auth/exchange_user_api_key`;
 const CURSOR_USAGE_URL = `${CURSOR_BACKEND_URL}/aiserver.v1.DashboardService/GetCurrentPeriodUsage`;
@@ -35,6 +43,10 @@ export class CursorReader extends BaseReader {
   private _http: HttpClient | null = null;
   private _destroyed = false;
   private _cancellable: Gio.Cancellable | null = null;
+
+  override get FIELDS(): readonly FieldDef[] {
+    return CURSOR_FIELDS;
+  }
 
   override destroy(): void {
     this._destroyed = true;
@@ -273,10 +285,23 @@ export class CursorReader extends BaseReader {
     this._assertAlive();
     if (cancellable.is_cancelled()) return cancelledResult();
     const resetAtCredits = usage.resetAtCredits ?? planResetAt;
+    const fields = this._fieldsFromUsage(usage, plan, resetAtCredits);
+
+    return this._finalizeResult(
+      this._classifyResult(fields, pathsTried, "Cursor"),
+      pathsTried,
+      _("Cursor: subscription credits unavailable. Try again later."),
+    );
+  }
+
+  private _fieldsFromUsage(
+    usage: CursorUsage,
+    plan: string | null,
+    resetAtCredits: number | null,
+  ): FieldResult[] {
     const optionalField = <T>(name: string, value: T | null) =>
       this._makeField(name, value, value !== null ? FieldStatus.OK : FieldStatus.UNAVAILABLE);
-
-    const fields = [
+    return [
       ...this._makeWindowFields("credits", {
         used_percent: usage.usedPercentCredits,
         reset_at: resetAtCredits,
@@ -289,11 +314,5 @@ export class CursorReader extends BaseReader {
       optionalField("plan_type", plan),
       this._makeField("usage_source", "api2.cursor.sh", FieldStatus.OK),
     ];
-
-    return this._finalizeResult(
-      this._classifyResult(fields, pathsTried, "Cursor"),
-      pathsTried,
-      _("Cursor: subscription credits unavailable. Try again later."),
-    );
   }
 }

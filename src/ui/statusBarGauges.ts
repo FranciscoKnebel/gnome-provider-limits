@@ -4,9 +4,11 @@ import St from "gi://St";
 import type { ProviderName } from "../constants.js";
 import { ReaderStatus } from "../readers/base.js";
 import { connectRepaint, drawMicroRing } from "./cairoDrawing.js";
-import { formatViewText, type FieldView } from "./fieldViews.js";
+import { displayFacts } from "./displayModel.js";
+import type { FieldView } from "./fieldViews.js";
 import type { GaugeSpec } from "./gaugeTypes.js";
 import { StatusBarRenderer, type ZonePlan } from "./statusBarRenderer.js";
+import { STYLE_REGISTRY } from "./styles.js";
 import { applyToneClass } from "./tone.js";
 import type { ProviderViewContext } from "./viewContext.js";
 import { phaseResult } from "./viewMessages.js";
@@ -30,7 +32,7 @@ interface GaugeSegmentPlan {
 type GaugesPlan = ZonePlan<GaugeSegmentPlan>;
 
 function planGauges(context: ProviderViewContext): GaugesPlan {
-  const phase = phaseResult(context, "gauges", false);
+  const phase = phaseResult(context, STYLE_REGISTRY.statusBar.gauges, false);
   if (phase.kind === "placeholder") {
     return {
       kind: "placeholder",
@@ -45,10 +47,11 @@ function planGauges(context: ProviderViewContext): GaugesPlan {
     provider: model.provider,
     displayName: model.shortDisplayName,
     status: model.result.status,
-    meter: model.meter,
+    meter: displayFacts(model).meter,
     rows: model.statusViews.map((view) => ({
       view,
-      ...formatViewText(view, "status", context.locale, context.t),
+      valueText: view.valueText,
+      accessibleText: view.accessibleText,
     })),
   }));
 

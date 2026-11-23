@@ -34,7 +34,7 @@ import {
   partitionProviderPanel,
   resolveActiveTab,
 } from "../../src/ui/cockpitModel.js";
-import { deriveDisplayModel } from "../../src/ui/displayModel.js";
+import { deriveDisplayModel, displayFacts } from "../../src/ui/displayModel.js";
 
 function panelModel(
   fieldDefs: readonly FieldDef[],
@@ -79,6 +79,8 @@ function overviewRowFor(options: {
 }
 import { deriveFieldViews, meterFromViews, type FieldView } from "../../src/ui/fieldViews.js";
 
+const VIEW_OPTIONS = { zone: "panel" as const, locale: "en", t: (text: string) => text };
+
 function gaugeView(fieldName: string, value: unknown): FieldView {
   const result: ReaderResult = {
     provider: "codex",
@@ -86,7 +88,11 @@ function gaugeView(fieldName: string, value: unknown): FieldView {
     lastUpdated: 0,
     fields: value === null ? [] : [{ name: fieldName, value, status: FieldStatus.OK }],
   };
-  const view = deriveFieldViews(CODEX_FIELDS, result, [fieldName])[0];
+  const view = deriveFieldViews(CODEX_FIELDS, result, [fieldName], {
+    zone: "panel",
+    locale: "en",
+    t: (text) => text,
+  })[0];
   if (!view) throw new Error(`No view for ${fieldName}`);
   return view;
 }
@@ -156,7 +162,7 @@ describe("cockpitModel gauge math", () => {
   });
 
   it("computeGaugeGeometry calculates sweep angles and tones for used_* and remaining_* fields", () => {
-    const lowUsed = computeGaugeGeometry(gaugeView("used_percent_primary", 25), "en");
+    const lowUsed = computeGaugeGeometry(gaugeView("used_percent_primary", 25));
     expect(lowUsed.hasValue).toBeTrue();
     expect(lowUsed.ratio).toBeCloseTo(0.25, 5);
     expect(lowUsed.startAngle).toBeCloseTo(GAUGE_START_ANGLE, 5);
@@ -165,25 +171,25 @@ describe("cockpitModel gauge math", () => {
     expect(lowUsed.tone).toBe("ok");
     expect(lowUsed.centerText).toBe("25%");
 
-    const warnUsed = computeGaugeGeometry(gaugeView("used_percent_primary", 75), "en");
+    const warnUsed = computeGaugeGeometry(gaugeView("used_percent_primary", 75));
     expect(warnUsed.tone).toBe("warning");
     expect(warnUsed.fieldTone).toBe("warning");
 
-    const critUsed = computeGaugeGeometry(gaugeView("used_percent_primary", 92), "en");
+    const critUsed = computeGaugeGeometry(gaugeView("used_percent_primary", 92));
     expect(critUsed.tone).toBe("critical");
     expect(critUsed.fieldTone).toBe("critical");
 
-    const lowRemaining = computeGaugeGeometry(gaugeView("remaining_percent_primary", 8), "en");
+    const lowRemaining = computeGaugeGeometry(gaugeView("remaining_percent_primary", 8));
     expect(lowRemaining.tone).toBe("critical");
     expect(lowRemaining.fieldTone).toBe("critical");
     expect(lowRemaining.centerText).toBe("8%");
     expect(lowRemaining.ratio).toBeCloseTo(0.92, 5);
 
-    const warnRemaining = computeGaugeGeometry(gaugeView("remaining_percent_primary", 35), "en");
+    const warnRemaining = computeGaugeGeometry(gaugeView("remaining_percent_primary", 35));
     expect(warnRemaining.tone).toBe("warning");
     expect(warnRemaining.ratio).toBeCloseTo(0.65, 5);
 
-    const missing = computeGaugeGeometry(gaugeView("used_percent_primary", null), "en");
+    const missing = computeGaugeGeometry(gaugeView("used_percent_primary", null));
     expect(missing.hasValue).toBeFalse();
     expect(missing.ratio).toBe(0);
     expect(missing.endAngle).toBe(GAUGE_START_ANGLE);
@@ -204,20 +210,24 @@ describe("meterFromViews", () => {
   };
 
   it("derives the meter from already-derived views in their given order", () => {
-    const secondaryFirst = deriveFieldViews(CODEX_FIELDS, okResult, [
-      "used_percent_secondary",
-      "used_percent_primary",
-    ]);
+    const secondaryFirst = deriveFieldViews(
+      CODEX_FIELDS,
+      okResult,
+      ["used_percent_secondary", "used_percent_primary"],
+      VIEW_OPTIONS,
+    );
     const secondPicked = meterFromViews(secondaryFirst);
     expect(secondPicked.hasValue).toBeTrue();
     expect(secondPicked.ratio).toBeCloseTo(0.65, 5);
     expect(secondPicked.tone).toBe("warning");
     expect(secondPicked.isError).toBeFalse();
 
-    const primaryFirst = deriveFieldViews(CODEX_FIELDS, okResult, [
-      "used_percent_primary",
-      "used_percent_secondary",
-    ]);
+    const primaryFirst = deriveFieldViews(
+      CODEX_FIELDS,
+      okResult,
+      ["used_percent_primary", "used_percent_secondary"],
+      VIEW_OPTIONS,
+    );
     const fallbackPicked = meterFromViews(primaryFirst);
     expect(fallbackPicked.hasValue).toBeTrue();
     expect(fallbackPicked.ratio).toBeCloseTo(0.3, 5);
@@ -231,7 +241,12 @@ describe("meterFromViews", () => {
       lastUpdated: 1_700_000_000,
       fields: [{ name: "used_percent_primary", value: null, status: FieldStatus.UNAVAILABLE }],
     };
-    const views = deriveFieldViews(CODEX_FIELDS, emptyOkResult, ["used_percent_primary"]);
+    const views = deriveFieldViews(
+      CODEX_FIELDS,
+      emptyOkResult,
+      ["used_percent_primary"],
+      VIEW_OPTIONS,
+    );
     const neutralSpec = meterFromViews(views);
     expect(neutralSpec.isError).toBeFalse();
     expect(neutralSpec.hasValue).toBeFalse();
@@ -257,9 +272,9 @@ describe("meterFromViews", () => {
         t: (message) => message,
       });
       expect(model).toBeDefined();
-      expect(model?.meter.isError).toBeTrue();
-      expect(model?.meter.hasValue).toBeFalse();
-      expect(model?.meter.tone).toBe("critical");
+      expect(displayFacts(model!).meter.isError).toBeTrue();
+      expect(displayFacts(model!).meter.hasValue).toBeFalse();
+      expect(displayFacts(model!).meter.tone).toBe("critical");
     }
   });
 });
@@ -513,7 +528,7 @@ describe("Cairo vector drawing helpers & context disposal", () => {
   });
 
   it("draws micro rings, radial gauges, and mini capsules with rounded line caps", () => {
-    const geom = computeGaugeGeometry(gaugeView("used_percent_primary", 64), "en");
+    const geom = computeGaugeGeometry(gaugeView("used_percent_primary", 64));
     const okMeter = {
       ratio: geom.ratio,
       hasValue: true,
@@ -555,7 +570,7 @@ describe("Cairo vector drawing helpers & context disposal", () => {
       emptyRadialCtx.cr,
       80,
       80,
-      computeGaugeGeometry(gaugeView("used_percent_primary", null), "en"),
+      computeGaugeGeometry(gaugeView("used_percent_primary", null)),
     );
     expect(emptyRadialCtx.ops.filter((o) => o.op === "stroke").length).toBe(2);
 

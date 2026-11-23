@@ -57,6 +57,14 @@ export interface ReadOptions {
 export abstract class BaseReader {
   protected _lastGood: ReaderResult | null = null;
 
+  /**
+   * The field declarations this reader may emit. fields.ts is the single
+   * source of truth; every concrete reader overrides this with its slice.
+   */
+  get FIELDS(): readonly FieldDef[] {
+    return [];
+  }
+
   constructor(
     protected readonly settings: Gio.Settings,
     protected readonly providerName: ProviderName,
@@ -66,12 +74,36 @@ export abstract class BaseReader {
 
   destroy(): void {}
 
+  protected _assertDeclared(name: string): void {
+    if (this.FIELDS.length === 0) return;
+    if (!this.FIELDS.some((def) => def.name === name)) {
+      throw new Error(`${this.providerName}: undeclared field '${name}'.`);
+    }
+  }
+
+  /** Fail loudly when an emitted set drifts from the declared contract. */
+  protected _assertFieldContract(fields: readonly FieldResult[]): void {
+    if (this.FIELDS.length === 0) return;
+    const declared = new Set(this.FIELDS.map((def) => def.name));
+    const emitted = new Set<string>();
+    for (const field of fields) {
+      this._assertDeclared(field.name);
+      emitted.add(field.name);
+    }
+    for (const name of declared) {
+      if (!emitted.has(name)) {
+        throw new Error(`${this.providerName}: declared field '${name}' was not emitted.`);
+      }
+    }
+  }
+
   protected _makeField<T>(
     name: string,
     value: T | null | undefined,
     status: FieldStatus,
     error?: string | null,
   ): FieldResult<T> {
+    this._assertDeclared(name);
     return { name, value: value ?? null, status, error: error ?? null };
   }
 
@@ -185,6 +217,7 @@ export abstract class BaseReader {
     prefix?: string,
     partialError?: string,
   ): ReaderResult {
+    this._assertFieldContract(fields);
     const hasAny = fields.some((f) => f.status === FieldStatus.OK);
     if (!hasAny) {
       return this._errorResult(`${prefix ?? this.providerName}: no usable fields.`, pathsTried);

@@ -1,14 +1,14 @@
 import Clutter from "gi://Clutter";
 import St from "gi://St";
 
-import { planPanel } from "./cardPlan.js";
-import type {
-  BannerKind,
-  CardBadgeKind,
-  CardKeyValueRow,
-  CardProgressRow,
-  ProviderCardPlan,
-} from "./cardPlan.js";
+import {
+  planPanel,
+  type BannerKind,
+  type CardBadgeKind,
+  type CardKeyValueRow,
+  type CardProgressRow,
+  type ProviderCardPlan,
+} from "./displayModel.js";
 import { clampPercent } from "./fieldRows.js";
 import { PanelStyleSection, type PanelRenderContext } from "./panelShell.js";
 import { applyHealthToneClass, applyToneClass } from "./tone.js";

@@ -1,6 +1,12 @@
 import GLib from "gi://GLib";
 
-import { assert, assertEqual, assertNotNull } from "../helpers/assert.js";
+import {
+  assert,
+  assertDeepEqual,
+  assertEqual,
+  assertNotNull,
+  assertThrows,
+} from "../helpers/assert.js";
 import { MockSettings } from "../mocks/mock-settings.js";
 
 export async function run() {
@@ -15,6 +21,9 @@ export async function run() {
   const { CodexReader } = await import(`${readersDir}/codex.js`);
   const { ClaudeReader } = await import(`${readersDir}/claude.js`);
   const { OpenCodeReader } = await import(`${readersDir}/opencode.js`);
+  const { GrokReader } = await import(`${readersDir}/grok.js`);
+  const { CursorReader } = await import(`${readersDir}/cursor.js`);
+  const { GoogleReader } = await import(`${readersDir}/google.js`);
   const { PROVIDER_FIELDS } = await import(`${readersDir}/fields.js`);
 
   // ---------- BaseReader ----------
@@ -280,6 +289,117 @@ export async function run() {
     results.push({ name: "BaseReader.destroy() is callable", passed: true });
   } catch (e) {
     results.push({ name: "BaseReader.destroy() is callable", passed: false, error: String(e) });
+  }
+
+  // ---------- Per-provider emitted-name contract ----------
+  const assertContract = (provider, fields) => {
+    const declared = PROVIDER_FIELDS[provider].map((def) => def.name).sort();
+    const emitted = fields.map((field) => field.name).sort();
+    assertDeepEqual(emitted, declared, `${provider} emitted field names`);
+  };
+
+  const contractCases = [
+    [
+      "codex",
+      () =>
+        new CodexReader(new MockSettings(), "codex")._parsePayload(
+          {
+            rate_limits: { limit_reached: false, primary: { used_percent: 10 }, secondary: {} },
+            plan_type: "plus",
+            reset_credits: { available_count: 0 },
+          },
+          ["test"],
+        ).fields,
+    ],
+    [
+      "claude",
+      () =>
+        new ClaudeReader(new MockSettings(), "claude")._parsePayload(
+          { five_hour: { used_percent: 10 }, seven_day: {}, extra_usage: {} },
+          ["test"],
+        ).fields,
+    ],
+    [
+      "opencode",
+      () =>
+        new OpenCodeReader(new MockSettings(), "opencode")._parseResult(
+          null,
+          { totalCost: 1.5, sessionsCount: 3 },
+          ["test"],
+        ).fields,
+    ],
+    [
+      "grok",
+      () =>
+        new GrokReader(new MockSettings(), "grok")._fieldsFromUsage(
+          { usedPercent: null, resetAt: null, prepaidBalance: null, unifiedBilling: null },
+          null,
+        ),
+    ],
+    [
+      "cursor",
+      () =>
+        new CursorReader(new MockSettings(), "cursor")._fieldsFromUsage(
+          {
+            usedPercentCredits: null,
+            usedPercentAuto: null,
+            usedPercentApi: null,
+            resetAtCredits: null,
+            remainingCredits: null,
+            spendLimitUsed: null,
+            limitReached: null,
+          },
+          null,
+          null,
+        ),
+    ],
+    [
+      "google",
+      () =>
+        new GoogleReader(new MockSettings(), "google")._fieldsFromUsage(
+          {
+            session: null,
+            weekly: null,
+            thirdPartySession: null,
+            thirdPartyWeekly: null,
+            limitReached: null,
+          },
+          null,
+          "cloudcode-pa.googleapis.com",
+        ),
+    ],
+  ];
+
+  for (const [provider, buildFields] of contractCases) {
+    try {
+      assertContract(provider, buildFields());
+      results.push({ name: `${String(provider)} emits exactly its declared fields`, passed: true });
+    } catch (error) {
+      results.push({
+        name: `${String(provider)} emits exactly its declared fields`,
+        passed: false,
+        error: String(error),
+      });
+    }
+  }
+
+  try {
+    const codex = new CodexReader(new MockSettings(), "codex");
+    assertThrows(
+      () => codex._makeField("not_declared_by_codex", 1, FieldStatus.OK),
+      "undeclared fields throw",
+    );
+    assertThrows(
+      () => codex._classifyResult([], ["test"], "Codex"),
+      "missing declared fields throw",
+    );
+    results.push({ name: "field contract fails loudly on drift", passed: true });
+  } catch (error) {
+    results.push({
+      name: "field contract fails loudly on drift",
+      passed: false,
+      error: String(error) + "\n" + (error.stack ?? ""),
+    });
   }
 
   return results;

@@ -63,7 +63,11 @@ describe("providerHealth pure helpers", () => {
       pathsTried: ["oauth-api", "last-known-good"],
       fields: [{ name: "used_percent_primary", value: 72, status: FieldStatus.OK }],
     };
-    const views = deriveFieldViews(CODEX_FIELDS, result, ["used_percent_primary"]);
+    const views = deriveFieldViews(CODEX_FIELDS, result, ["used_percent_primary"], {
+      zone: "status",
+      locale: "en",
+      t: (text) => text,
+    });
     const health = deriveProviderHealth(result.status, {
       result,
       views,

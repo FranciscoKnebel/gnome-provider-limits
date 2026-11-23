@@ -1,4 +1,4 @@
-import { styleSpecForSurface } from "./styles.js";
+import type { StyleSpec } from "./styles.js";
 import type { ProviderViewContext, ViewPhase } from "./viewContext.js";
 
 /** Panel surfaces own their own empty-state copy. */
@@ -19,7 +19,7 @@ export interface EmptyPresentation {
 
 export interface ViewMessagesOptions {
   readonly phase: ViewPhase;
-  readonly surface: ViewSurface;
+  readonly spec: StyleSpec<string>;
   readonly running: boolean;
   readonly t: (s: string) => string;
 }
@@ -32,9 +32,9 @@ export type PhaseResult =
     }
   | { readonly kind: "ready" };
 
-/** The registered spec for each surface owns its phase-to-copy mapping. */
+/** The spec that owns a surface owns its phase-to-copy mapping. */
 export function viewMessages(options: ViewMessagesOptions): EmptyPresentation {
-  return styleSpecForSurface(options.surface).messages(options.phase, options.running, options.t);
+  return options.spec.messages(options.phase, options.running, options.t);
 }
 
 function hasNothingToShow(message: EmptyPresentation): boolean {
@@ -50,12 +50,12 @@ function hasNothingToShow(message: EmptyPresentation): boolean {
 /** The one phase-to-placeholder decision shared by every plan builder. */
 export function phaseResult(
   view: ProviderViewContext,
-  surface: ViewSurface,
+  spec: StyleSpec<string>,
   running: boolean,
 ): PhaseResult {
   const message = viewMessages({
     phase: view.phase,
-    surface,
+    spec,
     running,
     t: view.t,
   });

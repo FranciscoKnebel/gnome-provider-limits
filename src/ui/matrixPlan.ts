@@ -1,9 +1,9 @@
 import type { ProviderName } from "../constants.js";
 import type { ReaderStatus } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
-import { classifyPanelViews, type ProviderDisplayModel } from "./displayModel.js";
+import { classifyPanelViews, displayFacts, type ProviderDisplayModel } from "./displayModel.js";
 import { clampFillRatio, type FieldTone } from "./fieldRows.js";
-import { toDisplayRow } from "./fieldViews.js";
+import { STYLE_REGISTRY } from "./styles.js";
 import type { ProviderViewContext, ViewPhase } from "./viewContext.js";
 import { phaseResult } from "./viewMessages.js";
 
@@ -98,19 +98,18 @@ function groupsFromViews(
   tr: (s: string) => string,
 ): MatrixRowGroup[] {
   const toDetailRow = (view: ProviderDisplayModel["panelViews"][number]): MatrixDetailRow => {
-    const row = toDisplayRow(view, "panel", locale, tr);
     return {
-      name: row.name,
-      labelText: row.labelText,
-      valueText: row.valueText,
+      name: view.name,
+      labelText: view.labelText,
+      valueText: view.valueText,
       microBar:
-        view.type === "percent" && row.category === "limit" && view.ratio !== null
+        view.type === "percent" && view.category === "limit" && view.ratio !== null
           ? formatSegmentedBar(view.ratio, 8)
           : null,
-      ...(row.tone ? { tone: row.tone } : {}),
-      ...(row.errorText ? { errorText: row.errorText } : {}),
-      accessibleText: row.accessibleText,
-      category: row.category,
+      ...(view.tone ? { tone: view.tone } : {}),
+      ...(view.errorText ? { errorText: view.errorText } : {}),
+      accessibleText: view.accessibleText,
+      category: view.category,
     };
   };
 
@@ -139,7 +138,7 @@ export function planPanelMatrix(
 ): PanelMatrixPlan {
   const tr = context.t;
 
-  const phase = phaseResult(context, "matrix", false);
+  const phase = phaseResult(context, STYLE_REGISTRY.panel.compact, false);
   if (phase.kind === "placeholder") {
     return {
       phase: phase.phase,
@@ -155,15 +154,16 @@ export function planPanelMatrix(
   const providers: ProviderMatrixPlan[] = [];
 
   for (const model of models) {
+    const modelFacts = displayFacts(model);
     const expanded = resolveProviderExpanded(model.provider, enabledCount, expandedOverrides);
     const chevron: "▾" | "▸" = expanded ? "▾" : "▸";
-    const statusBadge = model.badges.status;
-    const facts = model.usage.header;
+    const statusBadge = modelFacts.badges.status;
+    const facts = modelFacts.usage.header;
     const fiveSegmentBar = facts.fillRatio !== null ? formatSegmentedBar(facts.fillRatio, 5) : "";
-    const errorText = model.diagnostic.errorText;
-    const detailText = model.diagnostic.detailText;
+    const errorText = modelFacts.diagnostic.errorText;
+    const detailText = modelFacts.diagnostic.detailText;
     const groups = expanded && errorText === null ? groupsFromViews(model, context.locale, tr) : [];
-    const lastUpdatedText = expanded && errorText === null ? model.lastUpdatedText : null;
+    const lastUpdatedText = expanded && errorText === null ? modelFacts.lastUpdatedText : null;
 
     const accessibleParts = [model.displayName];
     if (statusBadge) accessibleParts.push(statusBadge);

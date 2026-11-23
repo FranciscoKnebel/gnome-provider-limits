@@ -8,8 +8,13 @@ import {
   OPENCODE_FIELDS,
   PROVIDER_FIELDS,
 } from "../../src/readers/fields.js";
-import { cardFromModel, planPanel, type ProviderCardPlan } from "../../src/ui/cardPlan.js";
-import { deriveDisplayModel } from "../../src/ui/displayModel.js";
+import {
+  cardFromModel,
+  deriveDisplayModel,
+  displayFacts,
+  planPanel,
+  type ProviderCardPlan,
+} from "../../src/ui/displayModel.js";
 import { deriveFieldViews } from "../../src/ui/fieldViews.js";
 import type { ProviderTone } from "../../src/ui/providerHealth.js";
 import {
@@ -172,7 +177,11 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         lastUpdated: 1_700_000_000_000,
         fields: [{ name: "remaining_percent_credits", value: 15, status: FieldStatus.OK }],
       };
-      const views = deriveFieldViews(GROK_FIELDS, result, ["remaining_percent_credits"]);
+      const views = deriveFieldViews(GROK_FIELDS, result, ["remaining_percent_credits"], {
+        zone: "panel",
+        locale: "en",
+        t: (text) => text,
+      });
       expect(views).toHaveSize(1);
       expect(views[0].fillPercent).toBe(15);
       expect(views[0].tone).toBe("critical");
@@ -231,7 +240,11 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         lastUpdated: 1_700_000_000_000,
         fields: [{ name: "used_percent_primary", value: 92, status: FieldStatus.OK }],
       };
-      const views = deriveFieldViews(CODEX_FIELDS, result, ["reset_at_primary"]);
+      const views = deriveFieldViews(CODEX_FIELDS, result, ["reset_at_primary"], {
+        zone: "panel",
+        locale: "en",
+        t: (text) => text,
+      });
       expect(views.every((view) => view.type !== "percent")).toBeTrue();
       expect(
         deriveProviderHealth(result.status, {
@@ -344,12 +357,16 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       const models = segmentsContext(results, statusFields).models;
 
       expect(models).toHaveSize(3);
-      expect(models.map((model) => model.health.tone)).toEqual(["ok", "partial", "error"]);
-      expect(models[0].health.stateTag).toBeNull();
-      expect(models[1].health.stateTag).toBe("~");
-      expect(models[1].health.stateAccessibleText).toBe("Cached");
-      expect(models[2].health.stateTag).toBe("(error)");
-      expect(models[2].meter.isError).toBeTrue();
+      expect(models.map((model) => displayFacts(model).health.tone)).toEqual([
+        "ok",
+        "partial",
+        "error",
+      ]);
+      expect(displayFacts(models[0]).health.stateTag).toBeNull();
+      expect(displayFacts(models[1]).health.stateTag).toBe("~");
+      expect(displayFacts(models[1]).health.stateAccessibleText).toBe("Cached");
+      expect(displayFacts(models[2]).health.stateTag).toBe("(error)");
+      expect(displayFacts(models[2]).meter.isError).toBeTrue();
       expect(models.map((model) => model.shortDisplayName)).toEqual([
         "CODEX",
         "CLAUDE",
@@ -375,11 +392,11 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       const second = segmentsContext(makeResults(88), statusFields).models;
 
       expect(identity(second)).toEqual(identity(first));
-      expect(first[0].health.tone).toBe("ok");
-      expect(second[0].health.tone).toBe("critical");
-      expect(first[0].meter.ratio).toBeCloseTo(0.4, 5);
-      expect(second[0].meter.ratio).toBeCloseTo(0.88, 5);
-      expect(second[0].meter.tone).toBe("critical");
+      expect(displayFacts(first[0]).health.tone).toBe("ok");
+      expect(displayFacts(second[0]).health.tone).toBe("critical");
+      expect(displayFacts(first[0]).meter.ratio).toBeCloseTo(0.4, 5);
+      expect(displayFacts(second[0]).meter.ratio).toBeCloseTo(0.88, 5);
+      expect(displayFacts(second[0]).meter.tone).toBe("critical");
     });
   });
 

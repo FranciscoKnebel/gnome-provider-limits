@@ -3,10 +3,11 @@ import St from "gi://St";
 import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
 import { gettext as _ } from "../helpers/gettext.js";
+import { ReaderStatus } from "../readers/base.js";
 import { connectRepaint, drawRadialGauge } from "./cairoDrawing.js";
 import { partitionProviderPanel } from "./cockpitModel.js";
 import type { BentoTileItem, PartitionedProviderPanel, RadialGaugeItem } from "./cockpitModel.js";
-import type { DisplayCallout, ProviderDisplayModel } from "./displayModel.js";
+import { displayFacts, type DisplayCallout, type ProviderDisplayModel } from "./displayModel.js";
 import type { PanelShell } from "./panelShell.js";
 import { applyToneClass } from "./tone.js";
 
@@ -44,17 +45,20 @@ export class DetailRenderer {
 
   private _derivePlan(context: DetailRenderContext): DetailRenderPlan {
     const { model, locale } = context;
-    const isError = model.isHardError;
+    const facts = displayFacts(model);
+    const isError =
+      model.result.status === ReaderStatus.ERROR ||
+      model.result.status === ReaderStatus.UNAVAILABLE;
 
     const partition: PartitionedProviderPanel = isError
       ? { gauges: [], gaugeRows: [], bentoTiles: [], bentoRows: [] }
       : partitionProviderPanel(model, locale, this._host.translate);
 
     return {
-      callout: model.callout,
+      callout: facts.callout,
       isError,
       partition,
-      lastUpdatedText: model.lastUpdatedText,
+      lastUpdatedText: facts.lastUpdatedText,
     };
   }
 

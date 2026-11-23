@@ -1,10 +1,8 @@
 import type { ProviderName } from "../constants.js";
-import { formatField } from "../formatters.js";
 import { GAUGE_END_ANGLE, emptyMeter, gaugeArc } from "./cairoDrawing.js";
-import { classifyPanelViews, type ProviderDisplayModel } from "./displayModel.js";
+import { classifyPanelViews, displayFacts, type ProviderDisplayModel } from "./displayModel.js";
 import type { FieldTone } from "./fieldRows.js";
 import type { FieldView } from "./fieldViews.js";
-import { toDisplayRow } from "./fieldViews.js";
 import type { GaugeSpec, GaugeTone, RadialGaugeGeometry } from "./gaugeTypes.js";
 import type { Presentation } from "./providerHealth.js";
 import { resetSlotText } from "./resetModel.js";
@@ -52,12 +50,10 @@ export interface OverviewRowModel {
   readonly accessibleText: string;
 }
 
-/** The one gauge spec builder: consumes the derived FieldView, never a raw value. */
-export function computeGaugeGeometry(view: FieldView, locale: string): RadialGaugeGeometry {
+/** The one gauge spec builder: consumes the formatted view, never a raw value. */
+export function computeGaugeGeometry(view: FieldView): RadialGaugeGeometry {
   const tone: GaugeTone = view.hasValue ? (view.tone ?? "ok") : "neutral";
-  const centerText = view.hasValue
-    ? formatField({ type: "percent", value: view.value, zone: "panel", locale })
-    : "—";
+  const centerText = view.hasValue ? view.valueText : "—";
   return {
     ...gaugeArc(view.hasValue ? view.usageRatio : null, tone),
     fieldTone: view.tone,
@@ -96,34 +92,32 @@ export function partitionProviderPanel(
   const bentoTiles: BentoTileItem[] = [];
 
   for (const view of groups.progress) {
-    const row = toDisplayRow(view, "panel", locale, tr);
     const pairing = model.resets.get(view.name);
     const resetText = pairing ? resetSlotText(pairing, "panel", locale, tr) : null;
-    const geometry = computeGaugeGeometry(view, locale);
-    const accessibleParts = [`${row.labelText}: ${geometry.centerText}`];
+    const geometry = computeGaugeGeometry(view);
+    const accessibleParts = [`${view.labelText}: ${geometry.centerText}`];
     if (resetText !== null) accessibleParts.push(resetText);
 
     gauges.push({
-      fieldName: row.name,
-      label: row.label,
-      translatedLabel: row.labelText,
+      fieldName: view.name,
+      label: view.label,
+      translatedLabel: view.labelText,
       geometry,
       resetText,
       hasResetSlot: resetText !== null,
       accessibleText: accessibleParts.join(", "),
-      ...(row.errorText ? { errorText: row.errorText } : {}),
+      ...(view.errorText ? { errorText: view.errorText } : {}),
     });
   }
 
   for (const view of groups.keyValue) {
-    const row = toDisplayRow(view, "panel", locale, tr);
     bentoTiles.push({
-      fieldName: row.name,
-      label: row.label,
-      translatedLabel: row.labelText,
-      valueText: row.valueText,
-      accessibleText: row.accessibleText,
-      ...(row.errorText ? { errorText: row.errorText } : {}),
+      fieldName: view.name,
+      label: view.label,
+      translatedLabel: view.labelText,
+      valueText: view.valueText,
+      accessibleText: view.accessibleText,
+      ...(view.errorText ? { errorText: view.errorText } : {}),
     });
   }
 
@@ -151,12 +145,13 @@ export function loadingOverviewRow(provider: ProviderName, displayName: string):
 
 export function buildOverviewRowModel(model: ProviderDisplayModel): OverviewRowModel {
   const { provider, displayName } = model;
-  const badgeKind: OverviewBadgeKind = model.badges.overview;
-  const badgeText = model.badges.overviewText;
-  const meter = model.meter;
+  const facts = displayFacts(model);
+  const badgeKind: OverviewBadgeKind = facts.badges.overview;
+  const badgeText = facts.badges.overviewText;
+  const meter = facts.meter;
 
   if (badgeKind === "error") {
-    const errSummary = model.diagnostic.errorText ?? "Error";
+    const errSummary = facts.diagnostic.errorText ?? "Error";
     return {
       provider,
       displayName,
@@ -170,10 +165,10 @@ export function buildOverviewRowModel(model: ProviderDisplayModel): OverviewRowM
     };
   }
 
-  const facts = model.usage.overview;
-  const resolvedTone = model.health.hasUsableField ? model.health.worstTone : undefined;
-  const primaryText = facts.valueText;
-  const secondaryText = facts.resetText;
+  const usage = facts.usage.overview;
+  const resolvedTone = facts.health.hasUsableField ? facts.health.worstTone : undefined;
+  const primaryText = usage.valueText;
+  const secondaryText = usage.resetText;
 
   const summaryParts = [displayName, badgeText, primaryText];
   if (secondaryText !== null) summaryParts.push(secondaryText);

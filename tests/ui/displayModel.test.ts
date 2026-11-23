@@ -2,7 +2,11 @@ import { providerRecord } from "../../src/constants.js";
 import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
 import type { ReaderResult } from "../../src/readers/base.js";
 import { CODEX_FIELDS, PROVIDER_FIELDS } from "../../src/readers/fields.js";
-import { deriveDisplayModel, deriveDisplayModels } from "../../src/ui/displayModel.js";
+import {
+  deriveDisplayModel,
+  deriveDisplayModels,
+  displayFacts,
+} from "../../src/ui/displayModel.js";
 import { consumedResetNames, resetDetailText, resetSlotText } from "../../src/ui/resetModel.js";
 import { viewContextFromFixture, type ViewFixtureInput } from "./contextFixture.js";
 
@@ -38,11 +42,11 @@ describe("deriveDisplayModel", () => {
       "reset_at_primary",
     ]);
     expect(model?.panelViews.map((view) => view.name)).toEqual(["plan_type"]);
-    expect(model?.badges.card).toBe("live");
-    expect(model?.badges.cardText).toBe("Live");
-    expect(model?.health.tone).toBe("warning");
-    expect(model?.meter.ratio).toBeCloseTo(0.64, 5);
-    expect(model?.diagnostic.bannerKind).toBeNull();
+    expect(displayFacts(model!).badges.card).toBe("live");
+    expect(displayFacts(model!).badges.cardText).toBe("Live");
+    expect(displayFacts(model!).health.tone).toBe("warning");
+    expect(displayFacts(model!).meter.ratio).toBeCloseTo(0.64, 5);
+    expect(displayFacts(model!).diagnostic.bannerKind).toBeNull();
   });
 
   it("returns nothing for a disabled result, matching the context loop", () => {
@@ -172,25 +176,33 @@ describe("deriveDisplayModel owns diagnostics and reset pairing", () => {
       },
       [],
     );
-    expect(cached.callout).toEqual({ kind: "warning", badge: "Cached", text: "HTTP 503" });
-    expect(cached.diagnostic.bannerKind).toBe("warning");
+    expect(displayFacts(cached).callout).toEqual({
+      kind: "warning",
+      badge: "Cached",
+      text: "HTTP 503",
+    });
+    expect(displayFacts(cached).diagnostic.bannerKind).toBe("warning");
 
     const partial = modelFor(
       { ...result, status: ReaderStatus.PARTIAL, lastError: "CLI failed" },
       [],
     );
-    expect(partial.callout?.badge).toBe("Partial");
+    expect(displayFacts(partial).callout?.badge).toBe("Partial");
 
     const error = modelFor({ ...result, status: ReaderStatus.ERROR, lastError: "Login" }, []);
-    expect(error.isHardError).toBeTrue();
-    expect(error.callout).toEqual({ kind: "error", badge: "Error", text: "Login" });
+    expect(error.result.status).toBe(ReaderStatus.ERROR);
+    expect(displayFacts(error).callout).toEqual({ kind: "error", badge: "Error", text: "Login" });
 
     const unavailable = modelFor({ ...result, status: ReaderStatus.UNAVAILABLE }, []);
-    expect(unavailable.diagnostic.bannerText).toBe("Unavailable");
-    expect(unavailable.callout).toEqual({ kind: "error", badge: "Error", text: "Error" });
+    expect(displayFacts(unavailable).diagnostic.bannerText).toBe("Unavailable");
+    expect(displayFacts(unavailable).callout).toEqual({
+      kind: "error",
+      badge: "Error",
+      text: "Error",
+    });
 
     const healthy = modelFor(result, []);
-    expect(healthy.callout).toBeNull();
-    expect(healthy.lastUpdatedText).toContain("Last updated:");
+    expect(displayFacts(healthy).callout).toBeNull();
+    expect(displayFacts(healthy).lastUpdatedText).toContain("Last updated:");
   });
 });

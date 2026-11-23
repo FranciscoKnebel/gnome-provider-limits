@@ -3,10 +3,10 @@ import St from "gi://St";
 
 import type { ProviderName } from "../constants.js";
 import { ReaderStatus } from "../readers/base.js";
-import { formatViewText } from "./fieldViews.js";
-import { statusBadgeText } from "./providerHealth.js";
+import { displayFacts } from "./displayModel.js";
 import type { ProviderAttention } from "./providerHealth.js";
 import { StatusBarRenderer, type ZonePlan } from "./statusBarRenderer.js";
+import { STYLE_REGISTRY } from "./styles.js";
 import { applyStatusAttentionClass } from "./tone.js";
 import type { ProviderViewContext } from "./viewContext.js";
 import { phaseResult } from "./viewMessages.js";
@@ -22,7 +22,7 @@ interface CompactBadgePlan {
 type CompactPlan = ZonePlan<CompactBadgePlan>;
 
 function planCompact(context: ProviderViewContext): CompactPlan {
-  const phase = phaseResult(context, "compact", false);
+  const phase = phaseResult(context, STYLE_REGISTRY.statusBar.compact, false);
   if (phase.kind === "placeholder") {
     return {
       kind: "placeholder",
@@ -34,26 +34,24 @@ function planCompact(context: ProviderViewContext): CompactPlan {
   }
 
   const segments: CompactBadgePlan[] = context.models.map((model) => {
+    const { health, badges } = displayFacts(model);
     const shortLabel = model.shortDisplayName || model.provider;
-    const badgeWord = statusBadgeText(model.health, context.t);
+    const badgeWord = badges.status;
 
-    if (model.health.state === "error" || model.health.state === "unavailable") {
+    if (health.state === "error" || health.state === "unavailable") {
       return {
         provider: model.provider,
         shortLabel,
         metricsText: "!",
-        attention: model.health.attention,
+        attention: health.attention,
         accessibleText: `${shortLabel} ${badgeWord}`.trim(),
       };
     }
 
-    const viewTexts = model.statusViews.map((view) =>
-      formatViewText(view, "status", context.locale, context.t),
-    );
-    const joined = viewTexts.map((text) => text.valueText).join("·");
+    const joined = model.statusViews.map((view) => view.valueText).join("·");
     const prefix = model.result.status === ReaderStatus.PARTIAL ? "~" : "";
     const metricsText = joined ? `${prefix}${joined}` : prefix;
-    const spokenRows = viewTexts.map((text) => text.accessibleText).join(", ");
+    const spokenRows = model.statusViews.map((view) => view.accessibleText).join(", ");
     const headerPart = badgeWord ? `${shortLabel} ${badgeWord}` : shortLabel;
     const accessibleText = spokenRows ? `${headerPart}: ${spokenRows}` : headerPart;
 
@@ -61,7 +59,7 @@ function planCompact(context: ProviderViewContext): CompactPlan {
       provider: model.provider,
       shortLabel,
       metricsText,
-      attention: model.health.attention,
+      attention: health.attention,
       accessibleText,
     };
   });

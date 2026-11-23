@@ -14,7 +14,6 @@ src/ui/statusBarPills.ts
 src/ui/panel.ts
 src/ui/panelShell.ts
 src/ui/panelCards.ts
-src/ui/cardPlan.ts
 src/ui/panelCompact.ts
 src/ui/matrixPlan.ts
 src/ui/panelGauges.ts

@@ -1,4 +1,5 @@
 import { providerRecord } from "../../src/constants.js";
+import { STYLE_REGISTRY, type StyleSpec } from "../../src/ui/styles.js";
 import { type ProviderViewContext, type ViewPhase } from "../../src/ui/viewContext.js";
 import { phaseResult, viewMessages } from "../../src/ui/viewMessages.js";
 import type { PanelSurface, StatusBarSurface, ViewSurface } from "../../src/ui/viewMessages.js";
@@ -7,8 +8,21 @@ const PANEL_SURFACES: readonly PanelSurface[] = ["cards", "matrix", "cockpit"];
 const STATUS_SURFACES: readonly StatusBarSurface[] = ["pills", "gauges", "compact"];
 const ALL_SURFACES: readonly ViewSurface[] = [...PANEL_SURFACES, ...STATUS_SURFACES];
 
+const SPECS: Readonly<Record<ViewSurface, StyleSpec<string>>> = {
+  cards: STYLE_REGISTRY.panel.cards,
+  matrix: STYLE_REGISTRY.panel.compact,
+  cockpit: STYLE_REGISTRY.panel.gauges,
+  pills: STYLE_REGISTRY.statusBar.pills,
+  gauges: STYLE_REGISTRY.statusBar.gauges,
+  compact: STYLE_REGISTRY.statusBar.compact,
+};
+
+function specFor(surface: ViewSurface): StyleSpec<string> {
+  return SPECS[surface];
+}
+
 function message(phase: ViewPhase, surface: ViewSurface, running = false) {
-  return viewMessages({ phase, surface, running, t: (text) => text });
+  return viewMessages({ phase, spec: specFor(surface), running, t: (text) => text });
 }
 
 function view(phase: ViewPhase): ProviderViewContext {
@@ -93,7 +107,7 @@ describe("viewMessages", () => {
   it("translates mapped text through the supplied translator", () => {
     const result = viewMessages({
       phase: "empty",
-      surface: "matrix",
+      spec: specFor("matrix"),
       running: false,
       t: (text) => `T:${text}`,
     });
@@ -104,23 +118,23 @@ describe("viewMessages", () => {
 describe("phaseResult", () => {
   it("returns ready on every surface when the view is ready", () => {
     for (const surface of ALL_SURFACES) {
-      expect(phaseResult(view("ready"), surface, false)).toEqual({ kind: "ready" });
+      expect(phaseResult(view("ready"), specFor(surface), false)).toEqual({ kind: "ready" });
     }
   });
 
   it("returns ready for status surfaces with an empty view and no words to show", () => {
-    expect(phaseResult(view("empty"), "pills", false)).toEqual({ kind: "ready" });
-    expect(phaseResult(view("empty"), "compact", false)).toEqual({ kind: "ready" });
+    expect(phaseResult(view("empty"), specFor("pills"), false)).toEqual({ kind: "ready" });
+    expect(phaseResult(view("empty"), specFor("compact"), false)).toEqual({ kind: "ready" });
   });
 
   it("returns a typed placeholder carrying the derived message for every loading surface", () => {
-    expect(phaseResult(view("loading"), "cards", true)).toEqual({
+    expect(phaseResult(view("loading"), specFor("cards"), true)).toEqual({
       kind: "placeholder",
       phase: "loading",
       message: message("loading", "cards", true),
     });
     for (const surface of ALL_SURFACES.filter((candidate) => candidate !== "cards")) {
-      const result = phaseResult(view("loading"), surface, false);
+      const result = phaseResult(view("loading"), specFor(surface), false);
       expect(result.kind).toBe("placeholder");
       if (result.kind === "placeholder") {
         expect(result.message).toEqual(message("loading", surface));
@@ -130,7 +144,7 @@ describe("phaseResult", () => {
 
   it("returns a typed placeholder for panel empty states", () => {
     for (const surface of PANEL_SURFACES) {
-      const result = phaseResult(view("empty"), surface, false);
+      const result = phaseResult(view("empty"), specFor(surface), false);
       expect(result.kind).toBe("placeholder");
       if (result.kind === "placeholder") {
         expect(result.message).toEqual(message("empty", surface));

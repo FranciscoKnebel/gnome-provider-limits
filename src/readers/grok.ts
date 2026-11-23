@@ -4,8 +4,15 @@ import GLib from "gi://GLib";
 import { gettext as _ } from "../helpers/gettext.js";
 import { HttpClient, TokenError } from "../helpers/http.js";
 import { logWarn } from "../helpers/log.js";
-import { BaseReader, FieldStatus, type ReaderResult } from "./base.js";
-import { normalizeGrokUsagePayload, parseGrokAuth } from "./grokParser.js";
+import {
+  BaseReader,
+  FieldStatus,
+  type FieldDef,
+  type FieldResult,
+  type ReaderResult,
+} from "./base.js";
+import { GROK_FIELDS } from "./fields.js";
+import { type GrokUsage, normalizeGrokUsagePayload, parseGrokAuth } from "./grokParser.js";
 
 const GROK_BASE_URL = "https://cli-chat-proxy.grok.com/v1";
 
@@ -15,6 +22,10 @@ export class GrokReader extends BaseReader {
   private _http: HttpClient | null = null;
   private _destroyed = false;
   private _cancellable = new Gio.Cancellable();
+
+  override get FIELDS(): readonly FieldDef[] {
+    return GROK_FIELDS;
+  }
 
   override destroy(): void {
     this._destroyed = true;
@@ -100,9 +111,18 @@ export class GrokReader extends BaseReader {
     }
 
     this._assertAlive();
+    const fields = this._fieldsFromUsage(usage, plan);
+    return this._finalizeResult(
+      this._classifyResult(fields, pathsTried, "Grok"),
+      pathsTried,
+      _("Grok: subscription credits unavailable. Try again later."),
+    );
+  }
+
+  private _fieldsFromUsage(usage: GrokUsage, plan: string | null): FieldResult[] {
     const optionalField = (name: string, value: unknown) =>
       this._makeField(name, value, value !== null ? FieldStatus.OK : FieldStatus.UNAVAILABLE);
-    const fields = [
+    return [
       ...this._makeWindowFields("credits", {
         used_percent: usage.usedPercent,
         reset_at: usage.resetAt,
@@ -112,10 +132,5 @@ export class GrokReader extends BaseReader {
       optionalField("plan_type", plan),
       this._makeField("usage_source", "cli-chat-proxy.grok.com", FieldStatus.OK),
     ];
-    return this._finalizeResult(
-      this._classifyResult(fields, pathsTried, "Grok"),
-      pathsTried,
-      _("Grok: subscription credits unavailable. Try again later."),
-    );
   }
 }

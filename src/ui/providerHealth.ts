@@ -197,19 +197,16 @@ export function deriveProviderHealth(
   };
 }
 
-export type BadgeZone = "card" | "overview" | "status";
+export type BadgeZone = "card" | "overview";
 
 export function badgeForZone(health: ProviderHealth, zone: "card"): Presentation["cardBadge"];
 export function badgeForZone(
   health: ProviderHealth,
   zone: "overview",
 ): Presentation["overviewBadge"];
-export function badgeForZone(health: ProviderHealth, zone: "status"): string;
 export function badgeForZone(health: ProviderHealth, zone: BadgeZone): string {
   const presentation = PRESENTATION[health.state];
-  if (zone === "card") return presentation.cardBadge;
-  if (zone === "overview") return presentation.overviewBadge;
-  return presentation.statusTag;
+  return zone === "card" ? presentation.cardBadge : presentation.overviewBadge;
 }
 
 export function cardBadgeText(health: ProviderHealth, t: (s: string) => string): string {

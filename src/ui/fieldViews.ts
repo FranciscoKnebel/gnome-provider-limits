@@ -8,13 +8,18 @@ import { clampFillRatio, clampPercent, fieldTone } from "./fieldRows.js";
 import type { GaugeSpec } from "./gaugeTypes.js";
 import { isLimitReached } from "./providerHealth.js";
 
-/** One zone-agnostic projection of a field. Value text is formatted at point of use. */
+/**
+ * The one formatted projection of a field. Text is rendered at derivation for
+ * the view's zone, so renderers consume it directly without a second stage.
+ */
 export interface FieldView {
   readonly name: string;
   readonly type: FieldType;
   readonly category: FieldCategory;
   readonly label: string;
-  readonly value: unknown;
+  readonly labelText: string;
+  readonly valueText: string;
+  readonly accessibleText: string;
   readonly hasValue: boolean;
   readonly tone?: FieldTone;
   readonly errorText?: string;
@@ -29,77 +34,20 @@ function usedPercentOf(fieldName: string, value: unknown): number | null {
   return fieldName.startsWith("remaining_percent") ? 100 - value : value;
 }
 
-export function formatViewValue(
-  view: FieldView,
-  zone: FieldZone,
-  locale: string,
-  t: (s: string) => string,
-): string {
-  if (!view.hasValue) return "—";
-  return formatField({ type: view.type, value: view.value, zone, locale, t });
+export interface FieldViewOptions {
+  readonly zone: FieldZone;
+  readonly locale: string;
+  readonly t: (s: string) => string;
 }
 
-function formatViewAccessibleText(
-  view: FieldView,
-  zone: FieldZone,
-  locale: string,
-  t: (s: string) => string,
-): string {
-  return `${t(view.label)}: ${formatViewValue(view, zone, locale, t)}`;
-}
-
-export interface FormattedViewText {
-  readonly valueText: string;
-  readonly accessibleText: string;
-}
-
-export function formatViewText(
-  view: FieldView,
-  zone: FieldZone,
-  locale: string,
-  t: (s: string) => string,
-): FormattedViewText {
-  return {
-    valueText: formatViewValue(view, zone, locale, t),
-    accessibleText: formatViewAccessibleText(view, zone, locale, t),
-  };
-}
-
-/** The style-neutral projection of a FieldView, shared by every plan builder. */
-export interface DisplayRow {
-  readonly name: string;
-  readonly label: string;
-  readonly labelText: string;
-  readonly valueText: string;
-  readonly accessibleText: string;
-  readonly category: FieldCategory;
-  readonly tone?: FieldTone;
-  readonly errorText?: string;
-}
-
-export function toDisplayRow(
-  view: FieldView,
-  zone: FieldZone,
-  locale: string,
-  t: (s: string) => string,
-): DisplayRow {
-  return {
-    name: view.name,
-    label: view.label,
-    labelText: t(view.label),
-    ...formatViewText(view, zone, locale, t),
-    category: view.category,
-    ...(view.tone ? { tone: view.tone } : {}),
-    ...(view.errorText ? { errorText: view.errorText } : {}),
-  };
-}
-
-/** The single zone-agnostic derivation for one provider's configured fields. */
+/** The single zone-aware derivation for one provider's configured fields. */
 export function deriveFieldViews(
   defs: readonly FieldDef[],
   result: ReaderResult,
   fieldNames: readonly string[],
+  options: FieldViewOptions,
 ): FieldView[] {
+  const { zone, locale, t: tr } = options;
   const limitReached = isLimitReached(result.fields);
   const fieldByName = new Map(result.fields.map((field) => [field.name, field]));
   const views: FieldView[] = [];
@@ -140,13 +88,17 @@ export function deriveFieldViews(
       field?.status === FieldStatus.ERROR || result.status === ReaderStatus.ERROR
         ? (field?.error ?? result.lastError ?? "Provider error")
         : undefined;
+    const labelText = tr(def.label);
+    const valueText = hasValue ? formatField({ type: def.type, value, zone, locale, t: tr }) : "—";
 
     views.push({
       name,
       type: def.type,
       category: def.category,
       label: def.label,
-      value,
+      labelText,
+      valueText,
+      accessibleText: `${labelText}: ${valueText}`,
       hasValue,
       ...(tone ? { tone } : {}),
       ...(errorText ? { errorText } : {}),
@@ -215,8 +167,6 @@ export interface UsageFacts {
 
 export interface UsageProjectionOptions extends UsageViewSelection {
   readonly t: (s: string) => string;
-  readonly zone: FieldZone;
-  readonly locale: string;
   readonly resetTextFor?: (view: FieldView) => string | null;
 }
 
@@ -241,21 +191,19 @@ export function projectUsageFacts(
   const tokens: string[] = [];
   for (const name of preferredFieldNames) {
     const view = views.find((candidate) => candidate.name === name);
-    if (view?.hasValue) tokens.push(formatViewValue(view, options.zone, options.locale, tr));
+    if (view?.hasValue) tokens.push(view.valueText);
   }
   if (tokens.length === 0) {
-    if (primary?.hasValue) {
-      tokens.push(formatViewValue(primary, options.zone, options.locale, tr));
-    }
+    if (primary?.hasValue) tokens.push(primary.valueText);
     const resetView = views.find(
       (candidate) =>
         candidate.type === "timestamp" && candidate.category === "limit" && candidate.hasValue,
     );
-    if (resetView) tokens.push(formatViewValue(resetView, options.zone, options.locale, tr));
+    if (resetView) tokens.push(resetView.valueText);
   }
 
   return {
-    valueText: primary ? formatViewValue(primary, options.zone, options.locale, tr) : "—",
+    valueText: primary ? primary.valueText : "—",
     fillRatio: primary?.usageRatio ?? null,
     tone: primary?.tone,
     resetText: primary ? (options.resetTextFor?.(primary) ?? null) : null,

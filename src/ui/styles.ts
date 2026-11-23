@@ -41,8 +41,6 @@ export interface StyleSpec<Id extends string> {
   readonly id: Id;
   /** Raw gettext key; translated by the preferences page at point of use. */
   readonly label: string;
-  /** Key the consumer maps to its concrete section or renderer factory. */
-  readonly factory: Id;
   readonly messages: PhaseMessages;
 }
 
@@ -156,7 +154,6 @@ export const STYLE_REGISTRY: StyleRegistry = {
     gauges: {
       id: "gauges",
       label: "Tabbed cockpit & gauges",
-      factory: "gauges",
       surface: "cockpit",
       messages: COCKPIT_MESSAGES,
       shellPlacement: {
@@ -178,7 +175,6 @@ export const STYLE_REGISTRY: StyleRegistry = {
     cards: {
       id: "cards",
       label: "Quick settings cards",
-      factory: "cards",
       surface: "cards",
       messages: CARD_MESSAGES,
       shellPlacement: {
@@ -202,7 +198,6 @@ export const STYLE_REGISTRY: StyleRegistry = {
     compact: {
       id: "compact",
       label: "Collapsible matrix HUD",
-      factory: "compact",
       surface: "matrix",
       messages: MATRIX_MESSAGES,
       shellPlacement: {
@@ -226,21 +221,18 @@ export const STYLE_REGISTRY: StyleRegistry = {
     pills: {
       id: "pills",
       label: "Capsule pills",
-      factory: "pills",
       surface: "pills",
       messages: PILLS_MESSAGES,
     },
     gauges: {
       id: "gauges",
       label: "Micro-ring gauges",
-      factory: "gauges",
       surface: "gauges",
       messages: STATUS_GAUGES_MESSAGES,
     },
     compact: {
       id: "compact",
       label: "Compact text",
-      factory: "compact",
       surface: "compact",
       messages: STATUS_COMPACT_MESSAGES,
     },
@@ -261,22 +253,4 @@ export function resolveStatusBarStyle(value: string): StatusBarStyle {
 
 export function resolvePanelStyle(value: string): PanelStyle {
   return isPanelStyle(value) ? value : DEFAULT_PANEL_STYLE;
-}
-
-const SPEC_BY_SURFACE: Readonly<
-  Record<PanelSurface | StatusBarSurface, PanelStyleSpec | StatusBarStyleSpec>
-> = {
-  cards: STYLE_REGISTRY.panel.cards,
-  matrix: STYLE_REGISTRY.panel.compact,
-  cockpit: STYLE_REGISTRY.panel.gauges,
-  pills: STYLE_REGISTRY.statusBar.pills,
-  gauges: STYLE_REGISTRY.statusBar.gauges,
-  compact: STYLE_REGISTRY.statusBar.compact,
-};
-
-/** Resolve the one spec that owns copy and presentation for a view surface. */
-export function styleSpecForSurface(
-  surface: PanelSurface | StatusBarSurface,
-): PanelStyleSpec | StatusBarStyleSpec {
-  return SPEC_BY_SURFACE[surface];
 }

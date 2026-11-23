@@ -24,7 +24,7 @@ interface SectionHost {
 
 type SectionFactory = (host: SectionHost) => PanelStyleSection;
 
-/** The consumer-side mapping from a spec's factory key to its concrete section. */
+/** The consumer-side mapping from a spec id to its concrete section. */
 const SECTION_FACTORIES: Record<PanelStyle, SectionFactory> = {
   gauges: ({ settings, createShell }) => new GaugesPanelSection(settings, createShell()),
   cards: ({ createShell }) => new CardsPanelSection(createShell()),
@@ -88,7 +88,7 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     }
 
     this._currentStyle = spec.id;
-    const section = SECTION_FACTORIES[spec.factory]({
+    const section = SECTION_FACTORIES[spec.id]({
       settings: this._settings,
       createShell: (extraControls) => this._createShell(spec, extraControls),
     });
