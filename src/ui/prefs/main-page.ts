@@ -3,20 +3,8 @@ import Gio from "gi://Gio";
 import GObject from "gi://GObject";
 import Gtk from "gi://Gtk?version=4.0";
 
-import { PROVIDER_NAMES, type ProviderName } from "../../constants.js";
-import {
-  isProviderName,
-  normalizeProvidersOrder,
-  providerDisplayName,
-} from "../../helpers/provider-settings.js";
 import { gettext as _ } from "./gettext.js";
-import {
-  bindSetting,
-  buildReorderableList,
-  setupDragSource,
-  setupDropTarget,
-  unbindSettings,
-} from "./shared.js";
+import { bindSetting, unbindSettings } from "./shared.js";
 import type { SettingsBinding } from "./shared.js";
 
 export interface LanguageEntry {
@@ -29,7 +17,6 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
     declare _settings: Gio.Settings;
     declare _languages: LanguageEntry[];
     declare _settingsChangedIds: number[];
-    declare _destroyCallbacks: (() => void)[];
     declare _bindings: SettingsBinding[];
 
     _init(settings: Gio.Settings, languages: LanguageEntry[]) {
@@ -41,13 +28,11 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
       this._settings = settings;
       this._languages = languages;
       this._settingsChangedIds = [];
-      this._destroyCallbacks = [];
       this._bindings = [];
       this.connect("destroy", () => this.cleanup());
       this.add(this._buildRefreshGroup());
       this.add(this._buildStatusBarPositionGroup());
       this.add(this._buildLanguageGroup());
-      this.add(this._buildProvidersGroup());
     }
 
     cleanup(): void {
@@ -55,9 +40,6 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
         this._settings.disconnect(id);
       }
       this._settingsChangedIds = [];
-
-      for (const destroy of this._destroyCallbacks) destroy();
-      this._destroyCallbacks = [];
 
       unbindSettings(this._bindings);
     }
@@ -162,44 +144,6 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
       return group;
     }
 
-    private _buildProvidersGroup(): Adw.PreferencesGroup {
-      const group = new Adw.PreferencesGroup({
-        title: _("Providers"),
-        description: _("Enable and reorder providers by dragging the rows."),
-      });
-
-      const toggleBindings: SettingsBinding[] = [];
-      const { listBox, render, destroy } = buildReorderableList(
-        this._settings,
-        "providers-order",
-        (value) => {
-          if (!isProviderName(value)) return null;
-          const row = this._buildReorderableRow({
-            key: "providers-order",
-            value,
-            label: providerDisplayName(this._settings, value),
-          });
-          const toggle = new Gtk.Switch({ valign: Gtk.Align.CENTER });
-          bindSetting(this._settings, `${value}-enabled`, toggle, "active", toggleBindings);
-          row.add_suffix(toggle);
-          return row;
-        },
-        normalizeProvidersOrder,
-        () => unbindSettings(toggleBindings),
-      );
-      this._destroyCallbacks.push(() => unbindSettings(toggleBindings));
-      this._destroyCallbacks.push(destroy);
-      group.add(listBox);
-
-      for (const name of PROVIDER_NAMES) {
-        this._settingsChangedIds.push(
-          this._settings.connect(`changed::${name}-display-name`, render),
-        );
-      }
-
-      return group;
-    }
-
     private _createSpinRow(
       key: string,
       title: string,
@@ -224,27 +168,6 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
       });
 
       bindSetting(this._settings, key, row, "value", this._bindings);
-      return row;
-    }
-
-    private _buildReorderableRow(args: {
-      key: string;
-      value: ProviderName;
-      label: string;
-    }): Adw.ActionRow {
-      const { key, value, label } = args;
-
-      const row = new Adw.ActionRow({
-        title: label,
-        activatable: false,
-      });
-
-      const dragHandle = new Gtk.Image({ icon_name: "list-drag-handle-symbolic" });
-      row.add_prefix(dragHandle);
-
-      setupDragSource(row, value);
-      setupDropTarget(row, this._settings, key, value);
-
       return row;
     }
   },

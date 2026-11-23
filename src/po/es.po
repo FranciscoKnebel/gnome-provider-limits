@@ -510,3 +510,46 @@ msgstr "Inicia sesión con Gemini CLI o Antigravity."
 msgid "Leave the authentication file empty to use ~/.gemini/oauth_creds.json or Antigravity credentials."
 msgstr "Deja vacío el archivo de autenticación para usar ~/.gemini/oauth_creds.json o las credenciales de Antigravity."
 
+#: src/ui/matrixPlan.ts
+msgid "Limits"
+msgstr "Límites"
+
+#: src/ui/matrixPlan.ts
+msgid "Telemetry"
+msgstr "Telemetría"
+
+#: src/ui/matrixPlan.ts
+msgid "No providers enabled. Open Settings to enable a provider."
+msgstr "No hay proveedores habilitados. Abra Configuración para habilitar un proveedor."
+
+#: src/ui/matrixPlan.ts src/ui/statusBar.ts
+msgid "Reading provider limits…"
+msgstr "Leyendo límites de proveedores…"
+
+#: src/ui/panel.ts
+msgid "Expand all"
+msgstr "Expandir todo"
+
+#: src/ui/panel.ts
+msgid "Collapse all"
+msgstr "Contraer todo"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Move up"
+msgstr "Subir"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Move down"
+msgstr "Bajar"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Reset"
+msgstr "Restablecer"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Reset fields to defaults"
+msgstr "Restablecer campos predeterminados"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Enable, reorder, and configure each provider inline."
+msgstr "Habilite, reordene y configure cada proveedor en la misma fila."

@@ -1,12 +1,14 @@
 src/extension.ts
 src/prefs.ts
 src/formatters.ts
+src/readers/fields.ts
 src/readers/codex.ts
 src/readers/claude.ts
 src/readers/opencode.ts
 src/readers/grok.ts
 src/readers/cursor.ts
 src/readers/google.ts
+src/ui/matrixPlan.ts
 src/ui/statusBar.ts
 src/ui/panel.ts
 src/ui/prefs/main-page.ts

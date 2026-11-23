@@ -215,7 +215,7 @@ test("preferences close disconnects bindings/pages and cancels pending rebuild; 
   let cleanups = 0;
   prefs._buildWindow = () => {
     prefs._pages.push({ cleanup: () => cleanups++ });
-    prefs._enabledChangedIds.push(settings.connect("enabled", () => {}));
+    prefs._pages.push({ cleanup: () => cleanups++ });
   };
   for (let round = 0; round < 2; round++) {
     const signals = new Map();
@@ -228,7 +228,7 @@ test("preferences close disconnects bindings/pages and cancels pending rebuild; 
     assert.equal(glib.sources.size, 0);
     assert.equal(prefs._pages.length, 0);
   }
-  assert.equal(cleanups, 2);
+  assert.equal(cleanups, 4);
 });
 
 test("both promise lint rules reject controlled negative fixtures", () => {
@@ -754,15 +754,18 @@ test("Language override, system selection, self-heal and disable preserve shared
   assert.equal(unrelated(), before);
 });
 
-test("Panel keeps footer actors across structural/value updates and scrolls focused fields", () => {
+test("Panel keeps HUD toolbar actors across structural/value updates, toggles collapsible rows, and scrolls focused rows", () => {
   const focused = [];
+  let refreshCount = 0;
+  let prefsOpened = 0;
   class Actor {
     children = [];
     signals = new Map();
     clutter_text = {};
-    label;
+    width = 240;
     constructor(props = {}) {
       Object.assign(this, props);
+      if (props.child) this.add_child(props.child);
     }
     add_child(child) {
       this.children.push(child);
@@ -792,11 +795,11 @@ test("Panel keeps footer actors across structural/value updates and scrolls focu
       this.items = [];
       this.actor.children = [];
     }
+    destroy() {}
   }
   class Item extends Actor {
-    constructor(text, props) {
-      super(props ?? text);
-      this.label = new Actor({ text });
+    constructor(props) {
+      super(props ?? {});
     }
   }
   class Scroll extends Actor {
@@ -807,25 +810,79 @@ test("Panel keeps footer actors across structural/value updates and scrolls focu
       this.add_child(child);
     }
   }
+  const fieldsMod = load("src/readers/fields.ts", "({ PROVIDER_FIELDS, resolveFieldCategory })");
+  const formattersMod = load(
+    "src/formatters.ts",
+    "({ formatField, formatAbsoluteTimestamp, formatTimestampTemplate })",
+    { Intl },
+  );
+  const fieldRowsMod = load("src/ui/fieldRows.ts", "({ fieldTone, getFieldRows, percentTone })", {
+    ...formattersMod,
+    FieldStatus: { OK: "ok", UNAVAILABLE: "unavailable", ERROR: "error" },
+    ReaderStatus: {
+      OK: "ok",
+      PARTIAL: "partial",
+      ERROR: "error",
+      UNAVAILABLE: "unavailable",
+      DISABLED: "disabled",
+    },
+  });
+  const renderStructureMod = load("src/ui/renderStructure.ts", "({ sectionKey, structureKey })");
+  const matrixPlanMod = load(
+    "src/ui/matrixPlan.ts",
+    "({ clampFillRatio, planPanelMatrix, resolveProviderExpanded, toggleAllProvidersExpanded })",
+    {
+      ...fieldsMod,
+      ...formattersMod,
+      ...fieldRowsMod,
+      ...renderStructureMod,
+      FieldStatus: { OK: "ok", UNAVAILABLE: "unavailable", ERROR: "error" },
+      ReaderStatus: {
+        OK: "ok",
+        PARTIAL: "partial",
+        ERROR: "error",
+        UNAVAILABLE: "unavailable",
+        DISABLED: "disabled",
+      },
+    },
+  );
   const K = load("src/ui/panel.ts", "PanelWidget", {
     PopupMenu: {
       PopupMenuSection: Section,
       PopupBaseMenuItem: Item,
-      PopupMenuItem: Item,
-      PopupSeparatorMenuItem: Item,
     },
     St: {
       ScrollView: Scroll,
       Label: Actor,
       BoxLayout: Actor,
+      Button: Actor,
+      Icon: Actor,
+      Widget: Actor,
       PolicyType: { NEVER: 0, AUTOMATIC: 1 },
       ThemeContext: { get_for_stage: () => ({ scale_factor: 2 }) },
     },
-    Clutter: { ActorAlign: { START: 0, END: 1 } },
-    Spinner: class extends Actor {
-      play() {}
-      stop() {}
+    Clutter: {
+      ActorAlign: { START: 0, CENTER: 1, END: 2 },
+      KEY_Return: 1,
+      KEY_KP_Enter: 2,
+      KEY_space: 3,
+      KEY_Left: 4,
+      KEY_Right: 5,
+      EVENT_STOP: true,
+      EVENT_PROPAGATE: false,
     },
+    Spinner: class extends Actor {
+      playing = false;
+      play() {
+        this.playing = true;
+      }
+      stop() {
+        this.playing = false;
+      }
+    },
+    PROVIDER_NAMES: ["codex", "claude", "opencode", "grok"],
+    normalizeProvidersOrder: (a) => a,
+    providerDisplayName: (_s, name) => name.toUpperCase(),
     _: (s) => s,
     GLib: { getenv: () => "en" },
     resolveLocale: () => "en",
@@ -835,30 +892,132 @@ test("Panel keeps footer actors across structural/value updates and scrolls focu
         getWorkAreaForMonitor: () => ({ height: 768 }),
       },
     },
-    formatTimestampTemplate: (_t, at) => String(at),
+    formatTimestampTemplate: (_t, at) => (at === null ? "" : String(at)),
     applyToneClass() {},
+    applyQuietToneClass() {},
+    ...matrixPlanMod,
     ensureActorVisibleInScrollView: (scroll, row) => focused.push([scroll, row]),
   });
-  const panel = new K({ get_string: () => "en" }, new Map(), () => {});
+
+  const mockSettings = {
+    get_string: () => "en",
+    get_boolean: (k) => k === "codex-enabled" || k === "claude-enabled",
+    get_strv: (k) => {
+      if (k === "providers-order") return ["codex", "claude", "opencode", "grok"];
+      if (k.endsWith("-status-fields")) return ["used_percent_primary"];
+      if (k.endsWith("-panel-fields")) return ["used_percent_secondary", "plan_type"];
+      return [];
+    },
+  };
+
+  const panel = new K(
+    mockSettings,
+    new Map(),
+    () => {
+      prefsOpened++;
+    },
+    () => {
+      refreshCount++;
+    },
+  );
   assert.ok(panel._scroll.children.includes(panel._body.actor));
-  const refresh = panel._refreshRow;
-  const settings = panel._settingsItem;
-  assert.ok(panel.box.children.includes(refresh));
-  assert.ok(!panel._scroll.children.includes(refresh));
+  const toolbar = panel._toolbarRow;
+  const refreshBtn = panel._refreshButton;
+  const settingsBtn = panel._settingsButton;
+  assert.ok(panel.box.children.includes(toolbar));
+  assert.ok(!panel._scroll.children.includes(toolbar));
+
   panel._scroll.mapped = true;
   panel._scroll.signals.get("notify::mapped")();
   assert.equal(panel._scroll.style, "max-height: 230px;");
-  panel._addSection = () => ({ fields: [] });
-  panel._rebuild([{ rows: [] }], 100);
-  panel._rebuild([{ rows: [] }, { rows: [] }], 200);
-  panel._update([{ rows: [] }, { rows: [] }], 300);
-  assert.equal(panel._refreshRow, refresh);
-  assert.equal(panel._settingsItem, settings);
+
+  const results1 = new Map([
+    [
+      "codex",
+      {
+        provider: "codex",
+        status: "ok",
+        lastUpdated: 1000,
+        fields: [
+          { name: "used_percent_primary", value: 40, status: "ok" },
+          { name: "used_percent_secondary", value: 20, status: "ok" },
+          { name: "plan_type", value: "plus", status: "ok" },
+        ],
+      },
+    ],
+  ]);
+  panel.render(results1, 100);
+  const firstHeader = panel._sections[0].headerRow;
+
+  // In-place refresh with updated value & timestamp preserves both toolbar and section header actor
+  const results2 = new Map([
+    [
+      "codex",
+      {
+        provider: "codex",
+        status: "ok",
+        lastUpdated: 2000,
+        fields: [
+          { name: "used_percent_primary", value: 85, status: "ok" },
+          { name: "used_percent_secondary", value: 65, status: "ok" },
+          { name: "plan_type", value: "pro", status: "ok" },
+        ],
+      },
+    ],
+  ]);
+  panel.render(results2, 300);
+  assert.equal(panel._toolbarRow, toolbar);
+  assert.equal(panel._refreshButton, refreshBtn);
+  assert.equal(panel._settingsButton, settingsBtn);
+  assert.equal(panel._sections[0].headerRow, firstHeader);
   assert.equal(panel._lastRefreshLabel.text, "300");
-  const field = panel._addStaticRow();
-  assert.equal(field.can_focus, true);
-  field.signals.get("key-focus-in")();
-  assert.deepEqual(focused[0], [panel._scroll, field]);
+
+  // Collapsing via Enter key on header row toggles expanded state without closing menu
+  assert.equal(panel._sections[0].chevronLabel.text, "▾");
+  const stopResult = firstHeader.signals.get("key-press-event")(firstHeader, {
+    get_key_symbol: () => 1,
+  });
+  assert.equal(stopResult, true);
+  assert.equal(panel._sections[0].chevronLabel.text, "▸");
+
+  // Running refresh indicator blocks Force Refresh button while active
+  refreshBtn.signals.get("clicked")();
+  assert.equal(refreshCount, 1);
+  panel.setRunning(true);
+  assert.equal(refreshBtn.reactive, false);
+  refreshBtn.signals.get("clicked")();
+  assert.equal(refreshCount, 1);
+  panel.setRunning(false);
+  assert.equal(refreshBtn.reactive, true);
+
+  settingsBtn.signals.get("clicked")();
+  assert.equal(prefsOpened, 1);
+
+  const staticRow = panel._addStaticRow();
+  assert.equal(staticRow.can_focus, true);
+  staticRow.signals.get("key-focus-in")();
+  assert.deepEqual(focused[0], [panel._scroll, staticRow]);
+});
+
+test("Dual-process GI boundary keeps Shell UI, Prefs UI, and pure metadata strictly isolated", () => {
+  for (const shellFile of ["src/extension.ts", "src/ui/statusBar.ts", "src/ui/panel.ts"]) {
+    const src = readFileSync(shellFile, "utf8");
+    assert.doesNotMatch(src, /gi:\/\/(Gtk|Adw|Gdk)\b/);
+  }
+  for (const prefsFile of [
+    "src/prefs.ts",
+    "src/ui/prefs/main-page.ts",
+    "src/ui/prefs/provider-page.ts",
+    "src/ui/prefs/shared.ts",
+  ]) {
+    const src = readFileSync(prefsFile, "utf8");
+    assert.doesNotMatch(src, /gi:\/\/(St|Clutter|Soup)\b/);
+    assert.doesNotMatch(src, /readers\/(codex|claude|opencode|grok)\.js/);
+  }
+  for (const pureFile of ["src/readers/fields.ts", "src/ui/matrixPlan.ts"]) {
+    const src = readFileSync(pureFile, "utf8");
+    assert.doesNotMatch(src, /from\s+["'](gi|resource):\/\//);
+  }
 });
 
 test("late destruction of an old preferences window cannot tear down a reopened window", async () => {

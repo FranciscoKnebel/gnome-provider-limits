@@ -11,3 +11,17 @@ export function reorderValue(
   reordered.splice(to, 0, source);
   return reordered;
 }
+
+export function moveAdjacentValue(
+  values: readonly string[],
+  visibleValues: readonly string[],
+  source: string,
+  offset: -1 | 1,
+): string[] | null {
+  const visibleIndex = visibleValues.indexOf(source);
+  const targetIndex = visibleIndex + offset;
+  if (visibleIndex < 0 || targetIndex < 0 || targetIndex >= visibleValues.length) {
+    return null;
+  }
+  return reorderValue(values, source, visibleValues[targetIndex]);
+}

@@ -7,38 +7,47 @@ import { Spinner } from "resource:///org/gnome/shell/ui/animation.js";
 import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
-import type { ProviderName } from "../constants.js";
-import { formatAbsoluteTimestamp, formatTimestampTemplate } from "../formatters.js";
+import { PROVIDER_NAMES, type ProviderName } from "../constants.js";
+import { formatTimestampTemplate } from "../formatters.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { resolveLocale } from "../helpers/locale.js";
 import { normalizeProvidersOrder, providerDisplayName } from "../helpers/provider-settings.js";
-import type { BaseReader, ReaderResult } from "../readers/base.js";
-import { ReaderStatus } from "../readers/base.js";
-import { getFieldRows } from "./fieldRows.js";
-import type { FieldRow } from "./fieldRows.js";
-import { sectionKey, structureKey } from "./renderStructure.js";
-import { applyToneClass } from "./tone.js";
+import type { BaseReader, FieldDef, ReaderResult } from "../readers/base.js";
+import {
+  clampFillRatio,
+  planPanelMatrix,
+  resolveProviderExpanded,
+  toggleAllProvidersExpanded,
+} from "./matrixPlan.js";
+import type { MatrixDetailRow, PanelMatrixPlan, ProviderMatrixPlan } from "./matrixPlan.js";
+import { applyQuietToneClass, applyToneClass } from "./tone.js";
 
-interface FieldRowWidgets {
+interface DetailRowWidgets {
+  microBar: St.Label | null;
   value: St.Label;
   error: St.Label | null;
 }
 
-interface PanelSection {
-  detailLabel: St.Label | null;
-  errorLabel: St.Label | null;
-  fields: FieldRowWidgets[];
-  lastUpdatedLabel: St.Label | null;
+interface DetailGroupWidgets {
+  heading: St.Label;
+  rows: DetailRowWidgets[];
 }
 
-interface SectionPlan {
-  displayName: string;
-  status: ReaderStatus;
-  rows: FieldRow[];
-  detailText: string | null;
-  errorText: string | null;
-  lastUpdatedText: string | null;
-  key: string;
+interface ProviderSectionWidgets {
+  provider: ProviderName;
+  headerRow: PopupMenu.PopupBaseMenuItem;
+  chevronLabel: St.Label;
+  titleLabel: St.Label;
+  badgeLabel: St.Label | null;
+  fiveSegLabel: St.Label | null;
+  summaryLabel: St.Label;
+  hairlineTrack: St.BoxLayout;
+  hairlineFill: St.Widget;
+  fillState: { ratio: number | null };
+  detailLabel: St.Label | null;
+  errorLabel: St.Label | null;
+  groups: DetailGroupWidgets[];
+  lastUpdatedLabel: St.Label | null;
 }
 
 export class PanelWidget extends PopupMenu.PopupMenuSection {
@@ -47,15 +56,25 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
   private _openPreferences: () => void;
   private _onRefresh?: () => void;
   private _running = false;
-  private _refreshRow: PopupMenu.PopupBaseMenuItem | null = null;
-  private _refreshButtonLabel: St.Label | null = null;
-  private _refreshSpinner: Spinner | null = null;
-  private _lastRefreshLabel: St.Label | null = null;
-  private _sections: PanelSection[] = [];
+  private _lastResults: Map<ProviderName, ReaderResult> = new Map();
+  private _lastRefreshAt: number | null = null;
+  private _expandedOverrides: Map<ProviderName, boolean> = new Map();
+
+  private _toolbarRow: PopupMenu.PopupBaseMenuItem;
+  private _titleLabel: St.Label;
+  private _lastRefreshLabel: St.Label;
+  private _expandAllButton: St.Button;
+  private _expandAllLabel: St.Label;
+  private _refreshButton: St.Button;
+  private _refreshIcon: St.Icon;
+  private _refreshSpinner: Spinner;
+  private _settingsButton: St.Button;
+
+  private _sections: ProviderSectionWidgets[] = [];
+  private _emptyMessageLabel: St.Label | null = null;
   private _structureKey: string | null = null;
   private _body: PopupMenu.PopupMenuSection;
   private _scroll: St.ScrollView;
-  private _settingsItem: PopupMenu.PopupMenuItem;
 
   constructor(
     settings: Gio.Settings,
@@ -68,16 +87,32 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     this._readers = readers;
     this._openPreferences = openPreferences;
     this._onRefresh = onRefresh;
+
+    const toolbar = this._createToolbarRow();
+    this._toolbarRow = toolbar.row;
+    this._titleLabel = toolbar.titleLabel;
+    this._lastRefreshLabel = toolbar.lastRefreshLabel;
+    this._expandAllButton = toolbar.expandAllButton;
+    this._expandAllLabel = toolbar.expandAllLabel;
+    this._refreshButton = toolbar.refreshButton;
+    this._refreshIcon = toolbar.refreshIcon;
+    this._refreshSpinner = toolbar.refreshSpinner;
+    this._settingsButton = toolbar.settingsButton;
+    this.addMenuItem(this._toolbarRow);
+
     this._body = new PopupMenu.PopupMenuSection();
     this._scroll = new St.ScrollView({ overlay_scrollbars: true, x_expand: true });
     this._scroll.set_policy(St.PolicyType.NEVER, St.PolicyType.AUTOMATIC);
     this.addMenuItem(this._body);
     this.box.remove_child(this._body.actor);
     // add_actor is the GNOME 45 API; set_child replaced it in newer Shells.
-    const scroll = this._scroll as St.ScrollView & { add_actor?: (actor: Clutter.Actor) => void };
+    const scroll = this._scroll as St.ScrollView & {
+      add_actor?: (actor: Clutter.Actor) => void;
+    };
     if (typeof scroll.set_child === "function") scroll.set_child(this._body.actor);
     else scroll.add_actor?.(this._body.actor);
     this.box.add_child(this._scroll);
+
     this._scroll.connect("notify::mapped", () => {
       if (!this._scroll.mapped) return;
       const monitor = Main.layoutManager.findMonitorForActor(this.actor);
@@ -86,10 +121,8 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
       const scale = St.ThemeContext.get_for_stage(this.actor.get_stage()).scale_factor;
       this._scroll.style = `max-height: ${Math.max(1, Math.floor((area.height / scale) * 0.6))}px;`;
     });
-    this._addRefreshRow(null, "en");
-    this._settingsItem = new PopupMenu.PopupMenuItem(_("Settings"));
-    this._settingsItem.connect("activate", () => this._openPreferences());
-    this.addMenuItem(this._settingsItem);
+
+    this.render(new Map(), null);
   }
 
   override destroy(): void {
@@ -98,255 +131,719 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
   }
 
   render(results: Map<ProviderName, ReaderResult>, lastRefreshAt: number | null): void {
-    const order = normalizeProvidersOrder(this._settings.get_strv("providers-order"));
-    const locale = resolveLocale(
-      this._settings.get_string("language"),
-      GLib.getenv("LC_MESSAGES"),
-      GLib.getenv("LANG"),
-    );
+    this._lastResults = results;
+    this._lastRefreshAt = lastRefreshAt;
 
-    const plans: SectionPlan[] = [];
-    for (const name of order) {
-      const result = results.get(name);
-      if (!result) continue;
-      if (result.status === ReaderStatus.DISABLED) continue;
-      plans.push(this._planSection(name, result, locale));
-    }
+    const plan = this._buildPlan(results);
 
-    const nextStructureKey = structureKey([locale, ...plans.map((plan) => plan.key)]);
-
-    if (nextStructureKey !== this._structureKey) {
-      this._rebuild(plans, lastRefreshAt);
-      this._structureKey = nextStructureKey;
+    if (plan.key !== this._structureKey) {
+      this._rebuild(plan, lastRefreshAt);
+      this._structureKey = plan.key;
       return;
     }
 
-    this._update(plans, lastRefreshAt);
+    this._update(plan, lastRefreshAt);
   }
 
   setLastRefreshAt(lastRefreshAt: number | null): void {
-    if (!this._lastRefreshLabel) return;
-    const locale = resolveLocale(
-      this._settings.get_string("language"),
-      GLib.getenv("LC_MESSAGES"),
-      GLib.getenv("LANG"),
-    );
+    this._lastRefreshAt = lastRefreshAt;
+    const locale = this._currentLocale();
     this._lastRefreshLabel.visible = lastRefreshAt !== null;
     this._lastRefreshLabel.text = formatTimestampTemplate(
       _("Last refresh: %s"),
       lastRefreshAt,
       locale,
     );
+    this._lastRefreshLabel.accessible_name = this._lastRefreshLabel.text;
   }
 
   setRunning(running: boolean): void {
     this._running = running;
-    if (this._refreshSpinner) {
-      this._refreshSpinner.visible = running;
-      if (running) this._refreshSpinner.play();
-      else this._refreshSpinner.stop();
-    }
-    if (this._refreshButtonLabel) {
-      this._refreshButtonLabel.text = running ? _("Refreshing…") : _("Force refresh");
-      this._refreshButtonLabel.accessible_name = this._refreshButtonLabel.text;
-    }
-    if (this._refreshRow) this._refreshRow.reactive = !running;
+    this._refreshIcon.visible = !running;
+    this._refreshSpinner.visible = running;
+    if (running) this._refreshSpinner.play();
+    else this._refreshSpinner.stop();
+
+    this._refreshButton.reactive = !running;
+    this._refreshButton.accessible_name = running ? _("Refreshing…") : _("Force refresh");
   }
 
-  private _planSection(name: ProviderName, result: ReaderResult, locale: string): SectionPlan {
-    const displayName = this._getProviderDisplayName(name);
-    const errorText =
-      result.status === ReaderStatus.ERROR ? (result.lastError ?? _("Error")) : null;
-    const detailText = result.status === ReaderStatus.PARTIAL ? (result.lastError ?? null) : null;
-    const rows = errorText
-      ? []
-      : getFieldRows(
-          this._readers.get(name),
-          result,
-          this._settings.get_strv(`${name}-panel-fields`),
-          "panel",
-          locale,
-          _,
-        );
-    const lastUpdatedText =
-      !errorText && Number.isFinite(result.lastUpdated)
-        ? formatAbsoluteTimestamp(result.lastUpdated, locale)
-        : null;
+  private _currentLocale(): string {
+    return resolveLocale(
+      typeof this._settings.get_string === "function" ? this._settings.get_string("language") : "",
+      GLib.getenv("LC_MESSAGES"),
+      GLib.getenv("LANG"),
+    );
+  }
+
+  private _buildPlan(results: Map<ProviderName, ReaderResult>): PanelMatrixPlan {
+    const rawOrder =
+      typeof this._settings.get_strv === "function"
+        ? this._settings.get_strv("providers-order")
+        : PROVIDER_NAMES;
+    const order = normalizeProvidersOrder(rawOrder);
+    const locale = this._currentLocale();
+
+    const enabledProviders = new Set<ProviderName>();
+    const displayNames = {} as Record<ProviderName, string>;
+    const statusFields = {} as Record<ProviderName, readonly string[]>;
+    const panelFields = {} as Record<ProviderName, readonly string[]>;
+    const fieldDefs: Partial<Record<ProviderName, readonly FieldDef[]>> = {};
+
+    for (const name of PROVIDER_NAMES) {
+      const enabled =
+        typeof this._settings.get_boolean === "function"
+          ? this._settings.get_boolean(`${name}-enabled`)
+          : this._readers.has(name) || results.has(name);
+      if (enabled) enabledProviders.add(name);
+
+      displayNames[name] =
+        typeof this._settings.get_string === "function"
+          ? providerDisplayName(this._settings, name)
+          : name;
+      statusFields[name] =
+        typeof this._settings.get_strv === "function"
+          ? this._settings.get_strv(`${name}-status-fields`)
+          : [];
+      panelFields[name] =
+        typeof this._settings.get_strv === "function"
+          ? this._settings.get_strv(`${name}-panel-fields`)
+          : [];
+
+      const reader = this._readers.get(name);
+      if (reader) fieldDefs[name] = reader.FIELDS;
+    }
+
+    return planPanelMatrix({
+      order,
+      enabledProviders,
+      results,
+      displayNames,
+      statusFields,
+      panelFields,
+      expandedOverrides: this._expandedOverrides,
+      fieldDefs,
+      locale,
+      t: _,
+    });
+  }
+
+  private _toggleProvider(provider: ProviderName, forceState?: boolean): void {
+    const plan = this._buildPlan(this._lastResults);
+    const enabledCount = plan.providers.length;
+    const current = resolveProviderExpanded(provider, enabledCount, this._expandedOverrides);
+    const next = forceState ?? !current;
+    if (next === current) return;
+    this._expandedOverrides.set(provider, next);
+    this.render(this._lastResults, this._lastRefreshAt);
+  }
+
+  private _toggleAllProviders(): void {
+    const plan = this._buildPlan(this._lastResults);
+    if (!plan.canToggleAll) return;
+    const providers = plan.providers.map((p) => p.provider);
+    this._expandedOverrides = toggleAllProvidersExpanded(
+      providers,
+      providers.length,
+      this._expandedOverrides,
+    );
+    this.render(this._lastResults, this._lastRefreshAt);
+  }
+
+  private _createToolbarRow(): {
+    row: PopupMenu.PopupBaseMenuItem;
+    titleLabel: St.Label;
+    lastRefreshLabel: St.Label;
+    expandAllButton: St.Button;
+    expandAllLabel: St.Label;
+    refreshButton: St.Button;
+    refreshIcon: St.Icon;
+    refreshSpinner: Spinner;
+    settingsButton: St.Button;
+  } {
+    const row = new PopupMenu.PopupBaseMenuItem({
+      reactive: false,
+      can_focus: false,
+      activate: false,
+      hover: false,
+    });
+    row.add_style_class_name("provider-limits-hud-toolbar");
+    row.add_style_class_name("provider-limits-static-row");
+
+    const leftBox = new St.BoxLayout({
+      style_class: "provider-limits-hud-toolbar-left",
+      x_expand: true,
+      y_align: Clutter.ActorAlign.CENTER,
+    });
+
+    const titleLabel = new St.Label({
+      text: _("Provider Limits"),
+      style_class: "provider-limits-hud-title",
+      y_align: Clutter.ActorAlign.CENTER,
+    });
+    titleLabel.accessible_name = titleLabel.text;
+    leftBox.add_child(titleLabel);
+
+    const lastRefreshLabel = new St.Label({
+      text: "",
+      visible: false,
+      style_class: "provider-limits-hud-meta provider-limits-tnum",
+      y_align: Clutter.ActorAlign.CENTER,
+    });
+    leftBox.add_child(lastRefreshLabel);
+
+    const actionsBox = new St.BoxLayout({
+      style_class: "provider-limits-hud-actions",
+      y_align: Clutter.ActorAlign.CENTER,
+    });
+
+    const expandAllLabel = new St.Label({
+      text: "▾",
+      style_class: "provider-limits-toolbar-glyph",
+      y_align: Clutter.ActorAlign.CENTER,
+    });
+    const expandAllButton = new St.Button({
+      child: expandAllLabel,
+      style_class: "provider-limits-icon-button",
+      reactive: true,
+      can_focus: true,
+      visible: false,
+      y_align: Clutter.ActorAlign.CENTER,
+    });
+    expandAllButton.accessible_name = _("Expand all");
+    this._bindButtonActivate(expandAllButton, () => this._toggleAllProviders());
+    actionsBox.add_child(expandAllButton);
+
+    const refreshContent = new St.BoxLayout({
+      y_align: Clutter.ActorAlign.CENTER,
+    });
+    const refreshIcon = new St.Icon({
+      icon_name: "view-refresh-symbolic",
+      icon_size: 14,
+      y_align: Clutter.ActorAlign.CENTER,
+    });
+    const refreshSpinner = new Spinner(14, { animate: true, hideOnStop: true });
+    refreshSpinner.add_style_class_name("provider-limits-refresh-spinner");
+    refreshSpinner.visible = false;
+    refreshContent.add_child(refreshIcon);
+    refreshContent.add_child(refreshSpinner);
+
+    const refreshButton = new St.Button({
+      child: refreshContent,
+      style_class: "provider-limits-icon-button",
+      reactive: !this._running,
+      can_focus: true,
+      y_align: Clutter.ActorAlign.CENTER,
+    });
+    refreshButton.accessible_name = _("Force refresh");
+    this._bindButtonActivate(refreshButton, () => {
+      if (!this._running) this._onRefresh?.();
+    });
+    actionsBox.add_child(refreshButton);
+
+    const settingsIcon = new St.Icon({
+      icon_name: "emblem-system-symbolic",
+      icon_size: 14,
+      y_align: Clutter.ActorAlign.CENTER,
+    });
+    const settingsButton = new St.Button({
+      child: settingsIcon,
+      style_class: "provider-limits-icon-button",
+      reactive: true,
+      can_focus: true,
+      y_align: Clutter.ActorAlign.CENTER,
+    });
+    settingsButton.accessible_name = _("Settings");
+    this._bindButtonActivate(settingsButton, () => {
+      const topMenu = (
+        this as unknown as { _getTopMenu?: () => { close?: () => void } | null }
+      )._getTopMenu?.();
+      topMenu?.close?.();
+      this._openPreferences();
+    });
+    actionsBox.add_child(settingsButton);
+
+    row.add_child(leftBox);
+    row.add_child(actionsBox);
 
     return {
-      displayName,
-      status: result.status,
-      rows,
-      detailText,
-      errorText,
-      lastUpdatedText,
-      key: sectionKey({
-        provider: name,
-        displayName,
-        status: result.status,
-        locale,
-        rows,
-        hasDetail: detailText !== null,
-        hasError: errorText !== null,
-        hasTimestamp: lastUpdatedText !== null,
-      }),
+      row,
+      titleLabel,
+      lastRefreshLabel,
+      expandAllButton,
+      expandAllLabel,
+      refreshButton,
+      refreshIcon,
+      refreshSpinner,
+      settingsButton,
     };
   }
 
-  private _rebuild(plans: SectionPlan[], lastRefreshAt: number | null): void {
-    this._body.removeAll();
-    this._sections = [];
-    plans.forEach((plan, index) => {
-      if (index > 0) this._body.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-      this._sections.push(this._addSection(plan));
+  private _bindButtonActivate(button: St.Button, onActivate: () => void): void {
+    button.connect("clicked", () => {
+      onActivate();
     });
-    this._settingsItem.label.text = _("Settings");
+    button.connect("key-press-event", (_actor: Clutter.Actor, event: Clutter.Event) => {
+      const symbol = event.get_key_symbol();
+      if (
+        symbol === Clutter.KEY_Return ||
+        symbol === Clutter.KEY_KP_Enter ||
+        symbol === Clutter.KEY_space
+      ) {
+        onActivate();
+        return Clutter.EVENT_STOP;
+      }
+      return Clutter.EVENT_PROPAGATE;
+    });
+  }
+
+  private _syncToolbar(plan: PanelMatrixPlan, lastRefreshAt: number | null): void {
+    this._titleLabel.text = _("Provider Limits");
+    this._titleLabel.accessible_name = this._titleLabel.text;
+    this._settingsButton.accessible_name = _("Settings");
+
+    this._expandAllButton.visible = plan.canToggleAll;
+    this._expandAllLabel.text = plan.allExpanded ? "▴" : "▾";
+    this._expandAllButton.accessible_name = plan.allExpanded ? _("Collapse all") : _("Expand all");
+
     this.setRunning(this._running);
     this.setLastRefreshAt(lastRefreshAt);
   }
 
-  private _update(plans: SectionPlan[], lastRefreshAt: number | null): void {
-    plans.forEach((plan, index) => {
+  private _rebuild(plan: PanelMatrixPlan, lastRefreshAt: number | null): void {
+    this._body.removeAll();
+    this._sections = [];
+    this._emptyMessageLabel = null;
+
+    if (plan.state !== "ready") {
+      if (plan.messageText) {
+        const emptyRow = this._addStaticRow();
+        emptyRow.add_style_class_name("provider-limits-empty-row");
+        const label = new St.Label({
+          text: plan.messageText,
+          style_class: "provider-limits-dim provider-limits-empty-label",
+          x_expand: true,
+          x_align: Clutter.ActorAlign.START,
+        });
+        label.clutter_text.line_wrap = true;
+        label.accessible_name = plan.messageText;
+        emptyRow.add_child(label);
+        this._body.addMenuItem(emptyRow);
+        this._emptyMessageLabel = label;
+      }
+      this._syncToolbar(plan, lastRefreshAt);
+      return;
+    }
+
+    plan.providers.forEach((providerPlan, index) => {
+      this._sections.push(this._addProviderSection(providerPlan, index > 0));
+    });
+
+    this._syncToolbar(plan, lastRefreshAt);
+  }
+
+  private _update(plan: PanelMatrixPlan, lastRefreshAt: number | null): void {
+    if (plan.state !== "ready") {
+      if (this._emptyMessageLabel && plan.messageText) {
+        this._emptyMessageLabel.text = plan.messageText;
+        this._emptyMessageLabel.accessible_name = plan.messageText;
+      }
+      this._syncToolbar(plan, lastRefreshAt);
+      return;
+    }
+
+    plan.providers.forEach((providerPlan, index) => {
       const section = this._sections[index];
       if (!section) return;
 
-      plan.rows.forEach((rowData, rowIndex) => {
-        const widgets = section.fields[rowIndex];
-        if (!widgets) return;
+      section.headerRow.accessible_name = providerPlan.headerAccessibleName;
+      section.chevronLabel.text = providerPlan.chevron;
+      section.titleLabel.text = providerPlan.displayName;
+      if (section.badgeLabel) {
+        section.badgeLabel.text = providerPlan.statusBadge;
+        applyQuietToneClass(
+          section.badgeLabel,
+          providerPlan.status === "partial" ? "warning" : "error",
+        );
+      }
+      if (section.fiveSegLabel) {
+        section.fiveSegLabel.text = providerPlan.fiveSegmentBar;
+        applyQuietToneClass(section.fiveSegLabel, providerPlan.headerTone);
+      }
+      section.summaryLabel.text = providerPlan.primarySummary;
+      applyQuietToneClass(section.summaryLabel, providerPlan.headerTone);
 
-        widgets.value.text = rowData.valueText;
-        widgets.value.accessible_name =
-          rowData.accessibleText ?? `${_(rowData.label)}: ${rowData.valueText}`;
-        applyToneClass(widgets.value, rowData.tone);
+      section.fillState.ratio = providerPlan.fillRatio;
+      this._syncHairlineBar(
+        section.hairlineTrack,
+        section.hairlineFill,
+        providerPlan.fillRatio,
+        providerPlan.headerTone,
+      );
 
-        if (widgets.error && rowData.errorText) {
-          widgets.error.text = rowData.errorText;
-          widgets.error.accessible_name = rowData.errorText;
-        }
+      if (section.detailLabel && providerPlan.detailText) {
+        section.detailLabel.text = providerPlan.detailText;
+        section.detailLabel.accessible_name = providerPlan.detailText;
+      }
+
+      if (section.errorLabel && providerPlan.errorText) {
+        section.errorLabel.text = providerPlan.errorText;
+        section.errorLabel.accessible_name = providerPlan.errorText;
+      }
+
+      providerPlan.groups.forEach((groupPlan, groupIdx) => {
+        const groupWidgets = section.groups[groupIdx];
+        if (!groupWidgets) return;
+        groupWidgets.heading.text = groupPlan.title;
+
+        groupPlan.rows.forEach((rowPlan, rowIdx) => {
+          const rowWidgets = groupWidgets.rows[rowIdx];
+          if (!rowWidgets) return;
+
+          if (rowWidgets.microBar && rowPlan.microBar !== null) {
+            rowWidgets.microBar.text = rowPlan.microBar;
+            applyQuietToneClass(rowWidgets.microBar, rowPlan.tone);
+          }
+
+          rowWidgets.value.text = rowPlan.valueText;
+          rowWidgets.value.accessible_name = rowPlan.accessibleText;
+          applyToneClass(rowWidgets.value, rowPlan.tone);
+
+          if (rowWidgets.error && rowPlan.errorText) {
+            rowWidgets.error.text = rowPlan.errorText;
+            rowWidgets.error.accessible_name = rowPlan.errorText;
+          }
+        });
       });
 
-      if (section.detailLabel && plan.detailText) {
-        section.detailLabel.text = plan.detailText;
-        section.detailLabel.accessible_name = plan.detailText;
-      }
-
-      if (section.errorLabel && plan.errorText) {
-        section.errorLabel.text = plan.errorText;
-        section.errorLabel.accessible_name = plan.errorText;
-      }
-
-      if (section.lastUpdatedLabel && plan.lastUpdatedText) {
-        section.lastUpdatedLabel.text = _("Last updated: %s").replace("%s", plan.lastUpdatedText);
-        section.lastUpdatedLabel.accessible_name = section.lastUpdatedLabel.text;
+      if (section.lastUpdatedLabel && providerPlan.lastUpdatedText) {
+        section.lastUpdatedLabel.text = providerPlan.lastUpdatedText;
+        section.lastUpdatedLabel.accessible_name = providerPlan.lastUpdatedText;
       }
     });
 
-    this.setLastRefreshAt(lastRefreshAt);
+    this._syncToolbar(plan, lastRefreshAt);
   }
 
-  private _addSection(plan: SectionPlan): PanelSection {
-    const headerText = this._buildHeaderText(plan.displayName, plan.status);
-    const header = new PopupMenu.PopupMenuItem(headerText, {
+  private _addProviderSection(plan: ProviderMatrixPlan, divided: boolean): ProviderSectionWidgets {
+    const headerRow = new PopupMenu.PopupBaseMenuItem({
       reactive: true,
       can_focus: true,
       activate: false,
-      hover: false,
     });
-    header.add_style_class_name("provider-limits-panel-header");
-    header.add_style_class_name("provider-limits-static-row");
-    header.accessible_name = headerText;
-    header.label.accessible_name = headerText;
-    header.connect("key-focus-in", () => ensureActorVisibleInScrollView(this._scroll, header));
-    this._body.addMenuItem(header);
+    headerRow.add_style_class_name("provider-limits-matrix-header");
+    if (divided) {
+      headerRow.add_style_class_name("provider-limits-matrix-group-divided");
+    }
+    headerRow.accessible_name = plan.headerAccessibleName;
+    headerRow.connect("key-focus-in", () =>
+      ensureActorVisibleInScrollView(this._scroll, headerRow),
+    );
+    headerRow.connect("button-release-event", () => {
+      this._toggleProvider(plan.provider);
+      return Clutter.EVENT_STOP;
+    });
+    headerRow.connect("key-press-event", (_actor: Clutter.Actor, event: Clutter.Event) => {
+      const symbol = event.get_key_symbol();
+      if (
+        symbol === Clutter.KEY_Return ||
+        symbol === Clutter.KEY_KP_Enter ||
+        symbol === Clutter.KEY_space
+      ) {
+        this._toggleProvider(plan.provider);
+        return Clutter.EVENT_STOP;
+      }
+      if (symbol === Clutter.KEY_Left) {
+        this._toggleProvider(plan.provider, false);
+        return Clutter.EVENT_STOP;
+      }
+      if (symbol === Clutter.KEY_Right) {
+        this._toggleProvider(plan.provider, true);
+        return Clutter.EVENT_STOP;
+      }
+      return Clutter.EVENT_PROPAGATE;
+    });
 
-    const detailLabel = this._addTextRow(plan.detailText, "provider-limits-dim");
+    const headerStack = new St.BoxLayout({
+      vertical: true,
+      x_expand: true,
+      style_class: "provider-limits-header-stack",
+    });
 
-    if (plan.errorText !== null) {
-      const errorLabel = this._addTextRow(plan.errorText, "provider-limits-error");
-      return { detailLabel, errorLabel, fields: [], lastUpdatedLabel: null };
+    const topLine = new St.BoxLayout({
+      x_expand: true,
+      style_class: "provider-limits-header-line",
+      y_align: Clutter.ActorAlign.CENTER,
+    });
+
+    const leftTitleBox = new St.BoxLayout({
+      x_expand: true,
+      style_class: "provider-limits-header-left",
+      y_align: Clutter.ActorAlign.CENTER,
+    });
+
+    const chevronLabel = new St.Label({
+      text: plan.chevron,
+      style_class: "provider-limits-chevron",
+      y_align: Clutter.ActorAlign.CENTER,
+    });
+    leftTitleBox.add_child(chevronLabel);
+
+    const titleLabel = new St.Label({
+      text: plan.displayName,
+      style_class: "provider-limits-panel-header",
+      y_align: Clutter.ActorAlign.CENTER,
+    });
+    leftTitleBox.add_child(titleLabel);
+
+    let badgeLabel: St.Label | null = null;
+    if (plan.statusBadge) {
+      badgeLabel = new St.Label({
+        text: plan.statusBadge,
+        style_class: "provider-limits-status-badge",
+        y_align: Clutter.ActorAlign.CENTER,
+      });
+      applyQuietToneClass(badgeLabel, plan.status === "partial" ? "warning" : "error");
+      leftTitleBox.add_child(badgeLabel);
     }
 
-    const fields = plan.rows.map((rowData) => this._addFieldRow(rowData));
-    const lastUpdatedLabel =
-      plan.lastUpdatedText !== null ? this._addLastUpdatedRow(plan.lastUpdatedText) : null;
-
-    return { detailLabel, errorLabel: null, fields, lastUpdatedLabel };
-  }
-
-  private _addTextRow(text: string | null, styleClass: string): St.Label | null {
-    if (text === null) return null;
-
-    const row = this._addStaticRow();
-    const label = new St.Label({
-      text,
-      style_class: styleClass,
-      x_expand: true,
-      x_align: Clutter.ActorAlign.START,
-    });
-    label.clutter_text.line_wrap = true;
-    label.accessible_name = text;
-    row.add_child(label);
-    this._body.addMenuItem(row);
-    return label;
-  }
-
-  private _addFieldRow(rowData: FieldRow): FieldRowWidgets {
-    const row = this._addStaticRow();
-    const content = new St.BoxLayout({ vertical: true, x_expand: true });
-    const top = new St.BoxLayout({ x_expand: true });
-
-    const labelLabel = new St.Label({
-      text: _(rowData.label),
-      style_class: "provider-limits-field-label",
-      x_expand: true,
-      x_align: Clutter.ActorAlign.START,
-    });
-    labelLabel.accessible_name = _(rowData.label);
-
-    const valueLabel = new St.Label({
-      text: rowData.valueText,
-      style_class: "provider-limits-field-value",
+    const rightSummaryBox = new St.BoxLayout({
+      style_class: "provider-limits-header-right",
       x_align: Clutter.ActorAlign.END,
+      y_align: Clutter.ActorAlign.CENTER,
     });
-    valueLabel.accessible_name =
-      rowData.accessibleText ?? `${_(rowData.label)}: ${rowData.valueText}`;
-    applyToneClass(valueLabel, rowData.tone);
 
-    top.add_child(labelLabel);
-    top.add_child(valueLabel);
-    content.add_child(top);
+    let fiveSegLabel: St.Label | null = null;
+    if (plan.fiveSegmentBar) {
+      fiveSegLabel = new St.Label({
+        text: plan.fiveSegmentBar,
+        style_class: "provider-limits-micro-bar",
+        y_align: Clutter.ActorAlign.CENTER,
+      });
+      applyQuietToneClass(fiveSegLabel, plan.headerTone);
+      rightSummaryBox.add_child(fiveSegLabel);
+    }
+
+    const summaryLabel = new St.Label({
+      text: plan.primarySummary,
+      style_class: "provider-limits-header-summary provider-limits-tnum",
+      x_align: Clutter.ActorAlign.END,
+      y_align: Clutter.ActorAlign.CENTER,
+    });
+    applyQuietToneClass(summaryLabel, plan.headerTone);
+    rightSummaryBox.add_child(summaryLabel);
+
+    topLine.add_child(leftTitleBox);
+    topLine.add_child(rightSummaryBox);
+    headerStack.add_child(topLine);
+
+    const hairlineTrack = new St.BoxLayout({
+      style_class: "provider-limits-hairline-track",
+      x_expand: true,
+    });
+    const hairlineFill = new St.Widget({
+      style_class: "provider-limits-hairline-fill",
+      x_expand: false,
+      x_align: Clutter.ActorAlign.START,
+    });
+    hairlineTrack.add_child(hairlineFill);
+
+    const fillState = { ratio: plan.fillRatio };
+    hairlineTrack.connect("notify::width", () => {
+      this._updateHairlineWidth(hairlineTrack, hairlineFill, fillState.ratio);
+    });
+    this._syncHairlineBar(hairlineTrack, hairlineFill, plan.fillRatio, plan.headerTone);
+
+    headerStack.add_child(hairlineTrack);
+    headerRow.add_child(headerStack);
+    this._body.addMenuItem(headerRow);
+
+    if (!plan.expanded) {
+      return {
+        provider: plan.provider,
+        headerRow,
+        chevronLabel,
+        titleLabel,
+        badgeLabel,
+        fiveSegLabel,
+        summaryLabel,
+        hairlineTrack,
+        hairlineFill,
+        fillState,
+        detailLabel: null,
+        errorLabel: null,
+        groups: [],
+        lastUpdatedLabel: null,
+      };
+    }
+
+    const detailRow = this._addStaticRow();
+    detailRow.add_style_class_name("provider-limits-matrix-detail");
+
+    const table = new St.BoxLayout({
+      vertical: true,
+      x_expand: true,
+      style_class: "provider-limits-matrix-table",
+    });
+
+    let detailLabel: St.Label | null = null;
+    if (plan.detailText !== null) {
+      detailLabel = new St.Label({
+        text: plan.detailText,
+        style_class: "provider-limits-callout-partial",
+        x_expand: true,
+        x_align: Clutter.ActorAlign.START,
+      });
+      detailLabel.clutter_text.line_wrap = true;
+      detailLabel.accessible_name = plan.detailText;
+      table.add_child(detailLabel);
+    }
 
     let errorLabel: St.Label | null = null;
-    if (rowData.errorText) {
+    if (plan.errorText !== null) {
       errorLabel = new St.Label({
-        text: rowData.errorText,
-        style_class: "provider-limits-error",
+        text: plan.errorText,
+        style_class: "provider-limits-callout-error provider-limits-error",
         x_expand: true,
         x_align: Clutter.ActorAlign.START,
       });
       errorLabel.clutter_text.line_wrap = true;
-      errorLabel.accessible_name = rowData.errorText;
-      content.add_child(errorLabel);
+      errorLabel.accessible_name = plan.errorText;
+      table.add_child(errorLabel);
     }
 
-    row.add_child(content);
-    this._body.addMenuItem(row);
-    return { value: valueLabel, error: errorLabel };
+    const groups: DetailGroupWidgets[] = plan.groups.map((groupPlan) => {
+      const heading = new St.Label({
+        text: groupPlan.title,
+        style_class: "provider-limits-group-heading",
+        x_expand: true,
+        x_align: Clutter.ActorAlign.START,
+      });
+      heading.accessible_name = groupPlan.title;
+      table.add_child(heading);
+
+      const rows = groupPlan.rows.map((rowPlan) => this._buildMatrixRow(table, rowPlan));
+      return { heading, rows };
+    });
+
+    let lastUpdatedLabel: St.Label | null = null;
+    if (plan.lastUpdatedText !== null) {
+      lastUpdatedLabel = new St.Label({
+        text: plan.lastUpdatedText,
+        style_class: "provider-limits-dim provider-limits-last-updated provider-limits-tnum",
+        x_expand: true,
+        x_align: Clutter.ActorAlign.START,
+      });
+      lastUpdatedLabel.accessible_name = plan.lastUpdatedText;
+      table.add_child(lastUpdatedLabel);
+    }
+
+    detailRow.add_child(table);
+    this._body.addMenuItem(detailRow);
+
+    return {
+      provider: plan.provider,
+      headerRow,
+      chevronLabel,
+      titleLabel,
+      badgeLabel,
+      fiveSegLabel,
+      summaryLabel,
+      hairlineTrack,
+      hairlineFill,
+      fillState,
+      detailLabel,
+      errorLabel,
+      groups,
+      lastUpdatedLabel,
+    };
   }
 
-  private _addLastUpdatedRow(lastUpdatedText: string): St.Label {
-    const row = this._addStaticRow();
-    const text = _("Last updated: %s").replace("%s", lastUpdatedText);
-    const label = new St.Label({
-      text,
-      style_class: "provider-limits-dim",
+  private _buildMatrixRow(table: St.BoxLayout, rowPlan: MatrixDetailRow): DetailRowWidgets {
+    const line = new St.BoxLayout({
+      x_expand: true,
+      style_class: "provider-limits-matrix-row",
+      y_align: Clutter.ActorAlign.CENTER,
+    });
+
+    const labelLabel = new St.Label({
+      text: rowPlan.labelText,
+      style_class: "provider-limits-field-label",
       x_expand: true,
       x_align: Clutter.ActorAlign.START,
+      y_align: Clutter.ActorAlign.CENTER,
     });
-    label.accessible_name = text;
-    row.add_child(label);
-    this._body.addMenuItem(row);
-    return label;
+    labelLabel.accessible_name = rowPlan.labelText;
+    line.add_child(labelLabel);
+
+    let microBarLabel: St.Label | null = null;
+    if (rowPlan.microBar !== null) {
+      microBarLabel = new St.Label({
+        text: rowPlan.microBar,
+        style_class: "provider-limits-micro-bar",
+        y_align: Clutter.ActorAlign.CENTER,
+      });
+      applyQuietToneClass(microBarLabel, rowPlan.tone);
+      line.add_child(microBarLabel);
+    }
+
+    const valueLabel = new St.Label({
+      text: rowPlan.valueText,
+      style_class: "provider-limits-field-value provider-limits-tnum",
+      x_align: Clutter.ActorAlign.END,
+      y_align: Clutter.ActorAlign.CENTER,
+    });
+    valueLabel.accessible_name = rowPlan.accessibleText;
+    applyToneClass(valueLabel, rowPlan.tone);
+    line.add_child(valueLabel);
+
+    table.add_child(line);
+
+    let errorLabel: St.Label | null = null;
+    if (rowPlan.errorText) {
+      errorLabel = new St.Label({
+        text: rowPlan.errorText,
+        style_class: "provider-limits-error provider-limits-row-error",
+        x_expand: true,
+        x_align: Clutter.ActorAlign.START,
+      });
+      errorLabel.clutter_text.line_wrap = true;
+      errorLabel.accessible_name = rowPlan.errorText;
+      table.add_child(errorLabel);
+    }
+
+    return { microBar: microBarLabel, value: valueLabel, error: errorLabel };
+  }
+
+  private _syncHairlineBar(
+    track: St.BoxLayout,
+    fill: St.Widget,
+    ratio: number | null,
+    tone: ProviderMatrixPlan["headerTone"],
+  ): void {
+    fill.remove_style_class_name("hairline-warning");
+    fill.remove_style_class_name("hairline-critical");
+    fill.remove_style_class_name("hairline-error");
+
+    if (tone === "warning") fill.add_style_class_name("hairline-warning");
+    else if (tone === "critical") fill.add_style_class_name("hairline-critical");
+    else if (tone === "error") fill.add_style_class_name("hairline-error");
+
+    this._updateHairlineWidth(track, fill, ratio);
+  }
+
+  private _updateHairlineWidth(track: St.BoxLayout, fill: St.Widget, ratio: number | null): void {
+    if (ratio === null || ratio <= 0) {
+      fill.visible = false;
+      fill.width = 0;
+      return;
+    }
+    fill.visible = true;
+    const clamped = clampFillRatio(ratio);
+    const trackWidth = track.width ?? 0;
+    if (trackWidth > 0) {
+      fill.width = Math.max(2, Math.round(trackWidth * clamped));
+    }
   }
 
   private _addStaticRow(): PopupMenu.PopupBaseMenuItem {
@@ -359,83 +856,5 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     row.add_style_class_name("provider-limits-static-row");
     row.connect("key-focus-in", () => ensureActorVisibleInScrollView(this._scroll, row));
     return row;
-  }
-
-  private _addRefreshRow(lastRefreshAt: number | null, locale: string): void {
-    const row = new PopupMenu.PopupBaseMenuItem({
-      reactive: true,
-      can_focus: true,
-      activate: false,
-    });
-    row.reactive = !this._running;
-    row.accessible_name = _("Force refresh");
-
-    const buttonLabel = new St.Label({
-      text: this._running ? _("Refreshing…") : _("Force refresh"),
-      x_expand: true,
-      x_align: Clutter.ActorAlign.START,
-    });
-    buttonLabel.accessible_name = buttonLabel.text;
-    row.add_child(buttonLabel);
-
-    const lastRefreshLabel = new St.Label({
-      text: formatTimestampTemplate(_("Last refresh: %s"), lastRefreshAt, locale),
-      style_class: "provider-limits-dim",
-      x_align: Clutter.ActorAlign.END,
-    });
-    row.add_child(lastRefreshLabel);
-
-    const spinner = new Spinner(14, { animate: true, hideOnStop: true });
-    spinner.add_style_class_name("provider-limits-refresh-spinner");
-    spinner.visible = this._running;
-    if (this._running) spinner.play();
-    row.add_child(spinner);
-
-    row.connect("key-press-event", (_actor: Clutter.Actor, event: Clutter.Event) => {
-      const symbol = event.get_key_symbol();
-      if (
-        symbol === Clutter.KEY_Return ||
-        symbol === Clutter.KEY_KP_Enter ||
-        symbol === Clutter.KEY_space
-      ) {
-        if (!this._running) this._onRefresh?.();
-        return Clutter.EVENT_STOP;
-      }
-      return Clutter.EVENT_PROPAGATE;
-    });
-    row.connect("button-release-event", () => {
-      if (!this._running) this._onRefresh?.();
-      return Clutter.EVENT_STOP;
-    });
-
-    this._refreshRow = row;
-    this._refreshButtonLabel = buttonLabel;
-    this._refreshSpinner = spinner;
-    this._lastRefreshLabel = lastRefreshLabel;
-    this.addMenuItem(row);
-  }
-
-  private _getProviderDisplayName(name: ProviderName): string {
-    return providerDisplayName(this._settings, name);
-  }
-
-  private _buildHeaderText(displayName: string, status: ReaderStatus): string {
-    const suffix = this._statusText(status);
-    return suffix ? `${displayName}  ${suffix}` : displayName;
-  }
-
-  private _statusText(status: ReaderStatus): string {
-    switch (status) {
-      case ReaderStatus.OK:
-        return "";
-      case ReaderStatus.PARTIAL:
-        return _("(partial)");
-      case ReaderStatus.ERROR:
-        return _("(error)");
-      case ReaderStatus.UNAVAILABLE:
-        return _("(unavailable)");
-      default:
-        return "";
-    }
   }
 }
