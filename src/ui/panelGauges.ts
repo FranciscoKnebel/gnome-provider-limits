@@ -5,7 +5,7 @@ import GLib from "gi://GLib";
 import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { resolveLocale } from "../helpers/locale.js";
-import type { BaseReader, FieldDef, ReaderResult } from "../readers/base.js";
+import type { FieldDef, ReaderResult } from "../readers/base.js";
 import { cycleTab, resolveActiveTab } from "./cockpitModel.js";
 import type { CockpitTab } from "./cockpitModel.js";
 import type { DetailHost } from "./panelGaugesDetail.js";
@@ -32,7 +32,6 @@ export class GaugesPanelSection implements PanelStyleSection {
 
   constructor(
     settings: Gio.Settings,
-    _readers: Map<ProviderName, BaseReader>,
     fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>,
     shell: PanelShell,
   ) {
@@ -99,7 +98,7 @@ export class GaugesPanelSection implements PanelStyleSection {
       const message = viewMessages({
         phase: nextState.phase,
         surface: "gauges",
-        t: _,
+        t: context.view.t,
         running: false,
       });
       this.shell.addEmptyStateRow(message.title, message.subtitle);

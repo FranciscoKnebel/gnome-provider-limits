@@ -3,9 +3,7 @@ import Gio from "gi://Gio";
 import GObject from "gi://GObject";
 import St from "gi://St";
 
-import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
-import type { BaseReader } from "../readers/base.js";
 import { CompactStatusBarRenderer } from "./statusBarCompact.js";
 import { GaugesStatusBarRenderer } from "./statusBarGauges.js";
 import { PillsStatusBarRenderer } from "./statusBarPills.js";
@@ -33,7 +31,7 @@ export const StatusBarWidget = GObject.registerClass(
     declare _style: StatusBarStyle | null;
     declare _renderer: StatusBarSectionRenderer | null;
 
-    _init(settings: Gio.Settings, _readers: Map<ProviderName, BaseReader>) {
+    _init(settings: Gio.Settings) {
       super._init({
         style_class: "provider-limits-status-bar",
         y_align: Clutter.ActorAlign.CENTER,

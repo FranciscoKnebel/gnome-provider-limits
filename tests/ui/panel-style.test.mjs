@@ -49,9 +49,8 @@ test("Panel swaps style sections on setting change and forwards render and runni
   }
   const created = [];
   class SectionStub {
-    constructor(settings, readers, fieldDefs, shell) {
+    constructor(settings, fieldDefs, shell) {
       this.settings = settings;
-      this.readers = readers;
       this.fieldDefs = fieldDefs;
       this.shell = shell;
       this.rendered = [];
@@ -109,7 +108,7 @@ test("Panel swaps style sections on setting change and forwards render and runni
   const openPreferences = () => {};
   const onRefresh = () => {};
   const closeMenu = () => {};
-  const panel = new K(settings, new Map(), openPreferences, onRefresh, closeMenu);
+  const panel = new K(settings, openPreferences, onRefresh, closeMenu);
   assert.equal(created.length, 1);
   assert.ok(created[0] instanceof GaugesStub);
   assert.equal(created[0].shell.options.footerVariant, "gauges");

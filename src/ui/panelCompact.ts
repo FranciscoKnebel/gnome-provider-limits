@@ -7,7 +7,7 @@ import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { bindActivation } from "../helpers/keyboard.js";
 import { resolveLocale } from "../helpers/locale.js";
-import type { BaseReader, FieldDef } from "../readers/base.js";
+import type { FieldDef } from "../readers/base.js";
 import { clampFillRatio } from "./fieldRows.js";
 import {
   planPanelMatrix,
@@ -36,7 +36,6 @@ export class CompactPanelSection implements PanelStyleSection {
 
   constructor(
     settings: Gio.Settings,
-    _readers: Map<ProviderName, BaseReader>,
     fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>,
     shell: PanelShell,
   ) {

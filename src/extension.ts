@@ -93,7 +93,7 @@ const ProviderLimitsIndicator = GObject.registerClass(
       });
       box.add_child(this._icon);
 
-      this._statusBar = new StatusBarWidget(this._settings, this._readers);
+      this._statusBar = new StatusBarWidget(this._settings);
       box.add_child(this._statusBar);
       this.add_child(box);
 
@@ -103,7 +103,6 @@ const ProviderLimitsIndicator = GObject.registerClass(
       const menu = this.menu as PopupMenu.PopupMenu;
       this._panel = new PanelWidget(
         this._settings,
-        this._readers,
         () => {
           this._extension.openPreferences();
         },

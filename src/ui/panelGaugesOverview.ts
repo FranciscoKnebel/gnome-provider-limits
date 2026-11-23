@@ -5,6 +5,7 @@ import { ensureActorVisibleInScrollView } from "resource:///org/gnome/shell/misc
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
 import type { ProviderName } from "../constants.js";
+import { clearChildren } from "../helpers/children.js";
 import { bindActivation } from "../helpers/keyboard.js";
 import { providerDisplayName } from "../helpers/provider-settings.js";
 import type { FieldDef, ReaderResult } from "../readers/base.js";
@@ -82,12 +83,7 @@ class TabBarRenderer {
   ) {}
 
   render(context: TabBarContext): void {
-    let child = this.bar.get_first_child?.() ?? null;
-    while (child) {
-      const next = child.get_next_sibling();
-      child.destroy();
-      child = next;
-    }
+    clearChildren(this.bar, (child) => child.destroy());
     this._buttons.clear();
 
     const tabs = getAvailableTabs(context.enabledProviders);

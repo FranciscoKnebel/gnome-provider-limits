@@ -84,17 +84,16 @@ function keyValueRow(row: DisplayRow): CardKeyValueRow {
 /** Pure card projection from one canonical model; the only card derivation. */
 export function cardFromModel(
   model: ProviderDisplayModel,
-  panelFields: readonly string[],
+  _panelFields: readonly string[],
   locale: string,
   t: (s: string) => string,
 ): ProviderCardPlan {
   const limitProgressRows: CardProgressRow[] = [];
   const limitMetaRows: CardKeyValueRow[] = [];
   const telemetryRows: CardKeyValueRow[] = [];
-  const configured = new Set(panelFields);
 
   for (const view of model.groupedViews.limit) {
-    if (!configured.has(view.name) || model.consumedResets.has(view.name)) continue;
+    if (model.consumedResets.has(view.name)) continue;
     const row = toDisplayRow(view, t);
 
     if (view.type === "percent") {
@@ -121,7 +120,7 @@ export function cardFromModel(
   }
 
   for (const view of model.groupedViews.telemetry) {
-    if (!configured.has(view.name) || model.consumedResets.has(view.name)) continue;
+    if (model.consumedResets.has(view.name)) continue;
     telemetryRows.push(keyValueRow(toDisplayRow(view, t)));
   }
 

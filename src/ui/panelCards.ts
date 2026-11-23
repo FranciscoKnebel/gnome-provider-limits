@@ -3,8 +3,7 @@ import type Gio from "gi://Gio";
 import St from "gi://St";
 
 import type { ProviderName } from "../constants.js";
-import { gettext as _ } from "../helpers/gettext.js";
-import type { BaseReader, FieldDef } from "../readers/base.js";
+import type { FieldDef } from "../readers/base.js";
 import { computeBarWidthPx, planPanel } from "./cardPlan.js";
 import type {
   BannerKind,
@@ -48,11 +47,11 @@ function bannerStyleClass(kind: BannerKind): string {
 export class CardsPanelSection implements PanelStyleSection {
   private _phase: ViewPhase = "ready";
   private _emptyTitleLabel: St.Label | null = null;
+  private _t: (text: string) => string = (text) => text;
   readonly shell: PanelShell;
 
   constructor(
     _settings: Gio.Settings,
-    _readers: Map<ProviderName, BaseReader>,
     _fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>,
     shell: PanelShell,
   ) {
@@ -66,6 +65,7 @@ export class CardsPanelSection implements PanelStyleSection {
   render(context: PanelRenderContext): void {
     const plan = planPanel(context.view, this.shell.isRunning());
     this._phase = plan.phase;
+    this._t = context.view.t;
     this._emptyTitleLabel = null;
     this.shell.clearBody();
 
@@ -91,7 +91,7 @@ export class CardsPanelSection implements PanelStyleSection {
       const message = viewMessages({
         phase: "loading",
         surface: "cards",
-        t: _,
+        t: this._t,
         running,
       });
       this._emptyTitleLabel.text = message.title;

@@ -119,10 +119,7 @@ describe("deriveDisplayModel owns diagnostics and reset pairing", () => {
 
     expect(model.panelViews[0].resetText).toContain("↻");
     expect(model.panelViews[0].hasResetSlot).toBeTrue();
-    expect(reset).toBeDefined();
-    expect(reset?.name).toBe("reset_at_primary");
-    expect(reset?.pairedPercent).toBe("used_percent_primary");
-    expect(reset?.hasSlot).toBeTrue();
+    expect(model.resetPairs.has("used_percent_primary")).toBeTrue();
     expect(reset?.text).toContain("Reset at (5h window):");
     expect(reset?.accessibleText).toContain("Reset at (5h window):");
     expect(Array.from(model.consumedResets)).toEqual(["reset_at_primary"]);

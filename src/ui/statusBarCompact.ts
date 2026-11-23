@@ -23,8 +23,6 @@ interface CompactBadgePlan {
 type CompactPlan = StatusBarZonePlan<CompactBadgePlan>;
 
 function planCompact(context: ProviderViewContext): CompactPlan {
-  const tr = (text: string) => context.t(text);
-
   const message = viewMessages({
     phase: context.phase,
     surface: "compact",
@@ -42,9 +40,19 @@ function planCompact(context: ProviderViewContext): CompactPlan {
     };
   }
 
+  if (context.phase === "loading") {
+    return {
+      kind: "placeholder",
+      phase: "loading",
+      placeholder: message.placeholder,
+      placeholderAccessibleText: message.accessibleText,
+      showPlaceholder: true,
+    };
+  }
+
   const segments: CompactBadgePlan[] = deriveStatusBarSegments(context).map((segment) => {
     const shortLabel = segment.displayName || segment.provider;
-    const badgeWord = statusBadgeText(segment.health, tr);
+    const badgeWord = statusBadgeText(segment.health, context.t);
 
     if (segment.health.state === "error" || segment.health.state === "unavailable") {
       return {
@@ -71,16 +79,6 @@ function planCompact(context: ProviderViewContext): CompactPlan {
       accessibleText,
     };
   });
-
-  if (context.phase === "loading") {
-    return {
-      kind: "placeholder",
-      phase: "loading",
-      placeholder: message.placeholder,
-      placeholderAccessibleText: message.accessibleText,
-      showPlaceholder: true,
-    };
-  }
 
   return { kind: "segments", segments };
 }

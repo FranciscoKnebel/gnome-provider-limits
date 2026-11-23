@@ -35,10 +35,7 @@ export interface DisplayCallout {
 
 /** A reset field paired with one percent field, with all display text ready. */
 export interface DisplayResetDescriptor {
-  readonly name: string | null;
   readonly text: string;
-  readonly hasSlot: boolean;
-  readonly pairedPercent: string;
   readonly errorText: string | null;
   readonly accessibleText: string;
 }
@@ -90,7 +87,6 @@ export interface FieldRowSet {
 /** Usage facts, meter, diagnostic and human-facing timestamps. */
 export interface UsageSummary {
   readonly usage: ProviderDisplayUsage;
-  readonly summaryText: string;
   readonly meter: MicroMeterSpec;
   readonly diagnostic: DisplayDiagnostic;
   readonly callout: DisplayCallout | null;
@@ -201,10 +197,7 @@ function pairPanelResets(
       : reset.valueText;
     const text = `${tr(reset.label)}: ${resetValueText}`;
     pairs.set(view.name, {
-      name: reset.name,
       text,
-      hasSlot: view.hasResetSlot,
-      pairedPercent: view.name,
       errorText: view.errorText ?? reset.errorText ?? null,
       accessibleText: `${view.accessibleText}, ${text}`,
     });
@@ -339,7 +332,6 @@ export function deriveDisplayModel(
     resetPairs: pairs,
     consumedResets: consumed,
     usage,
-    summaryText: usage.header.summaryText,
     lastUpdatedText,
     diagnostic,
     callout,

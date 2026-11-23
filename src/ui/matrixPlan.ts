@@ -1,5 +1,5 @@
 import type { ProviderName } from "../constants.js";
-import { ReaderStatus } from "../readers/base.js";
+import type { ReaderStatus } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
 import type { FieldRowSet } from "./displayModel.js";
 import { clampFillRatio, type FieldTone } from "./fieldRows.js";
@@ -150,12 +150,8 @@ export function planPanelMatrix(
     };
   }
 
-  const activeProviders = context.activeProviders.filter((provider) => {
-    const result = context.results.get(provider);
-    return result !== undefined && result.status !== ReaderStatus.DISABLED;
-  });
   const models = context.models;
-  const enabledCount = activeProviders.length;
+  const enabledCount = context.activeProviders.length;
   const providers: ProviderMatrixPlan[] = [];
 
   for (const model of models) {
@@ -193,7 +189,11 @@ export function planPanelMatrix(
     });
   }
 
-  const allExpanded = areAllProvidersExpanded(activeProviders, enabledCount, expandedOverrides);
+  const allExpanded = areAllProvidersExpanded(
+    context.activeProviders,
+    enabledCount,
+    expandedOverrides,
+  );
 
   return {
     phase: "ready",
