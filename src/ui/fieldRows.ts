@@ -1,15 +1,32 @@
 import { formatField } from "../formatters.js";
+import type {
+  BaseReader,
+  FieldCategory,
+  FieldDef,
+  FieldType,
+  ReaderResult,
+} from "../readers/base.js";
 import { FieldStatus, ReaderStatus } from "../readers/base.js";
-import type { BaseReader, ReaderResult } from "../readers/base.js";
+import { companionResetFieldName, resolveFieldCategory } from "../readers/fields.js";
 
 export type FieldTone = "ok" | "warning" | "critical";
 
 export interface FieldRow {
+  name?: string;
+  type?: FieldType;
+  category?: FieldCategory;
   label: string;
   valueText: string;
   tone?: FieldTone;
+  fillPercent?: number;
+  companionResetName?: string;
   errorText?: string;
   accessibleText?: string;
+}
+
+export function clampPercent(value: unknown): number | undefined {
+  if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+  return Math.min(100, Math.max(0, value));
 }
 
 export function percentTone(value: unknown): FieldTone | undefined {
@@ -20,41 +37,61 @@ export function percentTone(value: unknown): FieldTone | undefined {
 }
 
 export function fieldTone(fieldName: string, value: unknown): FieldTone | undefined {
-  if (fieldName.startsWith("remaining_") && typeof value === "number" && Number.isFinite(value)) {
-    return percentTone(100 - value);
+  if (fieldName.startsWith("remaining_percent")) {
+    if (typeof value !== "number" || !Number.isFinite(value)) return undefined;
+    const used = 100 - value;
+    return percentTone(used);
   }
   return percentTone(value);
 }
 
+export type FieldDefSource = Pick<BaseReader, "FIELDS"> | readonly FieldDef[] | undefined;
+
+function extractFieldDefs(source: FieldDefSource): readonly FieldDef[] {
+  if (!source) return [];
+  if (Array.isArray(source)) return source;
+  return (source as Pick<BaseReader, "FIELDS">).FIELDS;
+}
+
 export function getFieldRows(
-  reader: BaseReader | undefined,
+  reader: FieldDefSource,
   result: ReaderResult,
-  fieldNames: string[],
+  fieldNames: readonly string[],
   zone: "status" | "panel",
   locale: string,
   t?: (s: string) => string,
 ): FieldRow[] {
+  const fieldDefs = extractFieldDefs(reader);
+  if (fieldDefs.length === 0) return [];
+
   const rows: FieldRow[] = [];
 
   for (const fieldName of fieldNames) {
-    const fieldDef = reader?.FIELDS.find((f) => f.name === fieldName);
+    const fieldDef = fieldDefs.find((f) => f.name === fieldName);
     if (!fieldDef) continue;
 
     const field = result.fields.find((f) => f.name === fieldName);
     const translatedLabel = t ? t(fieldDef.label) : fieldDef.label;
     const tone = fieldDef.type === "percent" ? fieldTone(fieldName, field?.value) : undefined;
+    const category = resolveFieldCategory(fieldDef);
+    const resetName = companionResetFieldName(fieldDef);
 
     if (!field || field.status !== FieldStatus.OK) {
       const row: FieldRow = {
+        name: fieldDef.name,
+        type: fieldDef.type,
+        category,
         label: fieldDef.label,
         valueText: "—",
         accessibleText: `${translatedLabel}: —`,
       };
+      if (resetName) row.companionResetName = resetName;
       if (tone) row.tone = tone;
 
       const isError = field?.status === FieldStatus.ERROR || result.status === ReaderStatus.ERROR;
-      const errorText = isError ? (field?.error ?? result.lastError) : null;
-      if (errorText) row.errorText = errorText;
+      if (isError) {
+        row.errorText = field?.error ?? result.lastError ?? "Provider error";
+      }
 
       rows.push(row);
       continue;
@@ -69,11 +106,19 @@ export function getFieldRows(
     });
 
     const row: FieldRow = {
+      name: fieldDef.name,
+      type: fieldDef.type,
+      category,
       label: fieldDef.label,
       valueText,
       accessibleText: `${translatedLabel}: ${valueText}`,
     };
+    if (resetName) row.companionResetName = resetName;
     if (tone) row.tone = tone;
+    if (fieldDef.type === "percent") {
+      const clamped = clampPercent(field.value);
+      if (clamped !== undefined) row.fillPercent = clamped;
+    }
 
     rows.push(row);
   }

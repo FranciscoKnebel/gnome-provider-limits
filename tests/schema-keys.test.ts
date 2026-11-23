@@ -25,6 +25,8 @@ const GLOBAL_KEYS = [
   "providers-order",
   "language",
   "status-bar-position",
+  "status-bar-style",
+  "panel-style",
   "refresh-short-interval-seconds",
   "refresh-long-interval-seconds",
   "refresh-stable-reads-threshold",

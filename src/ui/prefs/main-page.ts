@@ -3,26 +3,17 @@ import Gio from "gi://Gio";
 import GObject from "gi://GObject";
 import Gtk from "gi://Gtk?version=4.0";
 
-import { PROVIDER_NAMES, type ProviderName } from "../../constants.js";
-import {
-  isProviderName,
-  normalizeProvidersOrder,
-  providerDisplayName,
-} from "../../helpers/provider-settings.js";
 import { gettext as _ } from "./gettext.js";
-import {
-  bindSetting,
-  buildReorderableList,
-  setupDragSource,
-  setupDropTarget,
-  unbindSettings,
-} from "./shared.js";
+import { bindSetting, unbindSettings } from "./shared.js";
 import type { SettingsBinding } from "./shared.js";
 
 export interface LanguageEntry {
   code: string;
   name: string;
 }
+
+const STATUS_BAR_STYLE_VALUES = ["pills", "gauges", "compact"] as const;
+const PANEL_STYLE_VALUES = ["gauges", "cards", "compact"] as const;
 
 export const ProviderLimitsPreferencesPage = GObject.registerClass(
   class ProviderLimitsPreferencesPage extends Adw.PreferencesPage {
@@ -45,9 +36,8 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
       this._bindings = [];
       this.connect("destroy", () => this.cleanup());
       this.add(this._buildRefreshGroup());
-      this.add(this._buildStatusBarPositionGroup());
+      this.add(this._buildAppearanceGroup());
       this.add(this._buildLanguageGroup());
-      this.add(this._buildProvidersGroup());
     }
 
     cleanup(): void {
@@ -82,121 +72,150 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
         "refresh-long-interval-seconds",
         _("Long interval"),
         _("Seconds between refreshes when data is stable."),
-        60,
-        3600,
+        30,
+        86400,
         60,
       );
       group.add(longRow);
 
-      const thresholdRow = this._createSpinRow(
+      const stableRow = this._createSpinRow(
         "refresh-stable-reads-threshold",
         _("Stable reads threshold"),
-        _("Number of unchanged reads before degrading to the long interval."),
+        _("Number of consecutive identical reads before switching to the long interval."),
         1,
-        10,
+        100,
         1,
       );
-      group.add(thresholdRow);
+      group.add(stableRow);
 
       return group;
     }
 
-    private _buildStatusBarPositionGroup(): Adw.PreferencesGroup {
+    private _buildAppearanceGroup(): Adw.PreferencesGroup {
       const group = new Adw.PreferencesGroup({
-        title: _("Status bar"),
+        title: _("Appearance"),
+        description: _("Choose the visual styles for the top bar and dropdown menu."),
       });
-      const model = Gtk.StringList.new([_("Left"), _("Right")]);
-      const row = new Adw.ComboRow({
+
+      // 1. Status Bar Style
+      const statusStyleModel = Gtk.StringList.new([
+        _("Capsule pills"),
+        _("Micro-ring gauges"),
+        _("Compact text"),
+      ]);
+      const statusStyleRow = new Adw.ComboRow({
+        title: _("Status bar style"),
+        subtitle: _("Visual presentation of metrics in the top bar."),
+        model: statusStyleModel,
+      });
+
+      const updateStatusStyleFromSettings = () => {
+        const val = this._settings.get_string("status-bar-style");
+        const idx = STATUS_BAR_STYLE_VALUES.indexOf(
+          val as (typeof STATUS_BAR_STYLE_VALUES)[number],
+        );
+        statusStyleRow.selected = idx >= 0 ? idx : 0;
+      };
+      updateStatusStyleFromSettings();
+
+      statusStyleRow.connect("notify::selected", (combo: Adw.ComboRow) => {
+        const selectedVal = STATUS_BAR_STYLE_VALUES[combo.selected] ?? "pills";
+        if (this._settings.get_string("status-bar-style") !== selectedVal) {
+          this._settings.set_string("status-bar-style", selectedVal);
+        }
+      });
+      const statusStyleChangedId = this._settings.connect(
+        "changed::status-bar-style",
+        updateStatusStyleFromSettings,
+      );
+      this._settingsChangedIds.push(statusStyleChangedId);
+      group.add(statusStyleRow);
+
+      // 2. Panel Style
+      const panelStyleModel = Gtk.StringList.new([
+        _("Tabbed cockpit & gauges"),
+        _("Quick settings cards"),
+        _("Collapsible matrix HUD"),
+      ]);
+      const panelStyleRow = new Adw.ComboRow({
+        title: _("Dropdown panel style"),
+        subtitle: _("Visual presentation of details in the dropdown panel."),
+        model: panelStyleModel,
+      });
+
+      const updatePanelStyleFromSettings = () => {
+        const val = this._settings.get_string("panel-style");
+        const idx = PANEL_STYLE_VALUES.indexOf(val as (typeof PANEL_STYLE_VALUES)[number]);
+        panelStyleRow.selected = idx >= 0 ? idx : 0;
+      };
+      updatePanelStyleFromSettings();
+
+      panelStyleRow.connect("notify::selected", (combo: Adw.ComboRow) => {
+        const selectedVal = PANEL_STYLE_VALUES[combo.selected] ?? "gauges";
+        if (this._settings.get_string("panel-style") !== selectedVal) {
+          this._settings.set_string("panel-style", selectedVal);
+        }
+      });
+      const panelStyleChangedId = this._settings.connect(
+        "changed::panel-style",
+        updatePanelStyleFromSettings,
+      );
+      this._settingsChangedIds.push(panelStyleChangedId);
+      group.add(panelStyleRow);
+
+      // 3. Status Bar Position
+      const positionModel = Gtk.StringList.new([_("Left"), _("Right")]);
+      const positionRow = new Adw.ComboRow({
         title: _("Status bar position"),
         subtitle: _(
           "Choose whether the status bar appears on the left or right side of the top bar.",
         ),
-        model,
+        model: positionModel,
       });
 
-      row.selected = this._settings.get_string("status-bar-position") === "left" ? 0 : 1;
-      row.connect("notify::selected", (combo: Adw.ComboRow) => {
+      positionRow.selected = this._settings.get_string("status-bar-position") === "left" ? 0 : 1;
+      positionRow.connect("notify::selected", (combo: Adw.ComboRow) => {
         const position = combo.selected === 0 ? "left" : "right";
         if (this._settings.get_string("status-bar-position") !== position) {
           this._settings.set_string("status-bar-position", position);
         }
       });
-      this._settingsChangedIds.push(
-        this._settings.connect("changed::status-bar-position", () => {
-          const selected = this._settings.get_string("status-bar-position") === "left" ? 0 : 1;
-          if (row.selected !== selected) row.selected = selected;
-        }),
-      );
+      const positionChangedId = this._settings.connect("changed::status-bar-position", () => {
+        const position = this._settings.get_string("status-bar-position") === "left" ? 0 : 1;
+        if (positionRow.selected !== position) positionRow.selected = position;
+      });
+      this._settingsChangedIds.push(positionChangedId);
+      group.add(positionRow);
 
-      group.add(row);
       return group;
     }
 
     private _buildLanguageGroup(): Adw.PreferencesGroup {
       const group = new Adw.PreferencesGroup({
         title: _("Language"),
-        description: _("Display language for the extension."),
       });
 
-      const sorted = this._languages.toSorted((a: LanguageEntry, b: LanguageEntry) =>
-        a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
-      );
-      const labels = [_("System"), ...sorted.map((l) => l.name)];
-      const model = Gtk.StringList.new(labels);
+      const items = [_("Follow system"), ...this._languages.map((l) => l.name)];
+      const model = Gtk.StringList.new(items);
       const row = new Adw.ComboRow({
         title: _("Display language"),
-        subtitle: _("Override the system locale, or follow it."),
+        subtitle: _("Choose an explicit language or follow the system locale."),
         model,
       });
 
-      const current = this._settings.get_string("language");
-      const matchIdx = sorted.findIndex((l) => l.code === current);
-      row.selected = matchIdx >= 0 ? matchIdx + 1 : 0;
+      const currentCode = this._settings.get_string("language");
+      const currentIndex = this._languages.findIndex((l) => l.code === currentCode);
+      row.selected = currentIndex >= 0 ? currentIndex + 1 : 0;
 
       row.connect("notify::selected", (combo: Adw.ComboRow) => {
-        const lang = combo.selected === 0 ? "" : sorted[combo.selected - 1].code;
-        this._settings.set_string("language", lang);
+        const newCode =
+          combo.selected === 0 ? "" : (this._languages[combo.selected - 1]?.code ?? "");
+        if (this._settings.get_string("language") !== newCode) {
+          this._settings.set_string("language", newCode);
+        }
       });
 
       group.add(row);
-      return group;
-    }
-
-    private _buildProvidersGroup(): Adw.PreferencesGroup {
-      const group = new Adw.PreferencesGroup({
-        title: _("Providers"),
-        description: _("Enable and reorder providers by dragging the rows."),
-      });
-
-      const toggleBindings: SettingsBinding[] = [];
-      const { listBox, render, destroy } = buildReorderableList(
-        this._settings,
-        "providers-order",
-        (value) => {
-          if (!isProviderName(value)) return null;
-          const row = this._buildReorderableRow({
-            key: "providers-order",
-            value,
-            label: providerDisplayName(this._settings, value),
-          });
-          const toggle = new Gtk.Switch({ valign: Gtk.Align.CENTER });
-          bindSetting(this._settings, `${value}-enabled`, toggle, "active", toggleBindings);
-          row.add_suffix(toggle);
-          return row;
-        },
-        normalizeProvidersOrder,
-        () => unbindSettings(toggleBindings),
-      );
-      this._destroyCallbacks.push(() => unbindSettings(toggleBindings));
-      this._destroyCallbacks.push(destroy);
-      group.add(listBox);
-
-      for (const name of PROVIDER_NAMES) {
-        this._settingsChangedIds.push(
-          this._settings.connect(`changed::${name}-display-name`, render),
-        );
-      }
-
       return group;
     }
 
@@ -212,6 +231,7 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
         lower,
         upper,
         step_increment: step,
+        page_increment: step * 10,
         value: this._settings.get_int(key),
       });
 
@@ -219,32 +239,9 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
         title,
         subtitle,
         adjustment,
-        climb_rate: 1,
-        digits: 0,
       });
 
-      bindSetting(this._settings, key, row, "value", this._bindings);
-      return row;
-    }
-
-    private _buildReorderableRow(args: {
-      key: string;
-      value: ProviderName;
-      label: string;
-    }): Adw.ActionRow {
-      const { key, value, label } = args;
-
-      const row = new Adw.ActionRow({
-        title: label,
-        activatable: false,
-      });
-
-      const dragHandle = new Gtk.Image({ icon_name: "list-drag-handle-symbolic" });
-      row.add_prefix(dragHandle);
-
-      setupDragSource(row, value);
-      setupDropTarget(row, this._settings, key, value);
-
+      bindSetting(this._settings, key, adjustment, "value", this._bindings);
       return row;
     }
   },

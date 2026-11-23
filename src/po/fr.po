@@ -510,3 +510,135 @@ msgstr "Connectez-vous avec Gemini CLI ou Antigravity."
 msgid "Leave the authentication file empty to use ~/.gemini/oauth_creds.json or Antigravity credentials."
 msgstr "Laissez le fichier d’authentification vide pour utiliser ~/.gemini/oauth_creds.json ou les identifiants Antigravity."
 
+
+msgid "Cached"
+msgstr "En cache"
+
+msgid "Loading provider limits…"
+msgstr "Chargement des limites des fournisseurs…"
+
+msgid "Live"
+msgstr "En direct"
+
+msgid "Unavailable"
+msgstr "Indisponible"
+
+msgid "No providers enabled"
+msgstr "Aucun fournisseur activé"
+
+msgid "Enable a provider in Settings to monitor usage limits."
+msgstr "Activez un fournisseur dans les paramètres pour surveiller les limites d'utilisation."
+
+msgid "Waiting for provider data…"
+msgstr "En attente des données des fournisseurs…"
+
+msgid "OK"
+msgstr "OK"
+
+msgid "Partial"
+msgstr "Partiel"
+
+msgid "Limits"
+msgstr "Limites"
+
+msgid "Telemetry"
+msgstr "Télémétrie"
+
+msgid "No providers enabled. Open Settings to enable a provider."
+msgstr "Aucun fournisseur activé. Ouvrez les paramètres pour activer un fournisseur."
+
+msgid "Reading provider limits…"
+msgstr "Lecture des limites des fournisseurs…"
+
+msgid "Expand all"
+msgstr "Tout développer"
+
+msgid "Collapse all"
+msgstr "Tout replier"
+
+msgid "Waiting for initial refresh to complete."
+msgstr "En attente de la fin du premier rafraîchissement."
+
+msgid "Overview"
+msgstr "Vue d'ensemble"
+
+msgid "No panel fields configured for this provider."
+msgstr "Aucun champ configuré pour le panneau de ce fournisseur."
+
+msgid "Number of consecutive identical reads before switching to the long interval."
+msgstr "Nombre de lectures identiques consécutives avant de passer à l'intervalle long."
+
+msgid "Appearance"
+msgstr "Apparence"
+
+msgid "Choose the visual styles for the top bar and dropdown menu."
+msgstr "Choisissez les styles visuels pour la barre supérieure et le menu déroulant."
+
+msgid "Capsule pills"
+msgstr "Pastilles"
+
+msgid "Micro-ring gauges"
+msgstr "Jauges à micro-anneau"
+
+msgid "Compact text"
+msgstr "Texte compact"
+
+msgid "Status bar style"
+msgstr "Style de la barre d'état"
+
+msgid "Visual presentation of metrics in the top bar."
+msgstr "Présentation visuelle des métriques dans la barre supérieure."
+
+msgid "Tabbed cockpit & gauges"
+msgstr "Cockpit à onglets et jauges"
+
+msgid "Quick settings cards"
+msgstr "Cartes de paramètres rapides"
+
+msgid "Collapsible matrix HUD"
+msgstr "HUD matriciel repliable"
+
+msgid "Dropdown panel style"
+msgstr "Style du panneau déroulant"
+
+msgid "Visual presentation of details in the dropdown panel."
+msgstr "Présentation visuelle des détails dans le panneau déroulant."
+
+msgid "Follow system"
+msgstr "Suivre le système"
+
+msgid "Choose an explicit language or follow the system locale."
+msgstr "Choisissez une langue explicite ou suivez les paramètres régionaux du système."
+
+msgid "Move field up"
+msgstr "Déplacer le champ vers le haut"
+
+msgid "Move field down"
+msgstr "Déplacer le champ vers le bas"
+
+msgid "Field Matrix"
+msgstr "Matrice des champs"
+
+msgid "Toggle fields and set their order for the status bar and panel."
+msgstr "Activez les champs et définissez leur ordre pour la barre d'état et le panneau."
+
+msgid "Reset defaults"
+msgstr "Réinitialiser les valeurs par défaut"
+
+msgid "Top Bar"
+msgstr "Barre supérieure"
+
+msgid "Panel"
+msgstr "Panneau"
+
+msgid "Move provider up"
+msgstr "Déplacer le fournisseur vers le haut"
+
+msgid "Move provider down"
+msgstr "Déplacer le fournisseur vers le bas"
+
+msgid "Active Providers"
+msgstr "Fournisseurs actifs"
+
+msgid "Enable, configure, and reorder AI coding providers. Expand any provider to edit credentials and the field matrix."
+msgstr "Activez, configurez et réordonnez les fournisseurs d'IA pour le code. Dépliez un fournisseur pour modifier les identifiants et la matrice des champs."

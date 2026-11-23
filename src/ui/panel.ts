@@ -1,44 +1,18 @@
-import Clutter from "gi://Clutter";
 import type Gio from "gi://Gio";
-import GLib from "gi://GLib";
-import St from "gi://St";
-import { ensureActorVisibleInScrollView } from "resource:///org/gnome/shell/misc/animationUtils.js";
-import { Spinner } from "resource:///org/gnome/shell/ui/animation.js";
-import * as Main from "resource:///org/gnome/shell/ui/main.js";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
 import type { ProviderName } from "../constants.js";
-import { formatAbsoluteTimestamp, formatTimestampTemplate } from "../formatters.js";
-import { gettext as _ } from "../helpers/gettext.js";
-import { resolveLocale } from "../helpers/locale.js";
-import { normalizeProvidersOrder, providerDisplayName } from "../helpers/provider-settings.js";
 import type { BaseReader, ReaderResult } from "../readers/base.js";
-import { ReaderStatus } from "../readers/base.js";
-import { getFieldRows } from "./fieldRows.js";
-import type { FieldRow } from "./fieldRows.js";
-import { sectionKey, structureKey } from "./renderStructure.js";
-import { applyToneClass } from "./tone.js";
+import { CardsPanelSection } from "./panelCards.js";
+import { CompactPanelSection } from "./panelCompact.js";
+import { GaugesPanelSection } from "./panelGauges.js";
 
-interface FieldRowWidgets {
-  value: St.Label;
-  error: St.Label | null;
-}
+export type PanelStyle = "gauges" | "cards" | "compact";
 
-interface PanelSection {
-  detailLabel: St.Label | null;
-  errorLabel: St.Label | null;
-  fields: FieldRowWidgets[];
-  lastUpdatedLabel: St.Label | null;
-}
-
-interface SectionPlan {
-  displayName: string;
-  status: ReaderStatus;
-  rows: FieldRow[];
-  detailText: string | null;
-  errorText: string | null;
-  lastUpdatedText: string | null;
-  key: string;
+export interface PanelStyleSection extends PopupMenu.PopupMenuSection {
+  render(results: Map<ProviderName, ReaderResult>, lastRefreshAt: number | null): void;
+  setRunning(running: boolean): void;
+  destroy(): void;
 }
 
 export class PanelWidget extends PopupMenu.PopupMenuSection {
@@ -46,16 +20,12 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
   private _readers: Map<ProviderName, BaseReader>;
   private _openPreferences: () => void;
   private _onRefresh?: () => void;
+  private _styleChangedId: number | null = null;
+  private _currentStyle: PanelStyle | null = null;
+  private _currentSection: PanelStyleSection | null = null;
+  private _lastResults: Map<ProviderName, ReaderResult> = new Map();
+  private _lastRefreshAt: number | null = null;
   private _running = false;
-  private _refreshRow: PopupMenu.PopupBaseMenuItem | null = null;
-  private _refreshButtonLabel: St.Label | null = null;
-  private _refreshSpinner: Spinner | null = null;
-  private _lastRefreshLabel: St.Label | null = null;
-  private _sections: PanelSection[] = [];
-  private _structureKey: string | null = null;
-  private _body: PopupMenu.PopupMenuSection;
-  private _scroll: St.ScrollView;
-  private _settingsItem: PopupMenu.PopupMenuItem;
 
   constructor(
     settings: Gio.Settings,
@@ -68,374 +38,104 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     this._readers = readers;
     this._openPreferences = openPreferences;
     this._onRefresh = onRefresh;
-    this._body = new PopupMenu.PopupMenuSection();
-    this._scroll = new St.ScrollView({ overlay_scrollbars: true, x_expand: true });
-    this._scroll.set_policy(St.PolicyType.NEVER, St.PolicyType.AUTOMATIC);
-    this.addMenuItem(this._body);
-    this.box.remove_child(this._body.actor);
-    // add_actor is the GNOME 45 API; set_child replaced it in newer Shells.
-    const scroll = this._scroll as St.ScrollView & { add_actor?: (actor: Clutter.Actor) => void };
-    if (typeof scroll.set_child === "function") scroll.set_child(this._body.actor);
-    else scroll.add_actor?.(this._body.actor);
-    this.box.add_child(this._scroll);
-    this._scroll.connect("notify::mapped", () => {
-      if (!this._scroll.mapped) return;
-      const monitor = Main.layoutManager.findMonitorForActor(this.actor);
-      if (!monitor) return;
-      const area = Main.layoutManager.getWorkAreaForMonitor(monitor.index);
-      const scale = St.ThemeContext.get_for_stage(this.actor.get_stage()).scale_factor;
-      this._scroll.style = `max-height: ${Math.max(1, Math.floor((area.height / scale) * 0.6))}px;`;
-    });
-    this._addRefreshRow(null, "en");
-    this._settingsItem = new PopupMenu.PopupMenuItem(_("Settings"));
-    this._settingsItem.connect("activate", () => this._openPreferences());
-    this.addMenuItem(this._settingsItem);
+
+    this._ensureSection();
+
+    if (typeof this._settings.connect === "function") {
+      this._styleChangedId = this._settings.connect("changed::panel-style", () => {
+        this._switchSection();
+      });
+    }
   }
 
-  override destroy(): void {
-    this._body.destroy();
-    super.destroy();
+  private _resolveStyle(): PanelStyle {
+    if (typeof this._settings.get_string === "function") {
+      const styleSetting = this._settings.get_string("panel-style");
+      if (styleSetting === "cards" || styleSetting === "compact" || styleSetting === "gauges") {
+        return styleSetting;
+      }
+    }
+    return "gauges";
+  }
+
+  private _ensureSection(): PanelStyleSection {
+    const style = this._resolveStyle();
+    if (this._currentSection && this._currentStyle === style) {
+      return this._currentSection;
+    }
+    return this._switchSection();
+  }
+
+  private _switchSection(): PanelStyleSection {
+    const newStyle = this._resolveStyle();
+    if (this._currentSection) {
+      if (typeof this.box?.remove_child === "function" && this._currentSection.actor) {
+        this.box.remove_child(this._currentSection.actor);
+      }
+      this._currentSection.destroy();
+      this._currentSection = null;
+    }
+
+    this._currentStyle = newStyle;
+
+    let section: PanelStyleSection;
+    if (newStyle === "cards") {
+      section = new CardsPanelSection(
+        this._settings,
+        this._readers,
+        this._openPreferences,
+        this._onRefresh,
+      );
+    } else if (newStyle === "compact") {
+      section = new CompactPanelSection(
+        this._settings,
+        this._readers,
+        this._openPreferences,
+        this._onRefresh,
+      );
+    } else {
+      section = new GaugesPanelSection(
+        this._settings,
+        this._readers,
+        this._openPreferences,
+        this._onRefresh,
+      );
+    }
+
+    this._currentSection = section;
+    this.addMenuItem(section);
+    section.setRunning(this._running);
+    if (this._lastResults.size > 0) {
+      section.render(this._lastResults, this._lastRefreshAt);
+    }
+    return section;
   }
 
   render(results: Map<ProviderName, ReaderResult>, lastRefreshAt: number | null): void {
-    const order = normalizeProvidersOrder(this._settings.get_strv("providers-order"));
-    const locale = resolveLocale(
-      this._settings.get_string("language"),
-      GLib.getenv("LC_MESSAGES"),
-      GLib.getenv("LANG"),
-    );
-
-    const plans: SectionPlan[] = [];
-    for (const name of order) {
-      const result = results.get(name);
-      if (!result) continue;
-      if (result.status === ReaderStatus.DISABLED) continue;
-      plans.push(this._planSection(name, result, locale));
-    }
-
-    const nextStructureKey = structureKey([locale, ...plans.map((plan) => plan.key)]);
-
-    if (nextStructureKey !== this._structureKey) {
-      this._rebuild(plans, lastRefreshAt);
-      this._structureKey = nextStructureKey;
-      return;
-    }
-
-    this._update(plans, lastRefreshAt);
+    this._lastResults = results;
+    this._lastRefreshAt = lastRefreshAt;
+    const section = this._ensureSection();
+    section.render(results, lastRefreshAt);
   }
 
-  setLastRefreshAt(lastRefreshAt: number | null): void {
-    if (!this._lastRefreshLabel) return;
-    const locale = resolveLocale(
-      this._settings.get_string("language"),
-      GLib.getenv("LC_MESSAGES"),
-      GLib.getenv("LANG"),
-    );
-    this._lastRefreshLabel.visible = lastRefreshAt !== null;
-    this._lastRefreshLabel.text = formatTimestampTemplate(
-      _("Last refresh: %s"),
-      lastRefreshAt,
-      locale,
-    );
+  update(results: Map<ProviderName, ReaderResult>): void {
+    this.render(results, this._lastRefreshAt);
   }
 
   setRunning(running: boolean): void {
     this._running = running;
-    if (this._refreshSpinner) {
-      this._refreshSpinner.visible = running;
-      if (running) this._refreshSpinner.play();
-      else this._refreshSpinner.stop();
+    this._currentSection?.setRunning(running);
+  }
+
+  override destroy(): void {
+    if (this._styleChangedId !== null) {
+      this._settings.disconnect(this._styleChangedId);
+      this._styleChangedId = null;
     }
-    if (this._refreshButtonLabel) {
-      this._refreshButtonLabel.text = running ? _("Refreshing…") : _("Force refresh");
-      this._refreshButtonLabel.accessible_name = this._refreshButtonLabel.text;
+    if (this._currentSection) {
+      this._currentSection.destroy();
+      this._currentSection = null;
     }
-    if (this._refreshRow) this._refreshRow.reactive = !running;
-  }
-
-  private _planSection(name: ProviderName, result: ReaderResult, locale: string): SectionPlan {
-    const displayName = this._getProviderDisplayName(name);
-    const errorText =
-      result.status === ReaderStatus.ERROR ? (result.lastError ?? _("Error")) : null;
-    const detailText = result.status === ReaderStatus.PARTIAL ? (result.lastError ?? null) : null;
-    const rows = errorText
-      ? []
-      : getFieldRows(
-          this._readers.get(name),
-          result,
-          this._settings.get_strv(`${name}-panel-fields`),
-          "panel",
-          locale,
-          _,
-        );
-    const lastUpdatedText =
-      !errorText && Number.isFinite(result.lastUpdated)
-        ? formatAbsoluteTimestamp(result.lastUpdated, locale)
-        : null;
-
-    return {
-      displayName,
-      status: result.status,
-      rows,
-      detailText,
-      errorText,
-      lastUpdatedText,
-      key: sectionKey({
-        provider: name,
-        displayName,
-        status: result.status,
-        locale,
-        rows,
-        hasDetail: detailText !== null,
-        hasError: errorText !== null,
-        hasTimestamp: lastUpdatedText !== null,
-      }),
-    };
-  }
-
-  private _rebuild(plans: SectionPlan[], lastRefreshAt: number | null): void {
-    this._body.removeAll();
-    this._sections = [];
-    plans.forEach((plan, index) => {
-      if (index > 0) this._body.addMenuItem(new PopupMenu.PopupSeparatorMenuItem());
-      this._sections.push(this._addSection(plan));
-    });
-    this._settingsItem.label.text = _("Settings");
-    this.setRunning(this._running);
-    this.setLastRefreshAt(lastRefreshAt);
-  }
-
-  private _update(plans: SectionPlan[], lastRefreshAt: number | null): void {
-    plans.forEach((plan, index) => {
-      const section = this._sections[index];
-      if (!section) return;
-
-      plan.rows.forEach((rowData, rowIndex) => {
-        const widgets = section.fields[rowIndex];
-        if (!widgets) return;
-
-        widgets.value.text = rowData.valueText;
-        widgets.value.accessible_name =
-          rowData.accessibleText ?? `${_(rowData.label)}: ${rowData.valueText}`;
-        applyToneClass(widgets.value, rowData.tone);
-
-        if (widgets.error && rowData.errorText) {
-          widgets.error.text = rowData.errorText;
-          widgets.error.accessible_name = rowData.errorText;
-        }
-      });
-
-      if (section.detailLabel && plan.detailText) {
-        section.detailLabel.text = plan.detailText;
-        section.detailLabel.accessible_name = plan.detailText;
-      }
-
-      if (section.errorLabel && plan.errorText) {
-        section.errorLabel.text = plan.errorText;
-        section.errorLabel.accessible_name = plan.errorText;
-      }
-
-      if (section.lastUpdatedLabel && plan.lastUpdatedText) {
-        section.lastUpdatedLabel.text = _("Last updated: %s").replace("%s", plan.lastUpdatedText);
-        section.lastUpdatedLabel.accessible_name = section.lastUpdatedLabel.text;
-      }
-    });
-
-    this.setLastRefreshAt(lastRefreshAt);
-  }
-
-  private _addSection(plan: SectionPlan): PanelSection {
-    const headerText = this._buildHeaderText(plan.displayName, plan.status);
-    const header = new PopupMenu.PopupMenuItem(headerText, {
-      reactive: true,
-      can_focus: true,
-      activate: false,
-      hover: false,
-    });
-    header.add_style_class_name("provider-limits-panel-header");
-    header.add_style_class_name("provider-limits-static-row");
-    header.accessible_name = headerText;
-    header.label.accessible_name = headerText;
-    header.connect("key-focus-in", () => ensureActorVisibleInScrollView(this._scroll, header));
-    this._body.addMenuItem(header);
-
-    const detailLabel = this._addTextRow(plan.detailText, "provider-limits-dim");
-
-    if (plan.errorText !== null) {
-      const errorLabel = this._addTextRow(plan.errorText, "provider-limits-error");
-      return { detailLabel, errorLabel, fields: [], lastUpdatedLabel: null };
-    }
-
-    const fields = plan.rows.map((rowData) => this._addFieldRow(rowData));
-    const lastUpdatedLabel =
-      plan.lastUpdatedText !== null ? this._addLastUpdatedRow(plan.lastUpdatedText) : null;
-
-    return { detailLabel, errorLabel: null, fields, lastUpdatedLabel };
-  }
-
-  private _addTextRow(text: string | null, styleClass: string): St.Label | null {
-    if (text === null) return null;
-
-    const row = this._addStaticRow();
-    const label = new St.Label({
-      text,
-      style_class: styleClass,
-      x_expand: true,
-      x_align: Clutter.ActorAlign.START,
-    });
-    label.clutter_text.line_wrap = true;
-    label.accessible_name = text;
-    row.add_child(label);
-    this._body.addMenuItem(row);
-    return label;
-  }
-
-  private _addFieldRow(rowData: FieldRow): FieldRowWidgets {
-    const row = this._addStaticRow();
-    const content = new St.BoxLayout({ vertical: true, x_expand: true });
-    const top = new St.BoxLayout({ x_expand: true });
-
-    const labelLabel = new St.Label({
-      text: _(rowData.label),
-      style_class: "provider-limits-field-label",
-      x_expand: true,
-      x_align: Clutter.ActorAlign.START,
-    });
-    labelLabel.accessible_name = _(rowData.label);
-
-    const valueLabel = new St.Label({
-      text: rowData.valueText,
-      style_class: "provider-limits-field-value",
-      x_align: Clutter.ActorAlign.END,
-    });
-    valueLabel.accessible_name =
-      rowData.accessibleText ?? `${_(rowData.label)}: ${rowData.valueText}`;
-    applyToneClass(valueLabel, rowData.tone);
-
-    top.add_child(labelLabel);
-    top.add_child(valueLabel);
-    content.add_child(top);
-
-    let errorLabel: St.Label | null = null;
-    if (rowData.errorText) {
-      errorLabel = new St.Label({
-        text: rowData.errorText,
-        style_class: "provider-limits-error",
-        x_expand: true,
-        x_align: Clutter.ActorAlign.START,
-      });
-      errorLabel.clutter_text.line_wrap = true;
-      errorLabel.accessible_name = rowData.errorText;
-      content.add_child(errorLabel);
-    }
-
-    row.add_child(content);
-    this._body.addMenuItem(row);
-    return { value: valueLabel, error: errorLabel };
-  }
-
-  private _addLastUpdatedRow(lastUpdatedText: string): St.Label {
-    const row = this._addStaticRow();
-    const text = _("Last updated: %s").replace("%s", lastUpdatedText);
-    const label = new St.Label({
-      text,
-      style_class: "provider-limits-dim",
-      x_expand: true,
-      x_align: Clutter.ActorAlign.START,
-    });
-    label.accessible_name = text;
-    row.add_child(label);
-    this._body.addMenuItem(row);
-    return label;
-  }
-
-  private _addStaticRow(): PopupMenu.PopupBaseMenuItem {
-    const row = new PopupMenu.PopupBaseMenuItem({
-      reactive: true,
-      can_focus: true,
-      activate: false,
-      hover: false,
-    });
-    row.add_style_class_name("provider-limits-static-row");
-    row.connect("key-focus-in", () => ensureActorVisibleInScrollView(this._scroll, row));
-    return row;
-  }
-
-  private _addRefreshRow(lastRefreshAt: number | null, locale: string): void {
-    const row = new PopupMenu.PopupBaseMenuItem({
-      reactive: true,
-      can_focus: true,
-      activate: false,
-    });
-    row.reactive = !this._running;
-    row.accessible_name = _("Force refresh");
-
-    const buttonLabel = new St.Label({
-      text: this._running ? _("Refreshing…") : _("Force refresh"),
-      x_expand: true,
-      x_align: Clutter.ActorAlign.START,
-    });
-    buttonLabel.accessible_name = buttonLabel.text;
-    row.add_child(buttonLabel);
-
-    const lastRefreshLabel = new St.Label({
-      text: formatTimestampTemplate(_("Last refresh: %s"), lastRefreshAt, locale),
-      style_class: "provider-limits-dim",
-      x_align: Clutter.ActorAlign.END,
-    });
-    row.add_child(lastRefreshLabel);
-
-    const spinner = new Spinner(14, { animate: true, hideOnStop: true });
-    spinner.add_style_class_name("provider-limits-refresh-spinner");
-    spinner.visible = this._running;
-    if (this._running) spinner.play();
-    row.add_child(spinner);
-
-    row.connect("key-press-event", (_actor: Clutter.Actor, event: Clutter.Event) => {
-      const symbol = event.get_key_symbol();
-      if (
-        symbol === Clutter.KEY_Return ||
-        symbol === Clutter.KEY_KP_Enter ||
-        symbol === Clutter.KEY_space
-      ) {
-        if (!this._running) this._onRefresh?.();
-        return Clutter.EVENT_STOP;
-      }
-      return Clutter.EVENT_PROPAGATE;
-    });
-    row.connect("button-release-event", () => {
-      if (!this._running) this._onRefresh?.();
-      return Clutter.EVENT_STOP;
-    });
-
-    this._refreshRow = row;
-    this._refreshButtonLabel = buttonLabel;
-    this._refreshSpinner = spinner;
-    this._lastRefreshLabel = lastRefreshLabel;
-    this.addMenuItem(row);
-  }
-
-  private _getProviderDisplayName(name: ProviderName): string {
-    return providerDisplayName(this._settings, name);
-  }
-
-  private _buildHeaderText(displayName: string, status: ReaderStatus): string {
-    const suffix = this._statusText(status);
-    return suffix ? `${displayName}  ${suffix}` : displayName;
-  }
-
-  private _statusText(status: ReaderStatus): string {
-    switch (status) {
-      case ReaderStatus.OK:
-        return "";
-      case ReaderStatus.PARTIAL:
-        return _("(partial)");
-      case ReaderStatus.ERROR:
-        return _("(error)");
-      case ReaderStatus.UNAVAILABLE:
-        return _("(unavailable)");
-      default:
-        return "";
-    }
+    super.destroy();
   }
 }

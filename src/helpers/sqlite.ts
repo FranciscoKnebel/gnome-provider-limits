@@ -60,6 +60,11 @@ if libc.prctl(38, 1, 0, 0, 0) or libc.prctl(22, 2, ctypes.byref(program), 0, 0):
 
 db_path = sys.argv[1]
 sidecar_suffixes = ("-wal", "-shm", "-journal")
+for suffix in sidecar_suffixes:
+    sidecar = db_path + suffix
+    if os.path.lexists(sidecar) and not os.path.isfile(sidecar):
+        raise RuntimeError(f"unreadable sidecar {suffix}")
+
 def sidecars_absent():
     return all(not os.path.lexists(db_path + suffix) for suffix in sidecar_suffixes)
 

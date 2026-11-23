@@ -33,6 +33,28 @@
       <summary>Status bar position</summary>
       <description>Side of the top bar where the status bar appears: 'left' or 'right'.</description>
     </key>
+    <key name="status-bar-style" type="s">
+      <choices>
+        <choice value="pills"/>
+        <choice value="gauges"/>
+        <choice value="compact"/>
+      </choices>
+      <default>'pills'</default>
+      <summary>Status bar visual style</summary>
+      <description>Visual presentation of provider metrics in the top bar: 'pills' (capsule pills with health dots), 'gauges' (circular micro-ring gauges), or 'compact' (quiet tabular text).</description>
+    </key>
+
+    <!-- Globals: dropdown panel -->
+    <key name="panel-style" type="s">
+      <choices>
+        <choice value="gauges"/>
+        <choice value="cards"/>
+        <choice value="compact"/>
+      </choices>
+      <default>'gauges'</default>
+      <summary>Dropdown panel visual style</summary>
+      <description>Visual presentation of provider details in the dropdown panel: 'gauges' (tabbed cockpit with radial gauges and bento grid), 'cards' (elevated cards with progress bars), or 'compact' (collapsible matrix HUD).</description>
+    </key>
 
     <!-- Globals: provider order -->
     <key name="providers-order" type="as">

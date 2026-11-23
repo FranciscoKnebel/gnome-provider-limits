@@ -47,87 +47,8 @@ if (Gio.FileEnumerator?.prototype) {
   Gio._promisify(Gio.FileEnumerator.prototype, "close_async", "close_finish");
 }
 
-export const GOOGLE_FIELDS: readonly FieldDef[] = [
-  {
-    name: "used_percent_session",
-    label: "Used % (session 5h)",
-    type: "percent",
-    description: "Gemini 5-hour rolling subscription quota usage.",
-    defaultZone: "status",
-  },
-  {
-    name: "remaining_percent_session",
-    label: "Remaining % (session 5h)",
-    type: "percent",
-    defaultZone: "status",
-  },
-  {
-    name: "reset_at_session",
-    label: "Reset at (session)",
-    type: "timestamp",
-    defaultZone: "status",
-  },
-  {
-    name: "used_percent_weekly",
-    label: "Used % (weekly)",
-    type: "percent",
-    description: "Gemini weekly subscription quota usage.",
-    defaultZone: "panel",
-  },
-  {
-    name: "remaining_percent_weekly",
-    label: "Remaining % (weekly)",
-    type: "percent",
-    defaultZone: "panel",
-  },
-  {
-    name: "reset_at_weekly",
-    label: "Reset at (weekly)",
-    type: "timestamp",
-    defaultZone: "panel",
-  },
-  {
-    name: "used_percent_3p_session",
-    label: "Used % (Claude & GPT 5h)",
-    type: "percent",
-    description: "Third-party model (Claude & GPT) 5-hour quota usage on Google AI / Antigravity.",
-    defaultZone: "panel",
-  },
-  {
-    name: "remaining_percent_3p_session",
-    label: "Remaining % (Claude & GPT 5h)",
-    type: "percent",
-    defaultZone: "panel",
-  },
-  {
-    name: "reset_at_3p_session",
-    label: "Reset at (Claude & GPT 5h)",
-    type: "timestamp",
-    defaultZone: "panel",
-  },
-  {
-    name: "used_percent_3p_weekly",
-    label: "Used % (Claude & GPT weekly)",
-    type: "percent",
-    description: "Third-party model (Claude & GPT) weekly quota usage on Google AI / Antigravity.",
-    defaultZone: "panel",
-  },
-  {
-    name: "remaining_percent_3p_weekly",
-    label: "Remaining % (Claude & GPT weekly)",
-    type: "percent",
-    defaultZone: "panel",
-  },
-  {
-    name: "reset_at_3p_weekly",
-    label: "Reset at (Claude & GPT weekly)",
-    type: "timestamp",
-    defaultZone: "panel",
-  },
-  { name: "limit_reached", label: "Limit reached", type: "bool", defaultZone: "panel" },
-  { name: "plan_type", label: "Plan type", type: "text", defaultZone: "panel" },
-  { name: "usage_source", label: "Usage source", type: "text", defaultZone: "panel" },
-];
+import { GOOGLE_FIELDS } from "./fields.js";
+export { GOOGLE_FIELDS };
 
 function makeGoogleHeaders(token: string): Record<string, string> {
   return {

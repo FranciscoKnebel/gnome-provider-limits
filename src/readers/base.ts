@@ -19,6 +19,7 @@ export enum FieldStatus {
 export type FieldType = "percent" | "count" | "tokens" | "cost" | "timestamp" | "bool" | "text";
 
 export type FieldZone = "status" | "panel";
+export type { FieldCategory } from "./fields.js";
 
 export interface FieldDef {
   readonly name: string;
@@ -26,6 +27,7 @@ export interface FieldDef {
   readonly type: FieldType;
   readonly description?: string;
   readonly defaultZone: FieldZone;
+  readonly category?: import("./fields.js").FieldCategory;
 }
 
 export interface FieldResult<T = unknown> {
