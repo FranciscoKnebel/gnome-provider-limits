@@ -510,3 +510,54 @@ msgstr "Inicia sesión con Gemini CLI o Antigravity."
 msgid "Leave the authentication file empty to use ~/.gemini/oauth_creds.json or Antigravity credentials."
 msgstr "Deja vacío el archivo de autenticación para usar ~/.gemini/oauth_creds.json o las credenciales de Antigravity."
 
+#: src/ui/cardPlan.ts
+msgid "Live"
+msgstr "En vivo"
+
+#: src/ui/cardPlan.ts
+msgid "Cached"
+msgstr "En caché"
+
+#: src/ui/cardPlan.ts
+msgid "Unavailable"
+msgstr "No disponible"
+
+#: src/ui/cardPlan.ts
+msgid "Loading provider limits…"
+msgstr "Cargando límites de los proveedores…"
+
+#: src/ui/cardPlan.ts
+msgid "Waiting for provider data…"
+msgstr "Esperando datos de los proveedores…"
+
+#: src/ui/cardPlan.ts
+msgid "No providers enabled"
+msgstr "No hay proveedores activados"
+
+#: src/ui/cardPlan.ts
+msgid "Enable a provider in Settings to monitor usage limits."
+msgstr "Activa un proveedor en Ajustes para supervisar los límites de uso."
+
+#: src/ui/prefs/main-page.ts
+msgid "Enable and reorder providers by dragging rows or using arrow buttons."
+msgstr "Activa y reordena los proveedores arrastrando filas o usando las flechas."
+
+#: src/ui/prefs/provider-page.ts
+msgid "Reorder rows or use \"+\" to add fields."
+msgstr "Reordena las filas o usa «+» para añadir campos."
+
+#: src/ui/prefs/provider-page.ts
+msgid "Reset defaults"
+msgstr "Restablecer valores"
+
+#: src/ui/prefs/provider-page.ts
+msgid "Restore default fields"
+msgstr "Restaurar campos predeterminados"
+
+#: src/ui/prefs/shared.ts
+msgid "Move up"
+msgstr "Mover arriba"
+
+#: src/ui/prefs/shared.ts
+msgid "Move down"
+msgstr "Mover abajo"
