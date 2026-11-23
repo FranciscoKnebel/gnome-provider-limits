@@ -15,7 +15,7 @@ import { progressResetPresentation } from "../../src/ui/panelCards.js";
 import {
   deriveProviderHealth,
   deriveSeverity,
-  TONE_BY_SEVERITY,
+  HEALTH_BY_SEVERITY,
   worstFieldTone,
 } from "../../src/ui/providerHealth.js";
 import { applyHealthToneClass, applyToneClass, type HealthTone } from "../../src/ui/tone.js";
@@ -106,7 +106,7 @@ function toneOf(
   lastKnownGood = false,
 ): HealthTone {
   const worst = worstFieldTone(tones);
-  return TONE_BY_SEVERITY[deriveSeverity(status, worst, hasUsableField, lastKnownGood)];
+  return HEALTH_BY_SEVERITY[deriveSeverity(status, worst, hasUsableField, lastKnownGood)].tone;
 }
 
 describe("Fork 1 Quick Settings cards & progress bars view-model", () => {

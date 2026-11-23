@@ -17,7 +17,7 @@ const RADIAL_GAUGE_SIZE = 80;
 
 export interface DetailHost {
   readonly shell: PanelShell;
-  readonly translate: (message: string) => string;
+  readonly t: (message: string) => string;
 }
 
 interface DetailRenderContext {
@@ -63,9 +63,7 @@ export class DetailRenderer {
       ? []
       : facts.views.progress.map((view) => {
           const pairing = model.resets.get(view.name);
-          const resetText = pairing
-            ? resetSlotText(pairing, "panel", locale, this._host.translate)
-            : null;
+          const resetText = pairing ? resetSlotText(pairing, "panel", locale, this._host.t) : null;
           return { view, geometry: computeGaugeGeometry(view), resetText };
         });
     const bentoViews = isError ? [] : facts.views.keyValue;

@@ -250,10 +250,7 @@ export class CodexReader extends BaseReader<"codex"> {
     resetCredits: CodexResetCredits | null | undefined,
   ): FieldResult[] {
     const summary = summarizeCodexResetCredits(resetCredits);
-    const expireStatus =
-      summary.expiresAt !== null || summary.available === 0
-        ? FieldStatus.OK
-        : FieldStatus.UNAVAILABLE;
+    const expireStatus = summary.expiresAt !== null ? FieldStatus.OK : FieldStatus.UNAVAILABLE;
     return [
       this._makeField(
         "reset_credits_available",

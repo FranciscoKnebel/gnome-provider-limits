@@ -2,16 +2,156 @@ import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
 import type { ReaderResult } from "../../src/readers/base.js";
 import { CODEX_FIELDS } from "../../src/readers/fields.js";
 import type { FieldTone } from "../../src/ui/fieldRows.js";
+import type { FieldView } from "../../src/ui/fieldViews.js";
 import { deriveFieldViews } from "../../src/ui/fieldViews.js";
 import {
-  ATTENTION_BY_SEVERITY,
   deriveProviderHealth,
   deriveSeverity,
+  HEALTH_BY_SEVERITY,
   isLastKnownGood,
-  STATE_BY_SEVERITY,
-  TONE_BY_SEVERITY,
   worstFieldTone,
 } from "../../src/ui/providerHealth.js";
+
+function viewFor(tone: FieldTone | undefined, hasValue: boolean): FieldView {
+  return {
+    name: "used_percent_primary",
+    type: "percent",
+    category: "limit",
+    label: "test",
+    labelText: "test",
+    valueText: "",
+    accessibleText: "",
+    hasValue,
+    tone,
+    ratio: null,
+    usageRatio: null,
+    resetName: null,
+  };
+}
+
+/** Captured from the three lookup tables and pill mapping before they were collapsed. */
+const EXPECTED = {
+  idle: {
+    state: "idle",
+    tone: "idle",
+    attention: "quiet",
+    card: "live",
+    overview: "ok",
+    statusTag: "",
+    pill: null,
+    pillA11y: null,
+    cardLabel: "Live",
+    overviewLabel: "…",
+  },
+  ok: {
+    state: "ok",
+    tone: "ok",
+    attention: "quiet",
+    card: "live",
+    overview: "ok",
+    statusTag: "",
+    pill: null,
+    pillA11y: null,
+    cardLabel: "Live",
+    overviewLabel: "OK",
+  },
+  warning: {
+    state: "ok",
+    tone: "warning",
+    attention: "warning",
+    card: "live",
+    overview: "ok",
+    statusTag: "",
+    pill: null,
+    pillA11y: null,
+    cardLabel: "Live",
+    overviewLabel: "OK",
+  },
+  partial: {
+    state: "partial",
+    tone: "partial",
+    attention: "partial",
+    card: "cached",
+    overview: "partial",
+    statusTag: "(partial)",
+    pill: "~",
+    pillA11y: "Cached",
+    cardLabel: "Cached",
+    overviewLabel: "Partial",
+  },
+  "partial-warning": {
+    state: "partial",
+    tone: "partial",
+    attention: "warning",
+    card: "cached",
+    overview: "partial",
+    statusTag: "(partial)",
+    pill: "~",
+    pillA11y: "Cached",
+    cardLabel: "Cached",
+    overviewLabel: "Partial",
+  },
+  cached: {
+    state: "cached",
+    tone: "partial",
+    attention: "partial",
+    card: "cached",
+    overview: "cached",
+    statusTag: "(partial)",
+    pill: "~",
+    pillA11y: "Cached",
+    cardLabel: "Cached",
+    overviewLabel: "Cached",
+  },
+  "cached-warning": {
+    state: "cached",
+    tone: "partial",
+    attention: "warning",
+    card: "cached",
+    overview: "cached",
+    statusTag: "(partial)",
+    pill: "~",
+    pillA11y: "Cached",
+    cardLabel: "Cached",
+    overviewLabel: "Cached",
+  },
+  critical: {
+    state: "ok",
+    tone: "critical",
+    attention: "critical",
+    card: "live",
+    overview: "ok",
+    statusTag: "",
+    pill: null,
+    pillA11y: null,
+    cardLabel: "Live",
+    overviewLabel: "OK",
+  },
+  error: {
+    state: "error",
+    tone: "error",
+    attention: "error",
+    card: "error",
+    overview: "error",
+    statusTag: "(error)",
+    pill: "(error)",
+    pillA11y: "(error)",
+    cardLabel: "Error",
+    overviewLabel: "Error",
+  },
+  unavailable: {
+    state: "unavailable",
+    tone: "error",
+    attention: "error",
+    card: "unavailable",
+    overview: "error",
+    statusTag: "(unavailable)",
+    pill: "(unavailable)",
+    pillA11y: "(unavailable)",
+    cardLabel: "Unavailable",
+    overviewLabel: "Error",
+  },
+} as const;
 
 describe("providerHealth pure helpers", () => {
   it("derives one ordered severity from status, worst tone, usable fields and last-known-good", () => {
@@ -27,29 +167,34 @@ describe("providerHealth pure helpers", () => {
     expect(deriveSeverity(ReaderStatus.OK, undefined, false, false)).toBe("idle");
   });
 
-  it("maps each severity to state, tone and attention through lookup tables", () => {
-    expect(STATE_BY_SEVERITY.error).toBe("error");
-    expect(STATE_BY_SEVERITY.unavailable).toBe("unavailable");
-    expect(STATE_BY_SEVERITY.idle).toBe("idle");
-    expect(STATE_BY_SEVERITY["cached-warning"]).toBe("cached");
-    expect(STATE_BY_SEVERITY.critical).toBe("ok");
-    expect(STATE_BY_SEVERITY.warning).toBe("ok");
+  it("carries state, tone, attention and presentation in the one severity table", () => {
+    expect(HEALTH_BY_SEVERITY.error.state).toBe("error");
+    expect(HEALTH_BY_SEVERITY.unavailable.state).toBe("unavailable");
+    expect(HEALTH_BY_SEVERITY.idle.state).toBe("idle");
+    expect(HEALTH_BY_SEVERITY["cached-warning"].state).toBe("cached");
+    expect(HEALTH_BY_SEVERITY.critical.state).toBe("ok");
+    expect(HEALTH_BY_SEVERITY.warning.state).toBe("ok");
 
-    expect(TONE_BY_SEVERITY.error).toBe("error");
-    expect(TONE_BY_SEVERITY.unavailable).toBe("error");
-    expect(TONE_BY_SEVERITY.idle).toBe("idle");
-    expect(TONE_BY_SEVERITY.cached).toBe("partial");
-    expect(TONE_BY_SEVERITY.ok).toBe("ok");
-    expect(TONE_BY_SEVERITY.warning).toBe("warning");
-    expect(TONE_BY_SEVERITY.critical).toBe("critical");
+    expect(HEALTH_BY_SEVERITY.error.tone).toBe("error");
+    expect(HEALTH_BY_SEVERITY.unavailable.tone).toBe("error");
+    expect(HEALTH_BY_SEVERITY.idle.tone).toBe("idle");
+    expect(HEALTH_BY_SEVERITY.cached.tone).toBe("partial");
+    expect(HEALTH_BY_SEVERITY.ok.tone).toBe("ok");
+    expect(HEALTH_BY_SEVERITY.warning.tone).toBe("warning");
+    expect(HEALTH_BY_SEVERITY.critical.tone).toBe("critical");
 
-    expect(ATTENTION_BY_SEVERITY.error).toBe("error");
-    expect(ATTENTION_BY_SEVERITY.unavailable).toBe("error");
-    expect(ATTENTION_BY_SEVERITY.idle).toBe("quiet");
-    expect(ATTENTION_BY_SEVERITY.ok).toBe("quiet");
-    expect(ATTENTION_BY_SEVERITY["partial-warning"]).toBe("warning");
-    expect(ATTENTION_BY_SEVERITY.cached).toBe("partial");
-    expect(ATTENTION_BY_SEVERITY.critical).toBe("critical");
+    expect(HEALTH_BY_SEVERITY.error.attention).toBe("error");
+    expect(HEALTH_BY_SEVERITY.unavailable.attention).toBe("error");
+    expect(HEALTH_BY_SEVERITY.idle.attention).toBe("quiet");
+    expect(HEALTH_BY_SEVERITY.ok.attention).toBe("quiet");
+    expect(HEALTH_BY_SEVERITY["partial-warning"].attention).toBe("warning");
+    expect(HEALTH_BY_SEVERITY.cached.attention).toBe("partial");
+    expect(HEALTH_BY_SEVERITY.critical.attention).toBe("critical");
+
+    expect(HEALTH_BY_SEVERITY.partial.presentation.cardBadge).toBe("cached");
+    expect(HEALTH_BY_SEVERITY.unavailable.presentation.overviewBadge).toBe("error");
+    expect(HEALTH_BY_SEVERITY.error.presentation.statusTag).toBe("(error)");
+    expect(HEALTH_BY_SEVERITY.cached.presentation.label.overview).toBe("Cached");
   });
 
   it("derives attention from tones through the single severity value", () => {
@@ -58,13 +203,69 @@ describe("providerHealth pure helpers", () => {
       tones: readonly (FieldTone | undefined)[],
     ): string => {
       const worst = worstFieldTone(tones);
-      return ATTENTION_BY_SEVERITY[deriveSeverity(status, worst, false, false)];
+      return HEALTH_BY_SEVERITY[deriveSeverity(status, worst, false, false)].attention;
     };
 
     expect(attentionForTones(ReaderStatus.OK, ["ok", undefined])).toBe("quiet");
     expect(attentionForTones(ReaderStatus.PARTIAL, ["warning"])).toBe("warning");
     expect(attentionForTones(ReaderStatus.OK, ["warning", "critical"])).toBe("critical");
     expect(attentionForTones(ReaderStatus.ERROR, [])).toBe("error");
+  });
+
+  it("keeps all 80 status, tone, usable-field and last-known-good combinations identical", () => {
+    const statuses = [
+      ReaderStatus.OK,
+      ReaderStatus.PARTIAL,
+      ReaderStatus.ERROR,
+      ReaderStatus.UNAVAILABLE,
+      ReaderStatus.DISABLED,
+    ];
+    const tones: readonly (FieldTone | undefined)[] = [undefined, "ok", "warning", "critical"];
+    let checked = 0;
+
+    for (const status of statuses) {
+      for (const tone of tones) {
+        for (const hasUsableField of [false, true]) {
+          for (const lastKnownGood of [false, true]) {
+            const result: ReaderResult = {
+              provider: "codex",
+              status,
+              fromCache: lastKnownGood,
+              lastUpdated: 0,
+              pathsTried: [],
+              fields: [],
+            };
+            const health = deriveProviderHealth(status, {
+              result,
+              views: [viewFor(tone, hasUsableField)],
+              fieldDefs: [],
+              t: (text) => text,
+            });
+            const expected = EXPECTED[deriveSeverity(status, tone, hasUsableField, lastKnownGood)];
+            const partialPill =
+              status === ReaderStatus.PARTIAL && expected.pill === null
+                ? { pill: "~", pillA11y: "Cached" }
+                : { pill: expected.pill, pillA11y: expected.pillA11y };
+            const label = `combination ${status}/${tone ?? "none"}/${hasUsableField}/${lastKnownGood}`;
+
+            expect(health.state).withContext(label).toBe(expected.state);
+            expect(health.tone).withContext(label).toBe(expected.tone);
+            expect(health.attention).withContext(label).toBe(expected.attention);
+            expect(health.presentation.cardBadge).withContext(label).toBe(expected.card);
+            expect(health.presentation.overviewBadge).withContext(label).toBe(expected.overview);
+            expect(health.presentation.statusTag).withContext(label).toBe(expected.statusTag);
+            expect(health.presentation.label.card).withContext(label).toBe(expected.cardLabel);
+            expect(health.presentation.label.overview)
+              .withContext(label)
+              .toBe(expected.overviewLabel);
+            expect(health.stateTag).withContext(label).toBe(partialPill.pill);
+            expect(health.stateAccessibleText).withContext(label).toBe(partialPill.pillA11y);
+            checked += 1;
+          }
+        }
+      }
+    }
+    expect(checked).toBe(80);
   });
 
   it("uses the required data contract to compute health and localized state text", () => {

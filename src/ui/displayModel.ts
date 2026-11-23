@@ -13,7 +13,6 @@ import {
   CACHED_LABEL,
   deriveProviderHealth,
   overviewBadgeText,
-  PRESENTATION,
   statusBadgeText,
 } from "./providerHealth.js";
 import {
@@ -192,7 +191,7 @@ function deriveDisplayFacts(
   };
 
   const health = deriveProviderHealth(result.status, { result, views: allViews, fieldDefs, t: tr });
-  const presentation = PRESENTATION[health.state];
+  const presentation = health.presentation;
   const badges: DisplayBadges = {
     card: presentation.cardBadge,
     cardText: cardBadgeText(health, tr),

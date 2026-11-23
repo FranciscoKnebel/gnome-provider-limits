@@ -13,10 +13,7 @@ export const UNAVAILABLE_TAG = "(unavailable)";
 export const CACHED_LABEL = "Cached";
 const PILL_PARTIAL_MARKER = "~";
 
-/**
- * The one ordered severity value. Every surface vocabulary is a lookup over
- * this value, so state, tone and attention cannot drift from each other.
- */
+/** The one ordered severity value. Every surface vocabulary is keyed by it. */
 export const PROVIDER_SEVERITIES = [
   "idle",
   "ok",
@@ -36,6 +33,7 @@ export interface ProviderHealth {
   readonly state: ProviderState;
   readonly tone: HealthTone;
   readonly attention: StatusAttention;
+  readonly presentation: Presentation;
   readonly worstTone: FieldTone | undefined;
   readonly hasUsableField: boolean;
   readonly stateTag: string | null;
@@ -54,94 +52,107 @@ export interface Presentation {
   };
 }
 
-export const PRESENTATION: Readonly<Record<ProviderState, Presentation>> = {
-  idle: {
+export interface HealthProfile {
+  readonly state: ProviderState;
+  readonly tone: HealthTone;
+  readonly attention: StatusAttention;
+  readonly presentation: Presentation;
+}
+
+function profile(
+  state: ProviderState,
+  tone: HealthTone,
+  attention: StatusAttention,
+  presentation: Presentation,
+): HealthProfile {
+  return { state, tone, attention, presentation };
+}
+
+/**
+ * The single health table. State, tone, attention and presentation live in one
+ * entry per severity, so no surface can recombine them into a different tuple.
+ */
+export const HEALTH_BY_SEVERITY: Readonly<Record<ProviderSeverity, HealthProfile>> = {
+  idle: profile("idle", "idle", "quiet", {
     cardBadge: "live",
     overviewBadge: "ok",
     statusTag: "",
     pillTag: null,
     pillAccessibleText: null,
     label: { card: "Live", overview: "…" },
-  },
-  ok: {
+  }),
+  ok: profile("ok", "ok", "quiet", {
     cardBadge: "live",
     overviewBadge: "ok",
     statusTag: "",
     pillTag: null,
     pillAccessibleText: null,
     label: { card: "Live", overview: "OK" },
-  },
-  partial: {
+  }),
+  warning: profile("ok", "warning", "warning", {
+    cardBadge: "live",
+    overviewBadge: "ok",
+    statusTag: "",
+    pillTag: null,
+    pillAccessibleText: null,
+    label: { card: "Live", overview: "OK" },
+  }),
+  partial: profile("partial", "partial", "partial", {
     cardBadge: "cached",
     overviewBadge: "partial",
     statusTag: PARTIAL_TAG,
     pillTag: PILL_PARTIAL_MARKER,
     pillAccessibleText: CACHED_LABEL,
     label: { card: CACHED_LABEL, overview: "Partial" },
-  },
-  cached: {
+  }),
+  "partial-warning": profile("partial", "partial", "warning", {
+    cardBadge: "cached",
+    overviewBadge: "partial",
+    statusTag: PARTIAL_TAG,
+    pillTag: PILL_PARTIAL_MARKER,
+    pillAccessibleText: CACHED_LABEL,
+    label: { card: CACHED_LABEL, overview: "Partial" },
+  }),
+  cached: profile("cached", "partial", "partial", {
     cardBadge: "cached",
     overviewBadge: "cached",
     statusTag: PARTIAL_TAG,
     pillTag: PILL_PARTIAL_MARKER,
     pillAccessibleText: CACHED_LABEL,
     label: { card: CACHED_LABEL, overview: CACHED_LABEL },
-  },
-  error: {
+  }),
+  "cached-warning": profile("cached", "partial", "warning", {
+    cardBadge: "cached",
+    overviewBadge: "cached",
+    statusTag: PARTIAL_TAG,
+    pillTag: PILL_PARTIAL_MARKER,
+    pillAccessibleText: CACHED_LABEL,
+    label: { card: CACHED_LABEL, overview: CACHED_LABEL },
+  }),
+  critical: profile("ok", "critical", "critical", {
+    cardBadge: "live",
+    overviewBadge: "ok",
+    statusTag: "",
+    pillTag: null,
+    pillAccessibleText: null,
+    label: { card: "Live", overview: "OK" },
+  }),
+  error: profile("error", "error", "error", {
     cardBadge: "error",
     overviewBadge: "error",
     statusTag: ERROR_TAG,
     pillTag: ERROR_TAG,
     pillAccessibleText: ERROR_TAG,
     label: { card: "Error", overview: "Error" },
-  },
-  unavailable: {
+  }),
+  unavailable: profile("unavailable", "error", "error", {
     cardBadge: "unavailable",
     overviewBadge: "error",
     statusTag: UNAVAILABLE_TAG,
     pillTag: UNAVAILABLE_TAG,
     pillAccessibleText: UNAVAILABLE_TAG,
     label: { card: "Unavailable", overview: "Error" },
-  },
-};
-
-export const STATE_BY_SEVERITY: Readonly<Record<ProviderSeverity, ProviderState>> = {
-  idle: "idle",
-  ok: "ok",
-  warning: "ok",
-  partial: "partial",
-  "partial-warning": "partial",
-  cached: "cached",
-  "cached-warning": "cached",
-  critical: "ok",
-  error: "error",
-  unavailable: "unavailable",
-};
-
-export const TONE_BY_SEVERITY: Readonly<Record<ProviderSeverity, HealthTone>> = {
-  idle: "idle",
-  ok: "ok",
-  warning: "warning",
-  partial: "partial",
-  "partial-warning": "partial",
-  cached: "partial",
-  "cached-warning": "partial",
-  critical: "critical",
-  error: "error",
-  unavailable: "error",
-};
-
-export const ATTENTION_BY_SEVERITY: Readonly<Record<ProviderSeverity, StatusAttention>> = {
-  idle: "quiet",
-  ok: "quiet",
-  warning: "warning",
-  partial: "partial",
-  "partial-warning": "warning",
-  cached: "partial",
-  "cached-warning": "warning",
-  critical: "critical",
-  error: "error",
-  unavailable: "error",
+  }),
 };
 
 const TONE_SEVERITY: Record<FieldTone, number> = {
@@ -201,28 +212,6 @@ export function deriveSeverity(
   return "idle";
 }
 
-/** The pill text is a second field on the same presentation contract, not a second mapping. */
-function pillPresentation(status: ReaderStatus): Presentation {
-  if (status === ReaderStatus.ERROR) return PRESENTATION.error;
-  if (status === ReaderStatus.UNAVAILABLE) return PRESENTATION.unavailable;
-  if (status === ReaderStatus.PARTIAL) return PRESENTATION.partial;
-  return PRESENTATION.idle;
-}
-
-function pillStateText(
-  presentation: Presentation,
-  tr: (s: string) => string,
-): Pick<ProviderHealth, "stateTag" | "stateAccessibleText"> {
-  if (presentation.pillTag === null) return { stateTag: null, stateAccessibleText: null };
-  return {
-    stateTag:
-      presentation.pillTag === PILL_PARTIAL_MARKER ? PILL_PARTIAL_MARKER : tr(presentation.pillTag),
-    stateAccessibleText: presentation.pillAccessibleText
-      ? tr(presentation.pillAccessibleText)
-      : null,
-  };
-}
-
 /** The single health contract: all data is required, no injection knobs. */
 export interface ProviderHealthData {
   readonly result: ReaderResult;
@@ -240,27 +229,35 @@ export function deriveProviderHealth(
     views.some((view) => view.hasValue) ||
     result.fields.some((field) => field.status === FieldStatus.OK);
   const severity = deriveSeverity(status, worstTone, hasUsableField, isLastKnownGood(result));
+  const { presentation, state, tone, attention } = HEALTH_BY_SEVERITY[severity];
+
+  // A PARTIAL read keeps the cached pill even when a critical field maps to state ok.
+  const partial = status === ReaderStatus.PARTIAL;
+  const pillTag = presentation.pillTag ?? (partial ? PILL_PARTIAL_MARKER : null);
+  const pillAccessibleText = presentation.pillAccessibleText ?? (partial ? CACHED_LABEL : null);
 
   return {
     severity,
-    state: STATE_BY_SEVERITY[severity],
-    tone: TONE_BY_SEVERITY[severity],
-    attention: ATTENTION_BY_SEVERITY[severity],
+    state,
+    tone,
+    attention,
+    presentation,
     worstTone,
     hasUsableField,
-    ...pillStateText(pillPresentation(status), tr),
+    stateTag: pillTag === null || pillTag === PILL_PARTIAL_MARKER ? pillTag : tr(pillTag),
+    stateAccessibleText: pillAccessibleText === null ? null : tr(pillAccessibleText),
   };
 }
 
 export function cardBadgeText(health: ProviderHealth, t: (s: string) => string): string {
-  return t(PRESENTATION[health.state].label.card);
+  return t(health.presentation.label.card);
 }
 
 export function overviewBadgeText(health: ProviderHealth, t: (s: string) => string): string {
-  return t(PRESENTATION[health.state].label.overview);
+  return t(health.presentation.label.overview);
 }
 
 export function statusBadgeText(health: ProviderHealth, t: (s: string) => string): string {
-  const tag = PRESENTATION[health.state].statusTag;
+  const tag = health.presentation.statusTag;
   return tag ? t(tag) : "";
 }

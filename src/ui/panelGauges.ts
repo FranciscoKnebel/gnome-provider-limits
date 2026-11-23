@@ -42,7 +42,7 @@ export class GaugesPanelSection extends PanelStyleSection {
     const host: OverviewHost & DetailHost = {
       settings,
       shell,
-      translate: _,
+      t: _,
       selectTab: (tab, focusTabButton) => this.selectTab(tab, focusTabButton),
       handleArrowNavigation: (event) => this._handleArrowNavigation(event),
       getActiveTab: () => this._activeTab,

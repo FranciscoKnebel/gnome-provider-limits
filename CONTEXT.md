@@ -186,10 +186,11 @@ _Avoid_: Per-style badge, renderer-local diagnostic, presentation cache.
 
 **Provider Severity**:
 The one ordered health value for a Provider, `PROVIDER_SEVERITIES` in
-`providerHealth.ts`. State, tone and status attention are lookups keyed by it
-(`STATE_BY_SEVERITY`, `TONE_BY_SEVERITY`, `ATTENTION_BY_SEVERITY`), derived from
-the ReaderResult status, worst field tone, usable-field presence and
-Last-Known-Good provenance.
+`providerHealth.ts`. State, tone, status attention and presentation come from
+one table keyed by it (`HEALTH_BY_SEVERITY`); the severity itself is derived
+from the ReaderResult status, worst field tone, usable-field presence and
+Last-Known-Good provenance. No surface recombines those attributes through a
+second table.
 _Avoid_: Health level, status color, per-style state.
 
 **View Phase**:
@@ -253,9 +254,12 @@ _Avoid_: In-progress translation, staging `.po`, pending language.
 The `gnome-provider-limits.pot` file under `src/po/`, the human-readable
 catalog of every translatable string extracted from source. Hand-maintained
 (no `xgettext` call exists in the project; `check:i18n`'s regex extractor is
-the de facto source of truth). `check:i18n` validates it against source-string
-extraction on every `npm run check` to catch drift. Translators copy it to
-`xx.po` to start a new language. It never contains the `Language Sentinel`
+the de facto source of truth). The extractor recognizes `_(`, `tr(`, `t(` and
+`label:` forms; new UI code keeps every translatable literal in a direct
+`t("...")` call and passes already-translated strings to copy helpers, so
+there is one extraction contract. `check:i18n` validates the template against
+source-string extraction on every `npm run check` to catch drift. Translators
+copy it to `xx.po` to start a new language. It never contains the `Language Sentinel`
 because the sentinel is metadata about a language, not a source-extracted string.
 Language names (`"English"`, `"Português (Brasil)"`, etc.) are not in the
 template either: they are sentinels carried per-`.po`, never wrapped in `_()`

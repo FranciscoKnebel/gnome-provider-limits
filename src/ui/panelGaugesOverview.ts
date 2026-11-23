@@ -29,7 +29,7 @@ const BADGE_CLASS_BY_KIND: Record<OverviewBadgeKind, string> = {
 export interface OverviewHost {
   readonly settings: Gio.Settings;
   readonly shell: PanelShell;
-  readonly translate: (message: string) => string;
+  readonly t: (message: string) => string;
   selectTab(tab: CockpitTab, focusTabButton?: boolean): void;
   handleArrowNavigation(event: Clutter.Event): boolean;
   getActiveTab(): CockpitTab;
@@ -63,7 +63,7 @@ class TabBarRenderer {
     for (const tab of tabs) {
       const isOverview = tab === "overview";
       const labelText = isOverview
-        ? this.host.translate("Overview")
+        ? this.host.t("Overview")
         : providerDisplayName(this.host.settings, tab);
 
       const content = new St.BoxLayout({

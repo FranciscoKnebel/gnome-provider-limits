@@ -21,19 +21,15 @@ const EMPTY_PRESENTATION: EmptyPresentation = {
   showPlaceholder: false,
 };
 
-function withTitle(t: Translate, title: string, subtitle = ""): EmptyPresentation {
-  return { ...EMPTY_PRESENTATION, title: t(title), subtitle: subtitle ? t(subtitle) : "" };
+function withTitle(title: string, subtitle = ""): EmptyPresentation {
+  return { ...EMPTY_PRESENTATION, title, subtitle };
 }
 
-function withPlaceholder(
-  t: Translate,
-  accessibleText: string,
-  placeholder = "…",
-): EmptyPresentation {
+function withPlaceholder(accessibleText: string, placeholder = "…"): EmptyPresentation {
   return {
     ...EMPTY_PRESENTATION,
     placeholder,
-    accessibleText: t(accessibleText),
+    accessibleText,
     showPlaceholder: true,
   };
 }
@@ -41,33 +37,33 @@ function withPlaceholder(
 /** Canonical no-providers copy, shared by every surface that shows an empty state. */
 export function noProvidersPresentation(t: Translate): EmptyPresentation {
   return withTitle(
-    t,
-    "No providers enabled",
-    "Enable a provider in Settings to monitor usage limits.",
+    t("No providers enabled"),
+    t("Enable a provider in Settings to monitor usage limits."),
   );
 }
 
-function cardsCopy(loadingTitle: string): PhaseMessages {
+type TitleFactory = (t: Translate) => string;
+
+function cardsCopy(title: TitleFactory): PhaseMessages {
   return (phase, t) => {
     if (phase === "ready") return EMPTY_PRESENTATION;
     if (phase === "empty") return noProvidersPresentation(t);
-    return withTitle(t, loadingTitle);
+    return withTitle(title(t));
   };
 }
 
 /** Default card copy while a refresh is not in progress. */
-export const cardsMessages: PhaseMessages = cardsCopy("Waiting for provider data…");
+export const cardsMessages: PhaseMessages = cardsCopy((t) => t("Waiting for provider data…"));
 
 /** Cards-only loading copy, selected by the cards section while a refresh is in progress. */
-export const cardsRunningMessages: PhaseMessages = cardsCopy("Loading provider limits…");
+export const cardsRunningMessages: PhaseMessages = cardsCopy((t) => t("Loading provider limits…"));
 
 export const matrixMessages: PhaseMessages = (phase, t) => {
   if (phase === "ready") return EMPTY_PRESENTATION;
   return withTitle(
-    t,
     phase === "empty"
-      ? "No providers enabled. Open Settings to enable a provider."
-      : "Reading provider limits…",
+      ? t("No providers enabled. Open Settings to enable a provider.")
+      : t("Reading provider limits…"),
   );
 };
 
@@ -87,12 +83,12 @@ const gaugesPlaceholderMessages: PhaseMessages = (phase, t) => {
 export const cockpitMessages: PhaseMessages = gaugesPlaceholderMessages;
 
 export const pillsMessages: PhaseMessages = (phase, t) =>
-  phase === "loading" ? withPlaceholder(t, "Loading provider limits…") : EMPTY_PRESENTATION;
+  phase === "loading" ? withPlaceholder(t("Loading provider limits…")) : EMPTY_PRESENTATION;
 
 export const statusGaugesMessages: PhaseMessages = gaugesPlaceholderMessages;
 
 export const statusCompactMessages: PhaseMessages = (phase, t) =>
-  phase === "loading" ? withPlaceholder(t, "Reading provider limits…") : EMPTY_PRESENTATION;
+  phase === "loading" ? withPlaceholder(t("Reading provider limits…")) : EMPTY_PRESENTATION;
 
 export type PhaseResult =
   | {

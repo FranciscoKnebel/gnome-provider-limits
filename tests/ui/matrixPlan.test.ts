@@ -9,11 +9,7 @@ import {
   resolveProviderExpanded,
   toggleAllProvidersExpanded,
 } from "../../src/ui/matrixPlan.js";
-import {
-  ATTENTION_BY_SEVERITY,
-  deriveSeverity,
-  worstFieldTone,
-} from "../../src/ui/providerHealth.js";
+import { deriveSeverity, HEALTH_BY_SEVERITY, worstFieldTone } from "../../src/ui/providerHealth.js";
 import { applyStatusAttentionClass, applyToneClass } from "../../src/ui/tone.js";
 import {
   resolveViewPhase,
@@ -142,7 +138,7 @@ describe("matrixPlan", () => {
       tones: readonly (FieldTone | undefined)[],
     ): string => {
       const worst = worstFieldTone(tones);
-      return ATTENTION_BY_SEVERITY[deriveSeverity(status, worst, false, false)];
+      return HEALTH_BY_SEVERITY[deriveSeverity(status, worst, false, false)].attention;
     };
 
     it("stays quiet by default for ok or missing tones on OK status", () => {

@@ -139,7 +139,12 @@ export async function run() {
     };
     const okResult = codex._parsePayload(validPayload, ["test-path"]);
     assertEqual(okResult.provider, "codex", "provider set");
-    assertEqual(okResult.status, ReaderStatus.OK, "valid payload returns OK");
+    // Zero available credits have no expiration, so that field is unavailable.
+    assertEqual(
+      okResult.status,
+      ReaderStatus.PARTIAL,
+      "valid payload with no credit expiry returns PARTIAL",
+    );
     assert(okResult.fields.length >= 8, "has expected fields");
     results.push({ name: "CodexReader._parsePayload with full data", passed: true });
   } catch (e) {
@@ -147,6 +152,66 @@ export async function run() {
       name: "CodexReader._parsePayload with full data",
       passed: false,
       error: String(e),
+    });
+  }
+
+  // A zero-credit summary has no expiration: the expire field must not be OK with a null value.
+  try {
+    const settings = new MockSettings({ "codex-cli-path": "" });
+    const codex = new CodexReader(settings, "codex");
+    const zeroCreditsPayload = {
+      rate_limits: {
+        limit_reached: false,
+        primary: { used_percent: 10, reset_at: Date.now() / 1000 + 3600, window_minutes: 300 },
+      },
+      plan_type: "plus",
+      reset_credits: { available_count: 0 },
+    };
+    const result = codex._parsePayload(zeroCreditsPayload, ["test-path"]);
+    const available = result.fields.find((field) => field.name === "reset_credits_available");
+    const expire = result.fields.find((field) => field.name === "reset_credits_expire_at");
+    assertNotNull(available, "reset_credits_available field present");
+    assertEqual(available.value, 0, "zero credits are reported as zero");
+    assertEqual(available.status, FieldStatus.OK, "zero credits are a usable value");
+    assertNotNull(expire, "reset_credits_expire_at field present");
+    assertEqual(expire.value, null, "no expiration when no credits are available");
+    assertEqual(expire.status, FieldStatus.UNAVAILABLE, "null expiration is not usable");
+    results.push({ name: "CodexReader zero reset credits keep expire unavailable", passed: true });
+  } catch (e) {
+    results.push({
+      name: "CodexReader zero reset credits keep expire unavailable",
+      passed: false,
+      error: String(e) + "\n" + e.stack,
+    });
+  }
+
+  // With an actual expiration the same field is OK and carries the epoch seconds.
+  try {
+    const settings = new MockSettings({ "codex-cli-path": "" });
+    const codex = new CodexReader(settings, "codex");
+    const expiresAt = Math.floor(Date.parse("2026-11-30T12:00:00Z") / 1000);
+    const payloadWithExpiry = {
+      rate_limits: {
+        limit_reached: false,
+        primary: { used_percent: 10, reset_at: Date.now() / 1000 + 3600, window_minutes: 300 },
+      },
+      plan_type: "plus",
+      reset_credits: {
+        available_count: 1,
+        credits: [{ status: "available", expires_at: "2026-11-30T12:00:00Z" }],
+      },
+    };
+    const result = codex._parsePayload(payloadWithExpiry, ["test-path"]);
+    const expire = result.fields.find((field) => field.name === "reset_credits_expire_at");
+    assertNotNull(expire, "reset_credits_expire_at field present");
+    assertEqual(expire.value, expiresAt, "expiration is reported as epoch seconds");
+    assertEqual(expire.status, FieldStatus.OK, "a real expiration is usable");
+    results.push({ name: "CodexReader expiring reset credit keeps expire ok", passed: true });
+  } catch (e) {
+    results.push({
+      name: "CodexReader expiring reset credit keeps expire ok",
+      passed: false,
+      error: String(e) + "\n" + e.stack,
     });
   }
 
