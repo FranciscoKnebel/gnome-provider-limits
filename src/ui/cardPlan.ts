@@ -4,17 +4,20 @@ import type { FieldDef, FieldResult, ReaderResult } from "../readers/base.js";
 import { FieldStatus, ReaderStatus } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
 import { getProviderFields } from "../readers/fields.js";
-import { getFieldRows } from "./fieldRows.js";
 import type { FieldRow, FieldTone } from "./fieldRows.js";
-import type { HealthTone } from "./tone.js";
+import type { CardBadgeValue, FieldView } from "./fieldViews.js";
 import {
-  clampPercent,
-  collectFieldTones,
-  usageStructureKey,
-  worstFieldTone,
-} from "./usageSnapshot.js";
+  cardBadgeText,
+  deriveFieldViews,
+  deriveProviderHealth,
+  healthFromStatusAndTones,
+  toCardBadge,
+  toHealthTone,
+} from "./fieldViews.js";
+import type { HealthTone } from "./tone.js";
+import { clampPercent, collectFieldTones, usageStructureKey } from "./usageSnapshot.js";
 
-export type CardBadgeKind = "live" | "cached" | "error" | "unavailable";
+export type CardBadgeKind = CardBadgeValue;
 export type BannerKind = "warning" | "error";
 export type PanelEmptyState = "none" | "disabled" | "loading";
 
@@ -91,19 +94,17 @@ export function computeProviderHealthTone(
   fields?: readonly FieldResult[],
   fieldDefs?: readonly FieldDef[],
 ): HealthTone {
-  if (status === ReaderStatus.DISABLED) return "idle";
-  if (status === ReaderStatus.ERROR || status === ReaderStatus.UNAVAILABLE) return "error";
-
-  const worst = worstFieldTone(collectFieldTones(rows, fields, fieldDefs));
-  if (worst === "critical") return "critical";
-  if (status === ReaderStatus.PARTIAL) return "partial";
-  if (worst === "warning") return "warning";
-  if (worst === "ok") return "ok";
-
   const hasUsableField =
-    rows.some((r) => r.valueText !== "—") ||
-    (fields?.some((f) => f.status === FieldStatus.OK) ?? false);
-  return hasUsableField ? "ok" : "idle";
+    rows.some((row) => row.valueText !== "—") ||
+    (fields?.some((field) => field.status === FieldStatus.OK) ?? false);
+  return toHealthTone(
+    healthFromStatusAndTones(
+      status,
+      collectFieldTones(rows, fields, fieldDefs),
+      undefined,
+      hasUsableField,
+    ),
+  );
 }
 
 export function computeBarWidthPx(
@@ -136,11 +137,9 @@ export function planStatusBar(options: PlanStatusBarOptions): StatusBarPlan {
     const result = options.results.get(provider);
     if (!result || result.status === ReaderStatus.DISABLED) continue;
 
-    const defs = options.getFieldDefs
-      ? options.getFieldDefs(provider)
-      : getProviderFields(provider);
+    const defs = options.getFieldDefs?.(provider) ?? getProviderFields(provider);
     const displayName = options.getShortDisplayName(provider);
-    const rows = getFieldRows(
+    const views = deriveFieldViews(
       defs,
       result,
       options.getStatusFields(provider),
@@ -148,39 +147,27 @@ export function planStatusBar(options: PlanStatusBarOptions): StatusBarPlan {
       options.locale,
       tr,
     );
-    const healthTone = computeProviderHealthTone(result.status, rows, result.fields, defs);
-
-    let stateTag: string | null = null;
-    let stateAccessibleText: string | null = null;
+    const health = deriveProviderHealth(result, views, tr, defs);
+    const rows: FieldRow[] = views;
     const isPartial = result.status === ReaderStatus.PARTIAL;
-    if (result.status === ReaderStatus.ERROR) {
-      stateTag = tr("(error)");
-      stateAccessibleText = stateTag;
-    } else if (result.status === ReaderStatus.UNAVAILABLE) {
-      stateTag = tr("(unavailable)");
-      stateAccessibleText = stateTag;
-    } else if (isPartial) {
-      stateTag = "~";
-      stateAccessibleText = tr("Cached");
-    }
 
     const key = JSON.stringify([
       provider,
       displayName,
       result.status,
       options.locale,
-      stateTag ?? "",
-      rows.map((r) => r.name ?? r.label),
+      health.stateTag ?? "",
+      rows.map((row) => row.name ?? row.label),
     ]);
 
     pills.push({
       provider,
       displayName,
       status: result.status,
-      healthTone,
+      healthTone: toHealthTone(health),
       isPartial,
-      stateTag,
-      stateAccessibleText,
+      stateTag: health.stateTag,
+      stateAccessibleText: health.stateAccessibleText,
       rows,
       key,
     });
@@ -217,27 +204,11 @@ export function planProviderCard(options: PlanProviderCardOptions): ProviderCard
   const isHardError =
     result.status === ReaderStatus.ERROR || result.status === ReaderStatus.UNAVAILABLE;
 
-  let badgeKind: CardBadgeKind;
-  let badgeText: string;
-  switch (result.status) {
-    case ReaderStatus.OK:
-      badgeKind = "live";
-      badgeText = tr("Live");
-      break;
-    case ReaderStatus.PARTIAL:
-      badgeKind = "cached";
-      badgeText = tr("Cached");
-      break;
-    case ReaderStatus.UNAVAILABLE:
-      badgeKind = "unavailable";
-      badgeText = tr("Unavailable");
-      break;
-    case ReaderStatus.ERROR:
-    default:
-      badgeKind = "error";
-      badgeText = tr("Error");
-      break;
-  }
+  const views = isHardError ? [] : deriveFieldViews(defs, result, panelFields, "panel", locale, tr);
+  const health = deriveProviderHealth(result, views, tr, defs);
+  const badgeKind: CardBadgeKind = toCardBadge(health);
+  const badgeText = cardBadgeText(health, tr);
+  const healthTone = toHealthTone(health);
 
   let bannerKind: BannerKind | null = null;
   let bannerText: string | null = null;
@@ -252,30 +223,25 @@ export function planProviderCard(options: PlanProviderCardOptions): ProviderCard
     bannerText = result.lastError;
   }
 
-  const rawRows = isHardError ? [] : getFieldRows(defs, result, panelFields, "panel", locale, tr);
-  const healthTone = computeProviderHealthTone(result.status, rawRows, result.fields, defs);
-
   const lastUpdatedText =
     !isHardError && Number.isFinite(result.lastUpdated)
       ? tr("Last updated: %s").replace("%s", formatAbsoluteTimestamp(result.lastUpdated, locale))
       : null;
 
-  const rowsByName = new Map<string, FieldRow>();
-  for (const row of rawRows) {
-    if (row.name && !rowsByName.has(row.name)) {
-      rowsByName.set(row.name, row);
-    }
+  const rowsByName = new Map<string, FieldView>();
+  for (const row of views) {
+    rowsByName.set(row.name, row);
   }
 
-  const pairedResets = new Map<string, FieldRow>();
+  const pairedResets = new Map<string, FieldView>();
   const consumedResetNames = new Set<string>();
-  for (const row of rawRows) {
-    if (row.type !== "percent" || !row.name || !row.companionResetName) continue;
-    if (consumedResetNames.has(row.companionResetName)) continue;
-    const resetRow = rowsByName.get(row.companionResetName);
+  for (const row of views) {
+    if (row.type !== "percent" || row.resetName === null) continue;
+    if (consumedResetNames.has(row.resetName)) continue;
+    const resetRow = rowsByName.get(row.resetName);
     if (resetRow) {
       pairedResets.set(row.name, resetRow);
-      consumedResetNames.add(row.companionResetName);
+      consumedResetNames.add(row.resetName);
     }
   }
 
@@ -283,8 +249,8 @@ export function planProviderCard(options: PlanProviderCardOptions): ProviderCard
   const limitMetaRows: CardKeyValueRow[] = [];
   const telemetryRows: CardKeyValueRow[] = [];
 
-  for (const row of rawRows) {
-    const rowName = row.name ?? row.label;
+  for (const row of views) {
+    const rowName = row.name;
     if (consumedResetNames.has(rowName)) continue;
 
     const translatedLabel = tr(row.label);

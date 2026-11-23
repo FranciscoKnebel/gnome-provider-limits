@@ -820,14 +820,14 @@ test("Panel swaps style sections on setting change and forwards render and runni
   class CardsStub extends SectionStub {}
   class CompactStub extends SectionStub {}
 
-  const { isPanelStyle } = load("src/ui/styles.ts", "({ isPanelStyle })");
+  const { resolvePanelStyle } = load("src/ui/styles.ts", "({ resolvePanelStyle })");
   const K = load("src/ui/panel.ts", "PanelWidget", {
     PopupMenu: { PopupMenuSection: Section },
     GaugesPanelSection: GaugesStub,
     CardsPanelSection: CardsStub,
     CompactPanelSection: CompactStub,
     PanelShell: ShellStub,
-    isPanelStyle,
+    resolvePanelStyle,
     _: (message) => message,
   });
 
@@ -881,6 +881,12 @@ test("Panel swaps style sections on setting change and forwards render and runni
   assert.ok(created[2] instanceof CompactStub);
   assert.equal(created[1].destroyed, true);
   assert.equal(created[2].shell.options.footerVariant, "compact");
+
+  style = "not-a-style";
+  fireStyleChange();
+  assert.equal(created.length, 4);
+  assert.ok(created[3] instanceof GaugesStub, "unknown style falls back to DEFAULT_PANEL_STYLE");
+  assert.equal(created[3].shell.options.footerVariant, "gauges");
 
   panel.destroy();
   assert.equal(created[2].destroyed, true);
@@ -980,38 +986,44 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
   }
 
   const focusCalls = [];
-  const PanelShell = load("src/ui/panelShell.ts", "PanelShell", {
-    Clutter: {
-      ActorAlign: { CENTER: 0, START: 1, END: 2 },
-      KEY_Return: 1,
-      KEY_KP_Enter: 2,
-      KEY_space: 3,
-      EVENT_STOP: 1,
-      EVENT_PROPAGATE: 0,
-    },
-    GLib: { getenv: () => null },
-    St: {
-      BoxLayout: Actor,
-      Label: Actor,
-      Icon: Actor,
-      Button: Actor,
-      Widget: Actor,
-      ScrollView: ScrollViewStub,
-      PolicyType: { NEVER: 0, AUTOMATIC: 1 },
-      ThemeContext: { get_for_stage: () => ({ scale_factor: 1 }) },
-    },
-    Spinner: SpinnerStub,
-    Main: {
-      layoutManager: {
-        findMonitorForActor: () => null,
-        getWorkAreaForMonitor: () => ({ height: 800 }),
+  const { PANEL_FOOTER_SPECS } = load("src/ui/styles.ts", "({ PANEL_FOOTER_SPECS })");
+  const { PanelShell, isCompactFooter } = load(
+    "src/ui/panelShell.ts",
+    "({ PanelShell, isCompactFooter })",
+    {
+      PANEL_FOOTER_SPECS,
+      Clutter: {
+        ActorAlign: { CENTER: 0, START: 1, END: 2 },
+        KEY_Return: 1,
+        KEY_KP_Enter: 2,
+        KEY_space: 3,
+        EVENT_STOP: 1,
+        EVENT_PROPAGATE: 0,
       },
+      GLib: { getenv: () => null },
+      St: {
+        BoxLayout: Actor,
+        Label: Actor,
+        Icon: Actor,
+        Button: Actor,
+        Widget: Actor,
+        ScrollView: ScrollViewStub,
+        PolicyType: { NEVER: 0, AUTOMATIC: 1 },
+        ThemeContext: { get_for_stage: () => ({ scale_factor: 1 }) },
+      },
+      Spinner: SpinnerStub,
+      Main: {
+        layoutManager: {
+          findMonitorForActor: () => null,
+          getWorkAreaForMonitor: () => ({ height: 800 }),
+        },
+      },
+      PopupMenu: { PopupBaseMenuItem: Actor, PopupMenuSection: MenuSectionStub },
+      ensureActorVisibleInScrollView: (scroll, row) => focusCalls.push([scroll, row]),
+      formatTimestampTemplate: (_pattern, at, locale) => (at === null ? "" : `${at}:${locale}`),
+      resolveLocale: (setting, messages, lang) => setting || messages || lang || "en",
     },
-    PopupMenu: { PopupBaseMenuItem: Actor, PopupMenuSection: MenuSectionStub },
-    ensureActorVisibleInScrollView: (scroll, row) => focusCalls.push([scroll, row]),
-    formatTimestampTemplate: (_pattern, at, locale) => (at === null ? "" : `${at}:${locale}`),
-    resolveLocale: (setting, messages, lang) => setting || messages || lang || "en",
-  });
+  );
 
   for (const style of ["gauges", "cards", "compact"]) {
     focusCalls.length = 0;
@@ -1028,9 +1040,28 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
     });
 
     const footer = shell.footer;
+    assert.equal(
+      footer.kind,
+      style === "compact" ? "compact" : "standard",
+      `${style}: footer kind`,
+    );
+    assert.equal(isCompactFooter(footer), style === "compact", `${style}: compact type guard`);
+    assert.equal(footer.running, false, `${style}: footer owns its initial running state`);
+    assert.equal(PANEL_FOOTER_SPECS[style].footerAboveBody, style === "compact");
+
     if (style === "compact") {
       assert.equal(shell.items[0], footer.row, `${style}: toolbar stays above the scroll area`);
+      assert.equal(
+        shell.getCompactControls().titleLabel,
+        footer.controls.titleLabel,
+        `${style}: compatibility accessor returns the narrowed controls`,
+      );
     } else {
+      assert.equal(
+        shell.getCompactControls().expandAllButton.visible,
+        false,
+        `${style}: compatibility accessor returns inert controls without throwing`,
+      );
       assert.equal(
         shell.items[shell.items.length - 1],
         footer.row,
@@ -1079,6 +1110,12 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
     );
     assert.equal(shell.footer.settingsControl, persistent.settings, `${style}: settings persists`);
     assert.equal(shell.footer.spinner.playing, true, `${style}: spinner plays while running`);
+    assert.equal(shell.footer.running, true, `${style}: footer owns its running state`);
+    assert.equal(
+      shell.footer.refreshControl.styleClasses.has("pl-footer-action-disabled"),
+      style === "cards",
+      `${style}: disabled style comes from the footer spec`,
+    );
     assert.equal(
       shell.footer.lastRefreshLabel.text,
       "123:en",
@@ -1088,6 +1125,7 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
     footer.refreshControl.fire("clicked");
     assert.equal(refreshes, 1, `${style}: refresh stays disabled while running`);
     shell.setRunning(false);
+    assert.equal(footer.running, false, `${style}: footer running state clears`);
     footer.refreshControl.fire("clicked");
     assert.equal(refreshes, 2, `${style}: refresh re-enabled after running`);
 

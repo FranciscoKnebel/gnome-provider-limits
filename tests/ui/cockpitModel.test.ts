@@ -13,31 +13,33 @@ import {
   PROVIDER_FIELDS,
 } from "../../src/readers/fields.js";
 import {
-  buildOverviewRowModel,
   CAIRO_LINE_CAP_ROUND,
+  GAUGE_END_ANGLE,
+  GAUGE_START_ANGLE,
+  GAUGE_SWEEP_ANGLE,
+  TONE_RGB,
+  disposeCairoContext,
+  drawMicroRing,
+  drawMiniCapsule,
+  drawRadialGauge,
+  isCairoContext,
+} from "../../src/ui/cairoDrawing.js";
+import type { CairoContextLike } from "../../src/ui/cairoDrawing.js";
+import {
+  buildOverviewRowModel,
   chunkGauges,
   chunkPairs,
   clampRatio,
   computeGaugeGeometry,
   computeStatusMicroMeter,
   cycleTab,
-  disposeCairoContext,
-  drawMicroRing,
-  drawMiniCapsule,
-  drawRadialGauge,
   extractWindowSuffix,
-  GAUGE_END_ANGLE,
-  GAUGE_START_ANGLE,
-  GAUGE_SWEEP_ANGLE,
   getAvailableTabs,
-  isCairoContext,
   partitionProviderPanel,
   providerDetailStructureKey,
   resolveActiveTab,
-  TONE_RGB,
   toneToRgb,
 } from "../../src/ui/cockpitModel.js";
-import type { CairoContextLike } from "../../src/ui/cockpitModel.js";
 
 interface RecordedCairoOp {
   readonly op: string;

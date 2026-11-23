@@ -4,15 +4,11 @@ import St from "gi://St";
 import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { ReaderStatus } from "../readers/base.js";
-import {
-  computeStatusMicroMeter,
-  disposeCairoContext,
-  drawMicroRing,
-  isCairoContext,
-} from "./cockpitModel.js";
-import type { MicroMeterSpec } from "./cockpitModel.js";
-import { getFieldRows } from "./fieldRows.js";
-import type { FieldRow } from "./fieldRows.js";
+import { disposeCairoContext, drawMicroRing, isCairoContext } from "./cairoDrawing.js";
+import { computeStatusMicroMeter } from "./cockpitModel.js";
+import type { FieldView, StatusBarZonePlan } from "./fieldViews.js";
+import { deriveStatusBarSegments } from "./fieldViews.js";
+import type { MicroMeterSpec } from "./gaugeTypes.js";
 import { sectionKey, structureKey } from "./renderStructure.js";
 import type { StatusBarRenderContext, StatusBarRenderer } from "./statusBar.js";
 import { applyToneClass } from "./tone.js";
@@ -24,18 +20,50 @@ interface GaugeSegmentPlan {
   displayName: string;
   status: ReaderStatus;
   meter: MicroMeterSpec;
-  rows: FieldRow[];
+  rows: readonly FieldView[];
   key: string;
 }
 
-type GaugesPlan =
-  | { readonly kind: "placeholder"; readonly hasEnabled: boolean; readonly key: string }
-  | { readonly kind: "segments"; readonly segments: GaugeSegmentPlan[]; readonly key: string };
+type GaugesPlan = StatusBarZonePlan<GaugeSegmentPlan>;
 
 interface GaugeSegmentWidgets {
   meter: MicroMeterSpec;
   gaugeArea: St.DrawingArea;
   values: St.Label[];
+}
+
+function planGauges(context: StatusBarRenderContext): GaugesPlan {
+  if (context.results.size === 0) {
+    return {
+      kind: "placeholder",
+      hasEnabled: context.hasEnabledProviders,
+      key: structureKey([context.locale, context.hasEnabledProviders ? "loading" : "empty"]),
+    };
+  }
+
+  const segments: GaugeSegmentPlan[] = deriveStatusBarSegments(context).map((segment) => ({
+    provider: segment.provider,
+    displayName: segment.displayName,
+    status: segment.result.status,
+    meter: computeStatusMicroMeter(segment.fieldDefs, segment.result, segment.statusFields),
+    rows: segment.views,
+    key: sectionKey({
+      provider: segment.provider,
+      displayName: segment.displayName,
+      status: segment.result.status,
+      locale: context.locale,
+      rows: segment.views,
+      hasDetail: false,
+      hasError: segment.health.state === "error" || segment.health.state === "unavailable",
+      hasTimestamp: false,
+    }),
+  }));
+
+  return {
+    kind: "segments",
+    segments,
+    key: structureKey([context.locale, ...segments.map((segment) => segment.key)]),
+  };
 }
 
 export class GaugesStatusBarRenderer implements StatusBarRenderer {
@@ -46,11 +74,11 @@ export class GaugesStatusBarRenderer implements StatusBarRenderer {
   constructor(private readonly _parent: St.BoxLayout) {}
 
   statusKey(context: StatusBarRenderContext): string {
-    return this._planFor(context).key;
+    return this._currentPlan(context).key;
   }
 
   build(context: StatusBarRenderContext): void {
-    const plan = this._planFor(context);
+    const plan = this._currentPlan(context);
 
     if (plan.kind === "placeholder") {
       if (!plan.hasEnabled) return;
@@ -107,7 +135,7 @@ export class GaugesStatusBarRenderer implements StatusBarRenderer {
           style_class: "pl-status-value",
           y_align: Clutter.ActorAlign.CENTER,
         });
-        valueLabel.accessible_name = row.accessibleText ?? `${row.label}: ${row.valueText}`;
+        valueLabel.accessible_name = row.accessibleText;
         applyToneClass(valueLabel, row.tone);
         segment.add_child(valueLabel);
         return valueLabel;
@@ -119,7 +147,7 @@ export class GaugesStatusBarRenderer implements StatusBarRenderer {
   }
 
   update(context: StatusBarRenderContext): void {
-    const plan = this._planFor(context);
+    const plan = this._currentPlan(context);
     if (plan.kind === "placeholder") return;
 
     plan.segments.forEach((segmentPlan, index) => {
@@ -133,7 +161,7 @@ export class GaugesStatusBarRenderer implements StatusBarRenderer {
         const valueLabel = widgets.values[rowIndex];
         if (!valueLabel) return;
         valueLabel.text = row.valueText;
-        valueLabel.accessible_name = row.accessibleText ?? `${row.label}: ${row.valueText}`;
+        valueLabel.accessible_name = row.accessibleText;
         applyToneClass(valueLabel, row.tone);
       });
     });
@@ -151,57 +179,9 @@ export class GaugesStatusBarRenderer implements StatusBarRenderer {
     this._plan = null;
   }
 
-  private _planFor(context: StatusBarRenderContext): GaugesPlan {
+  private _currentPlan(context: StatusBarRenderContext): GaugesPlan {
     if (this._context === context && this._plan) return this._plan;
-
-    if (context.results.size === 0) {
-      this._plan = {
-        kind: "placeholder",
-        hasEnabled: context.hasEnabledProviders,
-        key: structureKey([context.locale, context.hasEnabledProviders ? "loading" : "empty"]),
-      };
-      this._context = context;
-      return this._plan;
-    }
-
-    const segments: GaugeSegmentPlan[] = [];
-    for (const name of context.order) {
-      const result = context.results.get(name);
-      if (!result || result.status === ReaderStatus.DISABLED) continue;
-
-      const statusFields = context.statusFields(name);
-      const displayName = context.shortDisplayName(name);
-      const fieldDefs = context.fieldDefs(name);
-      const meter = computeStatusMicroMeter(fieldDefs, result, statusFields);
-      const rows = getFieldRows(fieldDefs, result, statusFields, "status", context.locale, (text) =>
-        context.t(text),
-      );
-
-      segments.push({
-        provider: name,
-        displayName,
-        status: result.status,
-        meter,
-        rows,
-        key: sectionKey({
-          provider: name,
-          displayName,
-          status: result.status,
-          locale: context.locale,
-          rows,
-          hasDetail: false,
-          hasError:
-            result.status === ReaderStatus.ERROR || result.status === ReaderStatus.UNAVAILABLE,
-          hasTimestamp: false,
-        }),
-      });
-    }
-
-    this._plan = {
-      kind: "segments",
-      segments,
-      key: structureKey([context.locale, ...segments.map((segment) => segment.key)]),
-    };
+    this._plan = planGauges(context);
     this._context = context;
     return this._plan;
   }

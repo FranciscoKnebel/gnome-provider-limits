@@ -8,7 +8,7 @@ import { CardsPanelSection } from "./panelCards.js";
 import { CompactPanelSection } from "./panelCompact.js";
 import { GaugesPanelSection } from "./panelGauges.js";
 import { PanelShell, type PanelStyleSection } from "./panelShell.js";
-import { isPanelStyle, type PanelStyle, type StyleDispatch } from "./styles.js";
+import { resolvePanelStyle, type PanelStyle, type StyleDispatch } from "./styles.js";
 
 export type { PanelStyle } from "./styles.js";
 export type { PanelStyleSection } from "./panelShell.js";
@@ -54,8 +54,7 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
   }
 
   private _resolveStyle(): PanelStyle {
-    const styleSetting = this._settings.get_string("panel-style");
-    return isPanelStyle(styleSetting) ? styleSetting : "gauges";
+    return resolvePanelStyle(this._settings.get_string("panel-style"));
   }
 
   private _createShell(variant: PanelStyle): PanelShell {

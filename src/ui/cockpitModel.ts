@@ -3,6 +3,15 @@ import { formatField } from "../formatters.js";
 import { FieldStatus, ReaderStatus } from "../readers/base.js";
 import type { FieldDef, ReaderResult } from "../readers/base.js";
 import { GAUGE_END_ANGLE, GAUGE_START_ANGLE, GAUGE_SWEEP_ANGLE, TONE_RGB } from "./cairoDrawing.js";
+import type { FieldTone } from "./fieldRows.js";
+import type { OverviewBadgeValue } from "./fieldViews.js";
+import {
+  deriveFieldViews,
+  deriveProviderHealth,
+  overviewBadgeText,
+  toOverviewBadge,
+} from "./fieldViews.js";
+import type { GaugeGeometry, GaugeTone, MicroMeterSpec, RgbTuple } from "./gaugeTypes.js";
 import {
   clampRatio,
   deriveUsageSnapshot,
@@ -12,53 +21,19 @@ import {
   selectPercentField,
   usageStructureKey,
 } from "./usageSnapshot.js";
-import type { FieldTone } from "./usageSnapshot.js";
 
 export { clampRatio, extractWindowSuffix };
+export type { GaugeGeometry, GaugeTone, MicroMeterSpec, RgbTuple } from "./gaugeTypes.js";
 export {
-  CAIRO_LINE_CAP_ROUND,
-  GAUGE_END_ANGLE,
-  GAUGE_START_ANGLE,
-  GAUGE_SWEEP_ANGLE,
-  TRACK_RGBA,
-  TONE_RGB,
   disposeCairoContext,
-  drawMicroRing,
   drawMiniCapsule,
   drawRadialGauge,
   isCairoContext,
-  type CairoContextLike,
 } from "./cairoDrawing.js";
 
 export type CockpitTab = "overview" | ProviderName;
 
-export type GaugeTone = FieldTone | "neutral";
-
-export type RgbTuple = readonly [number, number, number];
-
-export type OverviewBadgeKind = "ok" | "cached" | "partial" | "error" | "loading";
-
-export interface GaugeGeometry {
-  readonly ratio: number;
-  readonly hasValue: boolean;
-  readonly startAngle: number;
-  readonly endAngle: number;
-  readonly trackEndAngle: number;
-  readonly tone: GaugeTone;
-  readonly fieldTone: FieldTone | undefined;
-  readonly rgb: RgbTuple;
-  readonly centerText: string;
-}
-
-export interface MicroMeterSpec {
-  readonly ratio: number;
-  readonly hasValue: boolean;
-  readonly startAngle: number;
-  readonly endAngle: number;
-  readonly tone: GaugeTone;
-  readonly rgb: RgbTuple;
-  readonly isError: boolean;
-}
+export type OverviewBadgeKind = OverviewBadgeValue;
 
 export interface RadialGaugeItem {
   readonly fieldName: string;
@@ -231,106 +206,47 @@ export function partitionProviderPanel(
   t?: (s: string) => string,
 ): PartitionedProviderPanel {
   const tr = t ?? ((s: string) => s);
-  const activeSuffixes = new Set<string>();
-
-  for (const fieldName of panelFieldNames) {
-    const def = fieldsDefs.find((f) => f.name === fieldName);
-    if (def?.type !== "percent") continue;
-    const suffix = extractWindowSuffix(fieldName);
-    if (suffix !== null) activeSuffixes.add(suffix);
-  }
-
-  const pairedResetFields = new Set<string>();
-  for (const fieldName of panelFieldNames) {
-    if (!fieldName.startsWith("reset_at_")) continue;
-    const suffix = fieldName.slice("reset_at_".length);
-    if (activeSuffixes.has(suffix)) {
-      const def = fieldsDefs.find((f) => f.name === fieldName);
-      if (def?.type === "timestamp") pairedResetFields.add(fieldName);
+  const views = deriveFieldViews(fieldsDefs, result, panelFieldNames, "panel", locale, tr);
+  const consumedResets = new Set<string>();
+  for (const view of views) {
+    if (view.type === "percent" && view.hasResetSlot && view.resetName !== null) {
+      consumedResets.add(view.resetName);
     }
   }
 
   const gauges: RadialGaugeItem[] = [];
   const bentoTiles: BentoTileItem[] = [];
 
-  for (const fieldName of panelFieldNames) {
-    const def = fieldsDefs.find((f) => f.name === fieldName);
-    if (!def) continue;
-    if (pairedResetFields.has(fieldName)) continue;
+  for (const view of views) {
+    if (consumedResets.has(view.name)) continue;
+    const translatedLabel = tr(view.label);
 
-    const field = result.fields.find((f) => f.name === fieldName);
-    const translatedLabel = tr(def.label);
-    const isOk = field?.status === FieldStatus.OK;
-    const isError = field?.status === FieldStatus.ERROR || result.status === ReaderStatus.ERROR;
-    const errorText =
-      !isOk && isError ? (field?.error ?? result.lastError ?? undefined) : undefined;
-
-    if (def.type === "percent") {
-      const geometry = computeGaugeGeometry(fieldName, isOk ? field.value : null);
-      const suffix = extractWindowSuffix(fieldName);
-      let resetText: string | null = null;
-      let hasResetSlot = false;
-
-      if (suffix !== null) {
-        const resetName = "reset_at_" + suffix;
-        const resetDef = fieldsDefs.find((f) => f.name === resetName);
-        if (resetDef?.type === "timestamp") {
-          const resetField = result.fields.find((f) => f.name === resetName);
-          if (
-            resetField?.status === FieldStatus.OK &&
-            resetField.value !== null &&
-            resetField.value !== undefined
-          ) {
-            const formattedReset = formatField({
-              type: "timestamp",
-              value: resetField.value,
-              zone: "panel",
-              locale,
-              t: tr,
-            });
-            resetText = `↻ ${formattedReset}`;
-            hasResetSlot = true;
-          } else if (pairedResetFields.has(resetName)) {
-            resetText = "↻ —";
-            hasResetSlot = true;
-          }
-        }
-      }
-
+    if (view.type === "percent") {
+      const geometry = computeGaugeGeometry(view.name, view.hasValue ? view.value : null);
       const accessibleParts = [`${translatedLabel}: ${geometry.centerText}`];
-      if (resetText !== null) accessibleParts.push(resetText);
+      if (view.resetText !== null) accessibleParts.push(view.resetText);
 
       const gauge: RadialGaugeItem = {
-        fieldName,
-        label: def.label,
+        fieldName: view.name,
+        label: view.label,
         translatedLabel,
         geometry,
-        resetText,
-        hasResetSlot,
+        resetText: view.resetText,
+        hasResetSlot: view.hasResetSlot,
         accessibleText: accessibleParts.join(", "),
-        ...(errorText ? { errorText } : {}),
+        ...(view.errorText ? { errorText: view.errorText } : {}),
       };
       gauges.push(gauge);
       continue;
     }
 
-    const valueText = isOk
-      ? formatField({
-          type: def.type,
-          value: field.value,
-          zone: "panel",
-          locale,
-          t: tr,
-        })
-      : "—";
-
     const tile: BentoTileItem = {
-      fieldName,
-      label: def.label,
+      fieldName: view.name,
+      label: view.label,
       translatedLabel,
-      valueText,
-      accessibleText: `${translatedLabel}: ${valueText}`,
-      ...(errorText ? { errorText } : {}),
+      valueText: view.valueText,
+      accessibleText: view.accessibleText,
+      ...(view.errorText ? { errorText: view.errorText } : {}),
     };
     bentoTiles.push(tile);
   }
@@ -387,21 +303,11 @@ export function buildOverviewRowModel(options: {
     };
   }
 
-  let badgeKind: OverviewBadgeKind = "ok";
-  let badgeText = tr("OK");
-
-  if (result.status === ReaderStatus.ERROR || result.status === ReaderStatus.UNAVAILABLE) {
-    badgeKind = "error";
-    badgeText = tr("Error");
-  } else if (result.status === ReaderStatus.PARTIAL) {
-    if (result.pathsTried?.includes("last-known-good")) {
-      badgeKind = "cached";
-      badgeText = tr("Cached");
-    } else {
-      badgeKind = "partial";
-      badgeText = tr("Partial");
-    }
-  }
+  const searchOrder = [...statusFieldNames, ...panelFieldNames];
+  const overviewViews = deriveFieldViews(fieldsDefs, result, searchOrder, "status", locale, tr);
+  const health = deriveProviderHealth(result, overviewViews, tr, fieldsDefs);
+  const badgeKind: OverviewBadgeKind = toOverviewBadge(health);
+  const badgeText = overviewBadgeText(health, tr);
 
   const meter = computeStatusMicroMeter(fieldsDefs, result, statusFieldNames);
 
@@ -420,7 +326,6 @@ export function buildOverviewRowModel(options: {
     };
   }
 
-  const searchOrder = [...statusFieldNames, ...panelFieldNames];
   const snapshot = deriveUsageSnapshot({
     fieldDefs: fieldsDefs,
     result,
@@ -428,7 +333,7 @@ export function buildOverviewRowModel(options: {
     locale,
     t: tr,
   });
-  const resolvedTone = snapshot.tone === "error" ? undefined : snapshot.tone;
+  const resolvedTone = health.hasUsableField ? health.worstTone : undefined;
 
   let primaryText = "—";
   if (snapshot.fieldName !== null && snapshot.value !== null) {

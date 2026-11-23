@@ -1,0 +1,246 @@
+/* Cards style. Shared selectors whose final effective value comes from a later
+   style live in that later file; only style-unique rules stay here. */
+
+.pl-status-pill {
+  background-color: rgba(127, 127, 127, 0.16);
+  border: 1px solid rgba(127, 127, 127, 0.14);
+  border-radius: 999px;
+  padding: 1px 8px;
+  spacing: 5px;
+}
+
+.pl-status-pill-partial {
+  border-color: rgba(229, 165, 10, 0.45);
+}
+
+.pl-status-pill-loading {
+  padding: 1px 8px;
+}
+
+.pl-status-name {
+  font-weight: bold;
+  color: inherit;
+}
+
+.pl-status-cached-tag {
+  color: #e5a50a;
+  font-weight: bold;
+}
+
+.pl-status-error-tag {
+  font-size: 0.9em;
+}
+
+.pl-health-dot.tone-ok {
+  background-color: #2ec27e;
+}
+
+.pl-health-dot.tone-warning,
+.pl-health-dot.tone-partial {
+  background-color: #e5a50a;
+}
+
+.pl-health-dot.tone-critical,
+.pl-health-dot.tone-error {
+  background-color: #e01b24;
+}
+
+.pl-health-dot.tone-idle {
+  background-color: rgba(127, 127, 127, 0.55);
+}
+
+.popup-menu-item.pl-card-host:focus .pl-provider-card {
+  border-color: rgba(53, 132, 228, 0.75);
+}
+
+.pl-provider-card {
+  width: 312px;
+  background-color: rgba(127, 127, 127, 0.1);
+  border: 1px solid rgba(127, 127, 127, 0.18);
+  border-radius: 12px;
+  padding: 10px 12px;
+  margin: 4px 8px;
+  spacing: 8px;
+}
+
+.pl-empty-card {
+  padding: 18px 16px;
+  spacing: 6px;
+}
+
+.pl-card-header {
+  spacing: 8px;
+}
+
+.pl-card-header-left {
+  spacing: 6px;
+}
+
+.pl-card-title {
+  font-weight: bold;
+  font-size: 1.05em;
+}
+
+.pl-card-badge {
+  font-size: 0.8em;
+  font-weight: bold;
+  border-radius: 999px;
+  padding: 1px 7px;
+}
+
+.pl-badge-live {
+  background-color: rgba(46, 194, 126, 0.18);
+  color: #2ec27e;
+}
+
+.pl-badge-cached {
+  background-color: rgba(229, 165, 10, 0.2);
+  color: #e5a50a;
+}
+
+.pl-badge-unavailable {
+  background-color: rgba(224, 27, 36, 0.2);
+  color: #e01b24;
+}
+
+.pl-card-updated {
+  font-size: 0.85em;
+  font-feature-settings: "tnum";
+  opacity: 0.65;
+}
+
+.pl-diagnostic-banner {
+  border-radius: 8px;
+  padding: 6px 9px;
+}
+
+.pl-banner-warning {
+  background-color: rgba(229, 165, 10, 0.14);
+  border: 1px solid rgba(229, 165, 10, 0.35);
+}
+
+.pl-banner-error {
+  background-color: rgba(224, 27, 36, 0.14);
+  border: 1px solid rgba(224, 27, 36, 0.35);
+}
+
+.pl-diagnostic-text {
+  font-size: 0.88em;
+}
+
+.pl-progress-row {
+  spacing: 4px;
+}
+
+.pl-progress-header {
+  spacing: 8px;
+}
+
+.pl-progress-label {
+  font-size: 0.94em;
+}
+
+.pl-progress-value {
+  font-weight: bold;
+  font-feature-settings: "tnum";
+}
+
+.pl-progress-track {
+  height: 6px;
+  border-radius: 999px;
+  background-color: rgba(127, 127, 127, 0.22);
+}
+
+.pl-progress-fill {
+  height: 6px;
+  border-radius: 999px;
+  background-color: #2ec27e;
+}
+
+.pl-progress-fill.usage-ok {
+  background-color: #2ec27e;
+}
+
+.pl-progress-fill.usage-warning {
+  background-color: #e5a50a;
+}
+
+.pl-progress-fill.usage-critical {
+  background-color: #e01b24;
+}
+
+.pl-progress-meta {
+  font-size: 0.82em;
+  font-feature-settings: "tnum";
+  opacity: 0.65;
+}
+
+.pl-card-divider {
+  height: 1px;
+  background-color: rgba(127, 127, 127, 0.16);
+  margin: 2px 0;
+}
+
+.pl-kv-row {
+  spacing: 2px;
+}
+
+.pl-kv-line {
+  spacing: 10px;
+}
+
+.pl-kv-label {
+  font-size: 0.92em;
+  opacity: 0.78;
+  color: inherit;
+}
+
+.pl-kv-value {
+  font-size: 0.92em;
+  font-feature-settings: "tnum";
+  color: inherit;
+}
+
+.pl-field-error {
+  font-size: 0.84em;
+}
+
+.popup-menu-item.pl-panel-footer-row {
+  padding: 0;
+}
+
+.pl-panel-footer {
+  border-top: 1px solid rgba(127, 127, 127, 0.18);
+  padding: 6px 8px;
+  margin-top: 4px;
+  spacing: 8px;
+}
+
+.pl-footer-action {
+  background-color: rgba(127, 127, 127, 0.14);
+  border: 1px solid rgba(127, 127, 127, 0.16);
+  border-radius: 8px;
+  padding: 5px 10px;
+  spacing: 5px;
+}
+
+.pl-footer-action:hover {
+  background-color: rgba(127, 127, 127, 0.24);
+}
+
+.pl-footer-action:focus {
+  border-color: rgba(53, 132, 228, 0.8);
+}
+
+.pl-footer-action-disabled {
+  opacity: 0.6;
+}
+
+.pl-footer-action-label {
+  font-size: 0.9em;
+  font-weight: 600;
+}
+
+.pl-progress-value.usage-ok {
+  color: #2ec27e;
+}

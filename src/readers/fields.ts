@@ -550,24 +550,6 @@ export const DEFAULT_PROVIDER_ZONE_FIELDS: Record<ProviderName, ProviderDefaultZ
   },
 };
 
-export const DEFAULT_PROVIDER_STATUS_FIELDS: Record<ProviderName, readonly string[]> = {
-  codex: DEFAULT_PROVIDER_ZONE_FIELDS.codex.status,
-  claude: DEFAULT_PROVIDER_ZONE_FIELDS.claude.status,
-  opencode: DEFAULT_PROVIDER_ZONE_FIELDS.opencode.status,
-  grok: DEFAULT_PROVIDER_ZONE_FIELDS.grok.status,
-  cursor: DEFAULT_PROVIDER_ZONE_FIELDS.cursor.status,
-  google: DEFAULT_PROVIDER_ZONE_FIELDS.google.status,
-};
-
-export const DEFAULT_PROVIDER_PANEL_FIELDS: Record<ProviderName, readonly string[]> = {
-  codex: DEFAULT_PROVIDER_ZONE_FIELDS.codex.panel,
-  claude: DEFAULT_PROVIDER_ZONE_FIELDS.claude.panel,
-  opencode: DEFAULT_PROVIDER_ZONE_FIELDS.opencode.panel,
-  grok: DEFAULT_PROVIDER_ZONE_FIELDS.grok.panel,
-  cursor: DEFAULT_PROVIDER_ZONE_FIELDS.cursor.panel,
-  google: DEFAULT_PROVIDER_ZONE_FIELDS.google.panel,
-};
-
 const TELEMETRY_FIELD_NAMES = new Set<string>([
   "total_cost",
   "sessions_count",

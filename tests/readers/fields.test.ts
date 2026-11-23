@@ -7,8 +7,7 @@ import {
   CLAUDE_FIELDS,
   CODEX_FIELDS,
   CURSOR_FIELDS,
-  DEFAULT_PROVIDER_PANEL_FIELDS,
-  DEFAULT_PROVIDER_STATUS_FIELDS,
+  DEFAULT_PROVIDER_ZONE_FIELDS,
   GOOGLE_FIELDS,
   GROK_FIELDS,
   OPENCODE_FIELDS,
@@ -55,10 +54,10 @@ describe("readers/fields & helpers/reorder", () => {
   it("matches GSettings schema defaults for status-fields and panel-fields", () => {
     const xml = readFileSync(SCHEMA_PATH, "utf-8");
     for (const provider of PROVIDER_NAMES) {
-      expect([...DEFAULT_PROVIDER_STATUS_FIELDS[provider]]).toEqual(
+      expect([...DEFAULT_PROVIDER_ZONE_FIELDS[provider].status]).toEqual(
         parseSchemaStrvDefault(xml, `${provider}-status-fields`),
       );
-      expect([...DEFAULT_PROVIDER_PANEL_FIELDS[provider]]).toEqual(
+      expect([...DEFAULT_PROVIDER_ZONE_FIELDS[provider].panel]).toEqual(
         parseSchemaStrvDefault(xml, `${provider}-panel-fields`),
       );
     }

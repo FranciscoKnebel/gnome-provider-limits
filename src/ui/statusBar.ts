@@ -13,12 +13,7 @@ import { PROVIDER_FIELDS } from "../readers/fields.js";
 import { CompactStatusBarRenderer } from "./statusBarCompact.js";
 import { GaugesStatusBarRenderer } from "./statusBarGauges.js";
 import { PillsStatusBarRenderer } from "./statusBarPills.js";
-import {
-  isStatusBarStyle,
-  STATUS_BAR_STYLES,
-  type StatusBarStyle,
-  type StyleDispatch,
-} from "./styles.js";
+import { resolveStatusBarStyle, type StatusBarStyle, type StyleDispatch } from "./styles.js";
 
 export type { StatusBarStyle } from "./styles.js";
 
@@ -49,10 +44,6 @@ const RENDERER_FACTORIES: StyleDispatch<StatusBarStyle, RendererFactory> = {
   compact: (parent) => new CompactStatusBarRenderer(parent),
 };
 
-function resolveStyle(value: string): StatusBarStyle {
-  return isStatusBarStyle(value) ? value : STATUS_BAR_STYLES[0];
-}
-
 export const StatusBarWidget = GObject.registerClass(
   class StatusBarWidget extends St.BoxLayout {
     declare _settings: Gio.Settings;
@@ -75,7 +66,7 @@ export const StatusBarWidget = GObject.registerClass(
     }
 
     render(results: Map<ProviderName, ReaderResult>): void {
-      const style = resolveStyle(this._settings.get_string("status-bar-style"));
+      const style = resolveStatusBarStyle(this._settings.get_string("status-bar-style"));
       const context = this._createContext(results);
 
       if (this._style !== style) {
