@@ -163,7 +163,6 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         name,
         type,
         label: name,
-        defaultZone: "panel",
         category: "limit",
       });
       expect(withoutReset("used_percent", "percent").resetField ?? null).toBeNull();
@@ -609,7 +608,6 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
           name: "used_percent_primary",
           label: "Used %",
           type: "percent",
-          defaultZone: "panel",
           category: "limit",
           resetField: "reset_at_primary",
         },

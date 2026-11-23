@@ -29,8 +29,6 @@ export interface FieldDef<TName extends string = string> {
   readonly name: TName;
   readonly label: string;
   readonly type: FieldType;
-  readonly description?: string;
-  readonly defaultZone: FieldZone;
   readonly category: FieldCategory;
   readonly resetField?: string;
 }

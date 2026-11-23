@@ -15,10 +15,15 @@ import {
   resolveProviderExpanded,
   toggleAllProvidersExpanded,
 } from "./matrixPlan.js";
-import { PanelStyleSection, type PanelRenderContext, type PanelShell } from "./panelShell.js";
+import {
+  addPlaceholderIfNeeded,
+  PanelStyleSection,
+  type PanelRenderContext,
+  type PanelShell,
+} from "./panelShell.js";
 import { applyQuietToneClass, applyToneClass } from "./tone.js";
 import { emptyViewContext, type ProviderViewContext } from "./viewContext.js";
-import { matrixMessages, phaseResult } from "./viewMessages.js";
+import { matrixMessages } from "./viewMessages.js";
 
 export interface ExpandAllControl {
   readonly button: St.Button;
@@ -67,11 +72,7 @@ export class CompactPanelSection extends PanelStyleSection {
     this._lastView = context.view;
     this._defaultExpanded = context.view.activeProviders.length <= 2;
 
-    const phase = phaseResult(context.view, matrixMessages);
-    this.shell.clearBody();
-    if (phase.kind === "placeholder") {
-      this.shell.addEmptyStateRow(phase.message.title);
-    } else {
+    if (!addPlaceholderIfNeeded(this.shell, context.view, matrixMessages)) {
       const models = context.view.models;
       models.forEach((model, index) => {
         const expanded = resolveProviderExpanded(

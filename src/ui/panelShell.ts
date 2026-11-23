@@ -10,11 +10,29 @@ import { setScrollViewChild } from "../helpers/scroll.js";
 import type { PanelFooterActors } from "./panelFooter.js";
 import type { PanelStyleSpec } from "./styles.js";
 import type { ProviderViewContext } from "./viewContext.js";
+import { phaseResult, type PhaseMessages } from "./viewMessages.js";
 
 /** Single render argument shared by every panel style section. */
 export interface PanelRenderContext {
   readonly lastRefreshAt: number | null;
   readonly view: ProviderViewContext;
+}
+
+/**
+ * Clears the shell body and builds the shared empty-state row when the view is
+ * not ready. Returns true when a placeholder was rendered, so callers can
+ * return before adding style sections.
+ */
+export function addPlaceholderIfNeeded(
+  shell: PanelShell,
+  view: ProviderViewContext,
+  messages: PhaseMessages,
+): boolean {
+  shell.clearBody();
+  const phase = phaseResult(view, messages);
+  if (phase.kind !== "placeholder" || !phase.message.title) return false;
+  shell.addEmptyStateRow(phase.message.title, phase.message.subtitle || undefined);
+  return true;
 }
 
 /** Base for style sections: owns the shell and its shared lifecycle. */

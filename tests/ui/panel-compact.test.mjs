@@ -47,12 +47,20 @@ function clampFillRatio(value) {
   return typeof value === "number" && Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0;
 }
 
+const phaseResult = () => ({ kind: "ready" });
+
+function PopupMenuSection() {}
+
 function loadCompact() {
   const matrixPlan = load(
     "src/ui/matrixPlan.ts",
     "({ areAllProvidersExpanded, formatSegmentedBar, resolveProviderExpanded, toggleAllProvidersExpanded })",
     { clampFillRatio },
   );
+  const { addPlaceholderIfNeeded } = load("src/ui/panelShell.ts", "({ addPlaceholderIfNeeded })", {
+    PopupMenu: { PopupMenuSection },
+    phaseResult,
+  });
   const activations = new Map();
   const api = load("src/ui/panelCompact.ts", "({ CompactPanelSection, createExpandAllControl })", {
     Clutter: {
@@ -82,7 +90,7 @@ function loadCompact() {
       models: [],
       t: (text) => text,
     }),
-    phaseResult: () => ({ kind: "ready" }),
+    addPlaceholderIfNeeded,
     matrixMessages: () => ({}),
     createErrorLabel: (text, styleClass) => new Label({ text, style_class: styleClass }),
   });

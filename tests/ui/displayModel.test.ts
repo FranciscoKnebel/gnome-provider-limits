@@ -132,14 +132,12 @@ describe("deriveDisplayModel owns diagnostics and reset pairing", () => {
         name: "used_percent_custom",
         label: "Used % custom",
         type: "percent" as const,
-        defaultZone: "panel" as const,
         category: "limit" as const,
       },
       {
         name: "reset_at_custom",
         label: "Reset custom",
         type: "timestamp" as const,
-        defaultZone: "panel" as const,
         category: "limit" as const,
       },
     ];

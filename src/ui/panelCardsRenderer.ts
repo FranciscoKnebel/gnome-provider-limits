@@ -10,14 +10,13 @@ import {
   type BannerKind,
   type CardBadgeKind,
 } from "./panelCards.js";
-import { PanelStyleSection, type PanelRenderContext } from "./panelShell.js";
-import { applyHealthToneClass, applyToneClass } from "./tone.js";
 import {
-  cardsMessages,
-  cardsRunningMessages,
-  phaseResult,
-  type Translate,
-} from "./viewMessages.js";
+  addPlaceholderIfNeeded,
+  PanelStyleSection,
+  type PanelRenderContext,
+} from "./panelShell.js";
+import { applyHealthToneClass, applyToneClass } from "./tone.js";
+import { cardsMessages, cardsRunningMessages, type Translate } from "./viewMessages.js";
 
 interface ProgressRowWidgets {
   track: St.BoxLayout;
@@ -49,17 +48,10 @@ export class CardsPanelSection extends PanelStyleSection {
 
   override render(context: PanelRenderContext): void {
     const messages = this._running ? cardsRunningMessages : cardsMessages;
-    const phase = phaseResult(context.view, messages);
-    this.shell.clearBody();
+    if (addPlaceholderIfNeeded(this.shell, context.view, messages)) return;
 
-    if (phase.kind === "placeholder") {
-      if (phase.message.title) {
-        this.shell.addEmptyStateRow(phase.message.title, phase.message.subtitle || undefined);
-      }
-    } else {
-      for (const model of context.view.models) {
-        this._addCard(model, context.view.locale, context.view.t);
-      }
+    for (const model of context.view.models) {
+      this._addCard(model, context.view.locale, context.view.t);
     }
   }
 

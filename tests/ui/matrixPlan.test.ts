@@ -401,7 +401,6 @@ describe("matrixPlan", () => {
           name: "remaining_percent_credits",
           label: "Remaining % (credits)",
           type: "percent",
-          defaultZone: "status",
           category: "limit",
           resetField: "reset_at_credits",
         },
@@ -409,14 +408,12 @@ describe("matrixPlan", () => {
           name: "reset_at_credits",
           label: "Reset at (credits)",
           type: "timestamp",
-          defaultZone: "status",
           category: "limit",
         },
         {
           name: "limit_reached",
           label: "Limit reached",
           type: "bool",
-          defaultZone: "panel",
           category: "limit",
         },
       ];

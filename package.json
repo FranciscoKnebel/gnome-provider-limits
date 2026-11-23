@@ -28,12 +28,12 @@
     "pack": "npm run clean && npm run build && npm run schema:compile && npm run copy:assets && cd dist && zip -r ../dist/gnome-provider-limits@franciscoknebel.com.shell-extension.zip . -x '*.zip' && cd .. && python3 scripts/check-package.py",
     "install:local": "npm run pack && gnome-extensions install --force dist/*.zip",
     "uninstall:local": "gnome-extensions uninstall gnome-provider-limits@franciscoknebel.com",
-    "check": "npm run typecheck && npm run lint && npm run format:check && npm run check:i18n && npm run test:catalogs && npm run test:regressions && npm run test",
+    "check": "npm run typecheck && npm run lint && npm run format:check && npm run check:i18n && npm run test:catalogs && npm run test:node && npm run test",
     "check:all": "npm run check && npm run test:gjs",
     "check:i18n": "node scripts/check-i18n.mjs",
     "release": "bash scripts/release.sh",
     "test:catalogs": "node --test tests/catalogs.test.mjs",
-    "test:regressions": "node --test tests/helpers/*.test.mjs tests/ui/*.test.mjs tests/readers/*.test.mjs"
+    "test:node": "node --test tests/helpers/*.test.mjs tests/ui/*.test.mjs tests/readers/*.test.mjs"
   },
   "devDependencies": {
     "@girs/adw-1": "^1.10.0-4.0.0-rc.9",

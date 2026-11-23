@@ -10,9 +10,14 @@ import type { DetailHost } from "./panelGaugesDetail.js";
 import { DetailRenderer } from "./panelGaugesDetail.js";
 import type { OverviewHost } from "./panelGaugesOverview.js";
 import { OverviewRenderer } from "./panelGaugesOverview.js";
-import { PanelStyleSection, type PanelRenderContext, type PanelShell } from "./panelShell.js";
-import { emptyViewContext, type ViewPhase } from "./viewContext.js";
-import { cockpitMessages, phaseResult } from "./viewMessages.js";
+import {
+  addPlaceholderIfNeeded,
+  PanelStyleSection,
+  type PanelRenderContext,
+  type PanelShell,
+} from "./panelShell.js";
+import { emptyViewContext, type ProviderViewContext, type ViewPhase } from "./viewContext.js";
+import { cockpitMessages } from "./viewMessages.js";
 
 type BodyState =
   | { kind: "empty"; phase: ViewPhase }
@@ -71,16 +76,10 @@ export class GaugesPanelSection extends PanelStyleSection {
     this._activeTab = resolveActiveTab(this._activeTab, enabledProviders);
     this._overview.syncTabHeader(enabledProviders, context.view.models);
 
-    this.shell.clearBody();
     const nextState = this._resolveBodyState(context.view.phase, results);
-
-    if (nextState.kind === "empty") {
-      const phase = phaseResult({ ...context.view, phase: nextState.phase }, cockpitMessages);
-      if (phase.kind === "placeholder") {
-        this.shell.addEmptyStateRow(phase.message.title, phase.message.subtitle);
-      }
-      return;
-    }
+    const view: ProviderViewContext =
+      nextState.kind === "empty" ? { ...context.view, phase: nextState.phase } : context.view;
+    if (addPlaceholderIfNeeded(this.shell, view, cockpitMessages)) return;
 
     if (nextState.kind === "overview") {
       this._overview.render({
@@ -91,10 +90,12 @@ export class GaugesPanelSection extends PanelStyleSection {
       return;
     }
 
-    const model = context.view.models.find(
-      (candidate) => candidate.provider === nextState.provider,
-    );
-    if (model) this._detail.render({ model, locale });
+    if (nextState.kind === "detail") {
+      const model = context.view.models.find(
+        (candidate) => candidate.provider === nextState.provider,
+      );
+      if (model) this._detail.render({ model, locale });
+    }
   }
 
   private _resolveBodyState(
