@@ -5,6 +5,7 @@ import {
   cardsRunningMessages,
   cockpitMessages,
   matrixMessages,
+  noProvidersPresentation,
   phaseResult,
   pillsMessages,
   statusCompactMessages,
@@ -53,6 +54,14 @@ function view(phase: ViewPhase): ProviderViewContext {
 }
 
 describe("viewMessages", () => {
+  it("shares one canonical gauges placeholder and one no-providers copy", () => {
+    expect(cockpitMessages).toBe(statusGaugesMessages);
+    expect(cockpitMessages("empty", (text) => text)).toEqual(
+      noProvidersPresentation((text) => text),
+    );
+    expect(cardsMessages("empty", (text) => text)).toEqual(noProvidersPresentation((text) => text));
+  });
+
   it("returns one empty presentation for ready on every surface", () => {
     for (const surface of ALL_SURFACES) {
       expect(message("ready", surface)).toEqual({

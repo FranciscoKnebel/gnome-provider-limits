@@ -7,7 +7,7 @@ import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import { formatTimestampTemplate } from "../formatters.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { setScrollViewChild } from "../helpers/scroll.js";
-import { buildPanelFooter, type PanelFooterActors } from "./panelFooter.js";
+import type { PanelFooterActors } from "./panelFooter.js";
 import type { PanelStyleSpec } from "./styles.js";
 import type { ProviderViewContext } from "./viewContext.js";
 
@@ -65,7 +65,7 @@ export class PanelShell extends PopupMenu.PopupMenuSection {
 
     const onFooterKey = (event: Clutter.Event): boolean => this._footerKeyHandler(event);
     const placement = options.style.shellPlacement;
-    const footer = buildPanelFooter(options.style.footer, {
+    const footer = options.style.footerFactory({
       extraControls: options.extraControls ?? [],
       onRefresh: () => {
         if (!this.isRunning()) this._onRefresh();

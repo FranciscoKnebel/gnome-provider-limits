@@ -4,7 +4,7 @@ import GLib from "gi://GLib";
 import GObject from "gi://GObject";
 import Gtk from "gi://Gtk?version=4.0";
 
-import { PROVIDER_METADATA, type ProviderName } from "../../constants.js";
+import type { ProviderName } from "../../constants.js";
 import { formatField } from "../../formatters.js";
 import { resolveLocale } from "../../helpers/locale.js";
 import {
@@ -25,6 +25,9 @@ import {
   unbindSettings,
 } from "./shared.js";
 import type { SettingsBinding } from "./shared.js";
+
+/** Providers whose configured path points at an existing login file, not an executable. */
+const AUTH_FILE_PROVIDERS: ReadonlySet<ProviderName> = new Set(["grok", "cursor", "google"]);
 
 const SAMPLE_VALUES: Record<Exclude<FieldType, "timestamp">, unknown> = {
   percent: 42,
@@ -370,9 +373,9 @@ export const ProviderExpanderRow = GObject.registerClass(
       this.add_row(shortNameRow);
 
       const pathKey = `${this._provider}-cli-path`;
-      const pathKind = PROVIDER_METADATA[this._provider].pathKind;
+      const isAuthFile = AUTH_FILE_PROVIDERS.has(this._provider);
       const cliRow = new Adw.EntryRow({
-        title: pathKind === "auth-file" ? _("Authentication file") : _("CLI path"),
+        title: isAuthFile ? _("Authentication file") : _("CLI path"),
         text: this._settings.get_string(pathKey) ?? "",
       });
       bindSetting(this._settings, pathKey, cliRow, "text", this._bindings);

@@ -367,15 +367,16 @@ describe("matrixPlan", () => {
       expect(facts.diagnostic.detailText).toBe("Showing recent cached limits");
       expect(facts.lastUpdatedText).toContain("Last updated:");
 
-      const classified = facts.viewsIncludingConsumedResets;
-      expect(classified.limit.all.length).toBeGreaterThan(0);
-      expect(classified.telemetry.all.length).toBeGreaterThan(0);
-      expect(classified.limit.all[0].type).toBe("percent");
-      expect(formatSegmentedBar(classified.limit.all[0].ratio ?? 0, 8)).toBe("▰▰▰▰▱▱▱▱");
-      expect(classified.limit.all[0].tone).toBe("warning");
-      expect(classified.telemetry.all[0].type).toBe("cost");
-      expect(classified.telemetry.all[1].valueText).toBe("—");
-      expect(classified.telemetry.all[1].errorText).toBe("db locked");
+      const limits = model.panelViews.filter((view) => view.category !== "telemetry");
+      const telemetry = model.panelViews.filter((view) => view.category === "telemetry");
+      expect(limits.length).toBeGreaterThan(0);
+      expect(telemetry.length).toBeGreaterThan(0);
+      expect(limits[0].type).toBe("percent");
+      expect(formatSegmentedBar(limits[0].ratio ?? 0, 8)).toBe("▰▰▰▰▱▱▱▱");
+      expect(limits[0].tone).toBe("warning");
+      expect(telemetry[0].type).toBe("cost");
+      expect(telemetry[1].valueText).toBe("—");
+      expect(telemetry[1].errorText).toBe("db locked");
     });
 
     it("normalizes remaining_percent, limit_reached, empty statusFields fallback, and collapsed groups", () => {
@@ -475,7 +476,9 @@ describe("matrixPlan", () => {
       });
       const grokExpanded = expandedContext.models.find((model) => model.provider === "grok");
       expect(resolveProviderExpanded("grok", 3, overrides)).toBeTrue();
-      expect(grokExpanded?.facts.viewsIncludingConsumedResets.limit.all[1].tone).toBe("critical");
+      expect(grokExpanded?.panelViews.filter((view) => view.category !== "telemetry")[1].tone).toBe(
+        "critical",
+      );
 
       const codexExpanded = expandedContext.models.find((model) => model.provider === "codex");
       expect(codexExpanded?.facts.diagnostic.errorText).toBe("Codex login required");

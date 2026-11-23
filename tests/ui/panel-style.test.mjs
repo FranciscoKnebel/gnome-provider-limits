@@ -86,6 +86,9 @@ test("Panel swaps style sections on setting change and forwards render and runni
     CardsPanelSection: CardsStub,
     CompactPanelSection: CompactStub,
     createExpandAllControl: () => ({ button: new Actor(), label: new Actor() }),
+    buildGaugesFooter: () => ({}),
+    buildCardsFooter: () => ({}),
+    buildHudFooter: () => ({}),
   });
   const view = { marker: "provider-view-settings", locale: "en" };
   const K = load("src/ui/panel.ts", "PanelWidget", {

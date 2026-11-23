@@ -73,7 +73,6 @@ export interface ProviderDisplayFacts {
   readonly diagnostic: DisplayDiagnostic;
   readonly callout: DisplayCallout | null;
   readonly views: ClassifiedPanelViews;
-  readonly viewsIncludingConsumedResets: ClassifiedPanelViews;
   readonly lastUpdatedText: string | null;
   readonly isHardError: boolean;
 }
@@ -113,7 +112,6 @@ interface MutableClassifiedGroup {
 function classifyPanelViews(
   panelViews: readonly FieldView[],
   resets: ReadonlyMap<string, ResetPairing>,
-  includeConsumedResets: boolean,
 ): ClassifiedPanelViews {
   const consumed = consumedResetNames(resets);
   const limit: MutableClassifiedGroup = { all: [], progress: [], keyValue: [] };
@@ -122,7 +120,7 @@ function classifyPanelViews(
   const progress: FieldView[] = [];
   const keyValue: FieldView[] = [];
   for (const view of panelViews) {
-    if (!includeConsumedResets && consumed.has(view.name)) continue;
+    if (consumed.has(view.name)) continue;
     const group = view.category === "telemetry" ? telemetry : limit;
     group.all.push(view);
     all.push(view);
@@ -218,8 +216,7 @@ function deriveDisplayFacts(
   };
 
   const { diagnostic, callout } = deriveDiagnostics(result, hardError, tr);
-  const views = classifyPanelViews(model.panelViews, model.resets, false);
-  const viewsIncludingConsumedResets = classifyPanelViews(model.panelViews, model.resets, true);
+  const views = classifyPanelViews(model.panelViews, model.resets);
   const lastUpdatedText =
     !hardError && Number.isFinite(result.lastUpdated)
       ? tr("Last updated: %s").replace("%s", formatAbsoluteTimestamp(result.lastUpdated, locale))
@@ -235,7 +232,6 @@ function deriveDisplayFacts(
     diagnostic,
     callout,
     views,
-    viewsIncludingConsumedResets,
     lastUpdatedText,
     isHardError: hardError,
   };

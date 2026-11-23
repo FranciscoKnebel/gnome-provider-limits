@@ -125,17 +125,21 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
     formatTimestampTemplate: (_pattern, at, locale) => (at === null ? "" : `${at}:${locale}`),
   };
   const { STYLE_CATALOG } = load("src/ui/styleCatalog.ts", "({ STYLE_CATALOG })");
-  const { STYLE_REGISTRY } = load("src/ui/styles.ts", "({ STYLE_REGISTRY })", { STYLE_CATALOG });
-  const { buildPanelFooter } = load(
+  const { buildGaugesFooter, buildCardsFooter, buildHudFooter } = load(
     "src/ui/panelFooter.ts",
-    "({ buildPanelFooter })",
+    "({ buildGaugesFooter, buildCardsFooter, buildHudFooter })",
     footerGlobals,
   );
+  const { STYLE_REGISTRY } = load("src/ui/styles.ts", "({ STYLE_REGISTRY })", {
+    STYLE_CATALOG,
+    buildGaugesFooter,
+    buildCardsFooter,
+    buildHudFooter,
+  });
   const { PanelShell } = load("src/ui/panelShell.ts", "({ PanelShell })", {
     Clutter,
     _: footerGlobals._,
     St: footerGlobals.St,
-    buildPanelFooter,
     Main: {
       layoutManager: {
         findMonitorForActor: () => null,
@@ -173,7 +177,7 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
       assert.equal(
         leading.style_class,
         "provider-limits-hud-toolbar-left",
-        `${style}: leading box class comes from the footer config`,
+        `${style}: leading box class comes from the HUD footer builder`,
       );
       assert.deepEqual(
         leading.children.map((child) => child.text),
@@ -184,7 +188,7 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
       assert.equal(
         actions.style_class,
         "provider-limits-hud-actions",
-        `${style}: actions box class comes from the footer config`,
+        `${style}: actions box class comes from the HUD footer builder`,
       );
       assert.deepEqual(
         actions.children,
@@ -194,7 +198,7 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
       assert.equal(
         footer.lastRefreshLabel.style_class,
         "provider-limits-hud-meta provider-limits-tnum",
-        `${style}: timestamp variant comes from the footer config`,
+        `${style}: timestamp variant comes from the HUD footer builder`,
       );
     } else {
       assert.equal(
@@ -207,7 +211,7 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
       assert.equal(
         toolbar.style_class,
         style === "gauges" ? "pl-footer-toolbar" : "pl-panel-footer",
-        `${style}: toolbar class comes from the footer descriptor`,
+        `${style}: toolbar class comes from the style footer builder`,
       );
       assert.deepEqual(
         toolbar.children,
@@ -217,7 +221,7 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
       assert.equal(
         footer.lastRefreshLabel.style_class,
         "provider-limits-dim pl-footer-timestamp",
-        `${style}: timestamp class comes from the footer descriptor`,
+        `${style}: timestamp class comes from the style footer builder`,
       );
     }
 
@@ -230,7 +234,7 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
     assert.equal(
       footer.refreshControl.style_class,
       refreshClass,
-      `${style}: refresh control class comes from the action builder`,
+      `${style}: refresh control class comes from the style footer builder`,
     );
     if (style === "gauges") {
       assert.equal(
@@ -304,7 +308,7 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
     assert.equal(
       shell.footer.refreshControl.styleClasses.has("pl-footer-action-disabled"),
       style === "cards",
-      `${style}: disabled style comes from the footer spec`,
+      `${style}: disabled style comes from the cards footer builder`,
     );
     assert.equal(
       shell.footer.lastRefreshLabel.text,

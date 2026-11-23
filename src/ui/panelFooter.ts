@@ -4,8 +4,9 @@ import { Spinner } from "resource:///org/gnome/shell/ui/animation.js";
 import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
 import { gettext as _ } from "../helpers/gettext.js";
-import { bindActivation } from "../helpers/keyboard.js";
-import type { FooterSpec, HudFooterSpec, IconSpec, ToolbarFooterSpec } from "./styles.js";
+import { bindActivation, type ActivationPointerSignal } from "../helpers/keyboard.js";
+
+type IconSpec = readonly [string, string?];
 
 export interface PanelFooterActors {
   readonly row: PopupMenu.PopupBaseMenuItem;
@@ -115,21 +116,29 @@ function applyRunning(
   return setRunning;
 }
 
-function bindRefresh(control: St.Widget, spec: FooterSpec, options: FooterOptions): void {
+function bindRefresh(
+  control: St.Widget,
+  pointerSignal: ActivationPointerSignal,
+  options: FooterOptions,
+): void {
   bindActivation(control, options.onRefresh, {
-    pointerSignals: [spec.pointerSignal],
+    pointerSignals: [pointerSignal],
     onOtherKey: options.onFooterKey,
   });
 }
 
-function bindSettings(control: St.Widget, spec: FooterSpec, options: FooterOptions): void {
+function bindSettings(
+  control: St.Widget,
+  pointerSignal: ActivationPointerSignal,
+  options: FooterOptions,
+): void {
   bindActivation(
     control,
     () => {
       options.closeMenu();
       options.openPreferences();
     },
-    { pointerSignals: [spec.pointerSignal], onOtherKey: options.onFooterKey },
+    { pointerSignals: [pointerSignal], onOtherKey: options.onFooterKey },
   );
 }
 
@@ -153,36 +162,32 @@ function hudTimestamp(): St.Label {
   });
 }
 
-export function buildToolbarFooter(spec: ToolbarFooterSpec, options: FooterOptions): FooterBuild {
-  const row = footerRow(spec.rowClass);
+/** Gauges footer: a button-wrapped spinner followed by the refresh label. */
+export function buildGaugesFooter(options: FooterOptions): FooterBuild {
+  const row = footerRow("pl-footer-row");
   const spinner = createSpinner();
-  const refreshIcon = icon(spec.refreshIcon);
-  const refreshLabel = label(_("Force refresh"), spec.labelClass);
+  const refreshLabel = label(_("Force refresh"));
   const refresh = actionControl(
-    [spinner, ...(refreshIcon ? [refreshIcon] : []), refreshLabel],
-    spec.refreshClass,
-    spec.refreshContentClass,
-    spec.buttonControls,
+    [spinner, refreshLabel],
+    "pl-footer-button pl-refresh-button",
+    "pl-footer-button-box",
+    true,
   );
-  bindRefresh(refresh, spec, options);
-  const setRunning = applyRunning(refresh, spinner, refreshLabel, refreshIcon, spec.disabledClass);
+  bindRefresh(refresh, "clicked", options);
+  const setRunning = applyRunning(refresh, spinner, refreshLabel, null, undefined);
 
-  const settingsIcon = icon(spec.settingsIcon);
-  const settingsLabel = label(_("Settings"), spec.labelClass);
-  const settings = spec.buttonControls
-    ? new St.Button({ child: settingsLabel, style_class: spec.settingsClass, ...ACTION_PROPS })
-    : actionControl(
-        [...(settingsIcon ? [settingsIcon] : []), settingsLabel],
-        spec.settingsClass,
-        undefined,
-        false,
-      );
+  const settingsLabel = label(_("Settings"));
+  const settings = new St.Button({
+    child: settingsLabel,
+    style_class: "pl-footer-button pl-settings-button",
+    ...ACTION_PROPS,
+  });
   settings.accessible_name = _("Settings");
-  bindSettings(settings, spec, options);
+  bindSettings(settings, "clicked", options);
 
   const lastRefreshLabel = toolbarTimestamp();
   const toolbar = new St.BoxLayout({
-    style_class: spec.toolbarClass,
+    style_class: "pl-footer-toolbar",
     x_expand: true,
     y_align: Clutter.ActorAlign.CENTER,
   });
@@ -197,27 +202,77 @@ export function buildToolbarFooter(spec: ToolbarFooterSpec, options: FooterOptio
   };
 }
 
-export function buildHudFooter(spec: HudFooterSpec, options: FooterOptions): FooterBuild {
-  const row = footerRow(spec.rowClass);
+/** Cards footer: an inline box with icons beside the labels, activated on release. */
+export function buildCardsFooter(options: FooterOptions): FooterBuild {
+  const row = footerRow("pl-panel-footer-row");
   const spinner = createSpinner();
-  const refreshIcon = icon(spec.refreshIcon);
+  const refreshIcon = icon(["view-refresh-symbolic", "pl-footer-icon"]);
+  const refreshLabel = label(_("Force refresh"), "pl-footer-action-label");
+  const refresh = actionControl(
+    [spinner, ...(refreshIcon ? [refreshIcon] : []), refreshLabel],
+    "pl-footer-action pl-refresh-action",
+    undefined,
+    false,
+  );
+  bindRefresh(refresh, "button-release-event", options);
+  const setRunning = applyRunning(
+    refresh,
+    spinner,
+    refreshLabel,
+    refreshIcon,
+    "pl-footer-action-disabled",
+  );
+
+  const settingsIcon = icon(["preferences-system-symbolic", "pl-footer-icon"]);
+  const settingsLabel = label(_("Settings"), "pl-footer-action-label");
+  const settings = actionControl(
+    [...(settingsIcon ? [settingsIcon] : []), settingsLabel],
+    "pl-footer-action pl-settings-action",
+    undefined,
+    false,
+  );
+  settings.accessible_name = _("Settings");
+  bindSettings(settings, "button-release-event", options);
+
+  const lastRefreshLabel = toolbarTimestamp();
+  const toolbar = new St.BoxLayout({
+    style_class: "pl-panel-footer",
+    x_expand: true,
+    y_align: Clutter.ActorAlign.CENTER,
+  });
+  toolbar.add_child(refresh);
+  toolbar.add_child(lastRefreshLabel);
+  toolbar.add_child(settings);
+  row.add_child(toolbar);
+
+  return {
+    actors: { row, refreshControl: refresh, settingsControl: settings, lastRefreshLabel, spinner },
+    applyRunning: setRunning,
+  };
+}
+
+/** HUD footer: leading title and timestamp, trailing extra controls and icon buttons. */
+export function buildHudFooter(options: FooterOptions): FooterBuild {
+  const row = footerRow("provider-limits-hud-toolbar");
+  const spinner = createSpinner();
+  const refreshIcon = icon(["view-refresh-symbolic"]);
   const refresh = actionControl(
     [...(refreshIcon ? [refreshIcon] : []), spinner],
-    spec.refreshClass,
+    "provider-limits-icon-button",
     undefined,
     true,
   );
-  bindRefresh(refresh, spec, options);
+  bindRefresh(refresh, "clicked", options);
   const setRunning = applyRunning(refresh, spinner, null, refreshIcon, undefined);
 
-  const settingsIcon = icon(spec.settingsIcon);
+  const settingsIcon = icon(["emblem-system-symbolic"]);
   const settings = new St.Button({
     child: settingsIcon ?? undefined,
-    style_class: spec.settingsClass,
+    style_class: "provider-limits-icon-button",
     ...ACTION_PROPS,
   });
   settings.accessible_name = _("Settings");
-  bindSettings(settings, spec, options);
+  bindSettings(settings, "clicked", options);
 
   const lastRefreshLabel = hudTimestamp();
   const title = _("Provider Limits");
@@ -242,8 +297,4 @@ export function buildHudFooter(spec: HudFooterSpec, options: FooterOptions): Foo
     actors: { row, refreshControl: refresh, settingsControl: settings, lastRefreshLabel, spinner },
     applyRunning: setRunning,
   };
-}
-
-export function buildPanelFooter(spec: FooterSpec, options: FooterOptions): FooterBuild {
-  return spec.layout === "hud" ? buildHudFooter(spec, options) : buildToolbarFooter(spec, options);
 }

@@ -281,13 +281,13 @@ export class CompactPanelSection extends PanelStyleSection {
     }
 
     if (showRows) {
-      const classified = facts.viewsIncludingConsumedResets;
+      const rows = this._detailRows(model);
       const t = this._lastView.t;
-      if (classified.limit.all.length > 0) {
-        this._addGroup(table, t("Limits"), classified.limit.all);
+      if (rows.limits.length > 0) {
+        this._addGroup(table, t("Limits"), rows.limits);
       }
-      if (classified.telemetry.all.length > 0) {
-        this._addGroup(table, t("Telemetry"), classified.telemetry.all);
+      if (rows.telemetry.length > 0) {
+        this._addGroup(table, t("Telemetry"), rows.telemetry);
       }
 
       if (facts.lastUpdatedText !== null) {
@@ -304,6 +304,24 @@ export class CompactPanelSection extends PanelStyleSection {
 
     detailRow.add_child(table);
     this.shell.addBodyItem(detailRow);
+  }
+
+  /**
+   * Detail rows for the HUD: every panel field, including reset timestamps
+   * consumed by the gauge and card styles. The filtering decision lives here
+   * instead of a second renderer-specific envelope on ProviderDisplayFacts.
+   */
+  private _detailRows(model: ProviderDisplayModel): {
+    readonly limits: readonly FieldView[];
+    readonly telemetry: readonly FieldView[];
+  } {
+    const limits: FieldView[] = [];
+    const telemetry: FieldView[] = [];
+    for (const view of model.panelViews) {
+      if (view.category === "telemetry") telemetry.push(view);
+      else limits.push(view);
+    }
+    return { limits, telemetry };
   }
 
   private _addGroup(table: St.BoxLayout, title: string, rows: readonly FieldView[]): void {
