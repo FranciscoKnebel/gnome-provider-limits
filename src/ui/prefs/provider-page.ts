@@ -4,7 +4,7 @@ import GLib from "gi://GLib";
 import GObject from "gi://GObject";
 import Gtk from "gi://Gtk?version=4.0";
 
-import type { ProviderName } from "../../constants.js";
+import { PROVIDER_METADATA, type ProviderName } from "../../constants.js";
 import { formatField } from "../../formatters.js";
 import { resolveLocale } from "../../helpers/locale.js";
 import {
@@ -370,10 +370,9 @@ export const ProviderExpanderRow = GObject.registerClass(
       this.add_row(shortNameRow);
 
       const pathKey = `${this._provider}-cli-path`;
-      const isAuthFileProvider =
-        this._provider === "grok" || this._provider === "cursor" || this._provider === "google";
+      const pathKind = PROVIDER_METADATA[this._provider].pathKind;
       const cliRow = new Adw.EntryRow({
-        title: isAuthFileProvider ? _("Authentication file") : _("CLI path"),
+        title: pathKind === "auth-file" ? _("Authentication file") : _("CLI path"),
         text: this._settings.get_string(pathKey) ?? "",
       });
       bindSetting(this._settings, pathKey, cliRow, "text", this._bindings);

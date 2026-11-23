@@ -8,7 +8,7 @@ import { formatTimestampTemplate } from "../formatters.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { setScrollViewChild } from "../helpers/scroll.js";
 import { buildPanelFooter, type PanelFooterActors } from "./panelFooter.js";
-import type { PanelStyle } from "./styles.js";
+import type { PanelStyleSpec } from "./styles.js";
 import type { ProviderViewContext } from "./viewContext.js";
 
 /** Single render argument shared by every panel style section. */
@@ -36,34 +36,11 @@ export abstract class PanelStyleSection {
   }
 }
 
-interface ShellPlacement {
-  readonly shellClass: string | null;
-  readonly scrollClass: string | undefined;
-  readonly insertionIndex: number | undefined;
-}
-
-function shellPlacement(variant: PanelStyle): ShellPlacement {
-  switch (variant) {
-    case "gauges":
-      return {
-        shellClass: "pl-cockpit-panel",
-        scrollClass: "pl-cockpit-scroll",
-        insertionIndex: undefined,
-      };
-    case "cards":
-      return { shellClass: null, scrollClass: "pl-panel-scroll", insertionIndex: undefined };
-    case "compact":
-      return { shellClass: null, scrollClass: undefined, insertionIndex: 0 };
-    default:
-      throw new Error(`Unknown panel style: ${String(variant)}`);
-  }
-}
-
 export interface PanelShellOptions {
   openPreferences: () => void;
   onRefresh: () => void;
   closeMenu: () => void;
-  footerVariant: PanelStyle;
+  style: PanelStyleSpec;
   extraControls?: readonly St.Widget[];
   onFooterKeyPress?: (event: Clutter.Event) => boolean;
 }
@@ -92,7 +69,8 @@ export class PanelShell extends PopupMenu.PopupMenuSection {
     this._footerKeyHandler = options.onFooterKeyPress ?? (() => Clutter.EVENT_PROPAGATE);
 
     const onFooterKey = (event: Clutter.Event): boolean => this._footerKeyHandler(event);
-    const footer = buildPanelFooter(options.footerVariant, {
+    const placement = options.style.shellPlacement;
+    const footer = buildPanelFooter(options.style.footer, {
       extraControls: options.extraControls ?? [],
       onRefresh: () => {
         if (!this.isRunning()) this._onRefresh();
@@ -101,7 +79,6 @@ export class PanelShell extends PopupMenu.PopupMenuSection {
       closeMenu: this._closeMenu,
       onFooterKey,
     });
-    const placement = shellPlacement(options.footerVariant);
     if (placement.shellClass !== null) this.box.add_style_class_name(placement.shellClass);
 
     this._footer = footer.actors;

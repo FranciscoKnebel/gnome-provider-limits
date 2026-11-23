@@ -1,14 +1,16 @@
 import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
 import type { ReaderResult } from "../../src/readers/base.js";
 import { CODEX_FIELDS } from "../../src/readers/fields.js";
+import type { FieldTone } from "../../src/ui/fieldRows.js";
 import { deriveFieldViews } from "../../src/ui/fieldViews.js";
+import type { ProviderAttention } from "../../src/ui/providerHealth.js";
 import {
-  attentionFromTones,
   deriveAttention,
   deriveProviderHealth,
   deriveState,
   deriveTone,
   isLastKnownGood,
+  worstFieldTone,
 } from "../../src/ui/providerHealth.js";
 
 describe("providerHealth pure helpers", () => {
@@ -38,11 +40,19 @@ describe("providerHealth pure helpers", () => {
     expect(deriveAttention("ok", "critical")).toBe("critical");
   });
 
-  it("derives attention from tones alone without a reader result", () => {
-    expect(attentionFromTones(ReaderStatus.OK, ["ok", undefined])).toBe("quiet");
-    expect(attentionFromTones(ReaderStatus.PARTIAL, ["warning"])).toBe("warning");
-    expect(attentionFromTones(ReaderStatus.OK, ["warning", "critical"])).toBe("critical");
-    expect(attentionFromTones(ReaderStatus.ERROR, [])).toBe("error");
+  it("derives attention from tones through the pure state and attention helpers", () => {
+    const attentionForTones = (
+      status: ReaderStatus,
+      tones: readonly (FieldTone | undefined)[],
+    ): ProviderAttention => {
+      const worst = worstFieldTone(tones);
+      return deriveAttention(deriveState(status, worst, false, false), worst);
+    };
+
+    expect(attentionForTones(ReaderStatus.OK, ["ok", undefined])).toBe("quiet");
+    expect(attentionForTones(ReaderStatus.PARTIAL, ["warning"])).toBe("warning");
+    expect(attentionForTones(ReaderStatus.OK, ["warning", "critical"])).toBe("critical");
+    expect(attentionForTones(ReaderStatus.ERROR, [])).toBe("error");
   });
 
   it("uses the required data contract to compute health and localized state text", () => {

@@ -2,7 +2,7 @@ import { PROVIDER_NAMES, type ProviderName } from "../../src/constants.js";
 import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
 import type { FieldDef, ReaderResult } from "../../src/readers/base.js";
 import { PROVIDER_FIELDS } from "../../src/readers/fields.js";
-import { clampFillRatio } from "../../src/ui/fieldRows.js";
+import { clampFillRatio, type FieldTone } from "../../src/ui/fieldRows.js";
 import { formatViewValue } from "../../src/ui/fieldViews.js";
 import {
   areAllProvidersExpanded,
@@ -11,7 +11,7 @@ import {
   resolveProviderExpanded,
   toggleAllProvidersExpanded,
 } from "../../src/ui/matrixPlan.js";
-import { attentionFromTones } from "../../src/ui/providerHealth.js";
+import { deriveAttention, deriveState, worstFieldTone } from "../../src/ui/providerHealth.js";
 import {
   applyQuietToneClass,
   applyStatusAttentionClass,
@@ -137,19 +137,27 @@ describe("matrixPlan", () => {
     });
   });
 
-  describe("attentionFromTones", () => {
+  describe("attention derivation from tones", () => {
+    const attentionForTones = (
+      status: ReaderStatus,
+      tones: readonly (FieldTone | undefined)[],
+    ): string => {
+      const worst = worstFieldTone(tones);
+      return deriveAttention(deriveState(status, worst, false, false), worst);
+    };
+
     it("stays quiet by default for ok or missing tones on OK status", () => {
-      expect(attentionFromTones(ReaderStatus.OK, ["ok", undefined])).toBe("quiet");
-      expect(attentionFromTones(ReaderStatus.OK, [])).toBe("quiet");
+      expect(attentionForTones(ReaderStatus.OK, ["ok", undefined])).toBe("quiet");
+      expect(attentionForTones(ReaderStatus.OK, [])).toBe("quiet");
     });
 
     it("escalates to partial, warning, critical, and error", () => {
-      expect(attentionFromTones(ReaderStatus.PARTIAL, ["ok"])).toBe("partial");
-      expect(attentionFromTones(ReaderStatus.PARTIAL, ["warning"])).toBe("warning");
-      expect(attentionFromTones(ReaderStatus.OK, ["ok", "warning"])).toBe("warning");
-      expect(attentionFromTones(ReaderStatus.OK, ["warning", "critical"])).toBe("critical");
-      expect(attentionFromTones(ReaderStatus.ERROR, ["ok"])).toBe("error");
-      expect(attentionFromTones(ReaderStatus.UNAVAILABLE, [])).toBe("error");
+      expect(attentionForTones(ReaderStatus.PARTIAL, ["ok"])).toBe("partial");
+      expect(attentionForTones(ReaderStatus.PARTIAL, ["warning"])).toBe("warning");
+      expect(attentionForTones(ReaderStatus.OK, ["ok", "warning"])).toBe("warning");
+      expect(attentionForTones(ReaderStatus.OK, ["warning", "critical"])).toBe("critical");
+      expect(attentionForTones(ReaderStatus.ERROR, ["ok"])).toBe("error");
+      expect(attentionForTones(ReaderStatus.UNAVAILABLE, [])).toBe("error");
     });
   });
 

@@ -26,10 +26,6 @@ const BADGE_CLASS_BY_KIND: Record<OverviewBadgeKind, string> = {
   loading: "pl-badge-loading",
 };
 
-function badgeClassFor(kind: OverviewBadgeKind): string {
-  return BADGE_CLASS_BY_KIND[kind];
-}
-
 export interface OverviewHost {
   readonly settings: Gio.Settings;
   readonly shell: PanelShell;
@@ -182,7 +178,7 @@ class OverviewRowsRenderer {
 
     const badgeLabel = new St.Label({
       text: model.badgeText,
-      style_class: `pl-badge ${badgeClassFor(model.badgeKind)}`,
+      style_class: `pl-badge ${BADGE_CLASS_BY_KIND[model.badgeKind]}`,
       y_align: Clutter.ActorAlign.CENTER,
     });
 

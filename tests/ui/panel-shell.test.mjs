@@ -124,6 +124,7 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
     PopupMenu: { PopupBaseMenuItem: Actor },
     formatTimestampTemplate: (_pattern, at, locale) => (at === null ? "" : `${at}:${locale}`),
   };
+  const { STYLE_REGISTRY } = load("src/ui/styles.ts", "({ STYLE_REGISTRY })");
   const { buildPanelFooter } = load(
     "src/ui/panelFooter.ts",
     "({ buildPanelFooter })",
@@ -156,7 +157,7 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
       onRefresh: () => refreshes++,
       openPreferences: () => preferences++,
       closeMenu: () => closes++,
-      footerVariant: style,
+      style: STYLE_REGISTRY.panel[style],
       extraControls: extraControl ? [extraControl] : [],
     });
 

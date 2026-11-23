@@ -82,7 +82,10 @@ test("Panel swaps style sections on setting change and forwards render and runni
     }
   }
 
-  const { resolvePanelStyle } = load("src/ui/styles.ts", "({ resolvePanelStyle })");
+  const { resolvePanelStyle, STYLE_REGISTRY } = load(
+    "src/ui/styles.ts",
+    "({ resolvePanelStyle, STYLE_REGISTRY })",
+  );
   const view = { marker: "provider-view-settings", locale: "en" };
   const K = load("src/ui/panel.ts", "PanelWidget", {
     PopupMenu: { PopupMenuSection: Section },
@@ -92,6 +95,7 @@ test("Panel swaps style sections on setting change and forwards render and runni
     createExpandAllControl: () => ({ button: new Actor(), label: new Actor() }),
     PanelShell: ShellStub,
     resolvePanelStyle,
+    STYLE_REGISTRY,
     viewContextFor: () => view,
     resolveLocale: () => "en",
     GLib: { getenv: () => null },
@@ -120,7 +124,7 @@ test("Panel swaps style sections on setting change and forwards render and runni
   const panel = new K(settings, openPreferences, onRefresh, closeMenu);
   assert.equal(created.length, 1);
   assert.ok(created[0] instanceof GaugesStub);
-  assert.equal(created[0].shell.options.footerVariant, "gauges");
+  assert.equal(created[0].shell.options.style.id, "gauges");
   assert.equal(created[0].shell.options.onRefresh, onRefresh);
   assert.equal(created[0].shell.options.openPreferences, openPreferences);
   assert.equal(created[0].shell.options.closeMenu, closeMenu);
@@ -140,7 +144,7 @@ test("Panel swaps style sections on setting change and forwards render and runni
   assert.ok(created[1] instanceof CardsStub);
   assert.equal(created[0].destroyed, true);
   assert.equal(created[0].shell.destroyed, true);
-  assert.equal(created[1].shell.options.footerVariant, "cards");
+  assert.equal(created[1].shell.options.style.id, "cards");
   assert.equal(created[1].rendered.length, 1);
   assert.equal(created[1].rendered[0].lastRefreshAt, 100);
   assert.equal(created[1].shell.lastRefreshAt, 100);
@@ -151,13 +155,13 @@ test("Panel swaps style sections on setting change and forwards render and runni
   assert.equal(created.length, 3);
   assert.ok(created[2] instanceof CompactStub);
   assert.equal(created[1].destroyed, true);
-  assert.equal(created[2].shell.options.footerVariant, "compact");
+  assert.equal(created[2].shell.options.style.id, "compact");
 
   style = "not-a-style";
   fireStyleChange();
   assert.equal(created.length, 4);
   assert.ok(created[3] instanceof GaugesStub, "unknown style falls back to DEFAULT_PANEL_STYLE");
-  assert.equal(created[3].shell.options.footerVariant, "gauges");
+  assert.equal(created[3].shell.options.style.id, "gauges");
 
   panel.destroy();
   assert.equal(created[2].destroyed, true);

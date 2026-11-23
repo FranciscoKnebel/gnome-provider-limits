@@ -39,7 +39,7 @@ export function formatViewValue(
   return formatField({ type: view.type, value: view.value, zone, locale, t });
 }
 
-export function formatViewAccessibleText(
+function formatViewAccessibleText(
   view: FieldView,
   zone: FieldZone,
   locale: string,

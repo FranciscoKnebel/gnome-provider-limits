@@ -75,7 +75,7 @@ export class GaugesPanelSection extends PanelStyleSection {
     const nextState = this._resolveBodyState(context.view.phase, results);
 
     if (nextState.kind === "empty") {
-      const phase = phaseResult({ ...context.view, phase: nextState.phase }, "gauges", false);
+      const phase = phaseResult({ ...context.view, phase: nextState.phase }, "cockpit", false);
       if (phase.kind === "placeholder") {
         this.shell.addEmptyStateRow(phase.message.title, phase.message.subtitle);
       }

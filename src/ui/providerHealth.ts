@@ -197,15 +197,6 @@ export function deriveProviderHealth(
   };
 }
 
-/** Tones-only health check for callers that have no reader result or views. */
-export function attentionFromTones(
-  status: ReaderStatus,
-  tones: readonly (FieldTone | undefined)[],
-): ProviderAttention {
-  const worstTone = worstFieldTone(tones);
-  return deriveAttention(deriveState(status, worstTone, false, false), worstTone);
-}
-
 export type BadgeZone = "card" | "overview" | "status";
 
 export function badgeForZone(health: ProviderHealth, zone: "card"): Presentation["cardBadge"];

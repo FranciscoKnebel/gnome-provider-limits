@@ -7,7 +7,12 @@ import { gettext as _ } from "../helpers/gettext.js";
 import { CompactStatusBarRenderer } from "./statusBarCompact.js";
 import { GaugesStatusBarRenderer } from "./statusBarGauges.js";
 import { PillsStatusBarRenderer } from "./statusBarPills.js";
-import { resolveStatusBarStyle, type StatusBarStyle } from "./styles.js";
+import {
+  STYLE_REGISTRY,
+  resolveStatusBarStyle,
+  type StatusBarStyle,
+  type StatusBarStyleSpec,
+} from "./styles.js";
 import type { ProviderViewContext } from "./viewContext.js";
 
 export type { StatusBarStyle } from "./styles.js";
@@ -19,6 +24,7 @@ interface StatusBarSectionRenderer {
 
 type RendererFactory = (parent: St.BoxLayout) => StatusBarSectionRenderer;
 
+/** The consumer-side mapping from a spec's factory key to its concrete renderer. */
 const RENDERER_FACTORIES: Record<StatusBarStyle, RendererFactory> = {
   pills: (parent) => new PillsStatusBarRenderer(parent),
   gauges: (parent) => new GaugesStatusBarRenderer(parent),
@@ -46,8 +52,9 @@ export const StatusBarWidget = GObject.registerClass(
       const style = resolveStatusBarStyle(this._settings.get_string("status-bar-style"));
       if (this._style !== style) {
         this._renderer?.dispose();
-        this._renderer = RENDERER_FACTORIES[style](this);
-        this._style = style;
+        const spec: StatusBarStyleSpec = STYLE_REGISTRY.statusBar[style];
+        this._renderer = RENDERER_FACTORIES[spec.factory](this);
+        this._style = spec.id;
       }
 
       this._renderer?.render(view);

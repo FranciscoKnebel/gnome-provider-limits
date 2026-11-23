@@ -1,7 +1,11 @@
 import { providerRecord } from "../../src/constants.js";
 import { type ProviderViewContext, type ViewPhase } from "../../src/ui/viewContext.js";
 import { phaseResult, viewMessages } from "../../src/ui/viewMessages.js";
-import type { ViewSurface } from "../../src/ui/viewMessages.js";
+import type { PanelSurface, StatusBarSurface, ViewSurface } from "../../src/ui/viewMessages.js";
+
+const PANEL_SURFACES: readonly PanelSurface[] = ["cards", "matrix", "cockpit"];
+const STATUS_SURFACES: readonly StatusBarSurface[] = ["pills", "gauges", "compact"];
+const ALL_SURFACES: readonly ViewSurface[] = [...PANEL_SURFACES, ...STATUS_SURFACES];
 
 function message(phase: ViewPhase, surface: ViewSurface, running = false) {
   return viewMessages({ phase, surface, running, t: (text) => text });
@@ -21,7 +25,7 @@ function view(phase: ViewPhase): ProviderViewContext {
 
 describe("viewMessages", () => {
   it("returns one empty presentation for ready on every surface", () => {
-    for (const surface of ["cards", "matrix", "pills", "gauges", "compact"] as const) {
+    for (const surface of ALL_SURFACES) {
       expect(message("ready", surface)).toEqual({
         title: "",
         subtitle: "",
@@ -52,7 +56,19 @@ describe("viewMessages", () => {
     expect(message("loading", "matrix").title).toBe("Reading provider limits…");
   });
 
-  it("maps status bar placeholder surfaces without leaking card or panel text", () => {
+  it("maps cockpit panel empty and loading messages", () => {
+    const empty = message("empty", "cockpit");
+    expect(empty.title).toBe("No providers enabled");
+    expect(empty.subtitle).toBe("Enable a provider in Settings to monitor usage limits.");
+    const loading = message("loading", "cockpit");
+    expect(loading.title).toBe("Reading provider limits…");
+    expect(loading.subtitle).toBe("Waiting for initial refresh to complete.");
+    expect(loading.placeholder).toBe("…");
+    expect(loading.accessibleText).toBe("Refreshing…");
+    expect(loading.showPlaceholder).toBeTrue();
+  });
+
+  it("maps status bar placeholder surfaces without leaking panel text", () => {
     const pills = message("loading", "pills");
     expect(pills.placeholder).toBe("…");
     expect(pills.accessibleText).toBe("Loading provider limits…");
@@ -87,7 +103,7 @@ describe("viewMessages", () => {
 
 describe("phaseResult", () => {
   it("returns ready on every surface when the view is ready", () => {
-    for (const surface of ["cards", "matrix", "pills", "gauges", "compact"] as const) {
+    for (const surface of ALL_SURFACES) {
       expect(phaseResult(view("ready"), surface, false)).toEqual({ kind: "ready" });
     }
   });
@@ -103,7 +119,7 @@ describe("phaseResult", () => {
       phase: "loading",
       message: message("loading", "cards", true),
     });
-    for (const surface of ["matrix", "pills", "gauges", "compact"] as const) {
+    for (const surface of ALL_SURFACES.filter((candidate) => candidate !== "cards")) {
       const result = phaseResult(view("loading"), surface, false);
       expect(result.kind).toBe("placeholder");
       if (result.kind === "placeholder") {
@@ -112,8 +128,8 @@ describe("phaseResult", () => {
     }
   });
 
-  it("returns a typed placeholder for card and matrix empty states", () => {
-    for (const surface of ["cards", "matrix", "gauges"] as const) {
+  it("returns a typed placeholder for panel empty states", () => {
+    for (const surface of PANEL_SURFACES) {
       const result = phaseResult(view("empty"), surface, false);
       expect(result.kind).toBe("placeholder");
       if (result.kind === "placeholder") {

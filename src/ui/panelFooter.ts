@@ -5,9 +5,7 @@ import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
 import { gettext as _ } from "../helpers/gettext.js";
 import { bindActivation } from "../helpers/keyboard.js";
-import type { PanelStyle } from "./styles.js";
-
-type PointerSignal = "clicked" | "button-release-event";
+import type { FooterSpec } from "./styles.js";
 
 export interface PanelFooterActors {
   readonly row: PopupMenu.PopupBaseMenuItem;
@@ -24,56 +22,6 @@ export interface FooterOptions {
   readonly closeMenu: () => void;
   readonly onFooterKey: (event: Clutter.Event) => boolean;
 }
-
-interface FooterSpec {
-  readonly rowClass: string;
-  readonly pointerSignal: PointerSignal;
-  readonly refreshClass: string;
-  readonly settingsClass: string;
-  readonly layout: "toolbar" | "hud";
-  readonly toolbarClass?: string;
-  readonly refreshIcon?: readonly [string, string?];
-  readonly settingsIcon?: readonly [string, string?];
-  readonly labelClass?: string;
-  readonly refreshContentClass?: string;
-  readonly disabledClass?: string;
-  readonly buttonControls?: boolean;
-}
-
-const SPECS: Record<PanelStyle, FooterSpec> = {
-  gauges: {
-    rowClass: "pl-footer-row",
-    toolbarClass: "pl-footer-toolbar",
-    pointerSignal: "clicked",
-    refreshClass: "pl-footer-button pl-refresh-button",
-    settingsClass: "pl-footer-button pl-settings-button",
-    layout: "toolbar",
-    buttonControls: true,
-    refreshContentClass: "pl-footer-button-box",
-  },
-  cards: {
-    rowClass: "pl-panel-footer-row",
-    toolbarClass: "pl-panel-footer",
-    pointerSignal: "button-release-event",
-    refreshClass: "pl-footer-action pl-refresh-action",
-    settingsClass: "pl-footer-action pl-settings-action",
-    layout: "toolbar",
-    refreshIcon: ["view-refresh-symbolic", "pl-footer-icon"],
-    settingsIcon: ["preferences-system-symbolic", "pl-footer-icon"],
-    labelClass: "pl-footer-action-label",
-    disabledClass: "pl-footer-action-disabled",
-  },
-  compact: {
-    rowClass: "provider-limits-hud-toolbar",
-    pointerSignal: "clicked",
-    refreshClass: "provider-limits-icon-button",
-    settingsClass: "provider-limits-icon-button",
-    layout: "hud",
-    buttonControls: true,
-    refreshIcon: ["view-refresh-symbolic"],
-    settingsIcon: ["emblem-system-symbolic"],
-  },
-};
 
 const ACTION_PROPS = {
   reactive: true,
@@ -256,9 +204,7 @@ function buildFooter(spec: FooterSpec, options: FooterOptions): FooterBuild {
   };
 }
 
-/** Build the footer for one panel style from the shared descriptor. */
-export function buildPanelFooter(variant: PanelStyle, options: FooterOptions): FooterBuild {
-  const spec = SPECS[variant];
-  if (!spec) throw new Error(`Unknown footer variant: ${String(variant)}`);
+/** Build the footer from the spec owned by the style registry. */
+export function buildPanelFooter(spec: FooterSpec, options: FooterOptions): FooterBuild {
   return buildFooter(spec, options);
 }

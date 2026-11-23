@@ -7,7 +7,7 @@ import {
   resolveActiveProviders,
 } from "../helpers/provider-settings.js";
 import type { BaseReader, FieldDef, ReaderResult } from "../readers/base.js";
-import { deriveDisplayModels, type DisplayModelDerivationInput } from "./displayModel.js";
+import { deriveDisplayModels } from "./displayModel.js";
 import type { ProviderDisplayModel } from "./displayModel.js";
 
 export type ViewPhase = "empty" | "loading" | "ready";
@@ -21,11 +21,6 @@ export interface ProviderViewContext {
   readonly models: readonly ProviderDisplayModel[];
   readonly locale: string;
   readonly t: (text: string) => string;
-}
-
-/** Derivation-only inputs, never exposed to renderers or plan builders. */
-interface ViewDerivationInput extends DisplayModelDerivationInput {
-  readonly phase: ViewPhase;
 }
 
 /** Empty when nothing is enabled, loading until results arrive, ready otherwise. */
@@ -63,26 +58,26 @@ export function viewContextFor(
   t: (text: string) => string,
 ): ProviderViewContext {
   const activeProviders = resolveActiveProviders(settings, readers, results);
-  const input: ViewDerivationInput = {
-    results,
-    fieldDefs,
-    activeProviders,
-    displayNames: providerRecord((name) => providerDisplayName(settings, name)),
-    shortDisplayNames: providerRecord((name) => providerDisplayNameShort(settings, name)),
-    statusFields: providerRecord((name) => settings.get_strv(`${name}-status-fields`)),
-    panelFields: providerRecord((name) => settings.get_strv(`${name}-panel-fields`)),
-    locale,
-    t,
-    phase: resolveViewPhase(activeProviders, results),
-  };
+  const displayNames = providerRecord((name) => providerDisplayName(settings, name));
+  const phase = resolveViewPhase(activeProviders, results);
 
   return {
-    phase: input.phase,
-    activeProviders: input.activeProviders,
-    results: input.results,
-    displayNames: input.displayNames,
-    models: deriveDisplayModels(input),
-    locale: input.locale,
-    t: input.t,
+    phase,
+    activeProviders,
+    results,
+    displayNames,
+    models: deriveDisplayModels({
+      results,
+      fieldDefs,
+      activeProviders,
+      displayNames,
+      shortDisplayNames: providerRecord((name) => providerDisplayNameShort(settings, name)),
+      statusFields: providerRecord((name) => settings.get_strv(`${name}-status-fields`)),
+      panelFields: providerRecord((name) => settings.get_strv(`${name}-panel-fields`)),
+      locale,
+      t,
+    }),
+    locale,
+    t,
   };
 }

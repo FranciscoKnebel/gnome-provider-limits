@@ -1,5 +1,4 @@
 import Clutter from "gi://Clutter";
-import type Gio from "gi://Gio";
 import St from "gi://St";
 import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
@@ -14,7 +13,6 @@ import { applyToneClass } from "./tone.js";
 const RADIAL_GAUGE_SIZE = 80;
 
 export interface DetailHost {
-  readonly settings: Gio.Settings;
   readonly shell: PanelShell;
   readonly translate: (message: string) => string;
 }

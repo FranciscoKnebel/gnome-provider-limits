@@ -6,18 +6,39 @@ import { CardsPanelSection } from "./panelCards.js";
 import { CompactPanelSection, createExpandAllControl } from "./panelCompact.js";
 import { GaugesPanelSection } from "./panelGauges.js";
 import { PanelShell, type PanelStyleSection } from "./panelShell.js";
-import { resolvePanelStyle, type PanelStyle } from "./styles.js";
+import {
+  STYLE_REGISTRY,
+  resolvePanelStyle,
+  type PanelStyle,
+  type PanelStyleSpec,
+} from "./styles.js";
 import type { ProviderViewContext } from "./viewContext.js";
 
 export type { PanelStyle } from "./styles.js";
 export type { PanelStyleSection } from "./panelShell.js";
+
+interface SectionHost {
+  readonly settings: Gio.Settings;
+  readonly createShell: (extraControls?: readonly St.Widget[]) => PanelShell;
+}
+
+type SectionFactory = (host: SectionHost) => PanelStyleSection;
+
+/** The consumer-side mapping from a spec's factory key to its concrete section. */
+const SECTION_FACTORIES: Record<PanelStyle, SectionFactory> = {
+  gauges: ({ settings, createShell }) => new GaugesPanelSection(settings, createShell()),
+  cards: ({ createShell }) => new CardsPanelSection(createShell()),
+  compact: ({ createShell }) => {
+    const expandAll = createExpandAllControl();
+    return new CompactPanelSection(createShell([expandAll.button]), expandAll);
+  },
+};
 
 export class PanelWidget extends PopupMenu.PopupMenuSection {
   private readonly _settings: Gio.Settings;
   private readonly _openPreferences: () => void;
   private readonly _onRefresh: () => void;
   private readonly _closeMenu: () => void;
-  private readonly _sections: Record<PanelStyle, () => PanelStyleSection>;
   private _currentStyle: PanelStyle | null = null;
   private _currentSection: PanelStyleSection | null = null;
 
@@ -32,42 +53,33 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     this._openPreferences = openPreferences;
     this._onRefresh = onRefresh;
     this._closeMenu = closeMenu;
-    this._sections = {
-      gauges: () => new GaugesPanelSection(settings, this._createShell("gauges")),
-      cards: () => new CardsPanelSection(this._createShell("cards")),
-      compact: () => {
-        const expandAll = createExpandAllControl();
-        return new CompactPanelSection(this._createShell("compact", [expandAll.button]), expandAll);
-      },
-    };
 
     this._ensureSection();
   }
 
-  private _resolveStyle(): PanelStyle {
-    return resolvePanelStyle(this._settings.get_string("panel-style"));
+  private _styleSpec(): PanelStyleSpec {
+    return STYLE_REGISTRY.panel[resolvePanelStyle(this._settings.get_string("panel-style"))];
   }
 
-  private _createShell(variant: PanelStyle, extraControls: readonly St.Widget[] = []): PanelShell {
+  private _createShell(spec: PanelStyleSpec, extraControls: readonly St.Widget[] = []): PanelShell {
     return new PanelShell({
       onRefresh: this._onRefresh,
       openPreferences: this._openPreferences,
       closeMenu: this._closeMenu,
-      footerVariant: variant,
+      style: spec,
       extraControls,
     });
   }
 
   private _ensureSection(): PanelStyleSection {
-    const style = this._resolveStyle();
-    if (this._currentSection && this._currentStyle === style) {
+    const spec = this._styleSpec();
+    if (this._currentSection && this._currentStyle === spec.id) {
       return this._currentSection;
     }
-    return this._switchSection();
+    return this._switchSection(spec);
   }
 
-  private _switchSection(): PanelStyleSection {
-    const newStyle = this._resolveStyle();
+  private _switchSection(spec: PanelStyleSpec): PanelStyleSection {
     let running = false;
     if (this._currentSection) {
       running = this._currentSection.shell.isRunning();
@@ -75,8 +87,11 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
       this._currentSection = null;
     }
 
-    this._currentStyle = newStyle;
-    const section = this._sections[newStyle]();
+    this._currentStyle = spec.id;
+    const section = SECTION_FACTORIES[spec.factory]({
+      settings: this._settings,
+      createShell: (extraControls) => this._createShell(spec, extraControls),
+    });
     this._currentSection = section;
     this.addMenuItem(section.shell);
     section.setRunning(running);

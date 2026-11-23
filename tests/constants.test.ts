@@ -5,6 +5,7 @@ import {
   DEFAULT_REFRESH_STABLE_READS_THRESHOLD,
   GETTEXT_DOMAIN,
   HTTP_TIMEOUT_SECONDS,
+  PROVIDER_METADATA,
   PROVIDER_NAMES,
   SCHEMA_ID,
   SQLITE_CACHE_TTL_SECONDS,
@@ -64,5 +65,15 @@ describe("constants", () => {
   it("PROVIDER_NAMES is readonly", () => {
     const names: readonly string[] = PROVIDER_NAMES;
     expect(names).toHaveSize(6);
+  });
+
+  it("declares a path kind for every provider", () => {
+    expect(PROVIDER_METADATA.codex.pathKind).toBe("cli");
+    expect(PROVIDER_METADATA.claude.pathKind).toBe("cli");
+    expect(PROVIDER_METADATA.opencode.pathKind).toBe("cli");
+    expect(PROVIDER_METADATA.grok.pathKind).toBe("auth-file");
+    expect(PROVIDER_METADATA.cursor.pathKind).toBe("auth-file");
+    expect(PROVIDER_METADATA.google.pathKind).toBe("auth-file");
+    expect(Object.keys(PROVIDER_METADATA).sort()).toEqual([...PROVIDER_NAMES].sort());
   });
 });
