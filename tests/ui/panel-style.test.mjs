@@ -72,7 +72,7 @@ test("Panel swaps style sections on setting change and forwards render and runni
     CompactPanelSection: CompactStub,
     PanelShell: ShellStub,
     resolvePanelStyle,
-    resolveFieldDefs: () => ({}),
+    PROVIDER_FIELDS: {},
     _: (message) => message,
   });
 

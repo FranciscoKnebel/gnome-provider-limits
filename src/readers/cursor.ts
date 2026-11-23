@@ -5,7 +5,7 @@ import { gettext as _ } from "../helpers/gettext.js";
 import { HttpClient, TokenError } from "../helpers/http.js";
 import { logWarn } from "../helpers/log.js";
 import { expandHomePath, resolveCursorAuthPaths } from "../helpers/paths.js";
-import { BaseReader, FieldStatus, type FieldDef, type ReaderResult } from "./base.js";
+import { BaseReader, FieldStatus, type ReaderResult } from "./base.js";
 import {
   CURSOR_BACKEND_URL,
   normalizeCursorUsagePayload,
@@ -22,8 +22,6 @@ const CURSOR_PLAN_URL = `${CURSOR_BACKEND_URL}/aiserver.v1.DashboardService/GetP
 
 Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish");
 
-import { CURSOR_FIELDS } from "./fields.js";
-
 function makeRpcHeaders(token: string): Record<string, string> {
   return {
     Authorization: `Bearer ${token}`,
@@ -37,10 +35,6 @@ export class CursorReader extends BaseReader {
   private _http: HttpClient | null = null;
   private _destroyed = false;
   private _cancellable: Gio.Cancellable | null = null;
-
-  get FIELDS(): readonly FieldDef[] {
-    return CURSOR_FIELDS;
-  }
 
   override destroy(): void {
     this._destroyed = true;

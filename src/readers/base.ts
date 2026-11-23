@@ -60,8 +60,6 @@ export abstract class BaseReader {
     protected readonly providerName: string,
   ) {}
 
-  abstract get FIELDS(): readonly FieldDef[];
-
   abstract read(options?: ReadOptions): Promise<ReaderResult>;
 
   destroy(): void {}

@@ -16,10 +16,12 @@ test("review findings stay consolidated in shared helpers and field lookup", () 
     readFileSync("src/ui/statusBarCompact.ts", "utf8"),
   ];
 
-  assert.match(fields, /export function resolveFieldDefs/);
+  assert.match(fields, /export const PROVIDER_FIELDS/);
+  assert.match(fields, /export function getProviderFields/);
+  assert.doesNotMatch(fields, /resolveFieldDefs/);
   for (const source of [statusBar, panel]) {
-    assert.match(source, /import\s*\{\s*resolveFieldDefs\s*\}/);
-    assert.doesNotMatch(source, /function resolveFieldDefs/);
+    assert.match(source, /import\s*\{\s*PROVIDER_FIELDS\s*\}\s*from\s*"\.\.\/readers\/fields\.js"/);
+    assert.doesNotMatch(source, /resolveFieldDefs/);
   }
   assert.doesNotMatch(statusBar, /statusKey|_structureKey/);
   for (const source of renderers) {

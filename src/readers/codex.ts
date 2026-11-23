@@ -5,7 +5,7 @@ import { HttpClient, HttpError, TokenError } from "../helpers/http.js";
 import { logWarn } from "../helpers/log.js";
 import { resolveCodexHome } from "../helpers/paths.js";
 import { querySqlite } from "../helpers/sqlite.js";
-import type { FieldDef, FieldResult, ReadOptions, ReaderResult } from "./base.js";
+import type { FieldResult, ReadOptions, ReaderResult } from "./base.js";
 import { BaseReader, FieldStatus } from "./base.js";
 import {
   codexWindowMinutes,
@@ -23,18 +23,12 @@ const CODEX_ALL_PATHS_FAILED = "Codex: all paths failed. Run `codex login`.";
 const CODEX_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
 const CODEX_RESET_CREDITS_URL = "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits";
 
-import { CODEX_FIELDS } from "./fields.js";
-
 Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish");
 
 export class CodexReader extends BaseReader {
   private _http: HttpClient | null = null;
   private _cancellable: Gio.Cancellable | null = null;
   private _destroyed = false;
-
-  get FIELDS(): readonly FieldDef[] {
-    return CODEX_FIELDS;
-  }
 
   async read(_options?: ReadOptions): Promise<ReaderResult> {
     this._cancellable?.cancel();

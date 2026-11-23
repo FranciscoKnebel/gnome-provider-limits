@@ -5,7 +5,7 @@ import { HttpClient } from "../helpers/http.js";
 import { logWarn } from "../helpers/log.js";
 import { resolveOpenCodeDataDir } from "../helpers/paths.js";
 import { querySqlite } from "../helpers/sqlite.js";
-import type { FieldDef, FieldResult, ReadOptions, ReaderResult } from "./base.js";
+import type { FieldResult, ReadOptions, ReaderResult } from "./base.js";
 import { BaseReader, FieldStatus } from "./base.js";
 import {
   type OpenCodeDbRow,
@@ -24,16 +24,10 @@ const OPENCODE_USAGE_URL = "https://opencode.ai/zen/go/v1/usage";
 
 Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish");
 
-import { OPENCODE_FIELDS } from "./fields.js";
-
 export class OpenCodeReader extends BaseReader {
   private _http: HttpClient | null = null;
   private _cancellable: Gio.Cancellable | null = null;
   private _destroyed = false;
-
-  get FIELDS(): readonly FieldDef[] {
-    return OPENCODE_FIELDS;
-  }
 
   override destroy(): void {
     this._destroyed = true;

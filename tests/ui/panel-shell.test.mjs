@@ -108,6 +108,7 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
   const { bindActivation } = load("src/helpers/keyboard.ts", "({ bindActivation })", { Clutter });
   const { PanelShell } = load("src/ui/panelShell.ts", "({ PanelShell })", {
     Clutter,
+    _: (message) => message,
     bindActivation,
     GLib: { getenv: () => null },
     St: {

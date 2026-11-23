@@ -2,6 +2,7 @@ import Clutter from "gi://Clutter";
 import St from "gi://St";
 
 import type { ProviderName } from "../constants.js";
+import { gettext as _ } from "../helpers/gettext.js";
 import { ReaderStatus } from "../readers/base.js";
 import type { FieldView } from "./fieldViews.js";
 import { deriveStatusBarSegments } from "./fieldViews.js";
@@ -63,7 +64,7 @@ function planPills(context: StatusBarRenderContext): PillsPlan {
       ...pills.map((pill) => pill.key),
     ]),
     loading,
-    loadingAccessibleText: context.t("Loading provider limits…"),
+    loadingAccessibleText: _("Loading provider limits…"),
     pills,
   };
 }

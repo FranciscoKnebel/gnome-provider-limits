@@ -9,7 +9,7 @@ import { gettext as _ } from "../helpers/gettext.js";
 import { resolveLocale } from "../helpers/locale.js";
 import { normalizeProvidersOrder, providerDisplayNameShort } from "../helpers/provider-settings.js";
 import type { BaseReader, FieldDef, ReaderResult } from "../readers/base.js";
-import { resolveFieldDefs } from "../readers/fields.js";
+import { PROVIDER_FIELDS } from "../readers/fields.js";
 import { CompactStatusBarRenderer } from "./statusBarCompact.js";
 import { GaugesStatusBarRenderer } from "./statusBarGauges.js";
 import { PillsStatusBarRenderer } from "./statusBarPills.js";
@@ -54,7 +54,7 @@ export const StatusBarWidget = GObject.registerClass(
       });
       this._settings = settings;
       this._readers = readers;
-      this._fieldDefs = resolveFieldDefs();
+      this._fieldDefs = PROVIDER_FIELDS;
       this._style = null;
       this._renderer = null;
       this.accessible_name = _("Provider Limits");

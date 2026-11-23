@@ -5,7 +5,7 @@ import { HttpClient, HttpError, TokenError } from "../helpers/http.js";
 import { logWarn } from "../helpers/log.js";
 import { resolveClaudeConfigDir } from "../helpers/paths.js";
 import { runSubprocess } from "../helpers/subprocess.js";
-import type { FieldDef, FieldResult, ReadOptions, ReaderResult } from "./base.js";
+import type { FieldResult, ReadOptions, ReaderResult } from "./base.js";
 import { BaseReader, FieldStatus } from "./base.js";
 import {
   type ClaudeUsagePayload,
@@ -24,8 +24,6 @@ const CLAUDE_ALL_PATHS_FAILED = "Claude: all paths failed. Run `claude` to refre
 const CLAUDE_USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
 const CLI_PROBE_TIMEOUT_SECONDS = 15;
 
-import { CLAUDE_FIELDS } from "./fields.js";
-
 Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish");
 
 export class ClaudeReader extends BaseReader {
@@ -33,10 +31,6 @@ export class ClaudeReader extends BaseReader {
   private _cancellable: Gio.Cancellable | null = null;
   private _destroyed = false;
   private _lastCliFailureAt: number | null = null;
-
-  get FIELDS(): readonly FieldDef[] {
-    return CLAUDE_FIELDS;
-  }
 
   override destroy(): void {
     this._destroyed = true;

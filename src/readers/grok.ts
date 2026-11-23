@@ -4,23 +4,17 @@ import GLib from "gi://GLib";
 import { gettext as _ } from "../helpers/gettext.js";
 import { HttpClient, TokenError } from "../helpers/http.js";
 import { logWarn } from "../helpers/log.js";
-import { BaseReader, FieldStatus, type FieldDef, type ReaderResult } from "./base.js";
+import { BaseReader, FieldStatus, type ReaderResult } from "./base.js";
 import { normalizeGrokUsagePayload, parseGrokAuth } from "./grokParser.js";
 
 const GROK_BASE_URL = "https://cli-chat-proxy.grok.com/v1";
 
 Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish");
 
-import { GROK_FIELDS } from "./fields.js";
-
 export class GrokReader extends BaseReader {
   private _http: HttpClient | null = null;
   private _destroyed = false;
   private _cancellable = new Gio.Cancellable();
-
-  get FIELDS(): readonly FieldDef[] {
-    return GROK_FIELDS;
-  }
 
   override destroy(): void {
     this._destroyed = true;

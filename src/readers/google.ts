@@ -10,7 +10,7 @@ import {
   resolveGooglePrimaryAuthPaths,
   type Env,
 } from "../helpers/paths.js";
-import { BaseReader, FieldStatus, type FieldDef, type ReaderResult } from "./base.js";
+import { BaseReader, FieldStatus, type ReaderResult } from "./base.js";
 import {
   GOOGLE_CLOUDCODE_DAILY_URL,
   GOOGLE_OAUTH_TOKEN_URL,
@@ -47,8 +47,6 @@ if (Gio.FileEnumerator?.prototype) {
   Gio._promisify(Gio.FileEnumerator.prototype, "close_async", "close_finish");
 }
 
-import { GOOGLE_FIELDS } from "./fields.js";
-
 function makeGoogleHeaders(token: string): Record<string, string> {
   return {
     Authorization: `Bearer ${token}`,
@@ -76,10 +74,6 @@ export class GoogleReader extends BaseReader {
   private _http: HttpClient | null = null;
   private _destroyed = false;
   private _cancellable: Gio.Cancellable | null = null;
-
-  get FIELDS(): readonly FieldDef[] {
-    return GOOGLE_FIELDS;
-  }
 
   override destroy(): void {
     this._destroyed = true;

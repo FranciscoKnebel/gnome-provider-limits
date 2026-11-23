@@ -9,6 +9,7 @@ import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
 import type { ProviderName } from "../constants.js";
 import { formatTimestampTemplate } from "../formatters.js";
+import { gettext as _ } from "../helpers/gettext.js";
 import { bindActivation } from "../helpers/keyboard.js";
 import { resolveLocale } from "../helpers/locale.js";
 import { setScrollViewChild } from "../helpers/scroll.js";
@@ -149,7 +150,6 @@ export interface PanelShellOptions {
  */
 export class PanelShell extends PopupMenu.PopupMenuSection {
   private readonly _settings: Gio.Settings;
-  private readonly _translate: (message: string) => string;
   private readonly _openPreferences: () => void;
   private readonly _onRefresh: () => void;
   private readonly _closeMenu: () => void;
@@ -163,7 +163,6 @@ export class PanelShell extends PopupMenu.PopupMenuSection {
   constructor(options: PanelShellOptions) {
     super();
     this._settings = options.settings;
-    this._translate = options.translate;
     this._openPreferences = options.openPreferences;
     this._onRefresh = options.onRefresh;
     this._closeMenu = options.closeMenu;
@@ -241,6 +240,42 @@ export class PanelShell extends PopupMenu.PopupMenuSection {
     return row;
   }
 
+  /** Shared empty-state row. Returns the title label for in-place text updates. */
+  addEmptyStateRow(title: string, subtitle?: string): St.Label {
+    const row = this.addStaticRow();
+    const box = new St.BoxLayout({
+      vertical: true,
+      x_expand: true,
+      style_class: "pl-empty-state",
+    });
+
+    const titleLabel = new St.Label({
+      text: title,
+      style_class: "pl-empty-title",
+      x_align: Clutter.ActorAlign.CENTER,
+      x_expand: true,
+    });
+    titleLabel.clutter_text.line_wrap = true;
+    titleLabel.accessible_name = title;
+    box.add_child(titleLabel);
+
+    if (subtitle !== undefined) {
+      const subtitleLabel = new St.Label({
+        text: subtitle,
+        style_class: "provider-limits-dim pl-empty-subtitle",
+        x_align: Clutter.ActorAlign.CENTER,
+        x_expand: true,
+      });
+      subtitleLabel.clutter_text.line_wrap = true;
+      subtitleLabel.accessible_name = subtitle;
+      box.add_child(subtitleLabel);
+    }
+
+    row.add_child(box);
+    this.addBodyItem(row);
+    return titleLabel;
+  }
+
   setBodyKeyHandler(handler: ((event: Clutter.Event) => boolean) | null): void {
     this._bodyKeyHandler = handler;
   }
@@ -261,11 +296,7 @@ export class PanelShell extends PopupMenu.PopupMenuSection {
     );
     const label = this._footer.lastRefreshLabel;
     label.visible = lastRefreshAt !== null;
-    label.text = formatTimestampTemplate(
-      this._translate("Last refresh: %s"),
-      lastRefreshAt,
-      locale,
-    );
+    label.text = formatTimestampTemplate(_("Last refresh: %s"), lastRefreshAt, locale);
     label.accessible_name = label.text;
   }
 
@@ -366,9 +397,9 @@ export class PanelShell extends PopupMenu.PopupMenuSection {
 
     const refresh = this._buildAction({
       spec: config.refresh,
-      labelText: this._translate("Force refresh"),
+      labelText: _("Force refresh"),
       spinner,
-      accessibleName: this._translate("Force refresh"),
+      accessibleName: _("Force refresh"),
       onActivate: () => {
         if (!running) this._onRefresh();
       },
@@ -376,9 +407,9 @@ export class PanelShell extends PopupMenu.PopupMenuSection {
 
     const settings = this._buildAction({
       spec: config.settings,
-      labelText: this._translate("Settings"),
+      labelText: _("Settings"),
       spinner: null,
-      accessibleName: this._translate("Settings"),
+      accessibleName: _("Settings"),
       onActivate: () => {
         this._closeMenu();
         this._openPreferences();
@@ -393,7 +424,7 @@ export class PanelShell extends PopupMenu.PopupMenuSection {
           y_align: Clutter.ActorAlign.CENTER,
         })
       : new St.Label({
-          text: formatTimestampTemplate(this._translate("Last refresh: %s"), null, "en"),
+          text: formatTimestampTemplate(_("Last refresh: %s"), null, "en"),
           style_class: "provider-limits-dim pl-footer-timestamp",
           x_expand: true,
           x_align: Clutter.ActorAlign.CENTER,
@@ -410,7 +441,7 @@ export class PanelShell extends PopupMenu.PopupMenuSection {
         refresh.icon.visible = !value;
       }
       if (refresh.label) {
-        const text = value ? this._translate("Refreshing…") : this._translate("Force refresh");
+        const text = value ? _("Refreshing…") : _("Force refresh");
         refresh.label.text = text;
         refresh.label.accessible_name = text;
       }
@@ -419,9 +450,7 @@ export class PanelShell extends PopupMenu.PopupMenuSection {
         if (value) refresh.control.add_style_class_name(config.disabledRefreshClass);
         else refresh.control.remove_style_class_name(config.disabledRefreshClass);
       }
-      refresh.control.accessible_name = value
-        ? this._translate("Refreshing…")
-        : this._translate("Force refresh");
+      refresh.control.accessible_name = value ? _("Refreshing…") : _("Force refresh");
     };
     applyRunning(false);
 

@@ -145,7 +145,10 @@ export class CardsPanelSection implements PanelStyleSection {
     this._emptyTitleLabel = null;
 
     if (plan.emptyState !== "none" && plan.emptyTitle) {
-      this._addEmptyCard(plan.emptyTitle, plan.emptySubtitle);
+      this._emptyTitleLabel = this.shell.addEmptyStateRow(
+        plan.emptyTitle,
+        plan.emptySubtitle ?? undefined,
+      );
     } else {
       for (const cardPlan of plan.cards) {
         this._cards.push(this._addCard(cardPlan));
@@ -223,43 +226,6 @@ export class CardsPanelSection implements PanelStyleSection {
         widgets.errorLabel.accessible_name = row.errorText;
       }
     });
-  }
-
-  private _addEmptyCard(title: string, subtitle: string | null): void {
-    const host = this.shell.addStaticRow();
-    host.add_style_class_name("pl-card-host");
-
-    const card = new St.BoxLayout({
-      vertical: true,
-      x_expand: true,
-      style_class: "pl-provider-card pl-empty-card",
-    });
-
-    const titleLabel = new St.Label({
-      text: title,
-      style_class: "pl-empty-title",
-      x_expand: true,
-      x_align: Clutter.ActorAlign.CENTER,
-    });
-    titleLabel.clutter_text.line_wrap = true;
-    titleLabel.accessible_name = title;
-    card.add_child(titleLabel);
-    this._emptyTitleLabel = titleLabel;
-
-    if (subtitle) {
-      const subtitleLabel = new St.Label({
-        text: subtitle,
-        style_class: "provider-limits-dim pl-empty-subtitle",
-        x_expand: true,
-        x_align: Clutter.ActorAlign.CENTER,
-      });
-      subtitleLabel.clutter_text.line_wrap = true;
-      subtitleLabel.accessible_name = subtitle;
-      card.add_child(subtitleLabel);
-    }
-
-    host.add_child(card);
-    this.shell.addBodyItem(host);
   }
 
   private _addCard(plan: ProviderCardPlan): CardWidgets {

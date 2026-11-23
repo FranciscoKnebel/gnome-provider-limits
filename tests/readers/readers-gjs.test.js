@@ -15,15 +15,13 @@ export async function run() {
   const { CodexReader } = await import(`${readersDir}/codex.js`);
   const { ClaudeReader } = await import(`${readersDir}/claude.js`);
   const { OpenCodeReader } = await import(`${readersDir}/opencode.js`);
+  const { getProviderFields, PROVIDER_FIELDS } = await import(`${readersDir}/fields.js`);
 
   // ---------- BaseReader ----------
   // Test via a concrete anonymous subclass
   try {
     const settings = new MockSettings();
     const ConcreteReader = class extends BaseReader {
-      get FIELDS() {
-        return [];
-      }
       async read() {
         return this._errorResult("not impl", ["test"]);
       }
@@ -59,32 +57,35 @@ export async function run() {
     });
   }
 
-  // ---------- FIELDS definitions ----------
+  // ---------- Field registry ----------
   try {
-    const settings = new MockSettings({ "codex-cli-path": "" });
-    const codex = new CodexReader(settings, "codex");
-    assert(codex.FIELDS.length > 5, "CodexReader has fields");
-    results.push({ name: "CodexReader.FIELDS defined", passed: true });
+    assert(getProviderFields("codex").length > 5, "codex has fields in registry");
+    assert(PROVIDER_FIELDS.codex === getProviderFields("codex"), "codex registry uses shared defs");
+    results.push({ name: "codex fields in registry", passed: true });
   } catch (e) {
-    results.push({ name: "CodexReader.FIELDS defined", passed: false, error: String(e) });
+    results.push({ name: "codex fields in registry", passed: false, error: String(e) });
   }
 
   try {
-    const settings = new MockSettings({ "claude-cli-path": "" });
-    const claude = new ClaudeReader(settings, "claude");
-    assert(claude.FIELDS.length > 5, "ClaudeReader has fields");
-    results.push({ name: "ClaudeReader.FIELDS defined", passed: true });
+    assert(getProviderFields("claude").length > 5, "claude has fields in registry");
+    assert(
+      PROVIDER_FIELDS.claude === getProviderFields("claude"),
+      "claude registry uses shared defs",
+    );
+    results.push({ name: "claude fields in registry", passed: true });
   } catch (e) {
-    results.push({ name: "ClaudeReader.FIELDS defined", passed: false, error: String(e) });
+    results.push({ name: "claude fields in registry", passed: false, error: String(e) });
   }
 
   try {
-    const settings = new MockSettings();
-    const oc = new OpenCodeReader(settings, "opencode");
-    assert(oc.FIELDS.length > 5, "OpenCodeReader has fields");
-    results.push({ name: "OpenCodeReader.FIELDS defined", passed: true });
+    assert(getProviderFields("opencode").length > 5, "opencode has fields in registry");
+    assert(
+      PROVIDER_FIELDS.opencode === getProviderFields("opencode"),
+      "opencode registry uses shared defs",
+    );
+    results.push({ name: "opencode fields in registry", passed: true });
   } catch (e) {
-    results.push({ name: "OpenCodeReader.FIELDS defined", passed: false, error: String(e) });
+    results.push({ name: "opencode fields in registry", passed: false, error: String(e) });
   }
 
   // ---------- CodexReader._parsePayload ----------
@@ -246,9 +247,6 @@ export async function run() {
   try {
     const settings = new MockSettings();
     const r = new (class extends BaseReader {
-      get FIELDS() {
-        return [];
-      }
       async read() {
         return this._errorResult("", []);
       }

@@ -4,7 +4,7 @@ import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import type { BaseReader, FieldDef, ReaderResult } from "../readers/base.js";
-import { resolveFieldDefs } from "../readers/fields.js";
+import { PROVIDER_FIELDS } from "../readers/fields.js";
 import { CardsPanelSection } from "./panelCards.js";
 import { CompactPanelSection } from "./panelCompact.js";
 import { GaugesPanelSection } from "./panelGauges.js";
@@ -36,7 +36,7 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     super();
     this._settings = settings;
     this._readers = readers;
-    this._fieldDefs = resolveFieldDefs();
+    this._fieldDefs = PROVIDER_FIELDS;
     this._openPreferences = openPreferences;
     this._onRefresh = onRefresh;
     this._closeMenu = closeMenu;

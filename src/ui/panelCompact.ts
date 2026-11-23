@@ -243,19 +243,7 @@ export class CompactPanelSection implements PanelStyleSection {
 
     if (plan.state !== "ready") {
       if (plan.messageText) {
-        const emptyRow = this.shell.addStaticRow();
-        emptyRow.add_style_class_name("provider-limits-empty-row");
-        const label = new St.Label({
-          text: plan.messageText,
-          style_class: "provider-limits-dim provider-limits-empty-label",
-          x_expand: true,
-          x_align: Clutter.ActorAlign.START,
-        });
-        label.clutter_text.line_wrap = true;
-        label.accessible_name = plan.messageText;
-        emptyRow.add_child(label);
-        this.shell.addBodyItem(emptyRow);
-        this._emptyMessageLabel = label;
+        this._emptyMessageLabel = this.shell.addEmptyStateRow(plan.messageText);
       }
       this._syncToolbar(plan, lastRefreshAt);
       return;

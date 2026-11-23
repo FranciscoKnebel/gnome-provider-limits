@@ -1,4 +1,4 @@
-import { PROVIDER_NAMES, type ProviderName } from "../constants.js";
+import type { ProviderName } from "../constants.js";
 import type { FieldCategory, FieldDef } from "./base.js";
 
 export type { FieldCategory } from "./base.js";
@@ -612,14 +612,7 @@ export const PROVIDER_FIELDS: Record<ProviderName, readonly FieldDef[]> = {
 };
 
 export function getProviderFields(provider: ProviderName): readonly FieldDef[] {
-  return PROVIDER_FIELDS[provider] ?? [];
-}
-
-/** Resolve all known providers into one field-definition lookup. */
-export function resolveFieldDefs(): Readonly<Record<ProviderName, readonly FieldDef[]>> {
-  const defs = {} as Record<ProviderName, readonly FieldDef[]>;
-  for (const name of PROVIDER_NAMES) defs[name] = getProviderFields(name);
-  return defs;
+  return PROVIDER_FIELDS[provider];
 }
 
 const CATEGORY_BY_NAME = new Map<string, FieldCategory>();

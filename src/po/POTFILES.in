@@ -10,9 +10,14 @@ src/readers/google.ts
 src/ui/statusBar.ts
 src/ui/statusBarGauges.ts
 src/ui/statusBarCompact.ts
+src/ui/statusBarPills.ts
 src/ui/panel.ts
+src/ui/panelShell.ts
 src/ui/panelCards.ts
+src/ui/cardPlan.ts
 src/ui/panelCompact.ts
+src/ui/matrixPlan.ts
 src/ui/panelGauges.ts
+src/ui/panelGaugesDetail.ts
 src/ui/prefs/main-page.ts
 src/ui/prefs/provider-page.ts

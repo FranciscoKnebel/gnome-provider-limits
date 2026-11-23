@@ -1,7 +1,6 @@
 import Clutter from "gi://Clutter";
 import type Gio from "gi://Gio";
 import GLib from "gi://GLib";
-import St from "gi://St";
 
 import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
@@ -18,7 +17,42 @@ import { OverviewRenderer } from "./panelGaugesOverview.js";
 import type { PanelShell, PanelStyleSection } from "./panelShell.js";
 import { structureKey } from "./renderStructure.js";
 
-type BodyMode = "none" | "empty" | "overview" | "detail";
+type BodyState =
+  | { kind: "none" }
+  | { kind: "empty"; reason: "no-providers" | "initial-load" | "detail-load"; tab?: ProviderName }
+  | { kind: "overview" }
+  | { kind: "detail"; provider: ProviderName };
+
+type EmptyState = Extract<BodyState, { kind: "empty" }>;
+
+function bodyStructureKey(state: BodyState, locale: string): string {
+  switch (state.kind) {
+    case "none":
+      return structureKey([locale, "none"]);
+    case "empty":
+      return structureKey([locale, state.reason, state.tab ?? ""]);
+    case "overview":
+      return structureKey([locale, "overview"]);
+    case "detail":
+      return structureKey([locale, "detail", state.provider]);
+  }
+}
+
+function emptyStateText(state: EmptyState): { title: string; subtitle: string } {
+  switch (state.reason) {
+    case "no-providers":
+      return {
+        title: _("No providers enabled"),
+        subtitle: _("Enable a provider in Settings to monitor usage limits."),
+      };
+    case "initial-load":
+    case "detail-load":
+      return {
+        title: _("Reading provider limits…"),
+        subtitle: _("Waiting for initial refresh to complete."),
+      };
+  }
+}
 
 /** Thin coordinator: owns tab state and delegates rendering to focused renderers. */
 export class GaugesPanelSection implements PanelStyleSection {
@@ -31,8 +65,7 @@ export class GaugesPanelSection implements PanelStyleSection {
   private _enabledProviders: ProviderName[] = [];
   private _lastResults: Map<ProviderName, ReaderResult> = new Map();
   private _lastRefreshAt: number | null = null;
-  private _bodyMode: BodyMode = "none";
-  private _emptyKey: string | null = null;
+  private _state: BodyState = { kind: "none" };
   readonly shell: PanelShell;
 
   constructor(
@@ -101,45 +134,18 @@ export class GaugesPanelSection implements PanelStyleSection {
     this.shell.setRunning(this._running);
     this.shell.setLastRefreshAt(lastRefreshAt);
 
-    if (enabledProviders.length === 0) {
-      this._renderEmpty(
-        locale,
-        "empty",
-        _("No providers enabled"),
-        _("Enable a provider in Settings to monitor usage limits."),
-      );
-      return;
-    }
+    const nextState = this._resolveBodyState(enabledProviders, results);
+    this._transitionBody(locale, nextState);
 
-    if (results.size === 0) {
-      this._renderEmpty(
-        locale,
-        "loading",
-        _("Reading provider limits…"),
-        _("Waiting for initial refresh to complete."),
-      );
-      return;
-    }
-
-    if (this._activeTab === "overview") {
-      this._enterMode("overview");
+    if (nextState.kind === "overview") {
       this._overview.render(enabledProviders, results, locale);
       return;
     }
 
-    const result = results.get(this._activeTab);
-    if (!result) {
-      this._renderEmpty(
-        locale,
-        "detail-loading",
-        _("Reading provider limits…"),
-        _("Waiting for initial refresh to complete."),
-      );
-      return;
+    if (nextState.kind === "detail") {
+      const result = results.get(nextState.provider);
+      if (result) this._detail.render(nextState.provider, result, locale);
     }
-
-    this._enterMode("detail");
-    this._detail.render(this._activeTab, result, locale);
   }
 
   setRunning(running: boolean): void {
@@ -147,50 +153,51 @@ export class GaugesPanelSection implements PanelStyleSection {
     this.shell.setRunning(running);
   }
 
-  private _enterMode(mode: "overview" | "detail"): void {
-    if (this._bodyMode === mode) return;
-    this._overview.reset();
-    this._detail.reset();
-    this._bodyMode = mode;
+  private _resolveBodyState(
+    enabledProviders: ProviderName[],
+    results: Map<ProviderName, ReaderResult>,
+  ): BodyState {
+    if (enabledProviders.length === 0) {
+      return { kind: "empty", reason: "no-providers" };
+    }
+
+    if (results.size === 0) {
+      return { kind: "empty", reason: "initial-load" };
+    }
+
+    if (this._activeTab === "overview") {
+      return { kind: "overview" };
+    }
+
+    const result = results.get(this._activeTab);
+    if (!result) {
+      return { kind: "empty", reason: "detail-load", tab: this._activeTab };
+    }
+
+    return { kind: "detail", provider: this._activeTab };
   }
 
-  private _renderEmpty(locale: string, kind: string, title: string, subtitle: string): void {
-    const key = structureKey([locale, kind, kind === "detail-loading" ? this._activeTab : ""]);
-    if (this._bodyMode !== "empty" || key !== this._emptyKey) {
-      this.shell.clearBody();
+  private _transitionBody(locale: string, nextState: BodyState): void {
+    const previousKey = bodyStructureKey(this._state, locale);
+    const nextKey = bodyStructureKey(nextState, locale);
+    const rebuild = previousKey !== nextKey;
+    this._state = nextState;
+
+    if (nextState.kind === "empty") {
+      if (rebuild) {
+        this.shell.clearBody();
+        this._overview.reset();
+        this._detail.reset();
+        const { title, subtitle } = emptyStateText(nextState);
+        this.shell.addEmptyStateRow(title, subtitle);
+      }
+      return;
+    }
+
+    if (rebuild) {
       this._overview.reset();
       this._detail.reset();
-      const row = this.shell.addStaticRow();
-      const box = new St.BoxLayout({
-        vertical: true,
-        x_expand: true,
-        style_class: "pl-empty-state",
-      });
-
-      const titleLabel = new St.Label({
-        text: title,
-        style_class: "pl-empty-title",
-        x_align: Clutter.ActorAlign.CENTER,
-        x_expand: true,
-      });
-      titleLabel.accessible_name = title;
-
-      const subtitleLabel = new St.Label({
-        text: subtitle,
-        style_class: "provider-limits-dim pl-empty-subtitle",
-        x_align: Clutter.ActorAlign.CENTER,
-        x_expand: true,
-      });
-      subtitleLabel.clutter_text.line_wrap = true;
-      subtitleLabel.accessible_name = subtitle;
-
-      box.add_child(titleLabel);
-      box.add_child(subtitleLabel);
-      row.add_child(box);
-      this.shell.addBodyItem(row);
-      this._emptyKey = key;
     }
-    this._bodyMode = "empty";
   }
 
   private _handleArrowNavigation(event: Clutter.Event): boolean {

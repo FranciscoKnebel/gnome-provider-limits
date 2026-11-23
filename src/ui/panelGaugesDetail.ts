@@ -5,6 +5,7 @@ import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
 import type { ProviderName } from "../constants.js";
 import { formatAbsoluteTimestamp } from "../formatters.js";
+import { gettext as _ } from "../helpers/gettext.js";
 import { providerDisplayName } from "../helpers/provider-settings.js";
 import type { FieldDef, ReaderResult } from "../readers/base.js";
 import { ReaderStatus } from "../readers/base.js";
@@ -79,15 +80,13 @@ export class DetailRenderer {
     if (isError) {
       callout = {
         kind: "error",
-        badge: this._host.translate("Error"),
-        text: result.lastError ?? this._host.translate("Error"),
+        badge: _("Error"),
+        text: result.lastError ?? _("Error"),
       };
     } else if (result.status === ReaderStatus.PARTIAL && result.lastError) {
       callout = {
         kind: "warning",
-        badge: result.pathsTried?.includes("last-known-good")
-          ? this._host.translate("Cached")
-          : this._host.translate("Partial"),
+        badge: result.pathsTried?.includes("last-known-good") ? _("Cached") : _("Partial"),
         text: result.lastError,
       };
     }
@@ -211,7 +210,7 @@ export class DetailRenderer {
       if (partition.gauges.length === 0 && partition.bentoTiles.length === 0) {
         const emptyRow = this._host.shell.addStaticRow();
         const emptyLabel = new St.Label({
-          text: this._host.translate("No panel fields configured for this provider."),
+          text: _("No panel fields configured for this provider."),
           style_class: "provider-limits-dim pl-empty-fields",
           x_expand: true,
           x_align: Clutter.ActorAlign.CENTER,
@@ -225,7 +224,7 @@ export class DetailRenderer {
     let lastUpdatedLabel: St.Label | null = null;
     if (lastUpdatedText !== null) {
       const row = this._host.shell.addStaticRow();
-      const text = this._host.translate("Last updated: %s").replace("%s", lastUpdatedText);
+      const text = _("Last updated: %s").replace("%s", lastUpdatedText);
       lastUpdatedLabel = new St.Label({
         text,
         style_class: "provider-limits-dim pl-provider-updated",
@@ -419,7 +418,7 @@ export class DetailRenderer {
     });
 
     if (widgets.lastUpdatedLabel && lastUpdatedText !== null) {
-      const text = this._host.translate("Last updated: %s").replace("%s", lastUpdatedText);
+      const text = _("Last updated: %s").replace("%s", lastUpdatedText);
       widgets.lastUpdatedLabel.text = text;
       widgets.lastUpdatedLabel.accessible_name = text;
     }
