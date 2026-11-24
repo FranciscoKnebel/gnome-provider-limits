@@ -1,6 +1,6 @@
 import { PROVIDER_NAMES, type ProviderName } from "../../src/constants.js";
 import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
-import type { FieldDef, ReaderResult } from "../../src/readers/base.js";
+import type { DisplayStatus, FieldDef, ReaderResult } from "../../src/readers/base.js";
 import { PROVIDER_FIELDS } from "../../src/readers/fields.js";
 import { clampFillRatio, type FieldTone } from "../../src/ui/fieldRows.js";
 import {
@@ -134,7 +134,7 @@ describe("matrixPlan", () => {
 
   describe("attention derivation from tones", () => {
     const attentionForTones = (
-      status: ReaderStatus,
+      status: DisplayStatus,
       tones: readonly (FieldTone | undefined)[],
     ): string => {
       const worst = worstFieldTone(tones);

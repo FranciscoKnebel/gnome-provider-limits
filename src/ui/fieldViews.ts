@@ -12,6 +12,7 @@ import {
   isHardStatus,
   isLimitReached,
   ReaderStatus,
+  type DisplayStatus,
 } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
 import { emptyMeter, gaugeArc } from "./cairoDrawing.js";
@@ -184,7 +185,7 @@ export interface UsageFacts {
 
 export interface UsageProjectionOptions extends UsageViewSelection {
   readonly t: (s: string) => string;
-  readonly status: ReaderStatus;
+  readonly status: DisplayStatus;
   readonly resetTextFor?: (view: FieldView) => string | null;
 }
 

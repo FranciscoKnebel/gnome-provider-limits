@@ -13,6 +13,8 @@ export enum ReaderStatus {
   DISABLED = "disabled",
 }
 
+export type DisplayStatus = Exclude<ReaderStatus, ReaderStatus.DISABLED>;
+
 export enum FieldStatus {
   OK = "ok",
   UNAVAILABLE = "unavailable",
@@ -163,7 +165,7 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
     resetStatus: AbsentFieldStatus = FieldStatus.UNAVAILABLE,
   ): FieldResult[] {
     if (!data) {
-      return this._makeAbsentWindowFields(names, FieldStatus.UNAVAILABLE);
+      return this._makeAbsentWindowFields(names, resetStatus);
     }
     const percentStatus =
       typeof data.used_percent === "number" && Number.isFinite(data.used_percent)

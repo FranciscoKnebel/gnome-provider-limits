@@ -66,7 +66,6 @@ export interface ProviderDisplayFacts {
   readonly diagnostic: Diagnostic;
   readonly views: ClassifiedPanelViews;
   readonly lastUpdatedText: string | null;
-  readonly isHardError: boolean;
 }
 
 /** Everything deriveDisplayModel needs, with no surrounding provider context. */
@@ -122,7 +121,7 @@ function classifyPanelViews(
 }
 
 function deriveDiagnostic(
-  status: ReaderStatus,
+  status: DisplayStatus,
   lastError: string | null,
   fromCache: boolean,
   tr: (s: string) => string,
@@ -223,7 +222,6 @@ function deriveDisplayFacts(
     diagnostic,
     views,
     lastUpdatedText,
-    isHardError: hardError,
   };
 }
 
@@ -246,11 +244,7 @@ export function deriveDisplayModel(
   const statusViews = selectViews(allViews, statusFields);
   const panelViews = selectViews(panelSource, panelFields);
   const resets = deriveResetPairings(fieldDefs, result, allViews, searchOrder, panelFields);
-  const displayStatus = resolveDisplayStatus(
-    result.status as DisplayStatus,
-    result.fromCache,
-    allViews,
-  );
+  const displayStatus = resolveDisplayStatus(result.status, result.fromCache, allViews);
 
   const modelBase = {
     provider,

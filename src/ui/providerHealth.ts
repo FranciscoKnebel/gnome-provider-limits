@@ -1,9 +1,17 @@
 import type { FieldDef, FieldResult } from "../readers/base.js";
-import { FieldStatus, fieldStatusDegrades, isLimitReached, ReaderStatus } from "../readers/base.js";
+import {
+  FieldStatus,
+  fieldStatusDegrades,
+  isLimitReached,
+  ReaderStatus,
+  type DisplayStatus,
+} from "../readers/base.js";
 import type { FieldTone } from "./fieldRows.js";
 import { fieldTone } from "./fieldRows.js";
 import type { FieldView } from "./fieldViews.js";
 import type { HealthTone, StatusAttention } from "./tone.js";
+
+export type { DisplayStatus } from "../readers/base.js";
 
 export type ProviderState = "idle" | "ok" | "partial" | "cached" | "error" | "unavailable";
 
@@ -28,8 +36,6 @@ export const PROVIDER_SEVERITIES = [
   "unavailable",
 ] as const;
 export type ProviderSeverity = (typeof PROVIDER_SEVERITIES)[number];
-
-export type DisplayStatus = Exclude<ReaderStatus, ReaderStatus.DISABLED>;
 
 export interface ProviderHealth {
   readonly displayStatus: DisplayStatus;
@@ -201,20 +207,19 @@ export function collectFieldTones(
   return tones;
 }
 
-export function isLastKnownGood(status: ReaderStatus, fromCache: boolean): boolean {
+export function isLastKnownGood(status: DisplayStatus, fromCache: boolean): boolean {
   return status === ReaderStatus.PARTIAL && fromCache;
 }
 
 /** The single derivation: all surface vocabularies are lookups over this value. */
 export function deriveSeverity(
-  status: ReaderStatus,
+  status: DisplayStatus,
   worstTone: FieldTone | undefined,
   hasUsableField: boolean,
   lastKnownGood: boolean,
 ): ProviderSeverity {
   if (status === ReaderStatus.ERROR) return "error";
   if (status === ReaderStatus.UNAVAILABLE) return "unavailable";
-  if (status === ReaderStatus.DISABLED) return "idle";
   if (status === ReaderStatus.PARTIAL) {
     if (worstTone === "critical") return "critical-partial";
     if (worstTone === "warning") return lastKnownGood ? "cached-warning" : "partial-warning";

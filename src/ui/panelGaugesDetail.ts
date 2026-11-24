@@ -3,6 +3,7 @@ import St from "gi://St";
 import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
 import { gettext as _ } from "../helpers/gettext.js";
+import { isHardStatus } from "../readers/base.js";
 import { connectRepaint, drawRadialGauge } from "./cairoDrawing.js";
 import { chunkGauges, chunkPairs, computeGaugeGeometry } from "./cockpitModel.js";
 import { type Diagnostic, type ProviderDisplayModel } from "./displayModel.js";
@@ -58,7 +59,7 @@ export class DetailRenderer {
   private _derivePlan(context: DetailRenderContext): DetailRenderPlan {
     const { model, locale } = context;
     const facts = model.facts;
-    const isError = facts.isHardError;
+    const isError = isHardStatus(facts.health.displayStatus);
 
     const gauges: GaugeRenderItem[] = isError
       ? []

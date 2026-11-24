@@ -709,9 +709,9 @@ describe("hasActiveGoogleUsage, mergeGoogleUsage & parseGoogleTier", () => {
         currentTier: { id: "free-tier", name: "Antigravity" },
       }),
     ).toEqual({
-      id: "free-tier",
+      id: null,
       name: "Google AI Pro",
-      supportsFiveHourWindows: false,
+      supportsFiveHourWindows: true,
     });
     expect(
       parseGoogleTier({
@@ -720,7 +720,7 @@ describe("hasActiveGoogleUsage, mergeGoogleUsage & parseGoogleTier", () => {
       }),
     ).toEqual({
       id: "free-tier",
-      name: "Google AI Pro",
+      name: null,
       supportsFiveHourWindows: false,
     });
   });

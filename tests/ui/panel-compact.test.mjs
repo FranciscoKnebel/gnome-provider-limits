@@ -32,7 +32,7 @@ function providerModel(provider) {
     provider,
     displayName: provider,
     facts: {
-      displayStatus: "ok",
+      health: { displayStatus: "ok" },
       badges: { status: "" },
       usage: { header: { fillRatio: 0.5, tone: "ok", summaryText: "50%" } },
       diagnostic: { kind: null },

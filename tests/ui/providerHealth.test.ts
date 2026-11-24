@@ -171,7 +171,6 @@ describe("providerHealth pure helpers", () => {
   it("derives one ordered severity from status, worst tone, usable fields and last-known-good", () => {
     expect(deriveSeverity(ReaderStatus.ERROR, "critical", true, true)).toBe("error");
     expect(deriveSeverity(ReaderStatus.UNAVAILABLE, undefined, true, true)).toBe("unavailable");
-    expect(deriveSeverity(ReaderStatus.DISABLED, undefined, true, true)).toBe("idle");
     expect(deriveSeverity(ReaderStatus.PARTIAL, "warning", true, false)).toBe("partial-warning");
     expect(deriveSeverity(ReaderStatus.PARTIAL, "warning", true, true)).toBe("cached-warning");
     expect(deriveSeverity(ReaderStatus.PARTIAL, "critical", true, true)).toBe("critical-partial");
@@ -213,7 +212,7 @@ describe("providerHealth pure helpers", () => {
 
   it("derives attention from tones through the single severity value", () => {
     const attentionForTones = (
-      status: ReaderStatus,
+      status: DisplayStatus,
       tones: readonly (FieldTone | undefined)[],
     ): string => {
       const worst = worstFieldTone(tones);
@@ -227,7 +226,7 @@ describe("providerHealth pure helpers", () => {
   });
 
   it("keeps all 64 status, tone, usable-field and last-known-good combinations identical", () => {
-    const statuses = [
+    const statuses: readonly DisplayStatus[] = [
       ReaderStatus.OK,
       ReaderStatus.PARTIAL,
       ReaderStatus.ERROR,
@@ -255,7 +254,7 @@ describe("providerHealth pure helpers", () => {
             const health = deriveProviderHealth({
               fields: result.fields,
               fromCache: result.fromCache,
-              status: status as DisplayStatus,
+              status,
               views,
               fieldDefs: [],
               t: (text) => text,
@@ -306,7 +305,7 @@ describe("providerHealth pure helpers", () => {
       t: (text) => `T:${text}`,
     });
 
-    expect(isLastKnownGood(result.status, result.fromCache)).toBeTrue();
+    expect(isLastKnownGood(result.status as DisplayStatus, result.fromCache)).toBeTrue();
     expect(health.severity).toBe("cached-warning");
     expect(health.state).toBe("cached");
     expect(health.tone).toBe("partial");

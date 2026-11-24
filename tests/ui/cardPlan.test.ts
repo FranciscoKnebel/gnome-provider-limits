@@ -1,6 +1,6 @@
 import { providerRecord, type ProviderName } from "../../src/constants.js";
 import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
-import type { FieldDef, ReaderResult } from "../../src/readers/base.js";
+import type { DisplayStatus, FieldDef, ReaderResult } from "../../src/readers/base.js";
 import {
   CLAUDE_FIELDS,
   CODEX_FIELDS,
@@ -100,7 +100,7 @@ function panelContext(options: {
 }
 
 function toneOf(
-  status: ReaderStatus,
+  status: DisplayStatus,
   tones: readonly ("ok" | "warning" | "critical" | undefined)[],
   hasUsableField: boolean,
   lastKnownGood = false,
@@ -226,7 +226,6 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
 
   describe("provider health derivation", () => {
     it("prioritizes hard errors, critical limits, partial state, warnings, ok, and idle", () => {
-      expect(toneOf(ReaderStatus.DISABLED, [], false)).toBe("idle");
       expect(toneOf(ReaderStatus.ERROR, [], false)).toBe("error");
       expect(toneOf(ReaderStatus.UNAVAILABLE, [], false)).toBe("error");
       expect(toneOf(ReaderStatus.PARTIAL, ["critical"], true)).toBe("critical");
