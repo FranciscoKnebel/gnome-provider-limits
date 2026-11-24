@@ -625,8 +625,6 @@ msgstr "Activez les champs et définissez leur ordre pour la barre d'état et le
 msgid "Reset defaults"
 msgstr "Réinitialiser les valeurs par défaut"
 
-msgid "Top Bar"
-msgstr "Barre supérieure"
 
 msgid "Panel"
 msgstr "Panneau"

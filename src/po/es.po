@@ -625,8 +625,6 @@ msgstr "Active los campos y establezca su orden para la barra de estado y el pan
 msgid "Reset defaults"
 msgstr "Restablecer valores predeterminados"
 
-msgid "Top Bar"
-msgstr "Barra superior"
 
 msgid "Panel"
 msgstr "Panel"

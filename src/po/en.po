@@ -625,8 +625,6 @@ msgstr "Toggle fields and set their order for the status bar and panel."
 msgid "Reset defaults"
 msgstr "Reset defaults"
 
-msgid "Top Bar"
-msgstr "Top Bar"
 
 msgid "Panel"
 msgstr "Panel"

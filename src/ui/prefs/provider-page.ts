@@ -108,7 +108,7 @@ function buildFieldMatrixGroup(
       activatable: false,
     });
     const controls = new Gtk.Box({ spacing: 6, valign: Gtk.Align.CENTER });
-    const topBarToggle = new Gtk.ToggleButton({ label: _("Top Bar"), valign: Gtk.Align.CENTER });
+    const topBarToggle = new Gtk.ToggleButton({ label: _("Status bar"), valign: Gtk.Align.CENTER });
     const panelToggle = new Gtk.ToggleButton({ label: _("Panel"), valign: Gtk.Align.CENTER });
     topBarToggle.connect("toggled", (button: Gtk.ToggleButton) => {
       if (syncing) return;

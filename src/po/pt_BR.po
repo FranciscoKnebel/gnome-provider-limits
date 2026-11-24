@@ -625,8 +625,6 @@ msgstr "Ative os campos e defina sua ordem para a barra de status e o painel."
 msgid "Reset defaults"
 msgstr "Restaurar padrões"
 
-msgid "Top Bar"
-msgstr "Barra superior"
 
 msgid "Panel"
 msgstr "Painel"

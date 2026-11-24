@@ -625,8 +625,6 @@ msgstr "Felder aktivieren und ihre Reihenfolge für Statusleiste und Panel festl
 msgid "Reset defaults"
 msgstr "Standardwerte wiederherstellen"
 
-msgid "Top Bar"
-msgstr "Obere Leiste"
 
 msgid "Panel"
 msgstr "Panel"

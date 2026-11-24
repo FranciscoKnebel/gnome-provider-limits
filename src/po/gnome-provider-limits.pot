@@ -620,8 +620,6 @@ msgstr ""
 msgid "Reset defaults"
 msgstr ""
 
-msgid "Top Bar"
-msgstr ""
 
 msgid "Panel"
 msgstr ""
