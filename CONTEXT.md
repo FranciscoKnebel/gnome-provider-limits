@@ -49,6 +49,13 @@ degrades health. Provider health is computed from the configured status and pane
 Fields, not from unselected Fields. Missing usage stays unavailable, not zero.
 _Avoid_: Null field, missing value, absent metric.
 
+**Partial Cause**:
+The reason a `ReaderResult` is `PARTIAL`: `fields` when some Fields are
+unavailable or errored, or `source` when a provider source failed or last-known-good
+data is being served. Display health may ignore field gaps outside the configured
+Status Bar and Panel zones, but it never ignores a source failure.
+_Avoid_: Partial kind, partial reason, error type.
+
 **FieldView**:
 The one zone-aware formatted projection of a Field, derived by
 `deriveFieldViews` in `fieldViews.ts`. Renderers consume its already computed
@@ -172,8 +179,9 @@ Claude & GPT 5-hour and weekly pools on Antigravity (`used_percent_3p_session`,
 `used_percent_3p_weekly`). Untouched 0% windows whose distant reset time matches
 Google's idle placeholder horizon omit `reset_at` and report it as not applicable
 until active usage starts. Windows the provider explicitly disables are not
-applicable. A window missing from the payload stays unavailable, so truncated quota
-data still degrades the provider when that window is configured.
+applicable. Unreported 5-hour windows are not applicable when the plan is known not
+to expose them, such as Antigravity Starter Quota; otherwise they stay unavailable,
+so truncated quota data still degrades the provider when that window is configured.
 _Avoid_: Google Cloud billing, Vertex AI pay-as-you-go spend, service-account keys.
 
 **Telemetry Field**:

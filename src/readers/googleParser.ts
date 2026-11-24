@@ -215,6 +215,8 @@ function resetAtOf(reset: GoogleWindowReset): number | null {
   return reset.state === "present" ? reset.at : null;
 }
 
+// A present reset is most informative, then an idle untouched window, then a
+// missing timestamp.
 const RESET_RANK: Record<GoogleWindowReset["state"], number> = {
   present: 2,
   idle: 1,
@@ -256,6 +258,8 @@ function unreportedWindows(): Record<GoogleWindowId, GoogleWindow> {
   };
 }
 
+// Present data beats failures, a malformed bucket is more actionable than an
+// explicit disable, and an unreported bucket is the weakest state.
 const WINDOW_RANK: Record<GoogleWindow["state"], number> = {
   present: 3,
   malformed: 2,
@@ -274,6 +278,8 @@ function mergeWindows(current: GoogleWindow, candidate: GoogleWindow): GoogleWin
   return windowRank(candidate) > windowRank(current) ? candidate : current;
 }
 
+// Equal-rank merges keep the current endpoint; exact aggregates win equal-rank
+// ties over fallback buckets.
 function preferExactWindow(exact: GoogleWindow, fallback: GoogleWindow): GoogleWindow {
   return windowRank(exact) >= windowRank(fallback) ? exact : fallback;
 }

@@ -456,7 +456,7 @@ describe("buildOverviewRowModel, tabs & structure keys", () => {
         lastError: "HTTP 503",
         fields: [{ name: "used_percent_session", value: 72, status: FieldStatus.OK }],
       },
-      statusFieldNames: ["used_percent_session"],
+      statusFieldNames: [],
       panelFieldNames: [],
       locale: "en",
     });

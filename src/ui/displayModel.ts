@@ -50,7 +50,6 @@ export interface ProviderDisplayModel {
   readonly displayName: string;
   readonly shortDisplayName: string;
   readonly result: ReaderResult;
-  readonly status: ReaderStatus;
   readonly statusViews: readonly FieldView[];
   readonly panelViews: readonly FieldView[];
   readonly resets: ReadonlyMap<string, ResetPairing>;
@@ -153,14 +152,11 @@ export function diagnosticMessage(result: ReaderResult, diagnostic: Diagnostic):
 
 function deriveDisplayFacts(
   model: Omit<ProviderDisplayModel, "facts">,
-  derivation: DisplayModelOptions & {
-    readonly allViews: readonly FieldView[];
-    readonly displayResult: ReaderResult;
-  },
+  derivation: DisplayModelOptions & { readonly allViews: readonly FieldView[] },
 ): ProviderDisplayFacts {
   const { result } = model;
   const hardError = isHardError(result);
-  const { fieldDefs, statusFields, locale, t: tr, allViews, displayResult } = derivation;
+  const { fieldDefs, statusFields, locale, t: tr, allViews } = derivation;
 
   const resetTextFor = (view: FieldView): string | null => {
     const pairing = model.resets.get(view.name);
@@ -168,7 +164,7 @@ function deriveDisplayFacts(
   };
 
   const health = deriveProviderHealth({
-    result: displayResult,
+    result,
     views: allViews,
     fieldDefs,
     t: tr,
@@ -197,7 +193,7 @@ function deriveDisplayFacts(
     ),
   };
 
-  const diagnostic = deriveDiagnostic(displayResult, tr);
+  const diagnostic = deriveDiagnostic(result, tr);
   const views = classifyPanelViews(model.panelViews, model.resets);
   const lastUpdatedText =
     !hardError && Number.isFinite(result.lastUpdated)
@@ -218,26 +214,27 @@ function deriveDisplayFacts(
   };
 }
 
-function withVisibleFields(
+function withVisibleStatus(
   result: ReaderResult,
   statusFields: readonly string[],
   panelFields: readonly string[],
 ): ReaderResult {
-  const visible = new Set([...statusFields, ...panelFields]);
-  const fields = result.fields.filter((field) => visible.has(field.name));
   if (
     result.status !== ReaderStatus.PARTIAL ||
     result.fromCache ||
-    result.partialKind !== "fields"
+    result.partialCause !== "fields"
   ) {
-    return { ...result, fields };
+    return result;
   }
-  const hasVisibleUnavailable = fields.some(
-    (field) => field.status === FieldStatus.UNAVAILABLE || field.status === FieldStatus.ERROR,
+  const visible = new Set([...statusFields, ...panelFields]);
+  const hasVisibleUnavailable = result.fields.some(
+    (field) =>
+      visible.has(field.name) &&
+      (field.status === FieldStatus.UNAVAILABLE || field.status === FieldStatus.ERROR),
   );
   return hasVisibleUnavailable
-    ? { ...result, fields }
-    : { ...result, status: ReaderStatus.OK, lastError: null, fields };
+    ? result
+    : { ...result, status: ReaderStatus.OK, lastError: null, partialCause: undefined };
 }
 
 /** Assemble one provider's display envelope from explicit options, no fake context. */
@@ -250,7 +247,7 @@ export function deriveDisplayModel(
 
   const { fieldDefs, statusFields, panelFields, locale, t: tr } = options;
   const hardError = isHardError(result);
-  const displayResult = withVisibleFields(result, statusFields, panelFields);
+  const displayResult = withVisibleStatus(result, statusFields, panelFields);
   const searchOrder = [...new Set([...statusFields, ...panelFields])];
   const viewOptions = { zone: "status" as const, locale, t: tr };
   const allViews = hardError ? [] : deriveFieldViews(fieldDefs, result, searchOrder, viewOptions);
@@ -265,12 +262,11 @@ export function deriveDisplayModel(
     provider,
     displayName: options.displayName,
     shortDisplayName: options.shortDisplayName,
-    result,
-    status: displayResult.status,
+    result: displayResult,
     statusViews,
     panelViews,
     resets,
   };
-  const facts = deriveDisplayFacts(modelBase, { ...options, allViews, displayResult });
+  const facts = deriveDisplayFacts(modelBase, { ...options, allViews });
   return { ...modelBase, facts };
 }

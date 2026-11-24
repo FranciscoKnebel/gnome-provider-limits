@@ -42,7 +42,7 @@ export async function run() {
     assertEqual(okResult.status, ReaderStatus.OK);
     assertEqual(okResult.fields.length, 1);
 
-    const partialResult = reader._partialResult([field], ["path1"], "some error");
+    const partialResult = reader._partialResult([field], ["path1"], "some error", "source");
     assertEqual(partialResult.status, ReaderStatus.PARTIAL);
     assertEqual(partialResult.lastError, "some error");
 

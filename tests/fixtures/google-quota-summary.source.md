@@ -15,5 +15,8 @@ tokens, or raw account timestamps are stored in this repository.
 `Antigravity Starter Quota` account. It contains only `gemini-weekly` and
 `3p-weekly` buckets, with no 5-hour buckets. Reset timestamps were replaced with
 synthetic values that preserve the relative window offsets. The fixture verifies
-that windows absent from the account's plan are reported as not applicable, not as
-unavailable fields.
+that the parser records the 5-hour windows as unreported. The reader maps unreported
+5-hour windows to not applicable only when the plan is known not to expose them, as
+with Antigravity Starter Quota; under other or unknown plans they stay unavailable.
+Explicitly disabled buckets are not applicable, while malformed buckets and
+unreported windows on supported plans remain unavailable.

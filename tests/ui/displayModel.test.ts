@@ -1,7 +1,7 @@
 import { providerRecord } from "../../src/constants.js";
 import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
 import type { FieldDef, ReaderResult } from "../../src/readers/base.js";
-import { CODEX_FIELDS, PROVIDER_FIELDS } from "../../src/readers/fields.js";
+import { CODEX_FIELDS, GOOGLE_FIELDS, PROVIDER_FIELDS } from "../../src/readers/fields.js";
 import { deriveDisplayModel, diagnosticMessage } from "../../src/ui/displayModel.js";
 import { progressResetPresentation } from "../../src/ui/panelCards.js";
 import { consumedResetNames, resetDetailText, resetSlotText } from "../../src/ui/resetModel.js";
@@ -99,7 +99,7 @@ describe("deriveDisplayModel applies configured-zone health", () => {
   const partialFields: ReaderResult = {
     provider: "codex",
     status: ReaderStatus.PARTIAL,
-    partialKind: "fields",
+    partialCause: "fields",
     lastError: "codex: some fields unavailable.",
     fromCache: false,
     lastUpdated: 1_700_000_000_000,
@@ -129,28 +129,94 @@ describe("deriveDisplayModel applies configured-zone health", () => {
 
   it("ignores unavailable fields outside the configured zones", () => {
     const model = modelFor(partialFields, ["used_percent_primary"], []);
-    expect(model.status).toBe(ReaderStatus.OK);
+    expect(model.result.status).toBe(ReaderStatus.OK);
     expect(model.facts.health.state).toBe("ok");
     expect(model.facts.diagnostic.kind).toBeNull();
   });
 
   it("keeps partial health when a configured field is unavailable", () => {
     const model = modelFor(partialFields, ["used_percent_primary"], ["used_percent_secondary"]);
-    expect(model.status).toBe(ReaderStatus.PARTIAL);
+    expect(model.result.status).toBe(ReaderStatus.PARTIAL);
     expect(model.facts.health.state).toBe("partial");
     expect(model.facts.diagnostic.kind).toBe("warning");
+  });
+
+  it("treats a configured NOT_APPLICABLE field as non-degrading", () => {
+    const notApplicable: ReaderResult = {
+      ...partialFields,
+      fields: [
+        { name: "used_percent_primary", value: 25, status: FieldStatus.OK },
+        { name: "used_percent_secondary", value: null, status: FieldStatus.NOT_APPLICABLE },
+      ],
+    };
+    const model = modelFor(notApplicable, ["used_percent_primary"], ["used_percent_secondary"]);
+    expect(model.result.status).toBe(ReaderStatus.OK);
+    expect(model.facts.health.state).toBe("ok");
+    expect(model.facts.diagnostic.kind).toBeNull();
   });
 
   it("does not hide a source-level partial", () => {
     const sourcePartial: ReaderResult = {
       ...partialFields,
-      partialKind: "source",
+      partialCause: "source",
       lastError: "source unavailable",
     };
     const model = modelFor(sourcePartial, ["used_percent_primary"], []);
-    expect(model.status).toBe(ReaderStatus.PARTIAL);
+    expect(model.result.status).toBe(ReaderStatus.PARTIAL);
     expect(model.facts.health.state).toBe("partial");
     expect(model.facts.diagnostic.text).toBe("source unavailable");
+  });
+
+  it("keeps the default Google zones healthy for a weekly-only Starter result", () => {
+    const googleResult: ReaderResult = {
+      provider: "google",
+      status: ReaderStatus.OK,
+      fromCache: false,
+      lastUpdated: 1_700_000_000_000,
+      fields: [
+        { name: "used_percent_session", value: null, status: FieldStatus.NOT_APPLICABLE },
+        { name: "remaining_percent_session", value: null, status: FieldStatus.NOT_APPLICABLE },
+        { name: "reset_at_session", value: null, status: FieldStatus.NOT_APPLICABLE },
+        { name: "used_percent_weekly", value: 0, status: FieldStatus.OK },
+        { name: "remaining_percent_weekly", value: 100, status: FieldStatus.OK },
+        { name: "reset_at_weekly", value: null, status: FieldStatus.NOT_APPLICABLE },
+        { name: "used_percent_3p_session", value: null, status: FieldStatus.NOT_APPLICABLE },
+        { name: "remaining_percent_3p_session", value: null, status: FieldStatus.NOT_APPLICABLE },
+        { name: "reset_at_3p_session", value: null, status: FieldStatus.NOT_APPLICABLE },
+        { name: "used_percent_3p_weekly", value: 100, status: FieldStatus.OK },
+        { name: "remaining_percent_3p_weekly", value: 0, status: FieldStatus.OK },
+        { name: "reset_at_3p_weekly", value: 1_700_003_600, status: FieldStatus.OK },
+        { name: "limit_reached", value: true, status: FieldStatus.OK },
+        { name: "plan_type", value: "Antigravity Starter Quota", status: FieldStatus.OK },
+        {
+          name: "usage_source",
+          value: "daily-cloudcode-pa.googleapis.com",
+          status: FieldStatus.OK,
+        },
+      ],
+    };
+    const model = deriveDisplayModel("google", googleResult, {
+      fieldDefs: GOOGLE_FIELDS,
+      statusFields: ["used_percent_session", "reset_at_session"],
+      panelFields: [
+        "used_percent_weekly",
+        "reset_at_weekly",
+        "used_percent_3p_session",
+        "used_percent_3p_weekly",
+        "limit_reached",
+        "plan_type",
+        "usage_source",
+      ],
+      displayName: "Google",
+      shortDisplayName: "Google",
+      locale: "en",
+      t: (text) => text,
+    });
+    if (!model) throw new Error("Provider google is disabled");
+    expect(model.result.status).toBe(ReaderStatus.OK);
+    expect(model.facts.health.state).toBe("ok");
+    expect(model.facts.health.tone).toBe("critical");
+    expect(model.facts.diagnostic.kind).toBeNull();
   });
 });
 

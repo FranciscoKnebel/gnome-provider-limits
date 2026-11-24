@@ -340,6 +340,33 @@ describe("normalizeGoogleQuotaSummary", () => {
     }
   });
 
+  it("keeps the exact aggregate when exact and fallback are both present", () => {
+    const usage = normalizeGoogleQuotaSummary(
+      {
+        buckets: [
+          {
+            bucketId: "gemini-5h",
+            window: "5h",
+            remainingFraction: 0.9,
+            resetTime: "2026-04-20T06:00:00Z",
+            description: "10% used",
+          },
+          {
+            bucketId: "gemini-pro-5h",
+            window: "5h",
+            remainingFraction: 0.5,
+            resetTime: "2026-04-20T06:00:00Z",
+          },
+        ],
+      },
+      NOW,
+    );
+
+    expect(usage?.session).toEqual(
+      presentWindow(10, presentReset(Date.parse("2026-04-20T06:00:00Z") / 1000)),
+    );
+  });
+
   it("handles top-level buckets, proto3 omitted zero remainingFraction, and fallback non-exact bucket aggregation", () => {
     const usage = normalizeGoogleQuotaSummary(
       {

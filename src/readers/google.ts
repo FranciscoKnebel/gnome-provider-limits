@@ -1,7 +1,6 @@
 import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 
-import { assertNever } from "../helpers/assertNever.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { HttpClient, HttpError, TokenError } from "../helpers/http.js";
 import { logWarn } from "../helpers/log.js";
@@ -17,10 +16,12 @@ import {
   type FieldResult,
   type NonOkFieldStatus,
   type ReaderResult,
+  type WindowFieldNames,
 } from "./base.js";
 import {
   GOOGLE_CLOUDCODE_DAILY_URL,
   GOOGLE_OAUTH_TOKEN_URL,
+  GOOGLE_WINDOW_IDS,
   hasActiveGoogleUsage,
   hasCompleteActiveGoogleUsage,
   isAntigravityAuthPath,
@@ -33,6 +34,8 @@ import {
   resolveGoogleQuotaEndpoints,
   type GoogleAuth,
   type GoogleUsage,
+  type GoogleWindow,
+  type GoogleWindowId,
   type GoogleWindowReset,
 } from "./googleParser.js";
 
@@ -82,6 +85,41 @@ const RESET_OVERRIDE: Record<Exclude<GoogleWindowReset["state"], "present">, Non
   idle: FieldStatus.NOT_APPLICABLE,
   missing: FieldStatus.UNAVAILABLE,
 };
+
+const GOOGLE_WINDOW_FIELDS: Record<GoogleWindowId, WindowFieldNames<"google">> = {
+  session: {
+    used: "used_percent_session",
+    remaining: "remaining_percent_session",
+    reset: "reset_at_session",
+  },
+  weekly: {
+    used: "used_percent_weekly",
+    remaining: "remaining_percent_weekly",
+    reset: "reset_at_weekly",
+  },
+  thirdPartySession: {
+    used: "used_percent_3p_session",
+    remaining: "remaining_percent_3p_session",
+    reset: "reset_at_3p_session",
+  },
+  thirdPartyWeekly: {
+    used: "used_percent_3p_weekly",
+    remaining: "remaining_percent_3p_weekly",
+    reset: "reset_at_3p_weekly",
+  },
+};
+
+const FIVE_HOUR_WINDOW_IDS = new Set<GoogleWindowId>(["session", "thirdPartySession"]);
+
+const ABSENT_WINDOW_STATUS: Record<Exclude<GoogleWindow["state"], "present">, NonOkFieldStatus> = {
+  unreported: FieldStatus.UNAVAILABLE,
+  disabled: FieldStatus.NOT_APPLICABLE,
+  malformed: FieldStatus.UNAVAILABLE,
+};
+
+function planSupportsFiveHourWindows(plan: string | null): boolean {
+  return plan === null || !/starter/i.test(plan);
+}
 
 export class GoogleReader extends BaseReader<"google"> {
   private _http: HttpClient | null = null;
@@ -541,70 +579,32 @@ export class GoogleReader extends BaseReader<"google"> {
     plan: string | null,
     endpointUsed: string,
   ): FieldResult[] {
-    const windows = [
-      {
-        names: {
-          used: "used_percent_session",
-          remaining: "remaining_percent_session",
-          reset: "reset_at_session",
-        },
-        window: usage.session,
-      },
-      {
-        names: {
-          used: "used_percent_weekly",
-          remaining: "remaining_percent_weekly",
-          reset: "reset_at_weekly",
-        },
-        window: usage.weekly,
-      },
-      {
-        names: {
-          used: "used_percent_3p_session",
-          remaining: "remaining_percent_3p_session",
-          reset: "reset_at_3p_session",
-        },
-        window: usage.thirdPartySession,
-      },
-      {
-        names: {
-          used: "used_percent_3p_weekly",
-          remaining: "remaining_percent_3p_weekly",
-          reset: "reset_at_3p_weekly",
-        },
-        window: usage.thirdPartyWeekly,
-      },
-    ] as const;
-
     const fields: FieldResult[] = [];
-    for (const { names, window } of windows) {
-      switch (window.state) {
-        case "present": {
-          const data = window.usage;
-          const resetAt = data.reset.state === "present" ? data.reset.at : null;
-          const resetOverride =
-            data.reset.state === "present" ? undefined : RESET_OVERRIDE[data.reset.state];
-          fields.push(
-            ...this._makeWindowFields(
-              names,
-              { used_percent: data.usedPercent, reset_at: resetAt },
-              { reset: resetOverride },
-            ),
-          );
-          break;
-        }
-        case "disabled":
-          fields.push(
-            ...this._makeWindowFields(names, null, { absent: FieldStatus.NOT_APPLICABLE }),
-          );
-          break;
-        case "unreported":
-        case "malformed":
-          fields.push(...this._makeWindowFields(names, null, { absent: FieldStatus.UNAVAILABLE }));
-          break;
-        default:
-          assertNever(window);
+    for (const id of GOOGLE_WINDOW_IDS) {
+      const names = GOOGLE_WINDOW_FIELDS[id];
+      const window = usage[id];
+      if (window.state === "present") {
+        const data = window.usage;
+        const resetAt = data.reset.state === "present" ? data.reset.at : null;
+        const resetOverride =
+          data.reset.state === "present" ? undefined : RESET_OVERRIDE[data.reset.state];
+        fields.push(
+          ...this._makeWindowFields(
+            names,
+            { used_percent: data.usedPercent, reset_at: resetAt },
+            { reset: resetOverride },
+          ),
+        );
+        continue;
       }
+      const unsupportedPlanWindow =
+        window.state === "unreported" &&
+        FIVE_HOUR_WINDOW_IDS.has(id) &&
+        !planSupportsFiveHourWindows(plan);
+      const status = unsupportedPlanWindow
+        ? FieldStatus.NOT_APPLICABLE
+        : ABSENT_WINDOW_STATUS[window.state];
+      fields.push(...this._makeWindowFields(names, null, { absent: status }));
     }
 
     fields.push(this._makeField("limit_reached", usage.limitReached, FieldStatus.OK));

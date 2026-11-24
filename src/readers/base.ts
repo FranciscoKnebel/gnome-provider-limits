@@ -58,6 +58,8 @@ export interface FieldResult<T = unknown, TName extends string = string> {
   readonly error?: string | null;
 }
 
+export type PartialCause = "fields" | "source";
+
 export interface ReaderResult {
   readonly provider: ProviderName;
   readonly status: ReaderStatus;
@@ -67,7 +69,7 @@ export interface ReaderResult {
   readonly pathsTried?: readonly string[];
   readonly fromCache: boolean;
   /** Why a PARTIAL result exists: incomplete fields or a failed source. */
-  readonly partialKind?: "fields" | "source";
+  readonly partialCause?: PartialCause;
 }
 
 export function isHardError(result: ReaderResult): boolean {
@@ -178,8 +180,8 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
   protected _partialResult(
     fields: readonly FieldResult[],
     pathsTried: readonly string[],
-    lastError?: string,
-    partialKind: "fields" | "source" = "source",
+    lastError: string | undefined,
+    cause: PartialCause,
   ): ReaderResult {
     return {
       provider: this.providerName,
@@ -189,7 +191,7 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
       lastError: lastError ?? null,
       pathsTried,
       fromCache: false,
-      partialKind,
+      partialCause: cause,
     };
   }
 
@@ -237,7 +239,7 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
       lastError: message,
       pathsTried: [...pathsTried, "last-known-good"],
       fromCache: true,
-      partialKind: "source",
+      partialCause: "source",
     };
   }
 
@@ -246,6 +248,7 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
     pathsTried: readonly string[],
     prefix?: string,
     partialError?: string,
+    cause: PartialCause = "fields",
   ): ReaderResult {
     const hasAny = fields.some((f) => f.status === FieldStatus.OK);
     if (!hasAny) {
@@ -260,7 +263,7 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
           fields,
           pathsTried,
           partialError ?? `${prefix ?? this.providerName}: some fields unavailable.`,
-          partialError ? "source" : "fields",
+          cause,
         )
       : this._okResult(fields, pathsTried);
   }
