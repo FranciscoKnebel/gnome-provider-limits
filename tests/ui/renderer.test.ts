@@ -1,8 +1,7 @@
 import { resolveLocale } from "../../src/helpers/locale.js";
 import { currentRefreshInterval, shouldRender } from "../../src/helpers/refresh.js";
 import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
-import type { BaseReader, ReaderResult } from "../../src/readers/base.js";
-import type { FieldType } from "../../src/readers/base.js";
+import type { FieldDef, ReaderResult } from "../../src/readers/base.js";
 import { fieldTone, getFieldRows, percentTone } from "../../src/ui/fieldRows.js";
 import type { FieldRow } from "../../src/ui/fieldRows.js";
 import { sectionKey, structureKey } from "../../src/ui/renderStructure.js";
@@ -40,13 +39,16 @@ describe("formatters", () => {
   });
 
   describe("getFieldRows", () => {
-    const mockReader = {
-      FIELDS: [
-        { name: "used_percent", label: "Used %", type: "percent" as FieldType },
-        { name: "reset_at", label: "Reset at", type: "timestamp" as FieldType },
-        { name: "plan_type", label: "Plan", type: "text" as FieldType },
-      ],
-    } as unknown as BaseReader;
+    const mockReader: readonly FieldDef[] = [
+      {
+        name: "used_percent",
+        label: "Used %",
+        type: "percent",
+        defaultZone: "panel",
+      },
+      { name: "reset_at", label: "Reset at", type: "timestamp", defaultZone: "panel" },
+      { name: "plan_type", label: "Plan", type: "text", defaultZone: "panel" },
+    ];
 
     const sampleResult: ReaderResult = {
       provider: "codex",
@@ -91,7 +93,7 @@ describe("formatters", () => {
     });
 
     it("returns empty array when no field names match FIELDS", () => {
-      const emptyReader = { FIELDS: [] } as unknown as BaseReader;
+      const emptyReader: readonly FieldDef[] = [];
       const rows = getFieldRows(emptyReader, sampleResult, ["used_percent"], "panel", "en");
       expect(rows).toEqual([]);
     });
@@ -254,9 +256,14 @@ describe("formatters", () => {
     });
 
     it("inverts remaining-percent tones", () => {
-      const readerWithRemaining = {
-        FIELDS: [{ name: "remaining_percent", label: "Remaining %", type: "percent" as FieldType }],
-      } as unknown as BaseReader;
+      const readerWithRemaining: readonly FieldDef[] = [
+        {
+          name: "remaining_percent",
+          label: "Remaining %",
+          type: "percent",
+          defaultZone: "panel",
+        },
+      ];
       const high = getFieldRows(
         readerWithRemaining,
         percentResult("remaining_percent", 90),

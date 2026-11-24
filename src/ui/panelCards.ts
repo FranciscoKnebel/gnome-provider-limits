@@ -2,13 +2,8 @@ import Clutter from "gi://Clutter";
 import type Gio from "gi://Gio";
 import GLib from "gi://GLib";
 import St from "gi://St";
-import { ensureActorVisibleInScrollView } from "resource:///org/gnome/shell/misc/animationUtils.js";
-import { Spinner } from "resource:///org/gnome/shell/ui/animation.js";
-import * as Main from "resource:///org/gnome/shell/ui/main.js";
-import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
 import type { ProviderName } from "../constants.js";
-import { formatTimestampTemplate } from "../formatters.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { resolveLocale } from "../helpers/locale.js";
 import { normalizeProvidersOrder, providerDisplayName } from "../helpers/provider-settings.js";
@@ -23,6 +18,7 @@ import type {
   PanelPlan,
   ProviderCardPlan,
 } from "./cardPlan.js";
+import type { PanelShell, PanelStyleSection } from "./panelShell.js";
 import { applyHealthToneClass, applyToneClass } from "./tone.js";
 
 interface ProgressRowWidgets {
@@ -69,65 +65,24 @@ function bannerStyleClass(kind: BannerKind): string {
     : "pl-diagnostic-banner pl-banner-error";
 }
 
-export class CardsPanelSection extends PopupMenu.PopupMenuSection {
+export class CardsPanelSection implements PanelStyleSection {
   private _settings: Gio.Settings;
   private _readers: Map<ProviderName, BaseReader>;
-  private _openPreferences: () => void;
-  private _onRefresh?: () => void;
   private _running = false;
-  protected _footerRow: PopupMenu.PopupBaseMenuItem | null = null;
-  private _refreshButton: St.BoxLayout | null = null;
-  private _refreshIcon: St.Icon | null = null;
-  private _refreshButtonLabel: St.Label | null = null;
-  private _refreshSpinner: Spinner | null = null;
-  private _lastRefreshLabel: St.Label | null = null;
-  private _settingsButton: St.BoxLayout | null = null;
-  private _settingsLabel: St.Label | null = null;
   private _cards: CardWidgets[] = [];
   private _emptyState: PanelEmptyState = "none";
   private _emptyTitleLabel: St.Label | null = null;
   private _structureKey: string | null = null;
-  private _body: PopupMenu.PopupMenuSection;
-  private _scroll: St.ScrollView;
+  readonly shell: PanelShell;
 
-  constructor(
-    settings: Gio.Settings,
-    readers: Map<ProviderName, BaseReader>,
-    openPreferences: () => void,
-    onRefresh?: () => void,
-  ) {
-    super();
+  constructor(settings: Gio.Settings, readers: Map<ProviderName, BaseReader>, shell: PanelShell) {
     this._settings = settings;
     this._readers = readers;
-    this._openPreferences = openPreferences;
-    this._onRefresh = onRefresh;
-    this._body = new PopupMenu.PopupMenuSection();
-    this._scroll = new St.ScrollView({
-      overlay_scrollbars: true,
-      x_expand: true,
-      style_class: "pl-panel-scroll",
-    });
-    this._scroll.set_policy(St.PolicyType.NEVER, St.PolicyType.AUTOMATIC);
-    this.addMenuItem(this._body);
-    this.box.remove_child(this._body.actor);
-    const scroll = this._scroll as St.ScrollView & { add_actor?: (actor: Clutter.Actor) => void };
-    if (typeof scroll.set_child === "function") scroll.set_child(this._body.actor);
-    else scroll.add_actor?.(this._body.actor);
-    this.box.add_child(this._scroll);
-    this._scroll.connect("notify::mapped", () => {
-      if (!this._scroll.mapped) return;
-      const monitor = Main.layoutManager.findMonitorForActor(this.actor);
-      if (!monitor) return;
-      const area = Main.layoutManager.getWorkAreaForMonitor(monitor.index);
-      const scale = St.ThemeContext.get_for_stage(this.actor.get_stage()).scale_factor;
-      this._scroll.style = `max-height: ${Math.max(1, Math.floor((area.height / scale) * 0.6))}px;`;
-    });
-    this._buildFooter(null, "en");
+    this.shell = shell;
   }
 
-  override destroy(): void {
-    this._body.destroy();
-    super.destroy();
+  destroy(): void {
+    this.shell.destroy();
   }
 
   render(results: Map<ProviderName, ReaderResult>, lastRefreshAt: number | null): void {
@@ -162,39 +117,12 @@ export class CardsPanelSection extends PopupMenu.PopupMenuSection {
   }
 
   setLastRefreshAt(lastRefreshAt: number | null): void {
-    if (!this._lastRefreshLabel) return;
-    const locale = resolveLocale(
-      this._settings.get_string("language"),
-      GLib.getenv("LC_MESSAGES"),
-      GLib.getenv("LANG"),
-    );
-    this._lastRefreshLabel.visible = lastRefreshAt !== null;
-    this._lastRefreshLabel.text = formatTimestampTemplate(
-      _("Last refresh: %s"),
-      lastRefreshAt,
-      locale,
-    );
+    this.shell.setLastRefreshAt(lastRefreshAt);
   }
 
   setRunning(running: boolean): void {
     this._running = running;
-    if (this._refreshSpinner) {
-      this._refreshSpinner.visible = running;
-      if (running) this._refreshSpinner.play();
-      else this._refreshSpinner.stop();
-    }
-    if (this._refreshIcon) {
-      this._refreshIcon.visible = !running;
-    }
-    if (this._refreshButtonLabel) {
-      this._refreshButtonLabel.text = running ? _("Refreshing…") : _("Force refresh");
-      this._refreshButtonLabel.accessible_name = this._refreshButtonLabel.text;
-    }
-    if (this._refreshButton) {
-      this._refreshButton.reactive = !running;
-      if (running) this._refreshButton.add_style_class_name("pl-footer-action-disabled");
-      else this._refreshButton.remove_style_class_name("pl-footer-action-disabled");
-    }
+    this.shell.setRunning(running);
     if (this._emptyState === "loading" && this._emptyTitleLabel) {
       this._emptyTitleLabel.text = running
         ? _("Loading provider limits…")
@@ -204,7 +132,7 @@ export class CardsPanelSection extends PopupMenu.PopupMenuSection {
   }
 
   private _rebuild(plan: PanelPlan, lastRefreshAt: number | null): void {
-    this._body.removeAll();
+    this.shell.clearBody();
     this._cards = [];
     this._emptyState = plan.emptyState;
     this._emptyTitleLabel = null;
@@ -217,13 +145,6 @@ export class CardsPanelSection extends PopupMenu.PopupMenuSection {
       }
     }
 
-    if (this._settingsLabel) {
-      this._settingsLabel.text = _("Settings");
-      this._settingsLabel.accessible_name = _("Settings");
-    }
-    if (this._settingsButton) {
-      this._settingsButton.accessible_name = _("Settings");
-    }
     this.setRunning(this._running);
     this.setLastRefreshAt(lastRefreshAt);
   }
@@ -298,7 +219,7 @@ export class CardsPanelSection extends PopupMenu.PopupMenuSection {
   }
 
   private _addEmptyCard(title: string, subtitle: string | null): void {
-    const host = this._addStaticRow();
+    const host = this.shell.addStaticRow();
     host.add_style_class_name("pl-card-host");
 
     const card = new St.BoxLayout({
@@ -331,11 +252,11 @@ export class CardsPanelSection extends PopupMenu.PopupMenuSection {
     }
 
     host.add_child(card);
-    this._body.addMenuItem(host);
+    this.shell.addBodyItem(host);
   }
 
   private _addCard(plan: ProviderCardPlan): CardWidgets {
-    const host = this._addStaticRow();
+    const host = this.shell.addStaticRow();
     host.add_style_class_name("pl-card-host");
     host.accessible_name = `${plan.displayName} (${plan.badgeText})`;
 
@@ -432,7 +353,7 @@ export class CardsPanelSection extends PopupMenu.PopupMenuSection {
     const telemetryRows = plan.telemetryRows.map((row) => this._buildKeyValueRow(card, row));
 
     host.add_child(card);
-    this._body.addMenuItem(host);
+    this.shell.addBodyItem(host);
 
     return {
       healthDot,
@@ -596,148 +517,5 @@ export class CardsPanelSection extends PopupMenu.PopupMenuSection {
 
     parent.add_child(container);
     return { value: valueWidget, errorLabel };
-  }
-
-  private _addStaticRow(): PopupMenu.PopupBaseMenuItem {
-    const row = new PopupMenu.PopupBaseMenuItem({
-      reactive: true,
-      can_focus: true,
-      activate: false,
-      hover: false,
-    });
-    row.add_style_class_name("provider-limits-static-row");
-    row.connect("key-focus-in", () => ensureActorVisibleInScrollView(this._scroll, row));
-    return row;
-  }
-
-  private _buildFooter(lastRefreshAt: number | null, locale: string): void {
-    const footerRow = new PopupMenu.PopupBaseMenuItem({
-      reactive: false,
-      can_focus: false,
-      activate: false,
-      hover: false,
-    });
-    footerRow.add_style_class_name("provider-limits-static-row");
-    footerRow.add_style_class_name("pl-panel-footer-row");
-
-    const footerBar = new St.BoxLayout({
-      x_expand: true,
-      style_class: "pl-panel-footer",
-    });
-
-    const refreshButton = new St.BoxLayout({
-      reactive: !this._running,
-      can_focus: true,
-      track_hover: true,
-      style_class: "pl-footer-action pl-refresh-action",
-      y_align: Clutter.ActorAlign.CENTER,
-    });
-    refreshButton.accessible_name = _("Force refresh");
-
-    const spinner = new Spinner(14, { animate: true, hideOnStop: true });
-    spinner.add_style_class_name("provider-limits-refresh-spinner");
-    spinner.visible = this._running;
-    if (this._running) spinner.play();
-    refreshButton.add_child(spinner);
-
-    let refreshIcon: St.Icon | null = null;
-    if (typeof St.Icon === "function") {
-      refreshIcon = new St.Icon({
-        icon_name: "view-refresh-symbolic",
-        icon_size: 14,
-        style_class: "pl-footer-icon",
-        y_align: Clutter.ActorAlign.CENTER,
-      });
-      refreshIcon.visible = !this._running;
-      refreshButton.add_child(refreshIcon);
-    }
-
-    const refreshButtonLabel = new St.Label({
-      text: this._running ? _("Refreshing…") : _("Force refresh"),
-      style_class: "pl-footer-action-label",
-      y_align: Clutter.ActorAlign.CENTER,
-    });
-    refreshButtonLabel.accessible_name = refreshButtonLabel.text;
-    refreshButton.add_child(refreshButtonLabel);
-
-    this._connectActionActivation(refreshButton, () => {
-      if (!this._running) this._onRefresh?.();
-    });
-
-    const lastRefreshLabel = new St.Label({
-      text: formatTimestampTemplate(_("Last refresh: %s"), lastRefreshAt, locale),
-      style_class: "provider-limits-dim pl-footer-timestamp",
-      x_expand: true,
-      x_align: Clutter.ActorAlign.CENTER,
-      y_align: Clutter.ActorAlign.CENTER,
-    });
-    lastRefreshLabel.visible = lastRefreshAt !== null;
-
-    const settingsButton = new St.BoxLayout({
-      reactive: true,
-      can_focus: true,
-      track_hover: true,
-      style_class: "pl-footer-action pl-settings-action",
-      y_align: Clutter.ActorAlign.CENTER,
-    });
-    settingsButton.accessible_name = _("Settings");
-
-    if (typeof St.Icon === "function") {
-      settingsButton.add_child(
-        new St.Icon({
-          icon_name: "preferences-system-symbolic",
-          icon_size: 14,
-          style_class: "pl-footer-icon",
-          y_align: Clutter.ActorAlign.CENTER,
-        }),
-      );
-    }
-
-    const settingsLabel = new St.Label({
-      text: _("Settings"),
-      style_class: "pl-footer-action-label",
-      y_align: Clutter.ActorAlign.CENTER,
-    });
-    settingsLabel.accessible_name = _("Settings");
-    settingsButton.add_child(settingsLabel);
-
-    this._connectActionActivation(settingsButton, () => {
-      this._getTopMenu?.()?.close();
-      this._openPreferences();
-    });
-
-    footerBar.add_child(refreshButton);
-    footerBar.add_child(lastRefreshLabel);
-    footerBar.add_child(settingsButton);
-    footerRow.add_child(footerBar);
-
-    this._footerRow = footerRow;
-    this._refreshButton = refreshButton;
-    this._refreshIcon = refreshIcon;
-    this._refreshButtonLabel = refreshButtonLabel;
-    this._refreshSpinner = spinner;
-    this._lastRefreshLabel = lastRefreshLabel;
-    this._settingsButton = settingsButton;
-    this._settingsLabel = settingsLabel;
-    this.addMenuItem(footerRow);
-  }
-
-  private _connectActionActivation(actor: St.BoxLayout, onActivate: () => void): void {
-    actor.connect("key-press-event", (_target: Clutter.Actor, event: Clutter.Event) => {
-      const symbol = event.get_key_symbol();
-      if (
-        symbol === Clutter.KEY_Return ||
-        symbol === Clutter.KEY_KP_Enter ||
-        symbol === Clutter.KEY_space
-      ) {
-        onActivate();
-        return Clutter.EVENT_STOP;
-      }
-      return Clutter.EVENT_PROPAGATE;
-    });
-    actor.connect("button-release-event", () => {
-      onActivate();
-      return Clutter.EVENT_STOP;
-    });
   }
 }

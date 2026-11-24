@@ -37,10 +37,8 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       ]);
     });
 
-    it("resolves explicit and inferred field categories", () => {
-      expect(resolveFieldCategory({ name: "plan_type", type: "text", category: "telemetry" })).toBe(
-        "telemetry",
-      );
+    it("resolves field categories from name and type", () => {
+      expect(resolveFieldCategory({ name: "plan_type", type: "text" })).toBe("telemetry");
       expect(resolveFieldCategory({ name: "used_percent_primary", type: "percent" })).toBe("limit");
       expect(resolveFieldCategory({ name: "limit_reached", type: "bool" })).toBe("limit");
       expect(resolveFieldCategory({ name: "total_cost", type: "cost" })).toBe("telemetry");

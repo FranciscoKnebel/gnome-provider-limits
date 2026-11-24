@@ -3,6 +3,7 @@ import Gio from "gi://Gio";
 import GObject from "gi://GObject";
 import Gtk from "gi://Gtk?version=4.0";
 
+import { PANEL_STYLES, STATUS_BAR_STYLES } from "../styles.js";
 import { gettext as _ } from "./gettext.js";
 import { bindSetting, unbindSettings } from "./shared.js";
 import type { SettingsBinding } from "./shared.js";
@@ -11,9 +12,6 @@ export interface LanguageEntry {
   code: string;
   name: string;
 }
-
-const STATUS_BAR_STYLE_VALUES = ["pills", "gauges", "compact"] as const;
-const PANEL_STYLE_VALUES = ["gauges", "cards", "compact"] as const;
 
 export const ProviderLimitsPreferencesPage = GObject.registerClass(
   class ProviderLimitsPreferencesPage extends Adw.PreferencesPage {
@@ -72,8 +70,8 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
         "refresh-long-interval-seconds",
         _("Long interval"),
         _("Seconds between refreshes when data is stable."),
-        30,
-        86400,
+        60,
+        3600,
         60,
       );
       group.add(longRow);
@@ -83,7 +81,7 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
         _("Stable reads threshold"),
         _("Number of consecutive identical reads before switching to the long interval."),
         1,
-        100,
+        10,
         1,
       );
       group.add(stableRow);
@@ -111,15 +109,13 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
 
       const updateStatusStyleFromSettings = () => {
         const val = this._settings.get_string("status-bar-style");
-        const idx = STATUS_BAR_STYLE_VALUES.indexOf(
-          val as (typeof STATUS_BAR_STYLE_VALUES)[number],
-        );
+        const idx = STATUS_BAR_STYLES.indexOf(val as (typeof STATUS_BAR_STYLES)[number]);
         statusStyleRow.selected = idx >= 0 ? idx : 0;
       };
       updateStatusStyleFromSettings();
 
       statusStyleRow.connect("notify::selected", (combo: Adw.ComboRow) => {
-        const selectedVal = STATUS_BAR_STYLE_VALUES[combo.selected] ?? "pills";
+        const selectedVal = STATUS_BAR_STYLES[combo.selected] ?? "pills";
         if (this._settings.get_string("status-bar-style") !== selectedVal) {
           this._settings.set_string("status-bar-style", selectedVal);
         }
@@ -145,13 +141,13 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
 
       const updatePanelStyleFromSettings = () => {
         const val = this._settings.get_string("panel-style");
-        const idx = PANEL_STYLE_VALUES.indexOf(val as (typeof PANEL_STYLE_VALUES)[number]);
+        const idx = PANEL_STYLES.indexOf(val as (typeof PANEL_STYLES)[number]);
         panelStyleRow.selected = idx >= 0 ? idx : 0;
       };
       updatePanelStyleFromSettings();
 
       panelStyleRow.connect("notify::selected", (combo: Adw.ComboRow) => {
-        const selectedVal = PANEL_STYLE_VALUES[combo.selected] ?? "gauges";
+        const selectedVal = PANEL_STYLES[combo.selected] ?? "gauges";
         if (this._settings.get_string("panel-style") !== selectedVal) {
           this._settings.set_string("panel-style", selectedVal);
         }
@@ -195,7 +191,10 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
         title: _("Language"),
       });
 
-      const items = [_("Follow system"), ...this._languages.map((l) => l.name)];
+      const sorted = this._languages.toSorted((a, b) =>
+        a.name < b.name ? -1 : a.name > b.name ? 1 : 0,
+      );
+      const items = [_("Follow system"), ...sorted.map((l) => l.name)];
       const model = Gtk.StringList.new(items);
       const row = new Adw.ComboRow({
         title: _("Display language"),
@@ -204,12 +203,11 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
       });
 
       const currentCode = this._settings.get_string("language");
-      const currentIndex = this._languages.findIndex((l) => l.code === currentCode);
+      const currentIndex = sorted.findIndex((l) => l.code === currentCode);
       row.selected = currentIndex >= 0 ? currentIndex + 1 : 0;
 
       row.connect("notify::selected", (combo: Adw.ComboRow) => {
-        const newCode =
-          combo.selected === 0 ? "" : (this._languages[combo.selected - 1]?.code ?? "");
+        const newCode = combo.selected === 0 ? "" : (sorted[combo.selected - 1]?.code ?? "");
         if (this._settings.get_string("language") !== newCode) {
           this._settings.set_string("language", newCode);
         }

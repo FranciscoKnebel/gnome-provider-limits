@@ -581,10 +581,7 @@ const TELEMETRY_FIELD_NAMES = new Set<string>([
   "spend_limit_used",
 ]);
 
-export function resolveFieldCategory(
-  def: FieldDef | { name: string; type: FieldDef["type"]; category?: FieldCategory },
-): FieldCategory {
-  if (def.category) return def.category;
+export function resolveFieldCategory(def: Pick<FieldDef, "name" | "type">): FieldCategory {
   if (TELEMETRY_FIELD_NAMES.has(def.name) || def.type === "cost" || def.type === "tokens") {
     return "telemetry";
   }

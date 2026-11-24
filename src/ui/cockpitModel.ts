@@ -2,9 +2,33 @@ import type { ProviderName } from "../constants.js";
 import { formatField } from "../formatters.js";
 import { FieldStatus, ReaderStatus } from "../readers/base.js";
 import type { FieldDef, ReaderResult } from "../readers/base.js";
-import { fieldTone } from "./fieldRows.js";
-import type { FieldTone } from "./fieldRows.js";
-import { structureKey } from "./renderStructure.js";
+import { GAUGE_END_ANGLE, GAUGE_START_ANGLE, GAUGE_SWEEP_ANGLE, TONE_RGB } from "./cairoDrawing.js";
+import {
+  clampRatio,
+  deriveUsageSnapshot,
+  extractWindowSuffix,
+  fieldTone,
+  isLimitReached,
+  selectPercentField,
+  usageStructureKey,
+} from "./usageSnapshot.js";
+import type { FieldTone } from "./usageSnapshot.js";
+
+export { clampRatio, extractWindowSuffix };
+export {
+  CAIRO_LINE_CAP_ROUND,
+  GAUGE_END_ANGLE,
+  GAUGE_START_ANGLE,
+  GAUGE_SWEEP_ANGLE,
+  TRACK_RGBA,
+  TONE_RGB,
+  disposeCairoContext,
+  drawMicroRing,
+  drawMiniCapsule,
+  drawRadialGauge,
+  isCairoContext,
+  type CairoContextLike,
+} from "./cairoDrawing.js";
 
 export type CockpitTab = "overview" | ProviderName;
 
@@ -13,36 +37,6 @@ export type GaugeTone = FieldTone | "neutral";
 export type RgbTuple = readonly [number, number, number];
 
 export type OverviewBadgeKind = "ok" | "cached" | "partial" | "error" | "loading";
-
-export const CAIRO_LINE_CAP_ROUND = 1;
-
-export const GAUGE_START_ANGLE = 0.75 * Math.PI;
-export const GAUGE_SWEEP_ANGLE = 1.5 * Math.PI;
-export const GAUGE_END_ANGLE = GAUGE_START_ANGLE + GAUGE_SWEEP_ANGLE;
-
-export const TONE_RGB: Record<GaugeTone, RgbTuple> = {
-  ok: [0x2e / 255, 0xc2 / 255, 0x7e / 255],
-  warning: [0xe5 / 255, 0xa5 / 255, 0x0a / 255],
-  critical: [0xe0 / 255, 0x1b / 255, 0x24 / 255],
-  neutral: [0x88 / 255, 0x88 / 255, 0x90 / 255],
-};
-
-export const TRACK_RGBA: readonly [number, number, number, number] = [0.5, 0.5, 0.5, 0.24];
-
-export interface CairoContextLike {
-  save(): void;
-  restore(): void;
-  newPath(): void;
-  newSubPath(): void;
-  moveTo(x: number, y: number): void;
-  lineTo(x: number, y: number): void;
-  arc(xc: number, yc: number, radius: number, angle1: number, angle2: number): void;
-  setLineWidth(width: number): void;
-  setLineCap(cap: number): void;
-  setSourceRGBA(r: number, g: number, b: number, a: number): void;
-  stroke(): void;
-  $dispose?: () => void;
-}
 
 export interface GaugeGeometry {
   readonly ratio: number;
@@ -105,38 +99,6 @@ export interface OverviewRowModel {
   readonly accessibleText: string;
 }
 
-export function isCairoContext(value: unknown): value is CairoContextLike {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "arc" in value &&
-    "setSourceRGBA" in value &&
-    "stroke" in value
-  );
-}
-
-function hasDisposeMethod(value: unknown): value is { $dispose: () => void } {
-  return (
-    typeof value === "object" &&
-    value !== null &&
-    "$dispose" in value &&
-    typeof value.$dispose === "function"
-  );
-}
-
-export function disposeCairoContext(value: unknown): void {
-  if (hasDisposeMethod(value)) {
-    value.$dispose();
-  }
-}
-
-export function clampRatio(percentValue: unknown): number | null {
-  if (typeof percentValue !== "number" || !Number.isFinite(percentValue)) {
-    return null;
-  }
-  return Math.min(1, Math.max(0, percentValue / 100));
-}
-
 export function toneToRgb(tone: GaugeTone): RgbTuple {
   return TONE_RGB[tone];
 }
@@ -180,11 +142,6 @@ export function computeGaugeGeometry(fieldName: string, rawValue: unknown): Gaug
   };
 }
 
-export function extractWindowSuffix(fieldName: string): string | null {
-  const match = /^(?:used|remaining)_percent_(.+)$/.exec(fieldName);
-  return match ? match[1] : null;
-}
-
 export function computeStatusMicroMeter(
   fieldsDefs: readonly FieldDef[],
   result: ReaderResult,
@@ -202,19 +159,20 @@ export function computeStatusMicroMeter(
     };
   }
 
-  let candidateName: string | null = null;
-  for (const name of statusFieldNames) {
-    const def = fieldsDefs.find((f) => f.name === name);
-    if (def?.type === "percent") {
-      candidateName = name;
-      break;
-    }
+  if (isLimitReached(result.fields)) {
+    return {
+      ratio: 1,
+      hasValue: true,
+      startAngle: GAUGE_START_ANGLE,
+      endAngle: GAUGE_START_ANGLE + GAUGE_SWEEP_ANGLE,
+      tone: "critical",
+      rgb: TONE_RGB.critical,
+      isError: false,
+    };
   }
 
-  if (candidateName === null) {
-    const fallbackDef = fieldsDefs.find((f) => f.type === "percent");
-    candidateName = fallbackDef?.name ?? null;
-  }
+  const candidateName: string | null =
+    selectPercentField(fieldsDefs, statusFieldNames, result.fields)?.name ?? null;
 
   if (candidateName !== null) {
     const field = result.fields.find((f) => f.name === candidateName);
@@ -463,52 +421,41 @@ export function buildOverviewRowModel(options: {
   }
 
   const searchOrder = [...statusFieldNames, ...panelFieldNames];
-  let primaryPercentDef: FieldDef | undefined;
-  for (const name of searchOrder) {
-    const def = fieldsDefs.find((f) => f.name === name);
-    if (def?.type === "percent") {
-      primaryPercentDef = def;
-      break;
-    }
-  }
-  if (!primaryPercentDef) {
-    primaryPercentDef = fieldsDefs.find((f) => f.type === "percent");
-  }
+  const snapshot = deriveUsageSnapshot({
+    fieldDefs: fieldsDefs,
+    result,
+    preferredFieldNames: searchOrder,
+    locale,
+    t: tr,
+  });
+  const resolvedTone = snapshot.tone === "error" ? undefined : snapshot.tone;
 
   let primaryText = "—";
-  let resolvedTone: FieldTone | undefined;
-  let secondaryText: string | null = null;
+  if (snapshot.fieldName !== null && snapshot.value !== null) {
+    primaryText = formatField({
+      type: "percent",
+      value: snapshot.value,
+      zone: "status",
+      locale,
+      t: tr,
+    });
+  }
 
-  if (primaryPercentDef) {
-    const field = result.fields.find((f) => f.name === primaryPercentDef.name);
-    if (field?.status === FieldStatus.OK && field.value !== null && field.value !== undefined) {
-      primaryText = formatField({
-        type: "percent",
-        value: field.value,
+  let secondaryText: string | null = null;
+  if (snapshot.resetFieldName !== null) {
+    const resetField = result.fields.find((f) => f.name === snapshot.resetFieldName);
+    if (
+      resetField?.status === FieldStatus.OK &&
+      resetField.value !== null &&
+      resetField.value !== undefined
+    ) {
+      secondaryText = `↻ ${formatField({
+        type: "timestamp",
+        value: resetField.value,
         zone: "status",
         locale,
         t: tr,
-      });
-      resolvedTone = fieldTone(primaryPercentDef.name, field.value);
-    }
-
-    const suffix = extractWindowSuffix(primaryPercentDef.name);
-    if (suffix !== null) {
-      const resetField = result.fields.find((f) => f.name === "reset_at_" + suffix);
-      if (
-        resetField?.status === FieldStatus.OK &&
-        resetField.value !== null &&
-        resetField.value !== undefined
-      ) {
-        const formattedReset = formatField({
-          type: "timestamp",
-          value: resetField.value,
-          zone: "status",
-          locale,
-          t: tr,
-        });
-        secondaryText = `↻ ${formattedReset}`;
-      }
+      })}`;
     }
   }
 
@@ -573,7 +520,7 @@ export function providerDetailStructureKey(options: {
     b.errorText === undefined ? 0 : 1,
   ]);
 
-  return structureKey([
+  return usageStructureKey([
     options.provider,
     options.displayName,
     options.status,
@@ -583,142 +530,4 @@ export function providerDetailStructureKey(options: {
     JSON.stringify(gaugeKeys),
     JSON.stringify(bentoKeys),
   ]);
-}
-
-export function drawMicroRing(
-  cr: CairoContextLike,
-  width: number,
-  height: number,
-  spec: MicroMeterSpec,
-): void {
-  const size = Math.min(width, height);
-  if (size <= 2) return;
-
-  const cx = width / 2;
-  const cy = height / 2;
-  const lineWidth = Math.max(1.8, size * 0.17);
-  const radius = Math.max(1, size / 2 - lineWidth / 2 - 0.5);
-
-  cr.save();
-  cr.setLineWidth(lineWidth);
-  cr.setLineCap(CAIRO_LINE_CAP_ROUND);
-
-  if (spec.isError) {
-    const [er, eg, eb] = TONE_RGB.critical;
-    cr.newSubPath();
-    cr.arc(cx, cy, radius, GAUGE_START_ANGLE, GAUGE_END_ANGLE);
-    cr.setSourceRGBA(er, eg, eb, 0.45);
-    cr.stroke();
-    cr.restore();
-    return;
-  }
-
-  const [tr, tg, tb, ta] = TRACK_RGBA;
-  cr.newSubPath();
-  cr.arc(cx, cy, radius, GAUGE_START_ANGLE, GAUGE_END_ANGLE);
-  cr.setSourceRGBA(tr, tg, tb, ta);
-  cr.stroke();
-
-  if (spec.hasValue && spec.endAngle > spec.startAngle) {
-    const [r, g, b] = spec.rgb;
-    cr.newSubPath();
-    cr.arc(cx, cy, radius, spec.startAngle, spec.endAngle);
-    cr.setSourceRGBA(r, g, b, 1);
-    cr.stroke();
-  }
-
-  cr.restore();
-}
-
-export function drawRadialGauge(
-  cr: CairoContextLike,
-  width: number,
-  height: number,
-  geometry: GaugeGeometry,
-): void {
-  const size = Math.min(width, height);
-  if (size <= 6) return;
-
-  const cx = width / 2;
-  const cy = height / 2;
-  const lineWidth = Math.max(4, size * 0.09);
-  const radius = Math.max(4, size / 2 - lineWidth / 2 - 2);
-
-  cr.save();
-
-  const innerRadius = Math.max(2, radius - lineWidth * 0.95);
-  cr.newSubPath();
-  cr.arc(cx, cy, innerRadius, 0, 2 * Math.PI);
-  cr.setLineWidth(1);
-  cr.setSourceRGBA(0.5, 0.5, 0.5, 0.1);
-  cr.stroke();
-
-  cr.setLineWidth(lineWidth);
-  cr.setLineCap(CAIRO_LINE_CAP_ROUND);
-
-  const [tr, tg, tb, ta] = TRACK_RGBA;
-  cr.newSubPath();
-  cr.arc(cx, cy, radius, geometry.startAngle, geometry.trackEndAngle);
-  cr.setSourceRGBA(tr, tg, tb, ta);
-  cr.stroke();
-
-  if (geometry.hasValue && geometry.endAngle > geometry.startAngle) {
-    const [r, g, b] = geometry.rgb;
-    cr.newSubPath();
-    cr.arc(cx, cy, radius, geometry.startAngle, geometry.endAngle);
-    cr.setSourceRGBA(r, g, b, 1);
-    cr.stroke();
-  }
-
-  cr.restore();
-}
-
-export function drawMiniCapsule(
-  cr: CairoContextLike,
-  width: number,
-  height: number,
-  spec: MicroMeterSpec,
-): void {
-  if (width <= 4 || height <= 1) return;
-
-  const barHeight = Math.min(height, Math.max(3, height * 0.75));
-  const capRadius = barHeight / 2;
-  const x0 = capRadius + 0.5;
-  const x1 = Math.max(x0, width - capRadius - 0.5);
-  const cy = height / 2;
-  const span = x1 - x0;
-
-  cr.save();
-  cr.setLineWidth(barHeight);
-  cr.setLineCap(CAIRO_LINE_CAP_ROUND);
-
-  if (spec.isError) {
-    const [er, eg, eb] = TONE_RGB.critical;
-    cr.newPath();
-    cr.moveTo(x0, cy);
-    cr.lineTo(x1, cy);
-    cr.setSourceRGBA(er, eg, eb, 0.35);
-    cr.stroke();
-    cr.restore();
-    return;
-  }
-
-  const [tr, tg, tb, ta] = TRACK_RGBA;
-  cr.newPath();
-  cr.moveTo(x0, cy);
-  cr.lineTo(x1, cy);
-  cr.setSourceRGBA(tr, tg, tb, ta);
-  cr.stroke();
-
-  if (spec.hasValue && spec.ratio > 0) {
-    const [r, g, b] = spec.rgb;
-    const fillX = x0 + Math.max(0.01, spec.ratio) * span;
-    cr.newPath();
-    cr.moveTo(x0, cy);
-    cr.lineTo(fillX, cy);
-    cr.setSourceRGBA(r, g, b, 1);
-    cr.stroke();
-  }
-
-  cr.restore();
 }

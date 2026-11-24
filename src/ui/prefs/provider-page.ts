@@ -252,6 +252,36 @@ function buildFieldMatrixGroup(
   return group;
 }
 
+function addIdentityRows(
+  settings: Gio.Settings,
+  provider: ProviderName,
+  bindings: SettingsBinding[],
+  addRow: (row: Adw.PreferencesRow) => void,
+): void {
+  const displayNameRow = new Adw.EntryRow({
+    title: _("Display name"),
+    text: settings.get_string(`${provider}-display-name`) ?? "",
+  });
+  bindSetting(settings, `${provider}-display-name`, displayNameRow, "text", bindings);
+  addRow(displayNameRow);
+
+  const shortNameRow = new Adw.EntryRow({
+    title: _("Short display name"),
+    text: settings.get_string(`${provider}-display-name-short`) ?? "",
+  });
+  bindSetting(settings, `${provider}-display-name-short`, shortNameRow, "text", bindings);
+  addRow(shortNameRow);
+
+  const pathKey = `${provider}-cli-path`;
+  const isAuthFileProvider = provider === "grok" || provider === "cursor" || provider === "google";
+  const cliRow = new Adw.EntryRow({
+    title: isAuthFileProvider ? _("Authentication file") : _("CLI path"),
+    text: settings.get_string(pathKey) ?? "",
+  });
+  bindSetting(settings, pathKey, cliRow, "text", bindings);
+  addRow(cliRow);
+}
+
 export const ProviderExpanderRow = GObject.registerClass(
   class ProviderExpanderRow extends Adw.ExpanderRow {
     declare _settings: Gio.Settings;
@@ -351,42 +381,7 @@ export const ProviderExpanderRow = GObject.registerClass(
         GLib.getenv("LANG"),
       );
 
-      // Identity rows
-      const displayNameRow = new Adw.EntryRow({
-        title: _("Display name"),
-        text: this._settings.get_string(`${this._provider}-display-name`) ?? "",
-      });
-      bindSetting(
-        this._settings,
-        `${this._provider}-display-name`,
-        displayNameRow,
-        "text",
-        this._bindings,
-      );
-      this.add_row(displayNameRow);
-
-      const shortNameRow = new Adw.EntryRow({
-        title: _("Short display name"),
-        text: this._settings.get_string(`${this._provider}-display-name-short`) ?? "",
-      });
-      bindSetting(
-        this._settings,
-        `${this._provider}-display-name-short`,
-        shortNameRow,
-        "text",
-        this._bindings,
-      );
-      this.add_row(shortNameRow);
-
-      const pathKey = `${this._provider}-cli-path`;
-      const isAuthFileProvider =
-        this._provider === "grok" || this._provider === "cursor" || this._provider === "google";
-      const cliRow = new Adw.EntryRow({
-        title: isAuthFileProvider ? _("Authentication file") : _("CLI path"),
-        text: this._settings.get_string(pathKey) ?? "",
-      });
-      bindSetting(this._settings, pathKey, cliRow, "text", this._bindings);
-      this.add_row(cliRow);
+      addIdentityRows(this._settings, this._provider, this._bindings, (row) => this.add_row(row));
 
       // Field Matrix group inside expander
       const matrixGroup = buildFieldMatrixGroup(
@@ -451,99 +446,6 @@ export const ProvidersPage = GObject.registerClass(
     cleanup(): void {
       for (const destroy of this._destroyCallbacks) destroy();
       this._destroyCallbacks = [];
-    }
-  },
-);
-
-export const ProviderPage = GObject.registerClass(
-  class ProviderPage extends Adw.PreferencesPage {
-    declare _settings: Gio.Settings;
-    declare _provider: ProviderName;
-    declare _titleChangedId: number;
-    declare _destroyCallbacks: (() => void)[];
-    declare _bindings: SettingsBinding[];
-
-    _init(settings: Gio.Settings, provider: ProviderName) {
-      super._init({
-        title: providerDisplayName(settings, provider),
-        icon_name: "preferences-system-symbolic",
-      });
-
-      this._settings = settings;
-      this._provider = provider;
-      this._destroyCallbacks = [];
-      this._bindings = [];
-
-      this._titleChangedId = settings.connect(`changed::${provider}-display-name`, () => {
-        this.title = providerDisplayName(settings, provider);
-      });
-
-      const locale = resolveLocale(
-        this._settings.get_string("language"),
-        GLib.getenv("LC_MESSAGES"),
-        GLib.getenv("LANG"),
-      );
-
-      this.add(this._buildSettingsGroup());
-      this.add(
-        buildFieldMatrixGroup(this._settings, this._provider, locale, this._destroyCallbacks),
-      );
-
-      this.connect("destroy", () => this.cleanup());
-    }
-
-    cleanup(): void {
-      if (this._titleChangedId) {
-        this._settings.disconnect(this._titleChangedId);
-        this._titleChangedId = 0;
-      }
-
-      for (const destroy of this._destroyCallbacks) destroy();
-      this._destroyCallbacks = [];
-
-      unbindSettings(this._bindings);
-    }
-
-    private _buildSettingsGroup(): Adw.PreferencesGroup {
-      const group = new Adw.PreferencesGroup({ title: _("Settings") });
-
-      const displayNameRow = new Adw.EntryRow({
-        title: _("Display name"),
-        text: this._settings.get_string(`${this._provider}-display-name`) ?? "",
-      });
-      bindSetting(
-        this._settings,
-        `${this._provider}-display-name`,
-        displayNameRow,
-        "text",
-        this._bindings,
-      );
-      group.add(displayNameRow);
-
-      const shortNameRow = new Adw.EntryRow({
-        title: _("Short display name"),
-        text: this._settings.get_string(`${this._provider}-display-name-short`) ?? "",
-      });
-      bindSetting(
-        this._settings,
-        `${this._provider}-display-name-short`,
-        shortNameRow,
-        "text",
-        this._bindings,
-      );
-      group.add(shortNameRow);
-
-      const pathKey = `${this._provider}-cli-path`;
-      const isAuthFileProvider =
-        this._provider === "grok" || this._provider === "cursor" || this._provider === "google";
-      const cliRow = new Adw.EntryRow({
-        title: isAuthFileProvider ? _("Authentication file") : _("CLI path"),
-        text: this._settings.get_string(pathKey) ?? "",
-      });
-      bindSetting(this._settings, pathKey, cliRow, "text", this._bindings);
-      group.add(cliRow);
-
-      return group;
     }
   },
 );
