@@ -591,6 +591,54 @@ export async function run() {
     reader.destroy();
   });
 
+  await test("GoogleReader refreshes OAuth when the models fallback rejects the token", async () => {
+    Gio.File.prototype.load_contents_async = async () =>
+      encodeJson({
+        access_token: "ya29.revoked",
+        expiry_date: Date.now() + 3600_000,
+        refresh_token: "1//backup-refresh",
+        client_id: "cid",
+        client_secret: "csecret",
+      });
+
+    let modelCalls = 0;
+    const reader = newReader({
+      postForm: async () => ({ access_token: "ya29.recovered" }),
+      postJson: async (url, _body, options) => {
+        if (url.endsWith("/v1internal:retrieveUserQuotaSummary")) {
+          return { buckets: [] };
+        }
+        if (url.endsWith("/v1internal:fetchAvailableModels")) {
+          modelCalls++;
+          if (options.headers.Authorization === "Bearer ya29.revoked") {
+            throw new TokenError("HTTP 401", 401);
+          }
+          assertEqual(options.headers.Authorization, "Bearer ya29.recovered");
+          return {
+            models: {
+              "gemini-2.5-pro": {
+                modelProvider: "MODEL_PROVIDER_GOOGLE",
+                quotaInfo: {
+                  remainingFraction: 0.5,
+                  resetTime: "2026-04-20T06:00:00Z",
+                },
+              },
+            },
+          };
+        }
+        if (url.endsWith("/v1internal:loadCodeAssist")) {
+          return { paidTier: { id: "standard-tier", name: "Google AI Pro" } };
+        }
+        throw new Error(`unexpected URL ${url}`);
+      },
+    });
+
+    const result = await reader.read();
+    assertEqual(modelCalls, 2);
+    assertEqual(result.fields.find((f) => f.name === "used_percent_session")?.value, 50);
+    reader.destroy();
+  });
+
   await test("GoogleReader rejects untrusted token_uri and service-account files without network calls", async () => {
     for (const badAuth of [
       {

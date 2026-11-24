@@ -334,6 +334,7 @@ export class GoogleReader extends BaseReader<"google"> {
       this._assertAlive();
       if (cancellable.is_cancelled()) return null;
       if (summary && hasUsableGoogleUsage(summary)) return summary;
+      if (error instanceof TokenError && error.statusCode === 401) throw error;
       logWarn("google models request failed", error);
       return null;
     }
