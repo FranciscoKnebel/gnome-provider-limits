@@ -162,7 +162,7 @@ describe("matrixPlan", () => {
         JSON.stringify([
           model.provider,
           model.shortDisplayName,
-          model.facts.displayStatus,
+          model.facts.health.displayStatus,
           model.statusViews.map((view) => view.name),
         ]),
       );
@@ -231,7 +231,7 @@ describe("matrixPlan", () => {
       expect(models[0].facts.health.attention).toBe("quiet");
       expect(models[1].statusViews.map((view) => view.valueText).join("·")).toContain("82%·");
       expect(models[1].facts.health.attention).toBe("critical");
-      expect(models[2].facts.displayStatus).toBe(ReaderStatus.ERROR);
+      expect(models[2].facts.health.displayStatus).toBe(ReaderStatus.ERROR);
       expect(models[2].facts.health.state).toBe("error");
       expect(models[2].facts.health.attention).toBe("error");
     });
@@ -380,9 +380,9 @@ describe("matrixPlan", () => {
       expect(facts.usage.header.tone).toBe("warning");
       expect(facts.diagnostic).toEqual({
         kind: "warning",
-        text: "Showing recent cached limits",
+        cardText: "Showing recent cached limits",
         badge: "Partial",
-        message: "Showing recent cached limits",
+        calloutText: "Showing recent cached limits",
       });
       expect(facts.lastUpdatedText).toContain("Last updated:");
 
@@ -503,18 +503,18 @@ describe("matrixPlan", () => {
       const codexExpanded = expandedContext.models.find((model) => model.provider === "codex");
       expect(codexExpanded?.facts.diagnostic).toEqual({
         kind: "error",
-        text: "Codex login required",
+        cardText: "Codex login required",
         badge: "Error",
-        message: "Codex login required",
+        calloutText: "Codex login required",
       });
 
       const claudeExpanded = expandedContext.models.find((model) => model.provider === "claude");
       expect(claudeExpanded?.facts.usage.header.summaryText).toBe("(unavailable)");
       expect(claudeExpanded?.facts.diagnostic).toEqual({
         kind: "error",
-        text: "Unavailable",
+        cardText: "Unavailable",
         badge: "Error",
-        message: "Error",
+        calloutText: "Error",
       });
     });
   });

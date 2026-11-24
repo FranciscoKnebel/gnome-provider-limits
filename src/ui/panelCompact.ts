@@ -143,8 +143,8 @@ export class CompactPanelSection extends PanelStyleSection {
     const fiveSegmentBar = header.fillRatio !== null ? formatSegmentedBar(header.fillRatio, 5) : "";
     const headerTone = header.tone;
     const diagnostic = facts.diagnostic;
-    const errorText = diagnostic.kind === "error" ? diagnostic.message : null;
-    const detailText = diagnostic.kind === "warning" ? diagnostic.message : null;
+    const errorText = diagnostic.kind === "error" ? diagnostic.calloutText : null;
+    const detailText = diagnostic.kind === "warning" ? diagnostic.calloutText : null;
     const showRows = errorText === null;
 
     const accessibleParts = [model.displayName];
@@ -221,7 +221,7 @@ export class CompactPanelSection extends PanelStyleSection {
       });
       applyToneClass(
         badgeLabel,
-        model.facts.displayStatus === ReaderStatus.PARTIAL ? "warning" : "error",
+        model.facts.health.displayStatus === ReaderStatus.PARTIAL ? "warning" : "error",
         { quiet: true },
       );
       leftTitleBox.add_child(badgeLabel);

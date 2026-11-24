@@ -51,6 +51,13 @@ Field can raise urgency even when it is not selected. Missing usage stays
 unavailable, not zero.
 _Avoid_: Null field, missing value, absent metric.
 
+**Display Status**:
+The Reader Result status after excluding `DISABLED` and applying the configured
+Field policy. A `PARTIAL` result becomes `OK` when no selected Field degrades
+health and the result is not cached. `DisplayStatus` in `providerHealth.ts` is the
+canonical type; health severity and diagnostics consume it.
+_Avoid_: Raw status, effective status, visible status.
+
 **FieldView**:
 The one zone-aware formatted projection of a Field, derived by
 `deriveFieldViews` in `fieldViews.ts`. Renderers consume its already computed

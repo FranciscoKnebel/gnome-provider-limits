@@ -13,6 +13,7 @@ import {
   CACHED_LABEL,
   deriveProviderHealth,
   overviewBadgeText,
+  resolveDisplayStatus,
   statusBadgeText,
 } from "./providerHealth.js";
 import {
@@ -26,16 +27,10 @@ import {
 export type Diagnostic =
   | { readonly kind: null }
   | {
-      readonly kind: "warning";
-      readonly text: string;
+      readonly kind: "warning" | "error";
+      readonly cardText: string;
+      readonly calloutText: string;
       readonly badge: string;
-      readonly message: string;
-    }
-  | {
-      readonly kind: "error";
-      readonly text: string;
-      readonly badge: string;
-      readonly message: string;
     };
 
 export interface DisplayBadges {
@@ -64,7 +59,6 @@ export interface ProviderDisplayModel {
 
 /** Surface-agnostic presentational facts, computed once with the model. */
 export interface ProviderDisplayFacts {
-  readonly displayStatus: DisplayStatus;
   readonly health: ProviderHealth;
   readonly badges: DisplayBadges;
   readonly usage: ProviderDisplayUsage;
@@ -135,15 +129,15 @@ function deriveDiagnostic(
 ): Diagnostic {
   if (isHardStatus(status)) {
     const badge = tr("Error");
-    const text = lastError ?? tr(status === ReaderStatus.UNAVAILABLE ? "Unavailable" : "Error");
-    return { kind: "error", text, badge, message: lastError ?? badge };
+    const cardText = lastError ?? tr(status === ReaderStatus.UNAVAILABLE ? "Unavailable" : "Error");
+    return { kind: "error", cardText, calloutText: lastError ?? badge, badge };
   }
   if (status === ReaderStatus.PARTIAL && lastError) {
     return {
       kind: "warning",
-      text: lastError,
+      cardText: lastError,
+      calloutText: lastError,
       badge: fromCache ? tr(CACHED_LABEL) : tr("Partial"),
-      message: lastError,
     };
   }
   return { kind: null };
@@ -155,10 +149,11 @@ function deriveDisplayFacts(
   model: DisplayModelCore,
   derivation: DisplayModelOptions & {
     readonly allViews: readonly FieldView[];
+    readonly displayStatus: DisplayStatus;
     readonly readerResult: ReaderResult;
   },
 ): ProviderDisplayFacts {
-  const hardError = isHardStatus(nonDisabledStatus(derivation.readerResult.status));
+  const hardError = isHardStatus(derivation.displayStatus);
   const { fieldDefs, statusFields, locale, t: tr, allViews } = derivation;
   const readerResult = derivation.readerResult;
 
@@ -170,12 +165,11 @@ function deriveDisplayFacts(
   const health = deriveProviderHealth({
     fields: readerResult.fields,
     fromCache: readerResult.fromCache,
-    status: nonDisabledStatus(readerResult.status),
+    status: derivation.displayStatus,
     views: allViews,
     fieldDefs,
     t: tr,
   });
-  const displayStatus = health.displayStatus;
   const presentation = health.presentation;
   const badges: DisplayBadges = {
     card: presentation.cardBadge,
@@ -189,7 +183,7 @@ function deriveDisplayFacts(
     header: projectUsageFacts(allViews, statusFields, {
       limitOnly: true,
       requireFiniteValue: true,
-      status: displayStatus,
+      status: derivation.displayStatus,
       t: tr,
       resetTextFor,
     }),
@@ -197,7 +191,7 @@ function deriveDisplayFacts(
       allViews,
       [...new Set([...statusFields, ...derivation.panelFields])],
       {
-        status: displayStatus,
+        status: derivation.displayStatus,
         t: tr,
         resetTextFor,
       },
@@ -205,7 +199,7 @@ function deriveDisplayFacts(
   };
 
   const diagnostic = deriveDiagnostic(
-    displayStatus,
+    derivation.displayStatus,
     readerResult.lastError ?? null,
     readerResult.fromCache,
     tr,
@@ -220,7 +214,6 @@ function deriveDisplayFacts(
       : null;
 
   return {
-    displayStatus: health.displayStatus,
     health,
     badges,
     usage,
@@ -232,13 +225,6 @@ function deriveDisplayFacts(
     lastUpdatedText,
     isHardError: hardError,
   };
-}
-
-function nonDisabledStatus(status: ReaderStatus): DisplayStatus {
-  if (status === ReaderStatus.DISABLED) {
-    throw new Error("disabled results have no display model");
-  }
-  return status;
 }
 
 /** Assemble one provider's display envelope from explicit options, no fake context. */
@@ -260,6 +246,11 @@ export function deriveDisplayModel(
   const statusViews = selectViews(allViews, statusFields);
   const panelViews = selectViews(panelSource, panelFields);
   const resets = deriveResetPairings(fieldDefs, result, allViews, searchOrder, panelFields);
+  const displayStatus = resolveDisplayStatus(
+    result.status as DisplayStatus,
+    result.fromCache,
+    allViews,
+  );
 
   const modelBase = {
     provider,
@@ -272,6 +263,7 @@ export function deriveDisplayModel(
   const facts = deriveDisplayFacts(modelBase, {
     ...options,
     allViews,
+    displayStatus,
     readerResult: result,
   });
   return { ...modelBase, facts };

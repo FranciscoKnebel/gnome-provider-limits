@@ -311,7 +311,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         JSON.stringify([
           model.provider,
           model.shortDisplayName,
-          model.facts.displayStatus,
+          model.facts.health.displayStatus,
           model.statusViews.map((view) => view.name),
         ]),
       );
@@ -532,9 +532,9 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       expect(partialCard.facts.badges.card).toBe("cached");
       expect(partialCard.facts.diagnostic).toEqual({
         kind: "warning",
-        text: "CLI fallback failed; showing Last-Known-Good.",
+        cardText: "CLI fallback failed; showing Last-Known-Good.",
         badge: "Cached",
-        message: "CLI fallback failed; showing Last-Known-Good.",
+        calloutText: "CLI fallback failed; showing Last-Known-Good.",
       });
       expect(partialCard.facts.views.limit.progress).toHaveSize(1);
 
@@ -556,9 +556,9 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       expect(errorCard.facts.badges.card).toBe("error");
       expect(errorCard.facts.diagnostic).toEqual({
         kind: "error",
-        text: "Run codex login.",
+        cardText: "Run codex login.",
         badge: "Error",
-        message: "Run codex login.",
+        calloutText: "Run codex login.",
       });
       expect(errorCard.facts.views.limit.progress).toEqual([]);
       expect(errorCard.facts.lastUpdatedText).toBeNull();
@@ -580,9 +580,9 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       expect(unavailableCard.facts.badges.card).toBe("unavailable");
       expect(unavailableCard.facts.diagnostic).toEqual({
         kind: "error",
-        text: "Unavailable",
+        cardText: "Unavailable",
         badge: "Error",
-        message: "Error",
+        calloutText: "Error",
       });
     });
 

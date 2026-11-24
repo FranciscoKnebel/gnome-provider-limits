@@ -71,7 +71,7 @@ export class DetailRenderer {
 
     return {
       diagnostic: facts.diagnostic,
-      calloutText: facts.diagnostic.kind === null ? null : facts.diagnostic.message,
+      calloutText: facts.diagnostic.kind === null ? null : facts.diagnostic.calloutText,
       isError,
       gaugeRows: chunkGauges(gauges),
       gaugeCount: gauges.length,

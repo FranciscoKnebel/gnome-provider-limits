@@ -126,13 +126,13 @@ export class CardsPanelSection extends PanelStyleSection {
         x_expand: true,
       });
       const bannerLabel = new St.Label({
-        text: diagnostic.text,
+        text: diagnostic.cardText,
         style_class: "pl-diagnostic-text",
         x_expand: true,
         x_align: Clutter.ActorAlign.START,
       });
       bannerLabel.clutter_text.line_wrap = true;
-      bannerLabel.accessible_name = diagnostic.text;
+      bannerLabel.accessible_name = diagnostic.cardText;
       bannerBox.add_child(bannerLabel);
       card.add_child(bannerBox);
     }

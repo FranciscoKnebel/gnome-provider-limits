@@ -129,14 +129,14 @@ describe("deriveDisplayModel applies configured-zone health", () => {
   it("ignores unavailable fields outside the configured zones", () => {
     const model = modelFor(partialFields, ["used_percent_primary"], []);
     expect(partialFields.status).toBe(ReaderStatus.PARTIAL);
-    expect(model.facts.displayStatus).toBe(ReaderStatus.OK);
+    expect(model.facts.health.displayStatus).toBe(ReaderStatus.OK);
     expect(model.facts.health.state).toBe("ok");
     expect(model.facts.diagnostic.kind).toBeNull();
   });
 
   it("keeps partial health when a configured field is unavailable", () => {
     const model = modelFor(partialFields, ["used_percent_primary"], ["used_percent_secondary"]);
-    expect(model.facts.displayStatus).toBe(ReaderStatus.PARTIAL);
+    expect(model.facts.health.displayStatus).toBe(ReaderStatus.PARTIAL);
     expect(model.facts.health.state).toBe("partial");
     expect(model.facts.diagnostic.kind).toBe("warning");
   });
@@ -151,7 +151,7 @@ describe("deriveDisplayModel applies configured-zone health", () => {
     };
     const model = modelFor(notApplicable, ["used_percent_primary"], ["used_percent_secondary"]);
     expect(notApplicable.status).toBe(ReaderStatus.PARTIAL);
-    expect(model.facts.displayStatus).toBe(ReaderStatus.OK);
+    expect(model.facts.health.displayStatus).toBe(ReaderStatus.OK);
     expect(model.facts.health.state).toBe("ok");
     expect(model.facts.diagnostic.kind).toBeNull();
   });
@@ -163,7 +163,7 @@ describe("deriveDisplayModel applies configured-zone health", () => {
     };
     const model = modelFor(sourcePartial, ["used_percent_primary"], []);
     expect(sourcePartial.status).toBe(ReaderStatus.PARTIAL);
-    expect(model.facts.displayStatus).toBe(ReaderStatus.OK);
+    expect(model.facts.health.displayStatus).toBe(ReaderStatus.OK);
     expect(model.facts.health.state).toBe("ok");
     expect(model.facts.diagnostic.kind).toBeNull();
   });
@@ -177,7 +177,7 @@ describe("deriveDisplayModel applies configured-zone health", () => {
       fields: [{ name: "used_percent_primary", value: 90, status: FieldStatus.OK }],
     };
     const model = modelFor(critical, [], []);
-    expect(model.facts.displayStatus).toBe(ReaderStatus.OK);
+    expect(model.facts.health.displayStatus).toBe(ReaderStatus.OK);
     expect(model.facts.health.tone).toBe("critical");
   });
 
@@ -228,7 +228,7 @@ describe("deriveDisplayModel applies configured-zone health", () => {
     });
     if (!model) throw new Error("Provider google is disabled");
     expect(googleResult.status).toBe(ReaderStatus.OK);
-    expect(model.facts.displayStatus).toBe(ReaderStatus.OK);
+    expect(model.facts.health.displayStatus).toBe(ReaderStatus.OK);
     expect(model.facts.health.state).toBe("ok");
     expect(model.facts.health.tone).toBe("critical");
     expect(model.facts.diagnostic.kind).toBeNull();
@@ -343,8 +343,8 @@ describe("deriveDisplayModel owns diagnostics and reset pairing", () => {
     expect(cached.facts.diagnostic).toEqual({
       kind: "warning",
       badge: "Cached",
-      text: "HTTP 503",
-      message: "HTTP 503",
+      cardText: "HTTP 503",
+      calloutText: "HTTP 503",
     });
 
     const partialResult: ReaderResult = {
@@ -360,18 +360,18 @@ describe("deriveDisplayModel owns diagnostics and reset pairing", () => {
     expect(partial.facts.diagnostic).toEqual({
       kind: "warning",
       badge: "Partial",
-      text: "CLI failed",
-      message: "CLI failed",
+      cardText: "CLI failed",
+      calloutText: "CLI failed",
     });
 
     const errorResult: ReaderResult = { ...result, status: ReaderStatus.ERROR, lastError: "Login" };
     const error = modelFor(errorResult, []);
-    expect(error.facts.displayStatus).toBe(ReaderStatus.ERROR);
+    expect(error.facts.health.displayStatus).toBe(ReaderStatus.ERROR);
     expect(error.facts.diagnostic).toEqual({
       kind: "error",
       badge: "Error",
-      text: "Login",
-      message: "Login",
+      cardText: "Login",
+      calloutText: "Login",
     });
 
     const unavailableResult: ReaderResult = {
@@ -382,8 +382,8 @@ describe("deriveDisplayModel owns diagnostics and reset pairing", () => {
     expect(unavailable.facts.diagnostic).toEqual({
       kind: "error",
       badge: "Error",
-      text: "Unavailable",
-      message: "Error",
+      cardText: "Unavailable",
+      calloutText: "Error",
     });
 
     const healthy = modelFor(result, []);

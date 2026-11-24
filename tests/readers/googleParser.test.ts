@@ -708,6 +708,20 @@ describe("hasActiveGoogleUsage, mergeGoogleUsage & parseGoogleTier", () => {
         paidTier: { name: "Google AI Pro" },
         currentTier: { id: "free-tier", name: "Antigravity" },
       }),
-    ).toEqual({ id: null, name: "Google AI Pro", supportsFiveHourWindows: true });
+    ).toEqual({
+      id: "free-tier",
+      name: "Google AI Pro",
+      supportsFiveHourWindows: false,
+    });
+    expect(
+      parseGoogleTier({
+        paidTier: { id: "free-tier" },
+        currentTier: { name: "Google AI Pro" },
+      }),
+    ).toEqual({
+      id: "free-tier",
+      name: "Google AI Pro",
+      supportsFiveHourWindows: false,
+    });
   });
 });

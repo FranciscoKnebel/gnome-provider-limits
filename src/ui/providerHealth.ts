@@ -253,21 +253,20 @@ export function deriveProviderHealth({
   fieldDefs,
   t: tr,
 }: ProviderHealthData): ProviderHealth {
-  const displayStatus = resolveDisplayStatus(status, fromCache, views);
   const worstTone = worstFieldTone(collectFieldTones(views, fields, fieldDefs));
   const hasUsableField =
     views.some((view) => view.hasValue) || fields.some((field) => field.status === FieldStatus.OK);
   const severity = deriveSeverity(
-    displayStatus,
+    status,
     worstTone,
     hasUsableField,
-    isLastKnownGood(displayStatus, fromCache),
+    isLastKnownGood(status, fromCache),
   );
   const { presentation, state, tone, attention } = HEALTH_BY_SEVERITY[severity];
   const { pillTag, pillAccessibleText } = presentation;
 
   return {
-    displayStatus,
+    displayStatus: status,
     severity,
     state,
     tone,

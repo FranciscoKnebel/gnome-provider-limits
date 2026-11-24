@@ -245,7 +245,6 @@ function loadCompact() {
         activations.set(target, { callback, options });
       },
       ReaderStatus: { PARTIAL: "partial" },
-      diagnosticMessage: (_result, diagnostic) => diagnostic.text,
       createErrorLabel: (text) => new Actor(stage, { text }),
       clampFillRatio: (value) => Math.min(1, Math.max(0, value ?? 0)),
       ...matrixPlan,

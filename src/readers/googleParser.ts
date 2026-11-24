@@ -474,11 +474,8 @@ export function parseGoogleTier(raw: unknown): GoogleTier | null {
   if (!isRecord(raw)) return null;
   const paid = isRecord(raw.paidTier) ? raw.paidTier : null;
   const current = isRecord(raw.currentTier) ? raw.currentTier : null;
-  const paidId = tierString(paid, "id");
-  const paidName = tierString(paid, "name");
-  const source = paidId !== null || paidName !== null ? paid : current;
-  const id = tierString(source, "id");
-  const name = tierString(source, "name");
+  const id = tierString(paid, "id") ?? tierString(current, "id");
+  const name = tierString(paid, "name") ?? tierString(current, "name");
   if (!id && !name) return null;
   return {
     id,

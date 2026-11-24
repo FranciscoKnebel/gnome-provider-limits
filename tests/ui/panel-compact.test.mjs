@@ -93,7 +93,6 @@ function loadCompact() {
     addPlaceholderIfNeeded,
     matrixMessages: () => ({}),
     createErrorLabel: (text, styleClass) => new Label({ text, style_class: styleClass }),
-    diagnosticMessage: (_result, diagnostic) => diagnostic.text,
   });
   return { ...api, activations };
 }
