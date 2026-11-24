@@ -430,6 +430,16 @@ export function hasPresentGoogleUsage(usage: GoogleUsage | null): boolean {
   return usage !== null && GOOGLE_WINDOW_IDS.some((id) => usage[id].state === "present");
 }
 
+export function hasUsableGoogleUsage(usage: GoogleUsage | null): boolean {
+  return (
+    usage !== null &&
+    GOOGLE_WINDOW_IDS.some((id) => {
+      const window = usage[id];
+      return window.state === "present" || window.state === "disabled";
+    })
+  );
+}
+
 export function hasActiveGoogleUsage(usage: GoogleUsage | null): boolean {
   if (!usage) return false;
   return GOOGLE_WINDOW_IDS.some((id) => {

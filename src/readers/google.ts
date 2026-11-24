@@ -25,6 +25,7 @@ import {
   hasActiveGoogleUsage,
   hasCompleteActiveGoogleUsage,
   hasPresentGoogleUsage,
+  hasUsableGoogleUsage,
   isAntigravityAuthPath,
   mergeGoogleUsage,
   normalizeGoogleAvailableModels,
@@ -324,12 +325,17 @@ export class GoogleReader extends BaseReader<"google"> {
       );
       this._assertAlive();
       if (cancellable.is_cancelled()) return null;
-      return mergeGoogleUsage(normalizeGoogleAvailableModels(modelsRaw, requestedAtMs), summary);
+      const merged = mergeGoogleUsage(
+        normalizeGoogleAvailableModels(modelsRaw, requestedAtMs),
+        summary,
+      );
+      return hasUsableGoogleUsage(merged) ? merged : null;
     } catch (error) {
       this._assertAlive();
       if (cancellable.is_cancelled()) return null;
-      if (summary) return summary;
-      throw error;
+      if (summary && hasUsableGoogleUsage(summary)) return summary;
+      logWarn("google models request failed", error);
+      return null;
     }
   }
 

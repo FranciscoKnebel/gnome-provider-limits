@@ -443,6 +443,59 @@ export async function run() {
     reader.destroy();
   });
 
+  await test("GoogleReader preserves Last-Known-Good when every summary window is malformed", async () => {
+    Gio.File.prototype.load_contents_async = async () =>
+      encodeJson({
+        access_token: "ya29.live",
+        expiry_date: Date.now() + 3600_000,
+      });
+
+    let malformed = false;
+    const reader = newReader({
+      postJson: async (url) => {
+        if (url.endsWith("/v1internal:retrieveUserQuotaSummary")) {
+          if (!malformed) {
+            return {
+              buckets: [
+                {
+                  bucketId: "gemini-weekly",
+                  window: "weekly",
+                  remainingFraction: 0.5,
+                  resetTime: "2026-04-24T12:00:00Z",
+                },
+              ],
+            };
+          }
+          return {
+            buckets: [
+              { bucketId: "gemini-5h", window: "5h", remainingFraction: 1.5 },
+              { bucketId: "gemini-weekly", window: "weekly", remainingFraction: -0.1 },
+            ],
+          };
+        }
+        if (url.endsWith("/v1internal:fetchAvailableModels")) {
+          return { models: {} };
+        }
+        if (url.endsWith("/v1internal:loadCodeAssist")) {
+          return { paidTier: { id: "standard-tier", name: "Google AI Pro" } };
+        }
+        throw new Error(`unexpected URL ${url}`);
+      },
+    });
+
+    const first = await reader.read();
+    assertEqual(first.status, "partial");
+    assertEqual(first.fromCache, false);
+    assertEqual(first.fields.find((f) => f.name === "used_percent_weekly")?.value, 50);
+
+    malformed = true;
+    const second = await reader.read();
+    assertEqual(second.status, "partial");
+    assertEqual(second.fromCache, true);
+    assertEqual(second.fields.find((f) => f.name === "used_percent_weekly")?.value, 50);
+    reader.destroy();
+  });
+
   await test("GoogleReader falls back to fetchAvailableModels and merges secondary endpoint when primary is idle", async () => {
     Gio.File.prototype.load_contents_async = async () =>
       encodeJson({
