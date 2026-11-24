@@ -1,7 +1,8 @@
 import { PROVIDER_NAMES, type ProviderName } from "../../src/constants.js";
 import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
-import type { DisplayStatus, FieldDef, ReaderResult } from "../../src/readers/base.js";
+import type { FieldDef, ReaderResult } from "../../src/readers/base.js";
 import { PROVIDER_FIELDS } from "../../src/readers/fields.js";
+import type { DisplayStatus } from "../../src/ui/displayStatus.js";
 import { clampFillRatio, type FieldTone } from "../../src/ui/fieldRows.js";
 import {
   areAllProvidersExpanded,

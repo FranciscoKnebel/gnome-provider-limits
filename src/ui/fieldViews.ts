@@ -12,10 +12,10 @@ import {
   isHardStatus,
   isLimitReached,
   ReaderStatus,
-  type DisplayStatus,
 } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
 import { emptyMeter, gaugeArc } from "./cairoDrawing.js";
+import type { DisplayStatus } from "./displayStatus.js";
 import type { FieldTone } from "./fieldRows.js";
 import { clampFillRatio, clampPercent, fieldTone } from "./fieldRows.js";
 import type { GaugeSpec } from "./gaugeTypes.js";

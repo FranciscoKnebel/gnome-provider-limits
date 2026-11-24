@@ -406,6 +406,43 @@ export async function run() {
     reader.destroy();
   });
 
+  await test("GoogleReader keeps an all-disabled summary when the models fallback fails", async () => {
+    Gio.File.prototype.load_contents_async = async () =>
+      encodeJson({
+        access_token: "ya29.live",
+        expiry_date: Date.now() + 3600_000,
+      });
+
+    const reader = newReader({
+      postJson: async (url) => {
+        if (url.endsWith("/v1internal:retrieveUserQuotaSummary")) {
+          return {
+            buckets: [
+              { bucketId: "gemini-5h", window: "5h", disabled: true },
+              { bucketId: "gemini-weekly", window: "weekly", disabled: true },
+              { bucketId: "3p-5h", window: "5h", disabled: true },
+              { bucketId: "3p-weekly", window: "weekly", disabled: true },
+            ],
+          };
+        }
+        if (url.endsWith("/v1internal:fetchAvailableModels")) {
+          throw new NetworkError("models unavailable");
+        }
+        if (url.endsWith("/v1internal:loadCodeAssist")) {
+          return { paidTier: { id: "standard-tier", name: "Google AI Pro" } };
+        }
+        throw new Error(`unexpected URL ${url}`);
+      },
+    });
+
+    const result = await reader.read();
+    const field = (name) => result.fields.find((f) => f.name === name);
+    assertEqual(result.status, "partial");
+    assertEqual(field("used_percent_session")?.status, "not_applicable");
+    assertEqual(field("limit_reached")?.status, "unavailable");
+    reader.destroy();
+  });
+
   await test("GoogleReader falls back to fetchAvailableModels and merges secondary endpoint when primary is idle", async () => {
     Gio.File.prototype.load_contents_async = async () =>
       encodeJson({

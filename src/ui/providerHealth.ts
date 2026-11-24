@@ -1,11 +1,6 @@
 import type { FieldDef, FieldResult } from "../readers/base.js";
-import {
-  FieldStatus,
-  fieldStatusDegrades,
-  isLimitReached,
-  ReaderStatus,
-  type DisplayStatus,
-} from "../readers/base.js";
+import { FieldStatus, fieldStatusDegrades, isLimitReached, ReaderStatus } from "../readers/base.js";
+import type { DisplayStatus } from "./displayStatus.js";
 import type { FieldTone } from "./fieldRows.js";
 import { fieldTone } from "./fieldRows.js";
 import type { FieldView } from "./fieldViews.js";
@@ -229,11 +224,12 @@ export function deriveSeverity(
   return "idle";
 }
 
-export function resolveDisplayStatus(
-  status: DisplayStatus,
+function resolveDisplayStatus(
+  status: ReaderStatus,
   fromCache: boolean,
   views: readonly FieldView[],
 ): DisplayStatus {
+  if (status === ReaderStatus.DISABLED) return ReaderStatus.UNAVAILABLE;
   if (status !== ReaderStatus.PARTIAL || fromCache) return status;
   return views.some((view) => fieldStatusDegrades(view.status)) ? status : ReaderStatus.OK;
 }
@@ -242,7 +238,7 @@ export function resolveDisplayStatus(
 export interface ProviderHealthData {
   readonly fields: readonly FieldResult[];
   readonly fromCache: boolean;
-  readonly status: DisplayStatus;
+  readonly status: ReaderStatus;
   readonly views: readonly FieldView[];
   readonly fieldDefs: readonly FieldDef[];
   readonly t: (s: string) => string;
@@ -256,20 +252,20 @@ export function deriveProviderHealth({
   fieldDefs,
   t: tr,
 }: ProviderHealthData): ProviderHealth {
+  const displayStatus = resolveDisplayStatus(status, fromCache, views);
   const worstTone = worstFieldTone(collectFieldTones(views, fields, fieldDefs));
-  const hasUsableField =
-    views.some((view) => view.hasValue) || fields.some((field) => field.status === FieldStatus.OK);
+  const hasUsableField = views.some((view) => view.hasValue);
   const severity = deriveSeverity(
-    status,
+    displayStatus,
     worstTone,
     hasUsableField,
-    isLastKnownGood(status, fromCache),
+    isLastKnownGood(displayStatus, fromCache),
   );
   const { presentation, state, tone, attention } = HEALTH_BY_SEVERITY[severity];
   const { pillTag, pillAccessibleText } = presentation;
 
   return {
-    displayStatus: status,
+    displayStatus,
     severity,
     state,
     tone,

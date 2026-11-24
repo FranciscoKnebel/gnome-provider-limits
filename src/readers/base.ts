@@ -13,8 +13,6 @@ export enum ReaderStatus {
   DISABLED = "disabled",
 }
 
-export type DisplayStatus = Exclude<ReaderStatus, ReaderStatus.DISABLED>;
-
 export enum FieldStatus {
   OK = "ok",
   UNAVAILABLE = "unavailable",

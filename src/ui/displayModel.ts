@@ -2,8 +2,8 @@ import type { ProviderName } from "../constants.js";
 import { formatAbsoluteTimestamp } from "../formatters.js";
 import type { FieldDef, ReaderResult } from "../readers/base.js";
 import { isHardStatus, ReaderStatus } from "../readers/base.js";
-import type { DisplayStatus } from "../readers/base.js";
 import { emptyMeter } from "./cairoDrawing.js";
+import type { DisplayStatus } from "./displayStatus.js";
 import type { FieldView, UsageFacts } from "./fieldViews.js";
 import { deriveFieldViews, meterFromViews, projectUsageFacts, selectViews } from "./fieldViews.js";
 import type { GaugeSpec } from "./gaugeTypes.js";
@@ -14,7 +14,6 @@ import {
   CACHED_LABEL,
   deriveProviderHealth,
   overviewBadgeText,
-  resolveDisplayStatus,
   statusBadgeText,
 } from "./providerHealth.js";
 import {
@@ -149,11 +148,10 @@ function deriveDisplayFacts(
   model: DisplayModelCore,
   derivation: DisplayModelOptions & {
     readonly allViews: readonly FieldView[];
-    readonly displayStatus: DisplayStatus;
     readonly readerResult: ReaderResult;
   },
 ): ProviderDisplayFacts {
-  const hardError = isHardStatus(derivation.displayStatus);
+  const hardError = isHardStatus(derivation.readerResult.status);
   const { fieldDefs, statusFields, locale, t: tr, allViews } = derivation;
   const readerResult = derivation.readerResult;
 
@@ -165,11 +163,12 @@ function deriveDisplayFacts(
   const health = deriveProviderHealth({
     fields: readerResult.fields,
     fromCache: readerResult.fromCache,
-    status: derivation.displayStatus,
+    status: readerResult.status,
     views: allViews,
     fieldDefs,
     t: tr,
   });
+  const displayStatus = health.displayStatus;
   const presentation = health.presentation;
   const badges: DisplayBadges = {
     card: presentation.cardBadge,
@@ -183,7 +182,7 @@ function deriveDisplayFacts(
     header: projectUsageFacts(allViews, statusFields, {
       limitOnly: true,
       requireFiniteValue: true,
-      status: derivation.displayStatus,
+      status: displayStatus,
       t: tr,
       resetTextFor,
     }),
@@ -191,7 +190,7 @@ function deriveDisplayFacts(
       allViews,
       [...new Set([...statusFields, ...derivation.panelFields])],
       {
-        status: derivation.displayStatus,
+        status: displayStatus,
         t: tr,
         resetTextFor,
       },
@@ -199,7 +198,7 @@ function deriveDisplayFacts(
   };
 
   const diagnostic = deriveDiagnostic(
-    derivation.displayStatus,
+    displayStatus,
     readerResult.lastError ?? null,
     readerResult.fromCache,
     tr,
@@ -245,7 +244,6 @@ export function deriveDisplayModel(
   const statusViews = selectViews(allViews, statusFields);
   const panelViews = selectViews(panelSource, panelFields);
   const resets = deriveResetPairings(fieldDefs, result, allViews, searchOrder, panelFields);
-  const displayStatus = resolveDisplayStatus(result.status, result.fromCache, allViews);
 
   const modelBase = {
     provider,
@@ -258,7 +256,6 @@ export function deriveDisplayModel(
   const facts = deriveDisplayFacts(modelBase, {
     ...options,
     allViews,
-    displayStatus,
     readerResult: result,
   });
   return { ...modelBase, facts };

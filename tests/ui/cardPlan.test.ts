@@ -1,6 +1,6 @@
 import { providerRecord, type ProviderName } from "../../src/constants.js";
 import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
-import type { DisplayStatus, FieldDef, ReaderResult } from "../../src/readers/base.js";
+import type { FieldDef, ReaderResult } from "../../src/readers/base.js";
 import {
   CLAUDE_FIELDS,
   CODEX_FIELDS,
@@ -10,6 +10,7 @@ import {
 } from "../../src/readers/fields.js";
 import type { ProviderDisplayModel } from "../../src/ui/displayModel.js";
 import { deriveDisplayModel } from "../../src/ui/displayModel.js";
+import type { DisplayStatus } from "../../src/ui/displayStatus.js";
 import { deriveFieldViews } from "../../src/ui/fieldViews.js";
 import { progressResetPresentation } from "../../src/ui/panelCards.js";
 import {

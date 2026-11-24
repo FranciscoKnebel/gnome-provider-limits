@@ -1,6 +1,7 @@
-import { FieldStatus, ReaderStatus, type DisplayStatus } from "../../src/readers/base.js";
+import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
 import type { ReaderResult } from "../../src/readers/base.js";
 import { CODEX_FIELDS } from "../../src/readers/fields.js";
+import type { DisplayStatus } from "../../src/ui/displayStatus.js";
 import type { FieldTone } from "../../src/ui/fieldRows.js";
 import type { FieldView } from "../../src/ui/fieldViews.js";
 import { deriveFieldViews } from "../../src/ui/fieldViews.js";

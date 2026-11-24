@@ -248,6 +248,8 @@ for (const phase of ["auth", "refresh", "quota", "tier"])
       }),
       normalizeGoogleAvailableModels: () => null,
       hasActiveGoogleUsage: () => true,
+      hasPresentGoogleUsage: () => true,
+      hasCompleteActiveGoogleUsage: () => true,
       mergeGoogleUsage: (_a, b) => b,
       parseGoogleTier: () => ({
         id: "g1-ultra-tier",

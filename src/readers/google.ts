@@ -312,18 +312,25 @@ export class GoogleReader extends BaseReader<"google"> {
       logWarn("google quota summary request failed", error);
     }
 
-    const modelsRaw = await this._http!.postJson(
-      `${endpoint}/v1internal:fetchAvailableModels`,
-      body,
-      {
-        headers,
-        cancellable,
-        noRedirect: true,
-      },
-    );
-    this._assertAlive();
-    if (cancellable.is_cancelled()) return null;
-    return mergeGoogleUsage(normalizeGoogleAvailableModels(modelsRaw, requestedAtMs), summary);
+    try {
+      const modelsRaw = await this._http!.postJson(
+        `${endpoint}/v1internal:fetchAvailableModels`,
+        body,
+        {
+          headers,
+          cancellable,
+          noRedirect: true,
+        },
+      );
+      this._assertAlive();
+      if (cancellable.is_cancelled()) return null;
+      return mergeGoogleUsage(normalizeGoogleAvailableModels(modelsRaw, requestedAtMs), summary);
+    } catch (error) {
+      this._assertAlive();
+      if (cancellable.is_cancelled()) return null;
+      if (summary) return summary;
+      throw error;
+    }
   }
 
   private async _queryQuotaWithToken(

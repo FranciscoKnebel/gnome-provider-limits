@@ -181,6 +181,11 @@ describe("deriveDisplayModel applies configured-zone health", () => {
     expect(model.facts.health.tone).toBe("critical");
   });
 
+  it("stays idle when configured views are empty despite unselected OK fields", () => {
+    const model = modelFor(partialFields, [], []);
+    expect(model.facts.health.state).toBe("idle");
+  });
+
   it("keeps the default Google zones healthy for a weekly-only Starter result", () => {
     const googleResult: ReaderResult = {
       provider: "google",
