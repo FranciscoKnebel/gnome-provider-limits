@@ -4,6 +4,7 @@ import Gio from "gi://Gio";
 import GObject from "gi://GObject";
 import Gtk from "gi://Gtk?version=4.0";
 
+import { clearChildren } from "../../helpers/children.js";
 import { reorderValue } from "../../helpers/reorder.js";
 
 export interface DisposablePage {
@@ -23,7 +24,12 @@ export interface ReorderRowContext {
 export function isDisposablePage(
   page: Adw.PreferencesPage,
 ): page is Adw.PreferencesPage & DisposablePage {
-  return "cleanup" in page && typeof (page as Partial<DisposablePage>).cleanup === "function";
+  return "cleanup" in page && typeof page.cleanup === "function";
+}
+
+/** Rows in a rebuilt list own subscriptions that must be released before unparenting. */
+function isDisposableWidget(widget: Gtk.Widget): widget is Gtk.Widget & DisposablePage {
+  return "cleanup" in widget && typeof widget.cleanup === "function";
 }
 
 export function bindSetting(
@@ -45,12 +51,10 @@ export function unbindSettings(bindings: SettingsBinding[]): void {
 }
 
 export function clearListBox(listBox: Gtk.ListBox): void {
-  let currentChild = listBox.get_first_child();
-  while (currentChild) {
-    const next = currentChild.get_next_sibling();
-    listBox.remove(currentChild);
-    currentChild = next;
-  }
+  clearChildren(listBox, (child) => {
+    if (isDisposableWidget(child)) child.cleanup();
+    listBox.remove(child);
+  });
 }
 
 export function setupDragSource(row: Gtk.Widget, value: string): void {
@@ -61,6 +65,51 @@ export function setupDragSource(row: Gtk.Widget, value: string): void {
 
 export function stringArraysEqual(a: readonly string[], b: readonly string[]): boolean {
   return a.length === b.length && a.every((value, index) => value === b[index]);
+}
+
+export function createMoveButtons(options: {
+  settings: Gio.Settings;
+  key: string;
+  visibleValues: readonly string[];
+  index: number;
+  moveUpLabel: string;
+  moveDownLabel: string;
+}): Gtk.Box {
+  const { settings, key, visibleValues, index, moveUpLabel, moveDownLabel } = options;
+  const value = visibleValues[index];
+  const box = new Gtk.Box({ spacing: 2, valign: Gtk.Align.CENTER });
+
+  const up = new Gtk.Button({
+    icon_name: "go-up-symbolic",
+    tooltip_text: moveUpLabel,
+    valign: Gtk.Align.CENTER,
+    sensitive: index > 0,
+  });
+  up.add_css_class("flat");
+  up.connect("clicked", () => {
+    const target = visibleValues[index - 1];
+    if (!target) return;
+    const reordered = reorderValue(settings.get_strv(key), value, target);
+    if (reordered) settings.set_strv(key, reordered);
+  });
+
+  const down = new Gtk.Button({
+    icon_name: "go-down-symbolic",
+    tooltip_text: moveDownLabel,
+    valign: Gtk.Align.CENTER,
+    sensitive: index < visibleValues.length - 1,
+  });
+  down.add_css_class("flat");
+  down.connect("clicked", () => {
+    const target = visibleValues[index + 1];
+    if (!target) return;
+    const reordered = reorderValue(settings.get_strv(key), value, target);
+    if (reordered) settings.set_strv(key, reordered);
+  });
+
+  box.append(up);
+  box.append(down);
+  return box;
 }
 
 export function buildReorderableList(

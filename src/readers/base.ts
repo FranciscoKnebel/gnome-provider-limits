@@ -1,5 +1,8 @@
 import type Gio from "gi://Gio";
 
+import type { ProviderName } from "../constants.js";
+import type { FieldName } from "./fields.js";
+
 export const LAST_GOOD_MAX_AGE_MS = 30 * 60 * 1000;
 
 export enum ReaderStatus {
@@ -18,74 +21,107 @@ export enum FieldStatus {
 
 export type FieldType = "percent" | "count" | "tokens" | "cost" | "timestamp" | "bool" | "text";
 
+/** Whether a percent field reports used share or remaining share of its window. */
+export type FieldValueKind = "used" | "remaining";
+
 export type FieldZone = "status" | "panel";
 
-export interface FieldDef {
-  readonly name: string;
+export type FieldCategory = "limit" | "telemetry";
+
+export interface FieldDef<TName extends string = string> {
+  readonly name: TName;
   readonly label: string;
   readonly type: FieldType;
-  readonly description?: string;
-  readonly defaultZone: FieldZone;
+  readonly category: FieldCategory;
+  readonly resetField?: string;
+  /** For percent fields, the direction of the stored value. Absent means "used". */
+  readonly valueKind?: FieldValueKind;
 }
 
-export interface FieldResult<T = unknown> {
-  readonly name: string;
+/** Full typed names for the two fields of a used/remaining percent pair. */
+export interface PercentFieldNames<P extends ProviderName> {
+  readonly used: FieldName<P>;
+  readonly remaining: FieldName<P>;
+}
+
+/** Full typed names for a percent pair plus its companion reset timestamp. */
+export interface WindowFieldNames<P extends ProviderName> extends PercentFieldNames<P> {
+  readonly reset: FieldName<P>;
+}
+
+export interface FieldResult<T = unknown, TName extends string = string> {
+  readonly name: TName;
   readonly value: T | null;
   readonly status: FieldStatus;
   readonly error?: string | null;
 }
 
 export interface ReaderResult {
-  readonly provider: string;
+  readonly provider: ProviderName;
   readonly status: ReaderStatus;
   readonly fields: readonly FieldResult[];
   readonly lastUpdated: number;
   readonly lastError?: string | null;
   readonly pathsTried?: readonly string[];
+  readonly fromCache: boolean;
+}
+
+export function isHardError(result: ReaderResult): boolean {
+  return result.status === ReaderStatus.ERROR || result.status === ReaderStatus.UNAVAILABLE;
+}
+
+export function isLimitReached(fields: readonly FieldResult[] | undefined): boolean {
+  const field = fields?.find((candidate) => candidate.name === "limit_reached");
+  return field?.status === FieldStatus.OK && field.value === true;
 }
 
 export interface ReadOptions {
   force?: boolean;
 }
 
-export abstract class BaseReader {
+export abstract class BaseReader<P extends ProviderName = ProviderName> {
   protected _lastGood: ReaderResult | null = null;
 
   constructor(
     protected readonly settings: Gio.Settings,
-    protected readonly providerName: string,
+    protected readonly providerName: P,
   ) {}
-
-  abstract get FIELDS(): readonly FieldDef[];
 
   abstract read(options?: ReadOptions): Promise<ReaderResult>;
 
   destroy(): void {}
 
-  protected _makeField<T>(
-    name: string,
+  protected _makeField<T, Name extends FieldName<P>>(
+    name: Name,
     value: T | null | undefined,
     status: FieldStatus,
     error?: string | null,
-  ): FieldResult<T> {
+  ): FieldResult<T, Name> {
     return { name, value: value ?? null, status, error: error ?? null };
   }
 
+  protected _makeOptionalField<T, Name extends FieldName<P>>(
+    name: Name,
+    value: T | null,
+  ): FieldResult<T, Name> {
+    return this._makeField(name, value, value !== null ? FieldStatus.OK : FieldStatus.UNAVAILABLE);
+  }
+
   protected _makePercentFieldPair(
-    key: string,
+    names: PercentFieldNames<P>,
     usedPct: number | null | undefined,
     status: FieldStatus,
   ): [FieldResult, FieldResult] {
     const hasUsedPct = typeof usedPct === "number" && Number.isFinite(usedPct);
     const fieldStatus = hasUsedPct ? status : FieldStatus.UNAVAILABLE;
     return [
-      this._makeField(`used_percent_${key}`, hasUsedPct ? usedPct : null, fieldStatus),
-      this._makeField(`remaining_percent_${key}`, hasUsedPct ? 100 - usedPct : null, fieldStatus),
+      this._makeField(names.used, hasUsedPct ? usedPct : null, fieldStatus),
+      this._makeField(names.remaining, hasUsedPct ? 100 - usedPct : null, fieldStatus),
     ];
   }
 
   protected _makeWindowFields(
-    key: string,
+    names: WindowFieldNames<P>,
     data:
       | {
           used_percent?: number | null;
@@ -100,8 +136,8 @@ export abstract class BaseReader {
         : FieldStatus.UNAVAILABLE;
     const resetStatus = data?.reset_at != null ? FieldStatus.OK : FieldStatus.UNAVAILABLE;
     return [
-      ...this._makePercentFieldPair(key, data?.used_percent ?? null, percentStatus),
-      this._makeField(`reset_at_${key}`, data?.reset_at ?? null, resetStatus),
+      ...this._makePercentFieldPair(names, data?.used_percent ?? null, percentStatus),
+      this._makeField(names.reset, data?.reset_at ?? null, resetStatus),
     ];
   }
 
@@ -112,6 +148,7 @@ export abstract class BaseReader {
       fields,
       lastUpdated: Date.now(),
       pathsTried,
+      fromCache: false,
     };
   }
 
@@ -127,6 +164,7 @@ export abstract class BaseReader {
       lastUpdated: Date.now(),
       lastError: lastError ?? null,
       pathsTried,
+      fromCache: false,
     };
   }
 
@@ -138,6 +176,7 @@ export abstract class BaseReader {
       lastUpdated: Date.now(),
       lastError: message,
       pathsTried,
+      fromCache: false,
     };
   }
 
@@ -172,6 +211,7 @@ export abstract class BaseReader {
       lastUpdated: lastGood.lastUpdated,
       lastError: message,
       pathsTried: [...pathsTried, "last-known-good"],
+      fromCache: true,
     };
   }
 

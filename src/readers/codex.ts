@@ -5,7 +5,7 @@ import { HttpClient, HttpError, TokenError } from "../helpers/http.js";
 import { logWarn } from "../helpers/log.js";
 import { resolveCodexHome } from "../helpers/paths.js";
 import { querySqlite } from "../helpers/sqlite.js";
-import type { FieldDef, FieldResult, ReadOptions, ReaderResult } from "./base.js";
+import type { FieldResult, ReadOptions, ReaderResult } from "./base.js";
 import { BaseReader, FieldStatus } from "./base.js";
 import {
   codexWindowMinutes,
@@ -23,18 +23,12 @@ const CODEX_ALL_PATHS_FAILED = "Codex: all paths failed. Run `codex login`.";
 const CODEX_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
 const CODEX_RESET_CREDITS_URL = "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits";
 
-import { CODEX_FIELDS } from "./fields.js";
-
 Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish");
 
-export class CodexReader extends BaseReader {
+export class CodexReader extends BaseReader<"codex"> {
   private _http: HttpClient | null = null;
   private _cancellable: Gio.Cancellable | null = null;
   private _destroyed = false;
-
-  get FIELDS(): readonly FieldDef[] {
-    return CODEX_FIELDS;
-  }
 
   async read(_options?: ReadOptions): Promise<ReaderResult> {
     this._cancellable?.cancel();
@@ -199,16 +193,32 @@ export class CodexReader extends BaseReader {
     const fields: FieldResult[] = [];
 
     const windows = [
-      { key: "primary", data: rl.primary },
-      { key: "secondary", data: rl.secondary },
+      {
+        names: {
+          used: "used_percent_primary",
+          remaining: "remaining_percent_primary",
+          reset: "reset_at_primary",
+          minutes: "window_minutes_primary",
+        },
+        data: rl.primary,
+      },
+      {
+        names: {
+          used: "used_percent_secondary",
+          remaining: "remaining_percent_secondary",
+          reset: "reset_at_secondary",
+          minutes: "window_minutes_secondary",
+        },
+        data: rl.secondary,
+      },
     ] as const;
 
-    for (const { key, data } of windows) {
-      fields.push(...this._makeWindowFields(key, data));
+    for (const { names, data } of windows) {
+      fields.push(...this._makeWindowFields(names, data));
       const minutes = codexWindowMinutes(data ?? null);
       fields.push(
         this._makeField(
-          `window_minutes_${key}`,
+          names.minutes,
           minutes,
           typeof minutes === "number" && Number.isFinite(minutes)
             ? FieldStatus.OK
@@ -240,20 +250,14 @@ export class CodexReader extends BaseReader {
     resetCredits: CodexResetCredits | null | undefined,
   ): FieldResult[] {
     const summary = summarizeCodexResetCredits(resetCredits);
-    const fields: FieldResult[] = [
+    const expireStatus = summary.expiresAt !== null ? FieldStatus.OK : FieldStatus.UNAVAILABLE;
+    return [
       this._makeField(
         "reset_credits_available",
         summary.available,
         summary.available !== null ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
       ),
+      this._makeField("reset_credits_expire_at", summary.expiresAt, expireStatus),
     ];
-
-    if (summary.expiresAt !== null) {
-      fields.push(this._makeField("reset_credits_expire_at", summary.expiresAt, FieldStatus.OK));
-    } else if (summary.available !== null && summary.available > 0) {
-      fields.push(this._makeField("reset_credits_expire_at", null, FieldStatus.UNAVAILABLE));
-    }
-
-    return fields;
   }
 }

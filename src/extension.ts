@@ -15,6 +15,7 @@ import {
   type ProviderName,
 } from "./constants.js";
 import { configureTranslations, gettext as _ } from "./helpers/gettext.js";
+import { resolveLocale } from "./helpers/locale.js";
 import { logError } from "./helpers/log.js";
 import { normalizeProvidersOrder } from "./helpers/provider-settings.js";
 import { readerResultsEqual } from "./helpers/reader.js";
@@ -23,15 +24,21 @@ import { type BaseReader, type ReaderResult, ReaderStatus } from "./readers/base
 import { ClaudeReader } from "./readers/claude.js";
 import { CodexReader } from "./readers/codex.js";
 import { CursorReader } from "./readers/cursor.js";
+import { PROVIDER_FIELDS } from "./readers/fields.js";
 import { GoogleReader } from "./readers/google.js";
 import { GrokReader } from "./readers/grok.js";
 import { OpenCodeReader } from "./readers/opencode.js";
 import { PanelWidget } from "./ui/panel.js";
 import { StatusBarWidget } from "./ui/statusBar.js";
+import { viewContextFor } from "./ui/viewContext.js";
 
 const PROVIDER_LIMITS_UUID = "gnome-provider-limits@franciscoknebel.com";
 const MIN_REFRESH_INDICATOR_MS = 2000;
 const RENDER_DEBOUNCE_MS = 150;
+
+function assertNever(value: never): never {
+  throw new Error(`Unexpected provider: ${String(value)}`);
+}
 
 const ProviderLimitsIndicator = GObject.registerClass(
   class ProviderLimitsIndicator extends PanelMenu.Button {
@@ -90,7 +97,7 @@ const ProviderLimitsIndicator = GObject.registerClass(
       });
       box.add_child(this._icon);
 
-      this._statusBar = new StatusBarWidget(this._settings, this._readers);
+      this._statusBar = new StatusBarWidget(this._settings);
       box.add_child(this._statusBar);
       this.add_child(box);
 
@@ -100,7 +107,6 @@ const ProviderLimitsIndicator = GObject.registerClass(
       const menu = this.menu as PopupMenu.PopupMenu;
       this._panel = new PanelWidget(
         this._settings,
-        this._readers,
         () => {
           this._extension.openPreferences();
         },
@@ -152,6 +158,9 @@ const ProviderLimitsIndicator = GObject.registerClass(
       }
 
       this._settingsChangedIds.push(this._settings.connect(`changed::providers-order`, onRender));
+      for (const key of ["status-bar-style", "panel-style"]) {
+        this._settingsChangedIds.push(this._settings.connect(`changed::${key}`, onRender));
+      }
       this._settingsChangedIds.push(
         this._settings.connect(`changed::language`, () => {
           this._applyLanguageOverride();
@@ -201,6 +210,8 @@ const ProviderLimitsIndicator = GObject.registerClass(
           return new CursorReader(this._settings, "cursor");
         case "google":
           return new GoogleReader(this._settings, "google");
+        default:
+          return assertNever(name);
       }
     }
 
@@ -245,6 +256,7 @@ const ProviderLimitsIndicator = GObject.registerClass(
               lastError:
                 result.reason instanceof Error ? result.reason.message : String(result.reason),
               pathsTried: [],
+              fromCache: false,
             });
             const prev = previousResults.get(name);
             if (!prev || prev.status !== ReaderStatus.ERROR) anyChanged = true;
@@ -315,13 +327,20 @@ const ProviderLimitsIndicator = GObject.registerClass(
 
     private _render(): void {
       if (this._destroyed) return;
-      this._renderNow();
-    }
-
-    private _renderNow(): void {
-      if (this._destroyed) return;
-      this._statusBar.render(this._results);
-      this._panel.render(this._results, this._lastRefreshAt);
+      const view = viewContextFor(
+        this._settings,
+        this._readers,
+        this._results,
+        PROVIDER_FIELDS,
+        resolveLocale(
+          this._settings.get_string("language"),
+          GLib.getenv("LC_MESSAGES"),
+          GLib.getenv("LANG"),
+        ),
+        _,
+      );
+      this._statusBar.render(view);
+      this._panel.render(view, this._lastRefreshAt);
     }
 
     private _getCurrentInterval(): number {

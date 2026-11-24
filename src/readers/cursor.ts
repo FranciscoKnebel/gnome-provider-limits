@@ -5,7 +5,7 @@ import { gettext as _ } from "../helpers/gettext.js";
 import { HttpClient, TokenError } from "../helpers/http.js";
 import { logWarn } from "../helpers/log.js";
 import { expandHomePath, resolveCursorAuthPaths } from "../helpers/paths.js";
-import { BaseReader, FieldStatus, type FieldDef, type ReaderResult } from "./base.js";
+import { BaseReader, FieldStatus, type FieldResult, type ReaderResult } from "./base.js";
 import {
   CURSOR_BACKEND_URL,
   normalizeCursorUsagePayload,
@@ -14,6 +14,7 @@ import {
   parseCursorExchangeResponse,
   parseCursorPlanInfo,
   type CursorAuth,
+  type CursorUsage,
 } from "./cursorParser.js";
 
 const CURSOR_EXCHANGE_URL = `${CURSOR_BACKEND_URL}/auth/exchange_user_api_key`;
@@ -21,8 +22,6 @@ const CURSOR_USAGE_URL = `${CURSOR_BACKEND_URL}/aiserver.v1.DashboardService/Get
 const CURSOR_PLAN_URL = `${CURSOR_BACKEND_URL}/aiserver.v1.DashboardService/GetPlanInfo`;
 
 Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish");
-
-import { CURSOR_FIELDS } from "./fields.js";
 
 function makeRpcHeaders(token: string): Record<string, string> {
   return {
@@ -33,14 +32,10 @@ function makeRpcHeaders(token: string): Record<string, string> {
   };
 }
 
-export class CursorReader extends BaseReader {
+export class CursorReader extends BaseReader<"cursor"> {
   private _http: HttpClient | null = null;
   private _destroyed = false;
   private _cancellable: Gio.Cancellable | null = null;
-
-  get FIELDS(): readonly FieldDef[] {
-    return CURSOR_FIELDS;
-  }
 
   override destroy(): void {
     this._destroyed = true;
@@ -279,27 +274,47 @@ export class CursorReader extends BaseReader {
     this._assertAlive();
     if (cancellable.is_cancelled()) return cancelledResult();
     const resetAtCredits = usage.resetAtCredits ?? planResetAt;
-    const optionalField = <T>(name: string, value: T | null) =>
-      this._makeField(name, value, value !== null ? FieldStatus.OK : FieldStatus.UNAVAILABLE);
-
-    const fields = [
-      ...this._makeWindowFields("credits", {
-        used_percent: usage.usedPercentCredits,
-        reset_at: resetAtCredits,
-      }),
-      ...this._makePercentFieldPair("auto", usage.usedPercentAuto, FieldStatus.OK),
-      ...this._makePercentFieldPair("api", usage.usedPercentApi, FieldStatus.OK),
-      optionalField("remaining_credits", usage.remainingCredits),
-      optionalField("spend_limit_used", usage.spendLimitUsed),
-      optionalField("limit_reached", usage.limitReached),
-      optionalField("plan_type", plan),
-      this._makeField("usage_source", "api2.cursor.sh", FieldStatus.OK),
-    ];
+    const fields = this._fieldsFromUsage(usage, plan, resetAtCredits);
 
     return this._finalizeResult(
       this._classifyResult(fields, pathsTried, "Cursor"),
       pathsTried,
       _("Cursor: subscription credits unavailable. Try again later."),
     );
+  }
+
+  private _fieldsFromUsage(
+    usage: CursorUsage,
+    plan: string | null,
+    resetAtCredits: number | null,
+  ): FieldResult[] {
+    return [
+      ...this._makeWindowFields(
+        {
+          used: "used_percent_credits",
+          remaining: "remaining_percent_credits",
+          reset: "reset_at_credits",
+        },
+        {
+          used_percent: usage.usedPercentCredits,
+          reset_at: resetAtCredits,
+        },
+      ),
+      ...this._makePercentFieldPair(
+        { used: "used_percent_auto", remaining: "remaining_percent_auto" },
+        usage.usedPercentAuto,
+        FieldStatus.OK,
+      ),
+      ...this._makePercentFieldPair(
+        { used: "used_percent_api", remaining: "remaining_percent_api" },
+        usage.usedPercentApi,
+        FieldStatus.OK,
+      ),
+      this._makeOptionalField("remaining_credits", usage.remainingCredits),
+      this._makeOptionalField("spend_limit_used", usage.spendLimitUsed),
+      this._makeOptionalField("limit_reached", usage.limitReached),
+      this._makeOptionalField("plan_type", plan),
+      this._makeField("usage_source", "api2.cursor.sh", FieldStatus.OK),
+    ];
   }
 }

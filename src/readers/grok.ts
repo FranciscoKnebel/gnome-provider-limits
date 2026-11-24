@@ -4,23 +4,17 @@ import GLib from "gi://GLib";
 import { gettext as _ } from "../helpers/gettext.js";
 import { HttpClient, TokenError } from "../helpers/http.js";
 import { logWarn } from "../helpers/log.js";
-import { BaseReader, FieldStatus, type FieldDef, type ReaderResult } from "./base.js";
-import { normalizeGrokUsagePayload, parseGrokAuth } from "./grokParser.js";
+import { BaseReader, FieldStatus, type FieldResult, type ReaderResult } from "./base.js";
+import { type GrokUsage, normalizeGrokUsagePayload, parseGrokAuth } from "./grokParser.js";
 
 const GROK_BASE_URL = "https://cli-chat-proxy.grok.com/v1";
 
 Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish");
 
-import { GROK_FIELDS } from "./fields.js";
-
-export class GrokReader extends BaseReader {
+export class GrokReader extends BaseReader<"grok"> {
   private _http: HttpClient | null = null;
   private _destroyed = false;
   private _cancellable = new Gio.Cancellable();
-
-  get FIELDS(): readonly FieldDef[] {
-    return GROK_FIELDS;
-  }
 
   override destroy(): void {
     this._destroyed = true;
@@ -106,22 +100,31 @@ export class GrokReader extends BaseReader {
     }
 
     this._assertAlive();
-    const optionalField = (name: string, value: unknown) =>
-      this._makeField(name, value, value !== null ? FieldStatus.OK : FieldStatus.UNAVAILABLE);
-    const fields = [
-      ...this._makeWindowFields("credits", {
-        used_percent: usage.usedPercent,
-        reset_at: usage.resetAt,
-      }),
-      optionalField("prepaid_balance", usage.prepaidBalance),
-      optionalField("unified_billing", usage.unifiedBilling),
-      optionalField("plan_type", plan),
-      this._makeField("usage_source", "cli-chat-proxy.grok.com", FieldStatus.OK),
-    ];
+    const fields = this._fieldsFromUsage(usage, plan);
     return this._finalizeResult(
       this._classifyResult(fields, pathsTried, "Grok"),
       pathsTried,
       _("Grok: subscription credits unavailable. Try again later."),
     );
+  }
+
+  private _fieldsFromUsage(usage: GrokUsage, plan: string | null): FieldResult[] {
+    return [
+      ...this._makeWindowFields(
+        {
+          used: "used_percent_credits",
+          remaining: "remaining_percent_credits",
+          reset: "reset_at_credits",
+        },
+        {
+          used_percent: usage.usedPercent,
+          reset_at: usage.resetAt,
+        },
+      ),
+      this._makeOptionalField("prepaid_balance", usage.prepaidBalance),
+      this._makeOptionalField("unified_billing", usage.unifiedBilling),
+      this._makeOptionalField("plan_type", plan),
+      this._makeField("usage_source", "cli-chat-proxy.grok.com", FieldStatus.OK),
+    ];
   }
 }

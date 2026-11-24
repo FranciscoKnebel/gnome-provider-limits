@@ -1,151 +1,36 @@
 import type { ProviderName } from "../constants.js";
-import { formatField } from "../formatters.js";
-import { ReaderStatus } from "../readers/base.js";
-import type { FieldDef, ReaderResult } from "../readers/base.js";
-import { GAUGE_END_ANGLE, GAUGE_START_ANGLE, GAUGE_SWEEP_ANGLE, TONE_RGB } from "./cairoDrawing.js";
-import { fieldTone, type FieldTone } from "./fieldRows.js";
-import {
-  badgeForZone,
-  deriveFieldViews,
-  deriveProviderHealth,
-  overviewBadgeText,
-  projectUsageFacts,
-  selectUsageView,
-} from "./fieldViews.js";
-import type { GaugeGeometry, GaugeTone, MicroMeterSpec, RgbTuple } from "./gaugeTypes.js";
-import type { OverviewBadgeValue } from "./providerTypes.js";
-import { structureKey } from "./renderStructure.js";
-import { clampRatio } from "./usageSnapshot.js";
+import { GAUGE_END_ANGLE, emptyMeter, gaugeArc } from "./cairoDrawing.js";
+import { diagnosticMessage, type ProviderDisplayModel } from "./displayModel.js";
+import type { FieldTone } from "./fieldRows.js";
+import type { FieldView } from "./fieldViews.js";
+import type { GaugeSpec, GaugeTone, RadialGaugeGeometry } from "./gaugeTypes.js";
+import type { Presentation } from "./providerHealth.js";
 
 export type CockpitTab = "overview" | ProviderName;
 
-export type OverviewBadgeKind = OverviewBadgeValue;
-
-export interface RadialGaugeItem {
-  readonly fieldName: string;
-  readonly label: string;
-  readonly translatedLabel: string;
-  readonly geometry: GaugeGeometry;
-  readonly resetText: string | null;
-  readonly hasResetSlot: boolean;
-  readonly errorText?: string;
-  readonly accessibleText: string;
-}
-
-export interface BentoTileItem {
-  readonly fieldName: string;
-  readonly label: string;
-  readonly translatedLabel: string;
-  readonly valueText: string;
-  readonly errorText?: string;
-  readonly accessibleText: string;
-}
-
-export interface PartitionedProviderPanel {
-  readonly gauges: readonly RadialGaugeItem[];
-  readonly gaugeRows: readonly (readonly RadialGaugeItem[])[];
-  readonly bentoTiles: readonly BentoTileItem[];
-  readonly bentoRows: readonly (readonly BentoTileItem[])[];
-}
+export type OverviewBadgeKind = Presentation["overviewBadge"];
 
 export interface OverviewRowModel {
   readonly provider: ProviderName;
   readonly displayName: string;
   readonly badgeKind: OverviewBadgeKind;
   readonly badgeText: string;
-  readonly meter: MicroMeterSpec;
+  readonly meter: GaugeSpec;
   readonly primaryText: string;
   readonly secondaryText: string | null;
   readonly tone: FieldTone | undefined;
   readonly accessibleText: string;
 }
 
-export function toneToRgb(tone: GaugeTone): RgbTuple {
-  return TONE_RGB[tone];
-}
-
-export function computeGaugeGeometry(fieldName: string, rawValue: unknown): GaugeGeometry {
-  const ratio = clampRatio(rawValue);
-  if (ratio === null) {
-    return {
-      ratio: 0,
-      hasValue: false,
-      startAngle: GAUGE_START_ANGLE,
-      endAngle: GAUGE_START_ANGLE,
-      trackEndAngle: GAUGE_END_ANGLE,
-      tone: "neutral",
-      fieldTone: undefined,
-      rgb: TONE_RGB.neutral,
-      centerText: "—",
-    };
-  }
-
-  const resolvedFieldTone = fieldTone(fieldName, rawValue);
-  const tone: GaugeTone = resolvedFieldTone ?? "ok";
-  const endAngle = GAUGE_START_ANGLE + ratio * GAUGE_SWEEP_ANGLE;
-  const centerText = formatField({
-    type: "percent",
-    value: rawValue,
-    zone: "panel",
-    locale: "en",
-  });
-
+/** The one gauge spec builder: consumes the formatted view, never a raw value. */
+export function computeGaugeGeometry(view: FieldView): RadialGaugeGeometry {
+  const tone: GaugeTone = view.hasValue ? (view.tone ?? "ok") : "neutral";
+  const centerText = view.hasValue ? view.valueText : "—";
   return {
-    ratio,
-    hasValue: true,
-    startAngle: GAUGE_START_ANGLE,
-    endAngle,
-    trackEndAngle: GAUGE_END_ANGLE,
-    tone,
-    fieldTone: resolvedFieldTone,
-    rgb: TONE_RGB[tone],
+    ...gaugeArc(view.hasValue ? view.usageRatio : null, tone),
+    fieldTone: view.tone,
     centerText,
-  };
-}
-
-export function computeStatusMicroMeter(
-  fieldsDefs: readonly FieldDef[],
-  result: ReaderResult,
-  statusFieldNames: readonly string[],
-): MicroMeterSpec {
-  if (result.status === ReaderStatus.ERROR || result.status === ReaderStatus.UNAVAILABLE) {
-    return {
-      ratio: 0,
-      hasValue: false,
-      startAngle: GAUGE_START_ANGLE,
-      endAngle: GAUGE_START_ANGLE,
-      tone: "critical",
-      rgb: TONE_RGB.critical,
-      isError: true,
-    };
-  }
-
-  const viewNames = [...statusFieldNames, ...fieldsDefs.map((def) => def.name)];
-  const views = deriveFieldViews(fieldsDefs, result, viewNames, "status", "en");
-  const primary = selectUsageView(views, statusFieldNames);
-
-  if (primary?.hasValue && primary.type === "percent") {
-    const ratio = primary.usageRatio ?? 0;
-    const tone: GaugeTone = primary.tone ?? "ok";
-    return {
-      ratio,
-      hasValue: true,
-      startAngle: GAUGE_START_ANGLE,
-      endAngle: GAUGE_START_ANGLE + ratio * GAUGE_SWEEP_ANGLE,
-      tone,
-      rgb: TONE_RGB[tone],
-      isError: false,
-    };
-  }
-
-  return {
-    ratio: 0,
-    hasValue: false,
-    startAngle: GAUGE_START_ANGLE,
-    endAngle: GAUGE_START_ANGLE,
-    tone: "neutral",
-    rgb: TONE_RGB.neutral,
-    isError: false,
+    trackEndAngle: GAUGE_END_ANGLE,
   };
 }
 
@@ -169,121 +54,29 @@ export function chunkPairs<T>(items: readonly T[]): T[][] {
   return rows;
 }
 
-export function partitionProviderPanel(
-  fieldsDefs: readonly FieldDef[],
-  result: ReaderResult,
-  panelFieldNames: readonly string[],
-  locale: string,
-  t?: (s: string) => string,
-): PartitionedProviderPanel {
-  const tr = t ?? ((s: string) => s);
-  const views = deriveFieldViews(fieldsDefs, result, panelFieldNames, "panel", locale, tr);
-  const consumedResets = new Set<string>();
-  for (const view of views) {
-    if (view.type === "percent" && view.hasResetSlot && view.resetName !== null) {
-      consumedResets.add(view.resetName);
-    }
-  }
-
-  const gauges: RadialGaugeItem[] = [];
-  const bentoTiles: BentoTileItem[] = [];
-
-  for (const view of views) {
-    if (consumedResets.has(view.name)) continue;
-    const translatedLabel = tr(view.label);
-
-    if (view.type === "percent") {
-      const geometry = computeGaugeGeometry(view.name, view.hasValue ? view.value : null);
-      const accessibleParts = [`${translatedLabel}: ${geometry.centerText}`];
-      if (view.resetText !== null) accessibleParts.push(view.resetText);
-
-      const gauge: RadialGaugeItem = {
-        fieldName: view.name,
-        label: view.label,
-        translatedLabel,
-        geometry,
-        resetText: view.resetText,
-        hasResetSlot: view.hasResetSlot,
-        accessibleText: accessibleParts.join(", "),
-        ...(view.errorText ? { errorText: view.errorText } : {}),
-      };
-      gauges.push(gauge);
-      continue;
-    }
-
-    const tile: BentoTileItem = {
-      fieldName: view.name,
-      label: view.label,
-      translatedLabel,
-      valueText: view.valueText,
-      accessibleText: view.accessibleText,
-      ...(view.errorText ? { errorText: view.errorText } : {}),
-    };
-    bentoTiles.push(tile);
-  }
-
+export function loadingOverviewRow(provider: ProviderName, displayName: string): OverviewRowModel {
   return {
-    gauges,
-    gaugeRows: chunkGauges(gauges),
-    bentoTiles,
-    bentoRows: chunkPairs(bentoTiles),
+    provider,
+    displayName,
+    badgeKind: "loading",
+    badgeText: "…",
+    meter: emptyMeter("neutral", false),
+    primaryText: "…",
+    secondaryText: null,
+    tone: undefined,
+    accessibleText: `${displayName}: …`,
   };
 }
 
-export function buildOverviewRowModel(options: {
-  provider: ProviderName;
-  displayName: string;
-  fieldsDefs: readonly FieldDef[];
-  result: ReaderResult | undefined;
-  statusFieldNames: readonly string[];
-  panelFieldNames: readonly string[];
-  locale: string;
-  t?: (s: string) => string;
-}): OverviewRowModel {
-  const {
-    provider,
-    displayName,
-    fieldsDefs,
-    result,
-    statusFieldNames,
-    panelFieldNames,
-    locale,
-    t,
-  } = options;
-  const tr = t ?? ((s: string) => s);
-
-  if (!result) {
-    return {
-      provider,
-      displayName,
-      badgeKind: "loading",
-      badgeText: "…",
-      meter: {
-        ratio: 0,
-        hasValue: false,
-        startAngle: GAUGE_START_ANGLE,
-        endAngle: GAUGE_START_ANGLE,
-        tone: "neutral",
-        rgb: TONE_RGB.neutral,
-        isError: false,
-      },
-      primaryText: "…",
-      secondaryText: null,
-      tone: undefined,
-      accessibleText: `${displayName}: …`,
-    };
-  }
-
-  const searchOrder = [...statusFieldNames, ...panelFieldNames];
-  const overviewViews = deriveFieldViews(fieldsDefs, result, searchOrder, "status", locale, tr);
-  const health = deriveProviderHealth(result, overviewViews, tr, fieldsDefs);
-  const badgeKind: OverviewBadgeKind = badgeForZone(health, "overview");
-  const badgeText = overviewBadgeText(health, tr);
-
-  const meter = computeStatusMicroMeter(fieldsDefs, result, statusFieldNames);
+export function buildOverviewRowModel(model: ProviderDisplayModel): OverviewRowModel {
+  const { provider, displayName } = model;
+  const facts = model.facts;
+  const badgeKind: OverviewBadgeKind = facts.badges.overview;
+  const badgeText = facts.badges.overviewText;
+  const meter = facts.meter;
 
   if (badgeKind === "error") {
-    const errSummary = result.lastError ?? tr("Error");
+    const errSummary = diagnosticMessage(model.result, facts.diagnostic) ?? "Error";
     return {
       provider,
       displayName,
@@ -297,10 +90,10 @@ export function buildOverviewRowModel(options: {
     };
   }
 
-  const facts = projectUsageFacts(result, overviewViews, searchOrder, { t: tr });
-  const resolvedTone = health.hasUsableField ? health.worstTone : undefined;
-  const primaryText = facts.valueText;
-  const secondaryText = facts.resetText;
+  const usage = facts.usage.overview;
+  const resolvedTone = facts.health.hasUsableField ? facts.health.worstTone : undefined;
+  const primaryText = usage.valueText;
+  const secondaryText = usage.resetText;
 
   const summaryParts = [displayName, badgeText, primaryText];
   if (secondaryText !== null) summaryParts.push(secondaryText);
@@ -342,35 +135,4 @@ export function cycleTab(
   const idx = tabs.indexOf(resolved);
   const nextIdx = (idx + direction + tabs.length) % tabs.length;
   return tabs[nextIdx];
-}
-
-export function providerDetailStructureKey(options: {
-  provider: ProviderName;
-  displayName: string;
-  status: string;
-  locale: string;
-  hasCallout: boolean;
-  hasTimestamp: boolean;
-  partition: PartitionedProviderPanel;
-}): string {
-  const gaugeKeys = options.partition.gauges.map((g) => [
-    g.fieldName,
-    g.hasResetSlot ? 1 : 0,
-    g.errorText === undefined ? 0 : 1,
-  ]);
-  const bentoKeys = options.partition.bentoTiles.map((b) => [
-    b.fieldName,
-    b.errorText === undefined ? 0 : 1,
-  ]);
-
-  return structureKey([
-    options.provider,
-    options.displayName,
-    options.status,
-    options.locale,
-    options.hasCallout ? "1" : "0",
-    options.hasTimestamp ? "1" : "0",
-    JSON.stringify(gaugeKeys),
-    JSON.stringify(bentoKeys),
-  ]);
 }

@@ -8,11 +8,10 @@ import {
   DEFAULT_STATUS_BAR_STYLE,
   PANEL_STYLES,
   STATUS_BAR_STYLES,
+  STYLE_CATALOG,
   isPanelStyle,
   isStatusBarStyle,
-  type PanelStyle,
-  type StatusBarStyle,
-} from "../styles.js";
+} from "../styleCatalog.js";
 import { gettext as _ } from "./gettext.js";
 import { bindSetting, unbindSettings } from "./shared.js";
 import type { SettingsBinding } from "./shared.js";
@@ -136,12 +135,9 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
         description: _("Choose the visual styles for the top bar and dropdown menu."),
       });
 
-      const statusStyleLabels: Record<StatusBarStyle, string> = {
-        pills: _("Capsule pills"),
-        gauges: _("Micro-ring gauges"),
-        compact: _("Compact text"),
-      };
-      const statusStyleValues = STATUS_BAR_STYLES.map((style) => statusStyleLabels[style]);
+      const statusStyleValues = STATUS_BAR_STYLES.map((style) =>
+        _(STYLE_CATALOG.statusBar[style].label),
+      );
       const statusStyleRow = new Adw.ComboRow({
         title: _("Status bar style"),
         subtitle: _("Visual presentation of metrics in the top bar."),
@@ -158,12 +154,7 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
       );
       group.add(statusStyleRow);
 
-      const panelStyleLabels: Record<PanelStyle, string> = {
-        gauges: _("Tabbed cockpit & gauges"),
-        cards: _("Quick settings cards"),
-        compact: _("Collapsible matrix HUD"),
-      };
-      const panelStyleValues = PANEL_STYLES.map((style) => panelStyleLabels[style]);
+      const panelStyleValues = PANEL_STYLES.map((style) => _(STYLE_CATALOG.panel[style].label));
       const panelStyleRow = new Adw.ComboRow({
         title: _("Dropdown panel style"),
         subtitle: _("Visual presentation of details in the dropdown panel."),

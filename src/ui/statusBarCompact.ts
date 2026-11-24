@@ -1,183 +1,71 @@
 import Clutter from "gi://Clutter";
 import St from "gi://St";
 
-import type { ProviderName } from "../constants.js";
-import { gettext as _ } from "../helpers/gettext.js";
 import { ReaderStatus } from "../readers/base.js";
-import { deriveStatusBarSegments, statusBadgeText, toAttention } from "./fieldViews.js";
-import type { ProviderAttention } from "./providerTypes.js";
-import { structureKey } from "./renderStructure.js";
-import type { StatusBarRenderContext } from "./statusBar.js";
 import { StatusBarRenderer } from "./statusBarRenderer.js";
-import { applyStatusAttentionClass } from "./tone.js";
+import { buildStatusSegment } from "./statusBarSegments.js";
+import type { ProviderViewContext } from "./viewContext.js";
+import { statusCompactMessages } from "./viewMessages.js";
 
-interface CompactPooledSegment {
-  box: St.BoxLayout;
-  nameLabel: St.Label;
-  metricsLabel: St.Label | null;
-}
-
-interface CompactBadgePlan {
-  provider: ProviderName;
-  shortLabel: string;
-  metricsText: string;
-  attention: ProviderAttention;
-  accessibleText: string;
-  key: string;
-}
-
-interface CompactPlan {
-  state: "empty" | "loading" | "ready";
-  placeholderText: string | null;
-  badges: readonly CompactBadgePlan[];
-  key: string;
-}
-
-function planCompact(context: StatusBarRenderContext): CompactPlan {
-  const tr = (text: string) => context.t(text);
-
-  if (!context.order.some((name) => context.isEnabled(name))) {
-    return {
-      state: "empty",
-      placeholderText: null,
-      badges: [],
-      key: structureKey(["empty", context.locale]),
-    };
-  }
-
-  const badges: CompactBadgePlan[] = deriveStatusBarSegments(context)
-    .filter((segment) => context.isEnabled(segment.provider))
-    .map((segment) => {
-      const shortLabel = segment.displayName || segment.provider;
-      const badgeWord = statusBadgeText(segment.health, tr);
-
-      if (segment.health.state === "error" || segment.health.state === "unavailable") {
-        return {
-          provider: segment.provider,
-          shortLabel,
-          metricsText: "!",
-          attention: toAttention(segment.health),
-          accessibleText: `${shortLabel} ${badgeWord}`.trim(),
-          key: JSON.stringify([segment.provider, shortLabel, 1]),
-        };
-      }
-
-      const joined = segment.views.map((view) => view.valueText).join("·");
-      const prefix = segment.result.status === ReaderStatus.PARTIAL ? "~" : "";
-      const metricsText = joined ? `${prefix}${joined}` : prefix;
-      const spokenRows = segment.views.map((view) => view.accessibleText).join(", ");
-      const headerPart = badgeWord ? `${shortLabel} ${badgeWord}` : shortLabel;
-      const accessibleText = spokenRows ? `${headerPart}: ${spokenRows}` : headerPart;
-
-      return {
-        provider: segment.provider,
-        shortLabel,
-        metricsText,
-        attention: toAttention(segment.health),
-        accessibleText,
-        key: JSON.stringify([segment.provider, shortLabel, metricsText ? 1 : 0]),
-      };
-    });
-
-  if (badges.length === 0 && context.results.size === 0) {
-    return {
-      state: "loading",
-      placeholderText: "…",
-      badges: [],
-      key: structureKey(["loading", context.locale]),
-    };
-  }
-
-  return {
-    state: "ready",
-    placeholderText: null,
-    badges,
-    key: structureKey(["ready", context.locale, ...badges.map((badge) => badge.key)]),
-  };
-}
-
-export class CompactStatusBarRenderer extends StatusBarRenderer<CompactPlan> {
-  private _segments: CompactPooledSegment[] = [];
-  private _placeholder: St.Label | null = null;
-
-  protected plan(context: StatusBarRenderContext): CompactPlan {
-    return planCompact(context);
-  }
-
-  protected build(plan: CompactPlan): void {
-    if (plan.state === "loading" && plan.placeholderText) {
-      const placeholder = new St.Label({
-        text: plan.placeholderText,
-        style_class: "provider-limits-status-placeholder provider-limits-tnum",
-        y_align: Clutter.ActorAlign.CENTER,
-      });
-      placeholder.accessible_name = _("Reading provider limits…");
-      this.parent.add_child(placeholder);
-      this._placeholder = placeholder;
-      return;
-    }
-
-    plan.badges.forEach((badge, index) => {
-      const segment = new St.BoxLayout({
-        style_class:
-          index > 0
-            ? "provider-limits-status-segment provider-limits-status-segment-divided"
-            : "provider-limits-status-segment",
-        y_align: Clutter.ActorAlign.CENTER,
-      });
-      segment.accessible_name = badge.accessibleText;
-
-      const nameLabel = new St.Label({
-        text: badge.shortLabel,
-        style_class: "provider-limits-provider-label",
-        y_align: Clutter.ActorAlign.CENTER,
-      });
-      nameLabel.accessible_name = badge.shortLabel;
-      segment.add_child(nameLabel);
-
-      let metricsLabel: St.Label | null = null;
-      if (badge.metricsText) {
-        metricsLabel = new St.Label({
-          text: badge.metricsText,
-          style_class: "provider-limits-status-metrics provider-limits-tnum",
+/** Rebuilds the compact status bar from one freshly derived view. */
+export class CompactStatusBarRenderer extends StatusBarRenderer {
+  protected override renderView(context: ProviderViewContext): void {
+    if (
+      this.renderPlaceholderFor(context, statusCompactMessages, (message) => {
+        const label = new St.Label({
+          text: message.placeholder,
+          style_class: "provider-limits-status-placeholder provider-limits-tnum",
           y_align: Clutter.ActorAlign.CENTER,
         });
-        metricsLabel.accessible_name = badge.accessibleText;
-        segment.add_child(metricsLabel);
-      }
-
-      applyStatusAttentionClass(segment, metricsLabel ?? nameLabel, badge.attention);
-      this.parent.add_child(segment);
-      this._segments.push({ box: segment, nameLabel, metricsLabel });
-    });
-  }
-
-  protected update(plan: CompactPlan): void {
-    if (plan.state === "loading" && this._placeholder && plan.placeholderText) {
-      this._placeholder.text = plan.placeholderText;
+        label.accessible_name = message.accessibleText;
+        return label;
+      })
+    ) {
       return;
     }
 
-    plan.badges.forEach((badge, index) => {
-      const pooled = this._segments[index];
-      if (!pooled) return;
+    this.renderSegments(context.models, (model, index) => {
+      const { health, badges } = model.facts;
+      const shortLabel = model.shortDisplayName || model.provider;
+      const badgeWord = badges.status;
+      let metricsText: string;
+      let accessibleText: string;
 
-      pooled.box.accessible_name = badge.accessibleText;
-      pooled.nameLabel.text = badge.shortLabel;
-      if (pooled.metricsLabel) {
-        pooled.metricsLabel.text = badge.metricsText;
-        pooled.metricsLabel.accessible_name = badge.accessibleText;
+      if (health.state === "error" || health.state === "unavailable") {
+        metricsText = "!";
+        accessibleText = `${shortLabel} ${badgeWord}`.trim();
+      } else {
+        const joined = model.statusViews.map((view) => view.valueText).join("·");
+        const prefix = model.result.status === ReaderStatus.PARTIAL ? "~" : "";
+        metricsText = joined ? `${prefix}${joined}` : prefix;
+        const spokenRows = model.statusViews.map((view) => view.accessibleText).join(", ");
+        const headerPart = badgeWord ? `${shortLabel} ${badgeWord}` : shortLabel;
+        accessibleText = spokenRows ? `${headerPart}: ${spokenRows}` : headerPart;
       }
-      applyStatusAttentionClass(
-        pooled.box,
-        pooled.metricsLabel ?? pooled.nameLabel,
-        badge.attention,
+
+      return buildStatusSegment(
+        model,
+        {
+          segmentClass:
+            index > 0
+              ? "provider-limits-status-segment provider-limits-status-segment-divided"
+              : "provider-limits-status-segment",
+          nameText: shortLabel,
+          nameAccessible: true,
+          accessibleName: accessibleText,
+          attention: health.attention,
+        },
+        () => {
+          if (!metricsText) return { beforeName: [], afterName: [] };
+          const metricsLabel = new St.Label({
+            text: metricsText,
+            style_class: "provider-limits-status-metrics provider-limits-tnum",
+            y_align: Clutter.ActorAlign.CENTER,
+          });
+          metricsLabel.accessible_name = accessibleText;
+          return { beforeName: [], afterName: [metricsLabel] };
+        },
       );
     });
-  }
-
-  protected onDispose(): void {
-    this._segments = [];
-    this._placeholder = null;
   }
 }

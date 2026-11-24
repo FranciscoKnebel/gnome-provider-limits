@@ -625,8 +625,6 @@ msgstr "Activez les champs et définissez leur ordre pour la barre d'état et le
 msgid "Reset defaults"
 msgstr "Réinitialiser les valeurs par défaut"
 
-msgid "Top Bar"
-msgstr "Barre supérieure"
 
 msgid "Panel"
 msgstr "Panneau"
@@ -642,3 +640,12 @@ msgstr "Fournisseurs actifs"
 
 msgid "Enable, configure, and reorder AI coding providers. Expand any provider to edit credentials and the field matrix."
 msgstr "Activez, configurez et réordonnez les fournisseurs d'IA pour le code. Dépliez un fournisseur pour modifier les identifiants et la matrice des champs."
+
+msgid "Toggle which fields appear in the status bar and panel."
+msgstr "Choisissez les champs affichés dans la barre d'état et le panneau."
+
+msgid "Reorder active fields with the arrow buttons or by dragging."
+msgstr "Réorganisez les champs actifs avec les flèches ou par glisser-déposer."
+
+msgid "No fields selected."
+msgstr "Aucun champ sélectionné."

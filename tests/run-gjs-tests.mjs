@@ -28,7 +28,7 @@ async function discoverTests() {
       let info;
       while ((info = enumerator.next_file(null)) !== null) {
         const name = info.get_name();
-        if (name.endsWith(".test.mjs") || name.endsWith(".test.js")) {
+        if (name.endsWith(".test.js")) {
           files.push(`${dir}/${name}`);
         }
       }

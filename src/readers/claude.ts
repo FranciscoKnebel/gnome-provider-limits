@@ -5,7 +5,7 @@ import { HttpClient, HttpError, TokenError } from "../helpers/http.js";
 import { logWarn } from "../helpers/log.js";
 import { resolveClaudeConfigDir } from "../helpers/paths.js";
 import { runSubprocess } from "../helpers/subprocess.js";
-import type { FieldDef, FieldResult, ReadOptions, ReaderResult } from "./base.js";
+import type { FieldResult, ReadOptions, ReaderResult } from "./base.js";
 import { BaseReader, FieldStatus } from "./base.js";
 import {
   type ClaudeUsagePayload,
@@ -24,19 +24,13 @@ const CLAUDE_ALL_PATHS_FAILED = "Claude: all paths failed. Run `claude` to refre
 const CLAUDE_USAGE_URL = "https://api.anthropic.com/api/oauth/usage";
 const CLI_PROBE_TIMEOUT_SECONDS = 15;
 
-import { CLAUDE_FIELDS } from "./fields.js";
-
 Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish");
 
-export class ClaudeReader extends BaseReader {
+export class ClaudeReader extends BaseReader<"claude"> {
   private _http: HttpClient | null = null;
   private _cancellable: Gio.Cancellable | null = null;
   private _destroyed = false;
   private _lastCliFailureAt: number | null = null;
-
-  get FIELDS(): readonly FieldDef[] {
-    return CLAUDE_FIELDS;
-  }
 
   override destroy(): void {
     this._destroyed = true;
@@ -230,18 +224,35 @@ export class ClaudeReader extends BaseReader {
     const fields: FieldResult[] = [];
 
     const windows = [
-      { key: "session", data: payload.five_hour },
-      { key: "weekly", data: payload.seven_day },
+      {
+        names: {
+          used: "used_percent_session",
+          remaining: "remaining_percent_session",
+          reset: "reset_at_session",
+        },
+        data: payload.five_hour,
+      },
+      {
+        names: {
+          used: "used_percent_weekly",
+          remaining: "remaining_percent_weekly",
+          reset: "reset_at_weekly",
+        },
+        data: payload.seven_day,
+      },
     ] as const;
 
-    for (const { key, data } of windows) {
-      fields.push(...this._makeWindowFields(key, data));
+    for (const { names, data } of windows) {
+      fields.push(...this._makeWindowFields(names, data));
     }
 
     const sonnet = payload.seven_day_sonnet;
     fields.push(
       ...this._makePercentFieldPair(
-        "sonnet",
+        {
+          used: "used_percent_sonnet",
+          remaining: "remaining_percent_sonnet",
+        },
         sonnet?.used_percent,
         sonnet ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
       ),
@@ -250,7 +261,7 @@ export class ClaudeReader extends BaseReader {
     const opus = payload.seven_day_opus;
     fields.push(
       ...this._makePercentFieldPair(
-        "opus",
+        { used: "used_percent_opus", remaining: "remaining_percent_opus" },
         opus?.used_percent,
         opus ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
       ),

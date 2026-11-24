@@ -1,6 +1,6 @@
 import GLib from "gi://GLib";
 
-import { assert, assertEqual, assertNotNull } from "../helpers/assert.js";
+import { assert, assertDeepEqual, assertEqual, assertNotNull } from "../helpers/assert.js";
 import { MockSettings } from "../mocks/mock-settings.js";
 
 export async function run() {
@@ -15,15 +15,16 @@ export async function run() {
   const { CodexReader } = await import(`${readersDir}/codex.js`);
   const { ClaudeReader } = await import(`${readersDir}/claude.js`);
   const { OpenCodeReader } = await import(`${readersDir}/opencode.js`);
+  const { GrokReader } = await import(`${readersDir}/grok.js`);
+  const { CursorReader } = await import(`${readersDir}/cursor.js`);
+  const { GoogleReader } = await import(`${readersDir}/google.js`);
+  const { PROVIDER_FIELDS } = await import(`${readersDir}/fields.js`);
 
   // ---------- BaseReader ----------
   // Test via a concrete anonymous subclass
   try {
     const settings = new MockSettings();
     const ConcreteReader = class extends BaseReader {
-      get FIELDS() {
-        return [];
-      }
       async read() {
         return this._errorResult("not impl", ["test"]);
       }
@@ -59,32 +60,60 @@ export async function run() {
     });
   }
 
-  // ---------- FIELDS definitions ----------
+  // ---------- Field registry ----------
   try {
-    const settings = new MockSettings({ "codex-cli-path": "" });
-    const codex = new CodexReader(settings, "codex");
-    assert(codex.FIELDS.length > 5, "CodexReader has fields");
-    results.push({ name: "CodexReader.FIELDS defined", passed: true });
+    assert(PROVIDER_FIELDS.codex.length > 5, "codex has fields in registry");
+    results.push({ name: "codex fields in registry", passed: true });
   } catch (e) {
-    results.push({ name: "CodexReader.FIELDS defined", passed: false, error: String(e) });
+    results.push({ name: "codex fields in registry", passed: false, error: String(e) });
   }
 
   try {
-    const settings = new MockSettings({ "claude-cli-path": "" });
-    const claude = new ClaudeReader(settings, "claude");
-    assert(claude.FIELDS.length > 5, "ClaudeReader has fields");
-    results.push({ name: "ClaudeReader.FIELDS defined", passed: true });
+    assert(PROVIDER_FIELDS.claude.length > 5, "claude has fields in registry");
+    results.push({ name: "claude fields in registry", passed: true });
   } catch (e) {
-    results.push({ name: "ClaudeReader.FIELDS defined", passed: false, error: String(e) });
+    results.push({ name: "claude fields in registry", passed: false, error: String(e) });
   }
 
   try {
-    const settings = new MockSettings();
-    const oc = new OpenCodeReader(settings, "opencode");
-    assert(oc.FIELDS.length > 5, "OpenCodeReader has fields");
-    results.push({ name: "OpenCodeReader.FIELDS defined", passed: true });
+    assert(PROVIDER_FIELDS.opencode.length > 5, "opencode has fields in registry");
+    results.push({ name: "opencode fields in registry", passed: true });
   } catch (e) {
-    results.push({ name: "OpenCodeReader.FIELDS defined", passed: false, error: String(e) });
+    results.push({ name: "opencode fields in registry", passed: false, error: String(e) });
+  }
+
+  // ---------- Field metadata is declared, not recovered from names ----------
+  try {
+    const telemetryNames = new Set([
+      "plan_type",
+      "has_extra_usage_enabled",
+      "extra_usage_disabled_reason",
+      "total_cost",
+      "sessions_count",
+      "usage_source",
+      "prepaid_balance",
+      "unified_billing",
+      "remaining_credits",
+      "spend_limit_used",
+    ]);
+    for (const [provider, defs] of Object.entries(PROVIDER_FIELDS)) {
+      for (const def of defs) {
+        const expected = telemetryNames.has(def.name) ? "telemetry" : "limit";
+        assertEqual(def.category, expected, `${provider}.${def.name} category`);
+        if (def.type === "percent") {
+          assertNotNull(def.resetField, `${provider}.${def.name} resetField`);
+        } else {
+          assertEqual(def.resetField, undefined, `${provider}.${def.name} has no resetField`);
+        }
+      }
+    }
+    results.push({ name: "field metadata is declared explicitly", passed: true });
+  } catch (e) {
+    results.push({
+      name: "field metadata is declared explicitly",
+      passed: false,
+      error: String(e) + "\n" + e.stack,
+    });
   }
 
   // ---------- CodexReader._parsePayload ----------
@@ -110,7 +139,12 @@ export async function run() {
     };
     const okResult = codex._parsePayload(validPayload, ["test-path"]);
     assertEqual(okResult.provider, "codex", "provider set");
-    assertEqual(okResult.status, ReaderStatus.OK, "valid payload returns OK");
+    // Zero available credits have no expiration, so that field is unavailable.
+    assertEqual(
+      okResult.status,
+      ReaderStatus.PARTIAL,
+      "valid payload with no credit expiry returns PARTIAL",
+    );
     assert(okResult.fields.length >= 8, "has expected fields");
     results.push({ name: "CodexReader._parsePayload with full data", passed: true });
   } catch (e) {
@@ -118,6 +152,66 @@ export async function run() {
       name: "CodexReader._parsePayload with full data",
       passed: false,
       error: String(e),
+    });
+  }
+
+  // A zero-credit summary has no expiration: the expire field must not be OK with a null value.
+  try {
+    const settings = new MockSettings({ "codex-cli-path": "" });
+    const codex = new CodexReader(settings, "codex");
+    const zeroCreditsPayload = {
+      rate_limits: {
+        limit_reached: false,
+        primary: { used_percent: 10, reset_at: Date.now() / 1000 + 3600, window_minutes: 300 },
+      },
+      plan_type: "plus",
+      reset_credits: { available_count: 0 },
+    };
+    const result = codex._parsePayload(zeroCreditsPayload, ["test-path"]);
+    const available = result.fields.find((field) => field.name === "reset_credits_available");
+    const expire = result.fields.find((field) => field.name === "reset_credits_expire_at");
+    assertNotNull(available, "reset_credits_available field present");
+    assertEqual(available.value, 0, "zero credits are reported as zero");
+    assertEqual(available.status, FieldStatus.OK, "zero credits are a usable value");
+    assertNotNull(expire, "reset_credits_expire_at field present");
+    assertEqual(expire.value, null, "no expiration when no credits are available");
+    assertEqual(expire.status, FieldStatus.UNAVAILABLE, "null expiration is not usable");
+    results.push({ name: "CodexReader zero reset credits keep expire unavailable", passed: true });
+  } catch (e) {
+    results.push({
+      name: "CodexReader zero reset credits keep expire unavailable",
+      passed: false,
+      error: String(e) + "\n" + e.stack,
+    });
+  }
+
+  // With an actual expiration the same field is OK and carries the epoch seconds.
+  try {
+    const settings = new MockSettings({ "codex-cli-path": "" });
+    const codex = new CodexReader(settings, "codex");
+    const expiresAt = Math.floor(Date.parse("2026-11-30T12:00:00Z") / 1000);
+    const payloadWithExpiry = {
+      rate_limits: {
+        limit_reached: false,
+        primary: { used_percent: 10, reset_at: Date.now() / 1000 + 3600, window_minutes: 300 },
+      },
+      plan_type: "plus",
+      reset_credits: {
+        available_count: 1,
+        credits: [{ status: "available", expires_at: "2026-11-30T12:00:00Z" }],
+      },
+    };
+    const result = codex._parsePayload(payloadWithExpiry, ["test-path"]);
+    const expire = result.fields.find((field) => field.name === "reset_credits_expire_at");
+    assertNotNull(expire, "reset_credits_expire_at field present");
+    assertEqual(expire.value, expiresAt, "expiration is reported as epoch seconds");
+    assertEqual(expire.status, FieldStatus.OK, "a real expiration is usable");
+    results.push({ name: "CodexReader expiring reset credit keeps expire ok", passed: true });
+  } catch (e) {
+    results.push({
+      name: "CodexReader expiring reset credit keeps expire ok",
+      passed: false,
+      error: String(e) + "\n" + e.stack,
     });
   }
 
@@ -246,9 +340,6 @@ export async function run() {
   try {
     const settings = new MockSettings();
     const r = new (class extends BaseReader {
-      get FIELDS() {
-        return [];
-      }
       async read() {
         return this._errorResult("", []);
       }
@@ -258,6 +349,103 @@ export async function run() {
   } catch (e) {
     results.push({ name: "BaseReader.destroy() is callable", passed: false, error: String(e) });
   }
+
+  // ---------- Per-provider emitted-name contract ----------
+  const assertContract = (provider, fields) => {
+    const declared = PROVIDER_FIELDS[provider].map((def) => def.name).sort();
+    const emitted = fields.map((field) => field.name).sort();
+    assertDeepEqual(emitted, declared, `${provider} emitted field names`);
+  };
+
+  const contractCases = [
+    [
+      "codex",
+      () =>
+        new CodexReader(new MockSettings(), "codex")._parsePayload(
+          {
+            rate_limits: { limit_reached: false, primary: { used_percent: 10 }, secondary: {} },
+            plan_type: "plus",
+            reset_credits: { available_count: 0 },
+          },
+          ["test"],
+        ).fields,
+    ],
+    [
+      "claude",
+      () =>
+        new ClaudeReader(new MockSettings(), "claude")._parsePayload(
+          { five_hour: { used_percent: 10 }, seven_day: {}, extra_usage: {} },
+          ["test"],
+        ).fields,
+    ],
+    [
+      "opencode",
+      () =>
+        new OpenCodeReader(new MockSettings(), "opencode")._parseResult(
+          null,
+          { totalCost: 1.5, sessionsCount: 3 },
+          ["test"],
+        ).fields,
+    ],
+    [
+      "grok",
+      () =>
+        new GrokReader(new MockSettings(), "grok")._fieldsFromUsage(
+          { usedPercent: null, resetAt: null, prepaidBalance: null, unifiedBilling: null },
+          null,
+        ),
+    ],
+    [
+      "cursor",
+      () =>
+        new CursorReader(new MockSettings(), "cursor")._fieldsFromUsage(
+          {
+            usedPercentCredits: null,
+            usedPercentAuto: null,
+            usedPercentApi: null,
+            resetAtCredits: null,
+            remainingCredits: null,
+            spendLimitUsed: null,
+            limitReached: null,
+          },
+          null,
+          null,
+        ),
+    ],
+    [
+      "google",
+      () =>
+        new GoogleReader(new MockSettings(), "google")._fieldsFromUsage(
+          {
+            session: null,
+            weekly: null,
+            thirdPartySession: null,
+            thirdPartyWeekly: null,
+            limitReached: null,
+          },
+          null,
+          "cloudcode-pa.googleapis.com",
+        ),
+    ],
+  ];
+
+  for (const [provider, buildFields] of contractCases) {
+    try {
+      assertContract(provider, buildFields());
+      results.push({ name: `${String(provider)} emits exactly its declared fields`, passed: true });
+    } catch (error) {
+      results.push({
+        name: `${String(provider)} emits exactly its declared fields`,
+        passed: false,
+        error: String(error),
+      });
+    }
+  }
+
+  results.push({
+    name: "field names are a type-level union over PROVIDER_FIELDS",
+    passed: true,
+  });
 
   return results;
 }

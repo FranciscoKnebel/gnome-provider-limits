@@ -1,6 +1,25 @@
 export const PROVIDER_NAMES = ["codex", "claude", "opencode", "grok", "cursor", "google"] as const;
 export type ProviderName = (typeof PROVIDER_NAMES)[number];
 
+/** Build a complete record for every provider from the canonical name list. */
+export function providerRecord<T>(make: (provider: ProviderName) => T): Record<ProviderName, T> {
+  return {
+    codex: make("codex"),
+    claude: make("claude"),
+    opencode: make("opencode"),
+    grok: make("grok"),
+    cursor: make("cursor"),
+    google: make("google"),
+  };
+}
+
+/** Providers whose configured path points at an existing login file, not an executable. */
+export const AUTH_FILE_PROVIDERS: ReadonlySet<ProviderName> = new Set([
+  "grok",
+  "cursor",
+  "google",
+] as const satisfies readonly ProviderName[]);
+
 export const DEFAULT_REFRESH_SHORT_INTERVAL_SECONDS = 10;
 export const DEFAULT_REFRESH_LONG_INTERVAL_SECONDS = 120;
 export const DEFAULT_REFRESH_STABLE_READS_THRESHOLD = 3;

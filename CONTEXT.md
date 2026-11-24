@@ -29,6 +29,24 @@ state (e.g. `prompts_used`, `reset_at`, `percent_remaining`). Each provider
 exposes a different set of fields.
 _Avoid_: Metric, attribute, datum.
 
+**Field Catalog**:
+The authoritative field declarations in `src/readers/fields.ts`, one array per
+Provider, assembled into `PROVIDER_FIELDS` and distilled at the type level into
+`FieldName`. Each entry carries name, label, type, category (limit or
+telemetry), an optional `valueKind` (`used` or `remaining`, for percent fields)
+and an optional `resetField` pairing. The default zone is not part
+of it: the GSettings schema `<default>` arrays (`<provider>-status-fields` and
+`<provider>-panel-fields`) remain the single source of truth for where a Field
+appears by default.
+_Avoid_: Field registry, default zone metadata, duplicate field list.
+
+**FieldView**:
+The one zone-aware formatted projection of a Field, derived by
+`deriveFieldViews` in `fieldViews.ts`. Renderers consume its already computed
+`labelText`, `valueText`, `accessibleText`, `tone`, `ratio`, `fillPercent` and
+`errorText` without a second formatting stage or any provider-specific state.
+_Avoid_: Field widget, formatted row, renderer-local field copy.
+
 **Status Bar**:
 Compact zone of the extension, always visible in the GNOME panel. Shows few
 fields per provider, in little space.
@@ -38,6 +56,26 @@ _Avoid_: Tray, icon, indicator.
 Expanded window when clicking the extension. Shows fields that don't fit in
 the status bar, with more detail.
 _Avoid_: Popup, dropdown, menu.
+
+**Panel Style**:
+A selectable Panel appearance: `gauges`, `cards` or `compact`. Persisted in
+GSettings and resolved through the Style Registry to a `PanelStyleSpec` that
+joins catalog metadata with the section factory, footer factory and CSS
+placement.
+_Avoid_: Panel theme, layout mode.
+
+**Status Bar Style**:
+A selectable Status Bar appearance: `pills`, `gauges` or `compact`. Persisted
+in GSettings and resolved through the Style Registry to a `StatusBarStyleSpec`
+with a renderer factory.
+_Avoid_: Top-bar theme, indicator mode.
+
+**Style Registry**:
+`STYLE_REGISTRY` in `styles.ts`, the single shell-facing map from Panel Style
+and Status Bar Style to their specs. It combines the pure metadata in
+`styleCatalog.ts` with factories and CSS placement strings, so the shell
+resolves a style once instead of branching on style names across the UI.
+_Avoid_: Style switch, theme manager, catalog (when referring to the registry).
 
 **Provider Configuration**:
 Per-provider configuration that defines which fields to display, in which zone
@@ -132,6 +170,45 @@ A field that expresses usage already performed, with no reference to a ceiling
 presented as "remaining" or "percentage of limit".
 _Avoid_: Usage metric, statistic.
 
+**Provider Display Model**:
+One Provider's canonical display snapshot for a frame, built by
+`deriveDisplayModel` from a `ReaderResult` plus the configured status and panel
+fields, display names, locale and Field Catalog slice. It holds the selected
+FieldViews, reset pairings and the eager ProviderDisplayFacts. Renderers read
+these models instead of the raw `ReaderResult` or `FieldDef` values.
+_Avoid_: View model, renderer DTO, cached widget tree.
+
+**Provider Display Facts**:
+The surface-agnostic presentational facts computed once with a Provider Display
+Model: health, badges, usage facts, meter spec, diagnostic, callout, classified
+view groups and last-updated text. Every style derives its tone, badge and
+banner from these facts, so styles cannot disagree about a Provider's status.
+_Avoid_: Per-style badge, renderer-local diagnostic, presentation cache.
+
+**Provider Severity**:
+The one ordered health value for a Provider, `PROVIDER_SEVERITIES` in
+`providerHealth.ts`. State, tone, status attention and presentation come from
+one table keyed by it (`HEALTH_BY_SEVERITY`); the severity itself is derived
+from the ReaderResult status, worst field tone, usable-field presence and
+Last-Known-Good provenance. No surface recombines those attributes through a
+second table.
+_Avoid_: Health level, status color, per-style state.
+
+**View Phase**:
+The coarse state of one rendered frame: `empty` (no Providers enabled),
+`loading` (enabled Providers have no results yet) or `ready`. Derived by
+`resolveViewPhase`, carried on `ProviderViewContext`, and mapped by
+`phaseResult` with the surface's Phase Messages to either a placeholder or
+normal content.
+_Avoid_: Loading flag, render stage, spinner state.
+
+**PlanRenderer (removed)**:
+No longer part of the UI. Incremental rendering, structure keys, pooled widget
+arrays and cache fingerprints were deleted; each renderer now clears and
+rebuilds its body from one freshly derived view plan (the `ProviderViewContext`
+and its Provider Display Models). Do not reintroduce renderer-local caches.
+_Avoid_: Incremental renderer, widget pool, structure key, render diff.
+
 **Provider Display Name**:
 User-configurable label for a provider in the UI.
 `*-display-name` (full, used in panel and prefs) and `*-display-name-short`
@@ -178,9 +255,12 @@ _Avoid_: In-progress translation, staging `.po`, pending language.
 The `gnome-provider-limits.pot` file under `src/po/`, the human-readable
 catalog of every translatable string extracted from source. Hand-maintained
 (no `xgettext` call exists in the project; `check:i18n`'s regex extractor is
-the de facto source of truth). `check:i18n` validates it against source-string
-extraction on every `npm run check` to catch drift. Translators copy it to
-`xx.po` to start a new language. It never contains the `Language Sentinel`
+the de facto source of truth). The extractor recognizes `_(`, `tr(`, `t(` and
+`label:` forms; new UI code keeps every translatable literal in a direct
+`t("...")` call and passes already-translated strings to copy helpers, so
+there is one extraction contract. `check:i18n` validates the template against
+source-string extraction on every `npm run check` to catch drift. Translators
+copy it to `xx.po` to start a new language. It never contains the `Language Sentinel`
 because the sentinel is metadata about a language, not a source-extracted string.
 Language names (`"English"`, `"Português (Brasil)"`, etc.) are not in the
 template either: they are sentinels carried per-`.po`, never wrapped in `_()`
@@ -277,8 +357,9 @@ _Avoid_: Spinner (when referring to the concept), loading icon, busy cursor.
 
 **Panel Footer**:
 Bottom region of the `Panel` containing the "Force refresh" button, the
-`Running Refresh Indicator`, and the `Last Refresh At` label. Rendered by
-`_addRefreshRow()` in `panel.ts`; updated by `setRunning()` without a full
-rebuild. The "Force refresh" button is blocked while a `Running Refresh` is
-in progress.
+`Running Refresh Indicator`, and the `Last Refresh At` label. Built by one of
+the three style-specific factories in `panelFooter.ts` (`buildGaugesFooter`,
+`buildCardsFooter`, `buildHudFooter`), selected through the Style Registry and
+owned by `PanelShell`. Updated by `setRunning()` without a full rebuild. The
+"Force refresh" button is blocked while a `Running Refresh` is in progress.
 _Avoid_: Status row, action bar.

@@ -1,48 +1,64 @@
 import type St from "gi://St";
 
-import type { StatusBarRenderContext } from "./statusBar.js";
+import { clearChildren } from "../helpers/children.js";
+import type { ProviderDisplayModel } from "./displayModel.js";
+import type { ProviderViewContext } from "./viewContext.js";
+import {
+  phaseResult,
+  type PhaseMessages,
+  type PhaseResult,
+  type SpinnerPresentation,
+} from "./viewMessages.js";
 
-export interface StatusBarPlan {
-  readonly key: string;
+/** The lifecycle every status bar section renderer implements. */
+export interface StatusBarSectionRenderer {
+  render(context: ProviderViewContext): void;
+  dispose(): void;
 }
 
-/**
- * Shared status-bar lifecycle: plan once, rebuild when the structure key
- * changes, and update widgets in place otherwise.
- */
-export abstract class StatusBarRenderer<TPlan extends StatusBarPlan = StatusBarPlan> {
-  private _structureKey: string | null = null;
+/** Shared render skeleton: clear, derive the phase, then render that view. */
+export abstract class StatusBarRenderer implements StatusBarSectionRenderer {
+  protected readonly parent: St.BoxLayout;
 
-  constructor(protected readonly parent: St.BoxLayout) {}
+  constructor(parent: St.BoxLayout) {
+    this.parent = parent;
+  }
 
-  protected abstract plan(context: StatusBarRenderContext): TPlan;
-
-  protected abstract build(plan: TPlan): void;
-
-  protected abstract update(plan: TPlan): void;
-
-  /** Release renderer-owned widget references when the structure is replaced. */
-  protected onDispose(): void {}
-
-  render(context: StatusBarRenderContext): void {
-    const plan = this.plan(context);
-    if (plan.key === this._structureKey) {
-      this.update(plan);
-      return;
-    }
+  render(context: ProviderViewContext): void {
     this.dispose();
-    this.build(plan);
-    this._structureKey = plan.key;
+    this.renderView(context);
   }
 
   dispose(): void {
-    let child = this.parent.get_first_child();
-    while (child) {
-      const next = child.get_next_sibling();
-      child.destroy();
-      child = next;
-    }
-    this._structureKey = null;
-    this.onDispose();
+    clearChildren(this.parent, (child) => child.destroy());
   }
+
+  /** Renders a placeholder when present. Acts as a guard so callers can fall through to segments. */
+  protected renderPlaceholder(
+    phase: PhaseResult,
+    factory: (message: SpinnerPresentation) => St.Widget,
+  ): boolean {
+    if (phase.kind !== "placeholder" || phase.message.kind !== "spinner") return false;
+    this.parent.add_child(factory(phase.message));
+    return true;
+  }
+
+  /** Shared placeholder preamble: derive the phase and render its placeholder when present. */
+  protected renderPlaceholderFor(
+    context: ProviderViewContext,
+    messages: PhaseMessages,
+    factory: (message: SpinnerPresentation) => St.Widget,
+  ): boolean {
+    return this.renderPlaceholder(phaseResult(context, messages), factory);
+  }
+
+  /** Adds one widget per provider model, in canonical order. */
+  protected renderSegments(
+    models: readonly ProviderDisplayModel[],
+    build: (model: ProviderDisplayModel, index: number) => St.Widget,
+  ): void {
+    models.forEach((model, index) => this.parent.add_child(build(model, index)));
+  }
+
+  protected abstract renderView(context: ProviderViewContext): void;
 }

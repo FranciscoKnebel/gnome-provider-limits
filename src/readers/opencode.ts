@@ -5,7 +5,7 @@ import { HttpClient } from "../helpers/http.js";
 import { logWarn } from "../helpers/log.js";
 import { resolveOpenCodeDataDir } from "../helpers/paths.js";
 import { querySqlite } from "../helpers/sqlite.js";
-import type { FieldDef, FieldResult, ReadOptions, ReaderResult } from "./base.js";
+import type { FieldResult, ReadOptions, ReaderResult } from "./base.js";
 import { BaseReader, FieldStatus } from "./base.js";
 import {
   type OpenCodeDbRow,
@@ -24,16 +24,10 @@ const OPENCODE_USAGE_URL = "https://opencode.ai/zen/go/v1/usage";
 
 Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish");
 
-import { OPENCODE_FIELDS } from "./fields.js";
-
-export class OpenCodeReader extends BaseReader {
+export class OpenCodeReader extends BaseReader<"opencode"> {
   private _http: HttpClient | null = null;
   private _cancellable: Gio.Cancellable | null = null;
   private _destroyed = false;
-
-  get FIELDS(): readonly FieldDef[] {
-    return OPENCODE_FIELDS;
-  }
 
   override destroy(): void {
     this._destroyed = true;
@@ -174,15 +168,36 @@ export class OpenCodeReader extends BaseReader {
     const fields: FieldResult[] = [];
 
     const windows = [
-      { key: "rolling", data: usage?.rolling },
-      { key: "weekly", data: usage?.weekly },
-      { key: "monthly", data: usage?.monthly },
+      {
+        names: {
+          used: "used_percent_rolling",
+          remaining: "remaining_percent_rolling",
+          reset: "reset_at_rolling",
+        },
+        data: usage?.rolling,
+      },
+      {
+        names: {
+          used: "used_percent_weekly",
+          remaining: "remaining_percent_weekly",
+          reset: "reset_at_weekly",
+        },
+        data: usage?.weekly,
+      },
+      {
+        names: {
+          used: "used_percent_monthly",
+          remaining: "remaining_percent_monthly",
+          reset: "reset_at_monthly",
+        },
+        data: usage?.monthly,
+      },
     ] as const;
 
-    for (const { key, data } of windows) {
+    for (const { names, data } of windows) {
       fields.push(
         ...this._makeWindowFields(
-          key,
+          names,
           data ? { used_percent: data.percent, reset_at: data.reset_at } : null,
         ),
       );

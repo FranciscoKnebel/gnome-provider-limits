@@ -4,7 +4,10 @@ import type St from "gi://St";
 export type ActivationPointerSignal = "clicked" | "button-release-event";
 
 export interface ActivationBinding {
-  /** Pointer signals that should trigger activation. Defaults to both known signals. */
+  /**
+   * Pointer signal that triggers activation. Defaults to "clicked", which is
+   * what St.Button emits. Reactive boxes must opt in to "button-release-event".
+   */
   readonly pointerSignals?: readonly ActivationPointerSignal[];
   /** Fallback for key-press-event when the key is not an activation key. */
   readonly onOtherKey?: (event: Clutter.Event) => boolean;
@@ -27,7 +30,7 @@ export function bindActivation(
     onActivate();
     return Clutter.EVENT_STOP;
   };
-  const pointerSignals = binding.pointerSignals ?? ["clicked", "button-release-event"];
+  const pointerSignals = binding.pointerSignals ?? ["clicked"];
   for (const signal of pointerSignals) actor.connect(signal, activate);
   actor.connect("key-press-event", (_actor: Clutter.Actor, event: Clutter.Event) => {
     if (isActivationKey(event.get_key_symbol())) {

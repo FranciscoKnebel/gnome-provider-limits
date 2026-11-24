@@ -1,373 +1,182 @@
 import Clutter from "gi://Clutter";
-import type Gio from "gi://Gio";
-import GLib from "gi://GLib";
 import St from "gi://St";
-import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
-import { PROVIDER_NAMES, type ProviderName } from "../constants.js";
+import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { bindActivation } from "../helpers/keyboard.js";
-import { resolveLocale } from "../helpers/locale.js";
-import { normalizeProvidersOrder, providerDisplayName } from "../helpers/provider-settings.js";
-import type { BaseReader, FieldDef, ReaderResult } from "../readers/base.js";
+import { ReaderStatus } from "../readers/base.js";
+import { diagnosticMessage, type ProviderDisplayModel } from "./displayModel.js";
+import { createErrorLabel } from "./errorLabel.js";
+import { clampFillRatio } from "./fieldRows.js";
+import type { FieldView, UsageFacts } from "./fieldViews.js";
 import {
-  planPanelMatrix,
+  areAllProvidersExpanded,
+  formatSegmentedBar,
   resolveProviderExpanded,
   toggleAllProvidersExpanded,
 } from "./matrixPlan.js";
-import type { MatrixDetailRow, PanelMatrixPlan, ProviderMatrixPlan } from "./matrixPlan.js";
-import type { PanelShell, PanelStyleSection } from "./panelShell.js";
-import { applyQuietToneClass, applyToneClass } from "./tone.js";
-import { clampFillRatio } from "./usageSnapshot.js";
+import {
+  addPlaceholderIfNeeded,
+  PanelStyleSection,
+  type PanelRenderContext,
+  type PanelShell,
+} from "./panelShell.js";
+import { applyToneClass } from "./tone.js";
+import { emptyViewContext, type ProviderViewContext } from "./viewContext.js";
+import { matrixMessages } from "./viewMessages.js";
 
-interface CompactToolbarControls {
-  readonly titleLabel: St.Label;
-  readonly expandAllButton: St.Button;
-  readonly expandAllLabel: St.Label;
+export interface ExpandAllControl {
+  readonly button: St.Button;
+  readonly label: St.Label;
 }
 
-interface DetailRowWidgets {
-  microBar: St.Label | null;
-  value: St.Label;
-  error: St.Label | null;
+/** Compact's one extra footer control, assembled by the shared shell. */
+export function createExpandAllControl(): ExpandAllControl {
+  const label = new St.Label({
+    text: "▾",
+    style_class: "provider-limits-toolbar-glyph",
+    y_align: Clutter.ActorAlign.CENTER,
+  });
+  const button = new St.Button({
+    child: label,
+    style_class: "provider-limits-icon-button",
+    reactive: true,
+    can_focus: true,
+    visible: false,
+    y_align: Clutter.ActorAlign.CENTER,
+  });
+  button.accessible_name = _("Expand all");
+  return { button, label };
 }
 
-interface DetailGroupWidgets {
-  heading: St.Label;
-  rows: DetailRowWidgets[];
-}
-
-interface ProviderSectionWidgets {
-  provider: ProviderName;
-  headerRow: PopupMenu.PopupBaseMenuItem;
-  chevronLabel: St.Label;
-  titleLabel: St.Label;
-  badgeLabel: St.Label | null;
-  fiveSegLabel: St.Label | null;
-  summaryLabel: St.Label;
-  hairlineTrack: St.BoxLayout;
-  hairlineFill: St.Widget;
-  fillState: { ratio: number | null };
-  detailLabel: St.Label | null;
-  errorLabel: St.Label | null;
-  groups: DetailGroupWidgets[];
-  lastUpdatedLabel: St.Label | null;
-}
-
-export class CompactPanelSection implements PanelStyleSection {
-  private _settings: Gio.Settings;
-  private readonly _fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>;
-  private _running = false;
-  private _lastResults: Map<ProviderName, ReaderResult> = new Map();
+/** Rebuilds the compact panel body from the canonical models and their facts. */
+export class CompactPanelSection extends PanelStyleSection {
   private _lastRefreshAt: number | null = null;
+  private _lastView: ProviderViewContext;
+  private _defaultExpanded = false;
   private _expandedOverrides: Map<ProviderName, boolean> = new Map();
-  private _controls: CompactToolbarControls;
+  private readonly _headerRows = new Map<ProviderName, ReturnType<PanelShell["addStaticRow"]>>();
+  private _focusedProvider: ProviderName | null = null;
+  private readonly _expandAll: ExpandAllControl;
 
-  private _sections: ProviderSectionWidgets[] = [];
-  private _emptyMessageLabel: St.Label | null = null;
-  private _structureKey: string | null = null;
-  readonly shell: PanelShell;
-
-  constructor(
-    settings: Gio.Settings,
-    _readers: Map<ProviderName, BaseReader>,
-    fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>,
-    shell: PanelShell,
-  ) {
-    this._settings = settings;
-    this._fieldDefs = fieldDefs;
-    this.shell = shell;
-    this._controls = this._buildToolbar();
-    this.render(new Map(), null);
-  }
-
-  destroy(): void {
-    this.shell.destroy();
-  }
-
-  render(results: Map<ProviderName, ReaderResult>, lastRefreshAt: number | null): void {
-    this._lastResults = results;
-    this._lastRefreshAt = lastRefreshAt;
-
-    const plan = this._buildPlan(results);
-
-    if (plan.key !== this._structureKey) {
-      this._rebuild(plan, lastRefreshAt);
-      this._structureKey = plan.key;
-      return;
-    }
-
-    this._update(plan, lastRefreshAt);
-  }
-
-  setLastRefreshAt(lastRefreshAt: number | null): void {
-    this._lastRefreshAt = lastRefreshAt;
-    this.shell.setLastRefreshAt(lastRefreshAt);
-  }
-
-  setRunning(running: boolean): void {
-    this._running = running;
-    this.shell.setRunning(running);
-  }
-
-  private _currentLocale(): string {
-    return resolveLocale(
-      this._settings.get_string("language"),
-      GLib.getenv("LC_MESSAGES"),
-      GLib.getenv("LANG"),
-    );
-  }
-
-  private _buildPlan(results: Map<ProviderName, ReaderResult>): PanelMatrixPlan {
-    const rawOrder = this._settings.get_strv("providers-order");
-    const order = normalizeProvidersOrder(rawOrder);
-    const locale = this._currentLocale();
-
-    const enabledProviders = new Set<ProviderName>();
-    const displayNames = {} as Record<ProviderName, string>;
-    const statusFields = {} as Record<ProviderName, readonly string[]>;
-    const panelFields = {} as Record<ProviderName, readonly string[]>;
-
-    for (const name of PROVIDER_NAMES) {
-      const enabled = this._settings.get_boolean(`${name}-enabled`);
-      if (enabled) enabledProviders.add(name);
-
-      displayNames[name] = providerDisplayName(this._settings, name);
-      statusFields[name] = this._settings.get_strv(`${name}-status-fields`);
-      panelFields[name] = this._settings.get_strv(`${name}-panel-fields`);
-    }
-
-    return planPanelMatrix({
-      order,
-      enabledProviders,
-      results,
-      displayNames,
-      statusFields,
-      panelFields,
-      expandedOverrides: this._expandedOverrides,
-      fieldDefs: this._fieldDefs,
-      locale,
-      t: _,
+  constructor(shell: PanelShell, expandAll: ExpandAllControl) {
+    super(shell);
+    this._expandAll = expandAll;
+    bindActivation(expandAll.button, () => this._toggleAllProviders(), {
+      pointerSignals: ["clicked"],
     });
+    this._lastView = emptyViewContext("", _);
+    this.render({ lastRefreshAt: null, view: this._lastView });
+  }
+
+  override render(context: PanelRenderContext): void {
+    this._lastRefreshAt = context.lastRefreshAt;
+    this._lastView = context.view;
+    this._defaultExpanded = context.view.activeProviders.length <= 2;
+
+    const focusedProvider = this._focusedProvider;
+    this._headerRows.clear();
+
+    if (!addPlaceholderIfNeeded(this.shell, context.view, matrixMessages)) {
+      const models = context.view.models;
+      models.forEach((model, index) => {
+        const expanded = resolveProviderExpanded(
+          model.provider,
+          this._defaultExpanded,
+          this._expandedOverrides,
+        );
+        this._addProviderSection(model, index > 0, expanded);
+      });
+    }
+    this._syncToolbar();
+
+    if (focusedProvider !== null) {
+      const header = this._headerRows.get(focusedProvider);
+      if (header) header.grab_key_focus();
+      else this._focusedProvider = null;
+    }
   }
 
   private _toggleProvider(provider: ProviderName, forceState?: boolean): void {
-    const plan = this._buildPlan(this._lastResults);
-    const enabledCount = plan.providers.length;
-    const current = resolveProviderExpanded(provider, enabledCount, this._expandedOverrides);
+    const current = resolveProviderExpanded(
+      provider,
+      this._defaultExpanded,
+      this._expandedOverrides,
+    );
     const next = forceState ?? !current;
     if (next === current) return;
     this._expandedOverrides.set(provider, next);
-    this.render(this._lastResults, this._lastRefreshAt);
+    this.render({ lastRefreshAt: this._lastRefreshAt, view: this._lastView });
   }
 
   private _toggleAllProviders(): void {
-    const plan = this._buildPlan(this._lastResults);
-    if (!plan.canToggleAll) return;
-    const providers = plan.providers.map((p) => p.provider);
+    const providers = this._lastView.models.map((model) => model.provider);
+    if (providers.length === 0) return;
     this._expandedOverrides = toggleAllProvidersExpanded(
       providers,
-      providers.length,
+      this._defaultExpanded,
       this._expandedOverrides,
     );
-    this.render(this._lastResults, this._lastRefreshAt);
+    this.render({ lastRefreshAt: this._lastRefreshAt, view: this._lastView });
   }
 
-  /** The compact toolbar is owned here; the shell only supplies the shared footer actors. */
-  private _buildToolbar(): CompactToolbarControls {
-    const footer = this.shell.footer;
-
-    const leftBox = new St.BoxLayout({
-      style_class: "provider-limits-hud-toolbar-left",
-      x_expand: true,
-      y_align: Clutter.ActorAlign.CENTER,
-    });
-    const titleLabel = new St.Label({
-      text: _("Provider Limits"),
-      style_class: "provider-limits-hud-title",
-      y_align: Clutter.ActorAlign.CENTER,
-    });
-    titleLabel.accessible_name = titleLabel.text;
-    leftBox.add_child(titleLabel);
-    leftBox.add_child(footer.lastRefreshLabel);
-
-    const actionsBox = new St.BoxLayout({
-      style_class: "provider-limits-hud-actions",
-      y_align: Clutter.ActorAlign.CENTER,
-    });
-    const expandAllLabel = new St.Label({
-      text: "▾",
-      style_class: "provider-limits-toolbar-glyph",
-      y_align: Clutter.ActorAlign.CENTER,
-    });
-    const expandAllButton = new St.Button({
-      child: expandAllLabel,
-      style_class: "provider-limits-icon-button",
-      reactive: true,
-      can_focus: true,
-      visible: false,
-      y_align: Clutter.ActorAlign.CENTER,
-    });
-    expandAllButton.accessible_name = _("Expand all");
-    bindActivation(expandAllButton, () => this._toggleAllProviders(), {
-      pointerSignals: ["clicked"],
-    });
-    actionsBox.add_child(expandAllButton);
-    actionsBox.add_child(footer.refreshControl);
-    actionsBox.add_child(footer.settingsControl);
-
-    footer.row.add_child(leftBox);
-    footer.row.add_child(actionsBox);
-
-    return { titleLabel, expandAllButton, expandAllLabel };
+  private _syncToolbar(): void {
+    const providers = this._lastView.activeProviders;
+    const allExpanded = areAllProvidersExpanded(
+      providers,
+      this._defaultExpanded,
+      this._expandedOverrides,
+    );
+    this._expandAll.button.visible = this._lastView.models.length > 0;
+    this._expandAll.label.text = allExpanded ? "▴" : "▾";
+    this._expandAll.button.accessible_name = allExpanded ? _("Collapse all") : _("Expand all");
   }
 
-  private _syncToolbar(plan: PanelMatrixPlan, lastRefreshAt: number | null): void {
-    this._controls.titleLabel.text = _("Provider Limits");
-    this._controls.titleLabel.accessible_name = this._controls.titleLabel.text;
+  private _addProviderSection(
+    model: ProviderDisplayModel,
+    divided: boolean,
+    expanded: boolean,
+  ): void {
+    const facts = model.facts;
+    const header = facts.usage.header;
+    const statusBadge = facts.badges.status;
+    const fiveSegmentBar = header.fillRatio !== null ? formatSegmentedBar(header.fillRatio, 5) : "";
+    const headerTone = header.tone;
+    const diagnostic = facts.diagnostic;
+    const errorText =
+      diagnostic.kind === "error" ? diagnosticMessage(model.result, diagnostic) : null;
+    const detailText =
+      diagnostic.kind === "warning" ? diagnosticMessage(model.result, diagnostic) : null;
+    const showRows = errorText === null;
 
-    this._controls.expandAllButton.visible = plan.canToggleAll;
-    this._controls.expandAllLabel.text = plan.allExpanded ? "▴" : "▾";
-    this._controls.expandAllButton.accessible_name = plan.allExpanded
-      ? _("Collapse all")
-      : _("Expand all");
+    const accessibleParts = [model.displayName];
+    if (statusBadge) accessibleParts.push(statusBadge);
+    if (header.summaryText) accessibleParts.push(header.summaryText);
+    const headerAccessibleName = accessibleParts.join(" ");
 
-    this.setRunning(this._running);
-    this.setLastRefreshAt(lastRefreshAt);
-  }
-
-  private _rebuild(plan: PanelMatrixPlan, lastRefreshAt: number | null): void {
-    this.shell.clearBody();
-    this._sections = [];
-    this._emptyMessageLabel = null;
-
-    if (plan.state !== "ready") {
-      if (plan.messageText) {
-        const emptyRow = this.shell.addStaticRow();
-        emptyRow.add_style_class_name("provider-limits-empty-row");
-        const label = new St.Label({
-          text: plan.messageText,
-          style_class: "provider-limits-dim provider-limits-empty-label",
-          x_expand: true,
-          x_align: Clutter.ActorAlign.START,
-        });
-        label.clutter_text.line_wrap = true;
-        label.accessible_name = plan.messageText;
-        emptyRow.add_child(label);
-        this.shell.addBodyItem(emptyRow);
-        this._emptyMessageLabel = label;
-      }
-      this._syncToolbar(plan, lastRefreshAt);
-      return;
-    }
-
-    plan.providers.forEach((providerPlan, index) => {
-      this._sections.push(this._addProviderSection(providerPlan, index > 0));
-    });
-
-    this._syncToolbar(plan, lastRefreshAt);
-  }
-
-  private _update(plan: PanelMatrixPlan, lastRefreshAt: number | null): void {
-    if (plan.state !== "ready") {
-      if (this._emptyMessageLabel && plan.messageText) {
-        this._emptyMessageLabel.text = plan.messageText;
-        this._emptyMessageLabel.accessible_name = plan.messageText;
-      }
-      this._syncToolbar(plan, lastRefreshAt);
-      return;
-    }
-
-    plan.providers.forEach((providerPlan, index) => {
-      const section = this._sections[index];
-      if (!section) return;
-
-      section.headerRow.accessible_name = providerPlan.headerAccessibleName;
-      section.chevronLabel.text = providerPlan.chevron;
-      section.titleLabel.text = providerPlan.displayName;
-      if (section.badgeLabel) {
-        section.badgeLabel.text = providerPlan.statusBadge;
-        applyQuietToneClass(
-          section.badgeLabel,
-          providerPlan.status === "partial" ? "warning" : "error",
-        );
-      }
-      if (section.fiveSegLabel) {
-        section.fiveSegLabel.text = providerPlan.fiveSegmentBar;
-        applyQuietToneClass(section.fiveSegLabel, providerPlan.headerTone);
-      }
-      section.summaryLabel.text = providerPlan.primarySummary;
-      applyQuietToneClass(section.summaryLabel, providerPlan.headerTone);
-
-      section.fillState.ratio = providerPlan.fillRatio;
-      this._syncHairlineBar(
-        section.hairlineTrack,
-        section.hairlineFill,
-        providerPlan.fillRatio,
-        providerPlan.headerTone,
-      );
-
-      if (section.detailLabel && providerPlan.detailText) {
-        section.detailLabel.text = providerPlan.detailText;
-        section.detailLabel.accessible_name = providerPlan.detailText;
-      }
-
-      if (section.errorLabel && providerPlan.errorText) {
-        section.errorLabel.text = providerPlan.errorText;
-        section.errorLabel.accessible_name = providerPlan.errorText;
-      }
-
-      providerPlan.groups.forEach((groupPlan, groupIdx) => {
-        const groupWidgets = section.groups[groupIdx];
-        if (!groupWidgets) return;
-        groupWidgets.heading.text = groupPlan.title;
-
-        groupPlan.rows.forEach((rowPlan, rowIdx) => {
-          const rowWidgets = groupWidgets.rows[rowIdx];
-          if (!rowWidgets) return;
-
-          if (rowWidgets.microBar && rowPlan.microBar !== null) {
-            rowWidgets.microBar.text = rowPlan.microBar;
-            applyQuietToneClass(rowWidgets.microBar, rowPlan.tone);
-          }
-
-          rowWidgets.value.text = rowPlan.valueText;
-          rowWidgets.value.accessible_name = rowPlan.accessibleText;
-          applyToneClass(rowWidgets.value, rowPlan.tone);
-
-          if (rowWidgets.error && rowPlan.errorText) {
-            rowWidgets.error.text = rowPlan.errorText;
-            rowWidgets.error.accessible_name = rowPlan.errorText;
-          }
-        });
-      });
-
-      if (section.lastUpdatedLabel && providerPlan.lastUpdatedText) {
-        section.lastUpdatedLabel.text = providerPlan.lastUpdatedText;
-        section.lastUpdatedLabel.accessible_name = providerPlan.lastUpdatedText;
-      }
-    });
-
-    this._syncToolbar(plan, lastRefreshAt);
-  }
-
-  private _addProviderSection(plan: ProviderMatrixPlan, divided: boolean): ProviderSectionWidgets {
     const headerRow = this.shell.addStaticRow();
+    this._headerRows.set(model.provider, headerRow);
+    headerRow.connect("key-focus-in", () => {
+      this._focusedProvider = model.provider;
+    });
+    headerRow.connect("key-focus-out", () => {
+      if (this._focusedProvider === model.provider) this._focusedProvider = null;
+    });
     headerRow.add_style_class_name("provider-limits-matrix-header");
     if (divided) {
       headerRow.add_style_class_name("provider-limits-matrix-group-divided");
     }
-    headerRow.accessible_name = plan.headerAccessibleName;
-    bindActivation(headerRow, () => this._toggleProvider(plan.provider), {
+    headerRow.accessible_name = headerAccessibleName;
+    bindActivation(headerRow, () => this._toggleProvider(model.provider), {
       pointerSignals: ["button-release-event"],
       onOtherKey: (event) => {
         const symbol = event.get_key_symbol();
         if (symbol === Clutter.KEY_Left) {
-          this._toggleProvider(plan.provider, false);
+          this._toggleProvider(model.provider, false);
           return Clutter.EVENT_STOP;
         }
         if (symbol === Clutter.KEY_Right) {
-          this._toggleProvider(plan.provider, true);
+          this._toggleProvider(model.provider, true);
           return Clutter.EVENT_STOP;
         }
         return Clutter.EVENT_PROPAGATE;
@@ -393,27 +202,28 @@ export class CompactPanelSection implements PanelStyleSection {
     });
 
     const chevronLabel = new St.Label({
-      text: plan.chevron,
+      text: expanded ? "▾" : "▸",
       style_class: "provider-limits-chevron",
       y_align: Clutter.ActorAlign.CENTER,
     });
     leftTitleBox.add_child(chevronLabel);
 
     const titleLabel = new St.Label({
-      text: plan.displayName,
+      text: model.displayName,
       style_class: "provider-limits-panel-header",
       y_align: Clutter.ActorAlign.CENTER,
     });
     leftTitleBox.add_child(titleLabel);
 
-    let badgeLabel: St.Label | null = null;
-    if (plan.statusBadge) {
-      badgeLabel = new St.Label({
-        text: plan.statusBadge,
+    if (statusBadge) {
+      const badgeLabel = new St.Label({
+        text: statusBadge,
         style_class: "provider-limits-status-badge",
         y_align: Clutter.ActorAlign.CENTER,
       });
-      applyQuietToneClass(badgeLabel, plan.status === "partial" ? "warning" : "error");
+      applyToneClass(badgeLabel, model.status === ReaderStatus.PARTIAL ? "warning" : "error", {
+        quiet: true,
+      });
       leftTitleBox.add_child(badgeLabel);
     }
 
@@ -423,24 +233,23 @@ export class CompactPanelSection implements PanelStyleSection {
       y_align: Clutter.ActorAlign.CENTER,
     });
 
-    let fiveSegLabel: St.Label | null = null;
-    if (plan.fiveSegmentBar) {
-      fiveSegLabel = new St.Label({
-        text: plan.fiveSegmentBar,
+    if (fiveSegmentBar) {
+      const fiveSegLabel = new St.Label({
+        text: fiveSegmentBar,
         style_class: "provider-limits-micro-bar",
         y_align: Clutter.ActorAlign.CENTER,
       });
-      applyQuietToneClass(fiveSegLabel, plan.headerTone);
+      applyToneClass(fiveSegLabel, headerTone, { quiet: true });
       rightSummaryBox.add_child(fiveSegLabel);
     }
 
     const summaryLabel = new St.Label({
-      text: plan.primarySummary,
+      text: header.summaryText,
       style_class: "provider-limits-header-summary provider-limits-tnum",
       x_align: Clutter.ActorAlign.END,
       y_align: Clutter.ActorAlign.CENTER,
     });
-    applyQuietToneClass(summaryLabel, plan.headerTone);
+    applyToneClass(summaryLabel, headerTone, { quiet: true });
     rightSummaryBox.add_child(summaryLabel);
 
     topLine.add_child(leftTitleBox);
@@ -458,34 +267,17 @@ export class CompactPanelSection implements PanelStyleSection {
     });
     hairlineTrack.add_child(hairlineFill);
 
-    const fillState = { ratio: plan.fillRatio };
+    const fillState = { ratio: header.fillRatio };
     hairlineTrack.connect("notify::width", () => {
       this._updateHairlineWidth(hairlineTrack, hairlineFill, fillState.ratio);
     });
-    this._syncHairlineBar(hairlineTrack, hairlineFill, plan.fillRatio, plan.headerTone);
+    this._syncHairlineBar(hairlineTrack, hairlineFill, header.fillRatio, headerTone);
 
     headerStack.add_child(hairlineTrack);
     headerRow.add_child(headerStack);
     this.shell.addBodyItem(headerRow);
 
-    if (!plan.expanded) {
-      return {
-        provider: plan.provider,
-        headerRow,
-        chevronLabel,
-        titleLabel,
-        badgeLabel,
-        fiveSegLabel,
-        summaryLabel,
-        hairlineTrack,
-        hairlineFill,
-        fillState,
-        detailLabel: null,
-        errorLabel: null,
-        groups: [],
-        lastUpdatedLabel: null,
-      };
-    }
+    if (!expanded) return;
 
     const detailRow = this.shell.addStaticRow();
     detailRow.add_style_class_name("provider-limits-matrix-detail");
@@ -496,80 +288,91 @@ export class CompactPanelSection implements PanelStyleSection {
       style_class: "provider-limits-matrix-table",
     });
 
-    let detailLabel: St.Label | null = null;
-    if (plan.detailText !== null) {
-      detailLabel = new St.Label({
-        text: plan.detailText,
+    if (detailText !== null) {
+      const detailLabel = new St.Label({
+        text: detailText,
         style_class: "provider-limits-callout-partial",
         x_expand: true,
         x_align: Clutter.ActorAlign.START,
       });
       detailLabel.clutter_text.line_wrap = true;
-      detailLabel.accessible_name = plan.detailText;
+      detailLabel.accessible_name = detailText;
       table.add_child(detailLabel);
     }
 
-    let errorLabel: St.Label | null = null;
-    if (plan.errorText !== null) {
-      errorLabel = new St.Label({
-        text: plan.errorText,
-        style_class: "provider-limits-callout-error provider-limits-error",
-        x_expand: true,
-        x_align: Clutter.ActorAlign.START,
-      });
-      errorLabel.clutter_text.line_wrap = true;
-      errorLabel.accessible_name = plan.errorText;
+    if (errorText !== null) {
+      const errorLabel = createErrorLabel(
+        errorText,
+        "provider-limits-callout-error provider-limits-error",
+      );
+      errorLabel.x_align = Clutter.ActorAlign.START;
+      errorLabel.accessible_name = errorText;
       table.add_child(errorLabel);
     }
 
-    const groups: DetailGroupWidgets[] = plan.groups.map((groupPlan) => {
-      const heading = new St.Label({
-        text: groupPlan.title,
-        style_class: "provider-limits-group-heading",
-        x_expand: true,
-        x_align: Clutter.ActorAlign.START,
-      });
-      heading.accessible_name = groupPlan.title;
-      table.add_child(heading);
+    if (showRows) {
+      const rows = this._detailRows(model);
+      const t = this._lastView.t;
+      if (rows.limits.length > 0) {
+        this._addGroup(table, t("Limits"), rows.limits);
+      }
+      if (rows.telemetry.length > 0) {
+        this._addGroup(table, t("Telemetry"), rows.telemetry);
+      }
 
-      const rows = groupPlan.rows.map((rowPlan) => this._buildMatrixRow(table, rowPlan));
-      return { heading, rows };
-    });
-
-    let lastUpdatedLabel: St.Label | null = null;
-    if (plan.lastUpdatedText !== null) {
-      lastUpdatedLabel = new St.Label({
-        text: plan.lastUpdatedText,
-        style_class: "provider-limits-dim provider-limits-last-updated provider-limits-tnum",
-        x_expand: true,
-        x_align: Clutter.ActorAlign.START,
-      });
-      lastUpdatedLabel.accessible_name = plan.lastUpdatedText;
-      table.add_child(lastUpdatedLabel);
+      if (facts.lastUpdatedText !== null) {
+        const lastUpdatedLabel = new St.Label({
+          text: facts.lastUpdatedText,
+          style_class: "provider-limits-dim provider-limits-last-updated provider-limits-tnum",
+          x_expand: true,
+          x_align: Clutter.ActorAlign.START,
+        });
+        lastUpdatedLabel.accessible_name = facts.lastUpdatedText;
+        table.add_child(lastUpdatedLabel);
+      }
     }
 
     detailRow.add_child(table);
     this.shell.addBodyItem(detailRow);
-
-    return {
-      provider: plan.provider,
-      headerRow,
-      chevronLabel,
-      titleLabel,
-      badgeLabel,
-      fiveSegLabel,
-      summaryLabel,
-      hairlineTrack,
-      hairlineFill,
-      fillState,
-      detailLabel,
-      errorLabel,
-      groups,
-      lastUpdatedLabel,
-    };
   }
 
-  private _buildMatrixRow(table: St.BoxLayout, rowPlan: MatrixDetailRow): DetailRowWidgets {
+  /**
+   * Detail rows for the HUD: every panel field, including reset timestamps
+   * consumed by the gauge and card styles. The filtering decision lives here
+   * instead of a second renderer-specific envelope on ProviderDisplayFacts.
+   */
+  private _detailRows(model: ProviderDisplayModel): {
+    readonly limits: readonly FieldView[];
+    readonly telemetry: readonly FieldView[];
+  } {
+    const limits: FieldView[] = [];
+    const telemetry: FieldView[] = [];
+    for (const view of model.panelViews) {
+      if (view.category === "telemetry") telemetry.push(view);
+      else limits.push(view);
+    }
+    return { limits, telemetry };
+  }
+
+  private _addGroup(table: St.BoxLayout, title: string, rows: readonly FieldView[]): void {
+    const heading = new St.Label({
+      text: title,
+      style_class: "provider-limits-group-heading",
+      x_expand: true,
+      x_align: Clutter.ActorAlign.START,
+    });
+    heading.accessible_name = title;
+    table.add_child(heading);
+
+    for (const view of rows) this._buildMatrixRow(table, view);
+  }
+
+  private _buildMatrixRow(table: St.BoxLayout, view: FieldView): void {
+    const microBar =
+      view.type === "percent" && view.category === "limit" && view.ratio !== null
+        ? formatSegmentedBar(view.ratio, 8)
+        : null;
+
     const line = new St.BoxLayout({
       x_expand: true,
       style_class: "provider-limits-matrix-row",
@@ -577,59 +380,53 @@ export class CompactPanelSection implements PanelStyleSection {
     });
 
     const labelLabel = new St.Label({
-      text: rowPlan.labelText,
+      text: view.labelText,
       style_class: "provider-limits-field-label",
       x_expand: true,
       x_align: Clutter.ActorAlign.START,
       y_align: Clutter.ActorAlign.CENTER,
     });
-    labelLabel.accessible_name = rowPlan.labelText;
+    labelLabel.accessible_name = view.labelText;
     line.add_child(labelLabel);
 
-    let microBarLabel: St.Label | null = null;
-    if (rowPlan.microBar !== null) {
-      microBarLabel = new St.Label({
-        text: rowPlan.microBar,
+    if (microBar !== null) {
+      const microBarLabel = new St.Label({
+        text: microBar,
         style_class: "provider-limits-micro-bar",
         y_align: Clutter.ActorAlign.CENTER,
       });
-      applyQuietToneClass(microBarLabel, rowPlan.tone);
+      applyToneClass(microBarLabel, view.tone, { quiet: true });
       line.add_child(microBarLabel);
     }
 
     const valueLabel = new St.Label({
-      text: rowPlan.valueText,
+      text: view.valueText,
       style_class: "provider-limits-field-value provider-limits-tnum",
       x_align: Clutter.ActorAlign.END,
       y_align: Clutter.ActorAlign.CENTER,
     });
-    valueLabel.accessible_name = rowPlan.accessibleText;
-    applyToneClass(valueLabel, rowPlan.tone);
+    valueLabel.accessible_name = view.accessibleText;
+    applyToneClass(valueLabel, view.tone);
     line.add_child(valueLabel);
 
     table.add_child(line);
 
-    let errorLabel: St.Label | null = null;
-    if (rowPlan.errorText) {
-      errorLabel = new St.Label({
-        text: rowPlan.errorText,
-        style_class: "provider-limits-error provider-limits-row-error",
-        x_expand: true,
-        x_align: Clutter.ActorAlign.START,
-      });
-      errorLabel.clutter_text.line_wrap = true;
-      errorLabel.accessible_name = rowPlan.errorText;
+    if (view.errorText) {
+      const errorLabel = createErrorLabel(
+        view.errorText,
+        "provider-limits-error provider-limits-row-error",
+      );
+      errorLabel.x_align = Clutter.ActorAlign.START;
+      errorLabel.accessible_name = view.errorText;
       table.add_child(errorLabel);
     }
-
-    return { microBar: microBarLabel, value: valueLabel, error: errorLabel };
   }
 
   private _syncHairlineBar(
     track: St.BoxLayout,
     fill: St.Widget,
     ratio: number | null,
-    tone: ProviderMatrixPlan["headerTone"],
+    tone: UsageFacts["tone"],
   ): void {
     fill.remove_style_class_name("hairline-warning");
     fill.remove_style_class_name("hairline-critical");

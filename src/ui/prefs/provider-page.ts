@@ -4,7 +4,7 @@ import GLib from "gi://GLib";
 import GObject from "gi://GObject";
 import Gtk from "gi://Gtk?version=4.0";
 
-import type { ProviderName } from "../../constants.js";
+import { AUTH_FILE_PROVIDERS, type ProviderName } from "../../constants.js";
 import { formatField } from "../../formatters.js";
 import { resolveLocale } from "../../helpers/locale.js";
 import {
@@ -20,6 +20,7 @@ import { gettext as _ } from "./gettext.js";
 import {
   bindSetting,
   buildReorderableList,
+  createMoveButtons,
   setupDragSource,
   setupDropTarget,
   unbindSettings,
@@ -50,89 +51,10 @@ function formatPreview(def: FieldDef, zone: "status" | "panel", locale: string):
   });
 }
 
-interface MatrixRowControls {
+interface MatrixRowTogglePair {
   fieldName: string;
   topBarToggle: Gtk.ToggleButton;
-  topBarUp: Gtk.Button;
-  topBarDown: Gtk.Button;
   panelToggle: Gtk.ToggleButton;
-  panelUp: Gtk.Button;
-  panelDown: Gtk.Button;
-}
-
-function toggleFieldInZone(
-  settings: Gio.Settings,
-  key: string,
-  fieldName: string,
-  enabled: boolean,
-): void {
-  const current = settings.get_strv(key);
-  const exists = current.includes(fieldName);
-  if (enabled && !exists) {
-    settings.set_strv(key, [...current, fieldName]);
-  } else if (!enabled && exists) {
-    settings.set_strv(
-      key,
-      current.filter((item) => item !== fieldName),
-    );
-  }
-}
-
-function createZoneControl(options: {
-  settings: Gio.Settings;
-  key: string;
-  fieldName: string;
-  label: string;
-  availableNames: readonly string[];
-  isSyncing: () => boolean;
-  requestSync: () => void;
-}): { container: Gtk.Box; toggle: Gtk.ToggleButton; up: Gtk.Button; down: Gtk.Button } {
-  const { settings, key, fieldName, label, availableNames, isSyncing, requestSync } = options;
-
-  const container = new Gtk.Box({ spacing: 2, valign: Gtk.Align.CENTER });
-  const toggle = new Gtk.ToggleButton({
-    label,
-    tooltip_text: label,
-    valign: Gtk.Align.CENTER,
-  });
-  const up = new Gtk.Button({
-    icon_name: "go-up-symbolic",
-    tooltip_text: _("Move field up"),
-    valign: Gtk.Align.CENTER,
-  });
-  const down = new Gtk.Button({
-    icon_name: "go-down-symbolic",
-    tooltip_text: _("Move field down"),
-    valign: Gtk.Align.CENTER,
-  });
-  up.add_css_class("flat");
-  down.add_css_class("flat");
-
-  const visibleValues = () =>
-    settings.get_strv(key).filter((name) => availableNames.includes(name));
-
-  toggle.connect("toggled", (button: Gtk.ToggleButton) => {
-    if (isSyncing()) return;
-    toggleFieldInZone(settings, key, fieldName, button.active);
-    requestSync();
-  });
-
-  up.connect("clicked", () => {
-    const reordered = moveAdjacentValue(settings.get_strv(key), visibleValues(), fieldName, -1);
-    if (reordered) settings.set_strv(key, reordered);
-    requestSync();
-  });
-
-  down.connect("clicked", () => {
-    const reordered = moveAdjacentValue(settings.get_strv(key), visibleValues(), fieldName, 1);
-    if (reordered) settings.set_strv(key, reordered);
-    requestSync();
-  });
-
-  container.append(toggle);
-  container.append(up);
-  container.append(down);
-  return { container, toggle, up, down };
 }
 
 function buildFieldMatrixGroup(
@@ -144,17 +66,13 @@ function buildFieldMatrixGroup(
   const statusKey = `${provider}-status-fields`;
   const panelKey = `${provider}-panel-fields`;
   const available = PROVIDER_FIELDS[provider];
-  const availableNames = available.map((field) => field.name);
 
   const group = new Adw.PreferencesGroup({
     title: _("Field Matrix"),
-    description: _("Toggle fields and set their order for the status bar and panel."),
+    description: _("Toggle which fields appear in the status bar and panel."),
   });
 
-  const resetButton = new Gtk.Button({
-    label: _("Reset defaults"),
-    valign: Gtk.Align.CENTER,
-  });
+  const resetButton = new Gtk.Button({ label: _("Reset defaults"), valign: Gtk.Align.CENTER });
   resetButton.add_css_class("flat");
   resetButton.connect("clicked", () => {
     settings.reset(statusKey);
@@ -169,32 +87,18 @@ function buildFieldMatrixGroup(
   });
   listBox.add_css_class("boxed-list");
 
-  const pairs: MatrixRowControls[] = [];
-  let syncingToggles = false;
+  const pairs: MatrixRowTogglePair[] = [];
+  let syncing = false;
 
-  const sync = () => {
-    if (syncingToggles) return;
-    syncingToggles = true;
-    try {
-      const statusValues = settings
-        .get_strv(statusKey)
-        .filter((name) => availableNames.includes(name));
-      const panelValues = settings
-        .get_strv(panelKey)
-        .filter((name) => availableNames.includes(name));
-      for (const pair of pairs) {
-        const statusIndex = statusValues.indexOf(pair.fieldName);
-        const panelIndex = panelValues.indexOf(pair.fieldName);
-        pair.topBarToggle.active = statusIndex >= 0;
-        pair.panelToggle.active = panelIndex >= 0;
-        pair.topBarUp.sensitive = statusIndex > 0;
-        pair.topBarDown.sensitive = statusIndex >= 0 && statusIndex < statusValues.length - 1;
-        pair.panelUp.sensitive = panelIndex > 0;
-        pair.panelDown.sensitive = panelIndex >= 0 && panelIndex < panelValues.length - 1;
-      }
-    } finally {
-      syncingToggles = false;
-    }
+  const setFieldInZone = (key: string, fieldName: string, enabled: boolean) => {
+    const values = settings.get_strv(key);
+    const present = values.includes(fieldName);
+    if (enabled && !present) settings.set_strv(key, [...values, fieldName]);
+    if (!enabled && present)
+      settings.set_strv(
+        key,
+        values.filter((name) => name !== fieldName),
+      );
   };
 
   for (const def of available) {
@@ -203,82 +107,120 @@ function buildFieldMatrixGroup(
       subtitle: formatPreview(def, "panel", locale),
       activatable: false,
     });
-
-    const controls = new Gtk.Box({ spacing: 12, valign: Gtk.Align.CENTER });
-    const topBar = createZoneControl({
-      settings,
-      key: statusKey,
-      fieldName: def.name,
-      label: _("Top Bar"),
-      availableNames,
-      isSyncing: () => syncingToggles,
-      requestSync: sync,
+    const controls = new Gtk.Box({ spacing: 6, valign: Gtk.Align.CENTER });
+    const topBarToggle = new Gtk.ToggleButton({ label: _("Status bar"), valign: Gtk.Align.CENTER });
+    const panelToggle = new Gtk.ToggleButton({ label: _("Panel"), valign: Gtk.Align.CENTER });
+    topBarToggle.connect("toggled", (button: Gtk.ToggleButton) => {
+      if (syncing) return;
+      setFieldInZone(statusKey, def.name, button.active);
     });
-    const panel = createZoneControl({
-      settings,
-      key: panelKey,
-      fieldName: def.name,
-      label: _("Panel"),
-      availableNames,
-      isSyncing: () => syncingToggles,
-      requestSync: sync,
+    panelToggle.connect("toggled", (button: Gtk.ToggleButton) => {
+      if (syncing) return;
+      setFieldInZone(panelKey, def.name, button.active);
     });
-    controls.append(topBar.container);
-    controls.append(panel.container);
+    controls.append(topBarToggle);
+    controls.append(panelToggle);
     row.add_suffix(controls);
     listBox.append(row);
-
-    pairs.push({
-      fieldName: def.name,
-      topBarToggle: topBar.toggle,
-      topBarUp: topBar.up,
-      topBarDown: topBar.down,
-      panelToggle: panel.toggle,
-      panelUp: panel.up,
-      panelDown: panel.down,
-    });
+    pairs.push({ fieldName: def.name, topBarToggle, panelToggle });
   }
 
+  const sync = () => {
+    if (syncing) return;
+    syncing = true;
+    try {
+      const statusValues: readonly string[] = settings.get_strv(statusKey);
+      const panelValues: readonly string[] = settings.get_strv(panelKey);
+      for (const pair of pairs) {
+        pair.topBarToggle.active = statusValues.includes(pair.fieldName);
+        pair.panelToggle.active = panelValues.includes(pair.fieldName);
+      }
+    } finally {
+      syncing = false;
+    }
+  };
   const statusChangedId = settings.connect(`changed::${statusKey}`, sync);
   const panelChangedId = settings.connect(`changed::${panelKey}`, sync);
   destroyCallbacks.push(() => {
     settings.disconnect(statusChangedId);
     settings.disconnect(panelChangedId);
   });
-
   sync();
   group.add(listBox);
   return group;
 }
 
-function addIdentityRows(
+function buildFieldOrderGroup(
   settings: Gio.Settings,
   provider: ProviderName,
-  bindings: SettingsBinding[],
-  addRow: (row: Adw.PreferencesRow) => void,
-): void {
-  const displayNameRow = new Adw.EntryRow({
-    title: _("Display name"),
-    text: settings.get_string(`${provider}-display-name`) ?? "",
-  });
-  bindSetting(settings, `${provider}-display-name`, displayNameRow, "text", bindings);
-  addRow(displayNameRow);
+  suffix: "status-fields" | "panel-fields",
+  title: string,
+  locale: string,
+  destroyCallbacks: (() => void)[],
+): Adw.PreferencesGroup {
+  const key = `${provider}-${suffix}`;
+  const zone = suffix === "status-fields" ? "status" : "panel";
+  const available = PROVIDER_FIELDS[provider];
 
-  const shortNameRow = new Adw.EntryRow({
-    title: _("Short display name"),
-    text: settings.get_string(`${provider}-display-name-short`) ?? "",
+  const group = new Adw.PreferencesGroup({
+    title,
+    description: _("Reorder active fields with the arrow buttons or by dragging."),
   });
-  bindSetting(settings, `${provider}-display-name-short`, shortNameRow, "text", bindings);
-  addRow(shortNameRow);
 
-  const pathKey = `${provider}-cli-path`;
-  const isAuthFileProvider = provider === "grok" || provider === "cursor" || provider === "google";
-  const cliRow = new Adw.EntryRow({
-    title: isAuthFileProvider ? _("Authentication file") : _("CLI path"),
-    text: settings.get_string(pathKey) ?? "",
-  });
-  bindSetting(settings, pathKey, cliRow, "text", bindings);
-  addRow(cliRow);
+  const { listBox, destroy } = buildReorderableList(
+    settings,
+    key,
+    (name, context) => {
+      const def = available.find((field) => field.name === name);
+      if (!def) return null;
+
+      const row = new Adw.ActionRow({
+        title: _(def.label),
+        subtitle: formatPreview(def, zone, locale),
+        activatable: false,
+      });
+      const dragHandle = new Gtk.Image({
+        icon_name: "list-drag-handle-symbolic",
+        valign: Gtk.Align.CENTER,
+      });
+      row.add_prefix(dragHandle);
+
+      const moveButtons = createMoveButtons({
+        settings,
+        key,
+        visibleValues: context.visibleValues,
+        index: context.index,
+        moveUpLabel: _("Move field up"),
+        moveDownLabel: _("Move field down"),
+      });
+      row.add_suffix(moveButtons);
+
+      const removeButton = new Gtk.Button({
+        icon_name: "list-remove-symbolic",
+        valign: Gtk.Align.CENTER,
+        tooltip_text: _("Remove"),
+      });
+      removeButton.add_css_class("flat");
+      removeButton.connect("clicked", () => {
+        settings.set_strv(
+          key,
+          settings.get_strv(key).filter((value) => value !== name),
+        );
+      });
+      row.add_suffix(removeButton);
+
+      setupDragSource(row, name);
+      setupDropTarget(row, settings, key, name);
+      return row;
+    },
+    {
+      isRenderable: (name) => available.some((field) => field.name === name),
+      emptyText: _("No fields selected."),
+    },
+  );
+  destroyCallbacks.push(destroy);
+  group.add(listBox);
+  return group;
 }
 
 export const ProviderExpanderRow = GObject.registerClass(
@@ -292,11 +234,9 @@ export const ProviderExpanderRow = GObject.registerClass(
     _init(
       settings: Gio.Settings,
       provider: ProviderName,
-      options?: {
-        index?: number;
-        totalCount?: number;
-        onMove?: (offset: -1 | 1) => void;
-      },
+      index?: number,
+      totalCount?: number,
+      onMove?: (offset: -1 | 1) => void,
     ) {
       super._init({
         title: providerDisplayName(settings, provider),
@@ -330,25 +270,25 @@ export const ProviderExpanderRow = GObject.registerClass(
       setupDragSource(this, provider);
       setupDropTarget(this, settings, "providers-order", provider);
 
-      if (options?.onMove && options.index !== undefined && options.totalCount !== undefined) {
+      if (onMove && index !== undefined && totalCount !== undefined) {
         const upButton = new Gtk.Button({
           icon_name: "go-up-symbolic",
           valign: Gtk.Align.CENTER,
           tooltip_text: _("Move provider up"),
-          sensitive: options.index > 0,
+          sensitive: index > 0,
         });
         upButton.add_css_class("flat");
-        upButton.connect("clicked", () => options.onMove?.(-1));
+        upButton.connect("clicked", () => onMove(-1));
         this.add_suffix(upButton);
 
         const downButton = new Gtk.Button({
           icon_name: "go-down-symbolic",
           valign: Gtk.Align.CENTER,
           tooltip_text: _("Move provider down"),
-          sensitive: options.index < options.totalCount - 1,
+          sensitive: index < totalCount - 1,
         });
         downButton.add_css_class("flat");
-        downButton.connect("clicked", () => options.onMove?.(1));
+        downButton.connect("clicked", () => onMove(1));
         this.add_suffix(downButton);
       }
 
@@ -375,9 +315,41 @@ export const ProviderExpanderRow = GObject.registerClass(
         GLib.getenv("LANG"),
       );
 
-      addIdentityRows(this._settings, this._provider, this._bindings, (row) => this.add_row(row));
+      const displayNameRow = new Adw.EntryRow({
+        title: _("Display name"),
+        text: this._settings.get_string(`${this._provider}-display-name`) ?? "",
+      });
+      bindSetting(
+        this._settings,
+        `${this._provider}-display-name`,
+        displayNameRow,
+        "text",
+        this._bindings,
+      );
+      this.add_row(displayNameRow);
 
-      // Field Matrix group inside expander
+      const shortNameRow = new Adw.EntryRow({
+        title: _("Short display name"),
+        text: this._settings.get_string(`${this._provider}-display-name-short`) ?? "",
+      });
+      bindSetting(
+        this._settings,
+        `${this._provider}-display-name-short`,
+        shortNameRow,
+        "text",
+        this._bindings,
+      );
+      this.add_row(shortNameRow);
+
+      const pathKey = `${this._provider}-cli-path`;
+      const isAuthFile = AUTH_FILE_PROVIDERS.has(this._provider);
+      const cliRow = new Adw.EntryRow({
+        title: isAuthFile ? _("Authentication file") : _("CLI path"),
+        text: this._settings.get_string(pathKey) ?? "",
+      });
+      bindSetting(this._settings, pathKey, cliRow, "text", this._bindings);
+      this.add_row(cliRow);
+
       const matrixGroup = buildFieldMatrixGroup(
         this._settings,
         this._provider,
@@ -385,6 +357,26 @@ export const ProviderExpanderRow = GObject.registerClass(
         this._destroyCallbacks,
       );
       this.add_row(matrixGroup);
+      this.add_row(
+        buildFieldOrderGroup(
+          this._settings,
+          this._provider,
+          "status-fields",
+          _("Status bar fields"),
+          locale,
+          this._destroyCallbacks,
+        ),
+      );
+      this.add_row(
+        buildFieldOrderGroup(
+          this._settings,
+          this._provider,
+          "panel-fields",
+          _("Panel fields"),
+          locale,
+          this._destroyCallbacks,
+        ),
+      );
     }
   },
 );
@@ -415,15 +407,17 @@ export const ProvidersPage = GObject.registerClass(
         "providers-order",
         (name, context) => {
           if (!isProviderName(name)) return null;
-          return new ProviderExpanderRow(this._settings, name, {
-            index: context.index,
-            totalCount: context.visibleValues.length,
-            onMove: (offset) => {
+          return new ProviderExpanderRow(
+            this._settings,
+            name,
+            context.index,
+            context.visibleValues.length,
+            (offset) => {
               const current = this._settings.get_strv("providers-order");
               const reordered = moveAdjacentValue(current, context.visibleValues, name, offset);
               if (reordered) this._settings.set_strv("providers-order", reordered);
             },
-          });
+          );
         },
         {
           normalizeValues: (values) => normalizeProvidersOrder(values),

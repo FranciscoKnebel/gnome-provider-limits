@@ -4,16 +4,26 @@ import {
   BaseReader,
   FieldStatus,
   ReaderStatus,
-  type FieldDef,
   type FieldResult,
+  type PercentFieldNames,
   type ReaderResult,
+  type WindowFieldNames,
 } from "../../src/readers/base.js";
+import type { FieldName } from "../../src/readers/fields.js";
+
+const PRIMARY_NAMES = {
+  used: "used_percent_primary",
+  remaining: "remaining_percent_primary",
+  reset: "reset_at_primary",
+} as const;
+
+const SECONDARY_NAMES = {
+  used: "used_percent_secondary",
+  remaining: "remaining_percent_secondary",
+  reset: "reset_at_secondary",
+} as const;
 
 class TestReader extends BaseReader {
-  get FIELDS(): readonly FieldDef[] {
-    return [];
-  }
-
   async read(): Promise<ReaderResult> {
     return this._okResult([], []);
   }
@@ -24,19 +34,19 @@ class TestReader extends BaseReader {
     status: FieldStatus,
     error?: string | null,
   ): FieldResult<T> {
-    return this._makeField(name, value, status, error);
+    return this._makeField(name as FieldName, value, status, error);
   }
 
   testMakePercentFieldPair(
-    key: string,
+    names: PercentFieldNames<"codex">,
     usedPct: number | null | undefined,
     status: FieldStatus,
   ): [FieldResult, FieldResult] {
-    return this._makePercentFieldPair(key, usedPct, status);
+    return this._makePercentFieldPair(names, usedPct, status);
   }
 
   testMakeWindowFields(
-    key: string,
+    names: WindowFieldNames<"codex">,
     data:
       | {
           used_percent?: number | null;
@@ -45,7 +55,7 @@ class TestReader extends BaseReader {
       | null
       | undefined,
   ): FieldResult[] {
-    return this._makeWindowFields(key, data);
+    return this._makeWindowFields(names, data);
   }
 
   testOkResult(fields: readonly FieldResult[], pathsTried: readonly string[]): ReaderResult {
@@ -90,12 +100,12 @@ describe("BaseReader", () => {
   const settings = {} as Gio.Settings;
 
   beforeEach(() => {
-    reader = new TestReader(settings, "test-provider");
+    reader = new TestReader(settings, "codex");
   });
 
   describe("constructor", () => {
     it("stores providerName", () => {
-      expect(reader["providerName"]).toBe("test-provider");
+      expect(reader["providerName"]).toBe("codex");
     });
 
     it("stores settings", () => {
@@ -152,20 +162,24 @@ describe("BaseReader", () => {
 
   describe("_makePercentFieldPair", () => {
     it("creates used_percent and remaining_percent fields", () => {
-      const [used, remaining] = reader.testMakePercentFieldPair("weekly", 30, FieldStatus.OK);
+      const [used, remaining] = reader.testMakePercentFieldPair(
+        SECONDARY_NAMES,
+        30,
+        FieldStatus.OK,
+      );
 
-      expect(used.name).toBe("used_percent_weekly");
+      expect(used.name).toBe("used_percent_secondary");
       expect(used.value).toBe(30);
       expect(used.status).toBe(FieldStatus.OK);
 
-      expect(remaining.name).toBe("remaining_percent_weekly");
+      expect(remaining.name).toBe("remaining_percent_secondary");
       expect(remaining.value).toBe(70);
       expect(remaining.status).toBe(FieldStatus.OK);
     });
 
     it("handles null usedPct", () => {
       const [used, remaining] = reader.testMakePercentFieldPair(
-        "daily",
+        PRIMARY_NAMES,
         null,
         FieldStatus.UNAVAILABLE,
       );
@@ -177,7 +191,7 @@ describe("BaseReader", () => {
 
     it("handles undefined usedPct", () => {
       const [used, remaining] = reader.testMakePercentFieldPair(
-        "session",
+        PRIMARY_NAMES,
         undefined,
         FieldStatus.UNAVAILABLE,
       );
@@ -187,17 +201,17 @@ describe("BaseReader", () => {
     });
 
     it("computes remaining as 100 - used at boundaries", () => {
-      const [, zero] = reader.testMakePercentFieldPair("full", 100, FieldStatus.OK);
+      const [, zero] = reader.testMakePercentFieldPair(PRIMARY_NAMES, 100, FieldStatus.OK);
       expect(zero.value).toBe(0);
 
-      const [, all] = reader.testMakePercentFieldPair("empty", 0, FieldStatus.OK);
+      const [, all] = reader.testMakePercentFieldPair(PRIMARY_NAMES, 0, FieldStatus.OK);
       expect(all.value).toBe(100);
     });
   });
 
   describe("_makeWindowFields", () => {
     it("creates OK fields when data is provided", () => {
-      const fields = reader.testMakeWindowFields("primary", {
+      const fields = reader.testMakeWindowFields(PRIMARY_NAMES, {
         used_percent: 25,
         reset_at: 1700000000,
       });
@@ -213,7 +227,7 @@ describe("BaseReader", () => {
     });
 
     it("handles null data with UNAVAILABLE status", () => {
-      const fields = reader.testMakeWindowFields("secondary", null);
+      const fields = reader.testMakeWindowFields(SECONDARY_NAMES, null);
 
       expect(fields).toHaveSize(3);
       fields.forEach((f) => {
@@ -223,7 +237,7 @@ describe("BaseReader", () => {
     });
 
     it("handles undefined data", () => {
-      const fields = reader.testMakeWindowFields("secondary", undefined);
+      const fields = reader.testMakeWindowFields(SECONDARY_NAMES, undefined);
 
       expect(fields).toHaveSize(3);
       fields.forEach((f) => {
@@ -232,7 +246,7 @@ describe("BaseReader", () => {
     });
 
     it("handles missing optional fields in data", () => {
-      const fields = reader.testMakeWindowFields("primary", {});
+      const fields = reader.testMakeWindowFields(PRIMARY_NAMES, {});
 
       expect(fields[0].value).toBeNull();
       expect(fields[1].value).toBeNull();
@@ -243,7 +257,7 @@ describe("BaseReader", () => {
     });
 
     it("handles string reset_at", () => {
-      const fields = reader.testMakeWindowFields("window", {
+      const fields = reader.testMakeWindowFields(PRIMARY_NAMES, {
         reset_at: "1700000000",
       });
 
@@ -255,7 +269,7 @@ describe("BaseReader", () => {
     it("returns OK status", () => {
       const result = reader.testOkResult([], ["path1"]);
       expect(result.status).toBe(ReaderStatus.OK);
-      expect(result.provider).toBe("test-provider");
+      expect(result.provider).toBe("codex");
       expect(result.pathsTried).toEqual(["path1"]);
     });
 
@@ -300,13 +314,13 @@ describe("BaseReader", () => {
     it("returns PARTIAL with lastError when some fields are UNAVAILABLE", () => {
       const result = reader.testClassifyResult([okField("a"), unavailableField("b")], ["p1"]);
       expect(result.status).toBe(ReaderStatus.PARTIAL);
-      expect(result.lastError).toBe("test-provider: some fields unavailable.");
+      expect(result.lastError).toBe("codex: some fields unavailable.");
     });
 
     it("returns PARTIAL with lastError when some fields are ERROR", () => {
       const result = reader.testClassifyResult([okField("a"), errorField("b")], ["p1"]);
       expect(result.status).toBe(ReaderStatus.PARTIAL);
-      expect(result.lastError).toBe("test-provider: some fields unavailable.");
+      expect(result.lastError).toBe("codex: some fields unavailable.");
     });
 
     it("returns PARTIAL when some fields are UNAVAILABLE and some ERROR", () => {
@@ -315,7 +329,7 @@ describe("BaseReader", () => {
         ["p1"],
       );
       expect(result.status).toBe(ReaderStatus.PARTIAL);
-      expect(result.lastError).toBe("test-provider: some fields unavailable.");
+      expect(result.lastError).toBe("codex: some fields unavailable.");
     });
 
     it("uses prefix in PARTIAL lastError", () => {
@@ -343,7 +357,7 @@ describe("BaseReader", () => {
     it("returns ERROR when fields array is empty", () => {
       const result = reader.testClassifyResult([], ["p1"]);
       expect(result.status).toBe(ReaderStatus.ERROR);
-      expect(result.lastError).toContain("test-provider");
+      expect(result.lastError).toContain("codex");
     });
 
     it("uses prefix in error message", () => {
@@ -353,7 +367,29 @@ describe("BaseReader", () => {
 
     it("uses providerName as default prefix", () => {
       const result = reader.testClassifyResult([], ["p1"]);
-      expect(result.lastError).toContain("test-provider");
+      expect(result.lastError).toContain("codex");
+    });
+  });
+
+  describe("type-level field contract", () => {
+    class CodexContractReader extends BaseReader<"codex"> {
+      async read(): Promise<ReaderResult> {
+        return this._okResult([], []);
+      }
+
+      declared(): FieldResult {
+        return this._makeField("used_percent_primary", 1, FieldStatus.OK);
+      }
+
+      undeclared(): FieldResult {
+        // @ts-expect-error undeclared names are rejected without runtime checks
+        return this._makeField("not_declared_by_codex", 1, FieldStatus.OK);
+      }
+    }
+
+    it("accepts only names declared in PROVIDER_FIELDS", () => {
+      const contractReader = new CodexContractReader({} as Gio.Settings, "codex");
+      expect(contractReader.declared().name).toBe("used_percent_primary");
     });
   });
 });

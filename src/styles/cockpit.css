@@ -100,22 +100,6 @@
   background-color: rgba(127, 127, 127, 0.55);
 }
 
-.pl-health-ok {
-  background-color: #2ec27e;
-}
-
-.pl-health-partial {
-  background-color: #e5a50a;
-}
-
-.pl-health-error {
-  background-color: #e01b24;
-}
-
-.pl-health-loading {
-  background-color: rgba(127, 127, 127, 0.55);
-}
-
 .pl-badge {
   font-size: 0.75em;
   font-weight: 700;

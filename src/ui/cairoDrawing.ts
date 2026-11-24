@@ -1,4 +1,5 @@
-import type { GaugeGeometry, GaugeTone, MicroMeterSpec, RgbTuple } from "./gaugeTypes.js";
+import { clampFillRatio } from "./fieldRows.js";
+import type { GaugeSpec, GaugeTone, RadialGaugeGeometry, RgbTuple } from "./gaugeTypes.js";
 
 export const CAIRO_LINE_CAP_ROUND = 1;
 
@@ -12,6 +13,39 @@ export const TONE_RGB: Record<GaugeTone, RgbTuple> = {
   critical: [0xe0 / 255, 0x1b / 255, 0x24 / 255],
   neutral: [0x88 / 255, 0x88 / 255, 0x90 / 255],
 };
+
+/** The single fill-math home: ratio, sweep angles and color for every gauge surface. */
+export function gaugeArc(
+  ratio: number | null,
+  tone: GaugeTone,
+): Pick<GaugeSpec, "ratio" | "hasValue" | "startAngle" | "endAngle" | "tone" | "rgb" | "isError"> {
+  if (ratio === null) {
+    return {
+      ratio: 0,
+      hasValue: false,
+      startAngle: GAUGE_START_ANGLE,
+      endAngle: GAUGE_START_ANGLE,
+      tone,
+      rgb: TONE_RGB[tone],
+      isError: false,
+    };
+  }
+  const clamped = clampFillRatio(ratio);
+  return {
+    ratio: clamped,
+    hasValue: true,
+    startAngle: GAUGE_START_ANGLE,
+    endAngle: GAUGE_START_ANGLE + clamped * GAUGE_SWEEP_ANGLE,
+    tone,
+    rgb: TONE_RGB[tone],
+    isError: false,
+  };
+}
+
+/** One empty meter for loading, unavailable and error surfaces. */
+export function emptyMeter(tone: GaugeTone, isError: boolean): GaugeSpec {
+  return { ...gaugeArc(null, tone), isError };
+}
 
 export const TRACK_RGBA: readonly [number, number, number, number] = [0.5, 0.5, 0.5, 0.24];
 
@@ -55,11 +89,35 @@ export function disposeCairoContext(value: unknown): void {
   }
 }
 
+export interface RepaintArea {
+  connect(signal: string, handler: () => void): unknown;
+  get_context(): unknown;
+  get_surface_size(): [number, number];
+  queue_repaint(): void;
+}
+
+type DrawSpec<TSpec> = (cr: CairoContextLike, width: number, height: number, spec: TSpec) => void;
+
+/** The one repaint handler for every Cairo surface: guard, draw, dispose and queue. */
+export function connectRepaint<TSpec>(area: RepaintArea, draw: DrawSpec<TSpec>, spec: TSpec): void {
+  area.connect("repaint", () => {
+    const rawCr: unknown = area.get_context();
+    try {
+      if (!isCairoContext(rawCr)) return;
+      const [width, height] = area.get_surface_size();
+      draw(rawCr, width, height, spec);
+    } finally {
+      disposeCairoContext(rawCr);
+    }
+  });
+  area.queue_repaint();
+}
+
 export function drawMicroRing(
   cr: CairoContextLike,
   width: number,
   height: number,
-  spec: MicroMeterSpec,
+  spec: GaugeSpec,
 ): void {
   const size = Math.min(width, height);
   if (size <= 2) return;
@@ -104,7 +162,7 @@ export function drawRadialGauge(
   cr: CairoContextLike,
   width: number,
   height: number,
-  geometry: GaugeGeometry,
+  geometry: RadialGaugeGeometry,
 ): void {
   const size = Math.min(width, height);
   if (size <= 6) return;
@@ -147,7 +205,7 @@ export function drawMiniCapsule(
   cr: CairoContextLike,
   width: number,
   height: number,
-  spec: MicroMeterSpec,
+  spec: GaugeSpec,
 ): void {
   if (width <= 4 || height <= 1) return;
 

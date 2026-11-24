@@ -1,6 +1,7 @@
 import { PROVIDER_NAMES } from "../../src/constants.js";
 import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
 import type { ReaderResult } from "../../src/readers/base.js";
+import type { FieldDef } from "../../src/readers/base.js";
 import {
   CLAUDE_FIELDS,
   CODEX_FIELDS,
@@ -14,6 +15,7 @@ import {
   GAUGE_START_ANGLE,
   GAUGE_SWEEP_ANGLE,
   TONE_RGB,
+  connectRepaint,
   disposeCairoContext,
   drawMicroRing,
   drawMiniCapsule,
@@ -26,15 +28,77 @@ import {
   chunkGauges,
   chunkPairs,
   computeGaugeGeometry,
-  computeStatusMicroMeter,
   cycleTab,
   getAvailableTabs,
-  partitionProviderPanel,
-  providerDetailStructureKey,
+  loadingOverviewRow,
   resolveActiveTab,
-  toneToRgb,
 } from "../../src/ui/cockpitModel.js";
-import { clampRatio, extractWindowSuffix } from "../../src/ui/usageSnapshot.js";
+import { deriveDisplayModel } from "../../src/ui/displayModel.js";
+import { resetSlotText } from "../../src/ui/resetModel.js";
+
+const identity = (text: string) => text;
+
+function panelModel(
+  fieldDefs: readonly FieldDef[],
+  result: ReaderResult,
+  panelFields: readonly string[],
+  locale = "en",
+) {
+  const model = deriveDisplayModel(result.provider, result, {
+    fieldDefs,
+    statusFields: [],
+    panelFields,
+    displayName: result.provider,
+    shortDisplayName: result.provider,
+    locale,
+    t: (text) => text,
+  });
+  if (!model) throw new Error(`Provider ${result.provider} is disabled`);
+  return model;
+}
+
+function overviewRowFor(options: {
+  provider: ReaderResult["provider"];
+  displayName: string;
+  fieldsDefs: readonly FieldDef[];
+  result: ReaderResult | undefined;
+  statusFieldNames: readonly string[];
+  panelFieldNames: readonly string[];
+  locale: string;
+}) {
+  if (!options.result) return loadingOverviewRow(options.provider, options.displayName);
+  const model = deriveDisplayModel(options.provider, options.result, {
+    fieldDefs: options.fieldsDefs,
+    statusFields: options.statusFieldNames,
+    panelFields: options.panelFieldNames,
+    displayName: options.displayName,
+    shortDisplayName: options.displayName,
+    locale: options.locale,
+    t: (text) => text,
+  });
+  if (!model) throw new Error(`Provider ${options.provider} is disabled`);
+  return buildOverviewRowModel(model);
+}
+import { deriveFieldViews, meterFromViews, type FieldView } from "../../src/ui/fieldViews.js";
+
+const VIEW_OPTIONS = { zone: "panel" as const, locale: "en", t: (text: string) => text };
+
+function gaugeView(fieldName: string, value: unknown): FieldView {
+  const result: ReaderResult = {
+    provider: "codex",
+    status: ReaderStatus.OK,
+    fromCache: false,
+    lastUpdated: 0,
+    fields: value === null ? [] : [{ name: fieldName, value, status: FieldStatus.OK }],
+  };
+  const view = deriveFieldViews(CODEX_FIELDS, result, [fieldName], {
+    zone: "panel",
+    locale: "en",
+    t: (text) => text,
+  })[0];
+  if (!view) throw new Error(`No view for ${fieldName}`);
+  return view;
+}
 
 interface RecordedCairoOp {
   readonly op: string;
@@ -90,22 +154,9 @@ describe("src/readers/fields", () => {
 });
 
 describe("cockpitModel gauge math", () => {
-  it("clampRatio clamps numeric percentages to [0, 1] and rejects non-finite values", () => {
-    expect(clampRatio(0)).toBe(0);
-    expect(clampRatio(42.5)).toBeCloseTo(0.425, 5);
-    expect(clampRatio(100)).toBe(1);
-    expect(clampRatio(-15)).toBe(0);
-    expect(clampRatio(145)).toBe(1);
-    expect(clampRatio(Number.NaN)).toBeNull();
-    expect(clampRatio(Number.POSITIVE_INFINITY)).toBeNull();
-    expect(clampRatio(null)).toBeNull();
-    expect(clampRatio("50")).toBeNull();
-  });
-
-  it("toneToRgb maps semantic tones to RGB tuples in [0, 1]", () => {
+  it("TONE_RGB maps semantic tones to RGB tuples in [0, 1]", () => {
     for (const tone of ["ok", "warning", "critical", "neutral"] as const) {
-      const rgb = toneToRgb(tone);
-      expect(rgb).toEqual(TONE_RGB[tone]);
+      const rgb = TONE_RGB[tone];
       for (const channel of rgb) {
         expect(channel).toBeGreaterThanOrEqual(0);
         expect(channel).toBeLessThanOrEqual(1);
@@ -114,7 +165,7 @@ describe("cockpitModel gauge math", () => {
   });
 
   it("computeGaugeGeometry calculates sweep angles and tones for used_* and remaining_* fields", () => {
-    const lowUsed = computeGaugeGeometry("used_percent_primary", 25);
+    const lowUsed = computeGaugeGeometry(gaugeView("used_percent_primary", 25));
     expect(lowUsed.hasValue).toBeTrue();
     expect(lowUsed.ratio).toBeCloseTo(0.25, 5);
     expect(lowUsed.startAngle).toBeCloseTo(GAUGE_START_ANGLE, 5);
@@ -123,94 +174,118 @@ describe("cockpitModel gauge math", () => {
     expect(lowUsed.tone).toBe("ok");
     expect(lowUsed.centerText).toBe("25%");
 
-    const warnUsed = computeGaugeGeometry("used_percent_primary", 75);
+    const warnUsed = computeGaugeGeometry(gaugeView("used_percent_primary", 75));
     expect(warnUsed.tone).toBe("warning");
     expect(warnUsed.fieldTone).toBe("warning");
 
-    const critUsed = computeGaugeGeometry("used_percent_primary", 92);
+    const critUsed = computeGaugeGeometry(gaugeView("used_percent_primary", 92));
     expect(critUsed.tone).toBe("critical");
     expect(critUsed.fieldTone).toBe("critical");
 
-    const lowRemaining = computeGaugeGeometry("remaining_percent_primary", 8);
+    const lowRemaining = computeGaugeGeometry(gaugeView("remaining_percent_primary", 8));
     expect(lowRemaining.tone).toBe("critical");
-    expect(lowRemaining.ratio).toBeCloseTo(0.08, 5);
+    expect(lowRemaining.fieldTone).toBe("critical");
+    expect(lowRemaining.centerText).toBe("8%");
+    expect(lowRemaining.ratio).toBeCloseTo(0.92, 5);
 
-    const warnRemaining = computeGaugeGeometry("remaining_percent_primary", 35);
+    const warnRemaining = computeGaugeGeometry(gaugeView("remaining_percent_primary", 35));
     expect(warnRemaining.tone).toBe("warning");
+    expect(warnRemaining.ratio).toBeCloseTo(0.65, 5);
 
-    const missing = computeGaugeGeometry("used_percent_primary", null);
+    const missing = computeGaugeGeometry(gaugeView("used_percent_primary", null));
     expect(missing.hasValue).toBeFalse();
     expect(missing.ratio).toBe(0);
     expect(missing.endAngle).toBe(GAUGE_START_ANGLE);
     expect(missing.tone).toBe("neutral");
     expect(missing.centerText).toBe("—");
   });
-
-  it("extractWindowSuffix parses primary/secondary/rolling/weekly/monthly suffixes", () => {
-    expect(extractWindowSuffix("used_percent_primary")).toBe("primary");
-    expect(extractWindowSuffix("remaining_percent_five_hour")).toBe("five_hour");
-    expect(extractWindowSuffix("used_percent_seven_day_sonnet")).toBe("seven_day_sonnet");
-    expect(extractWindowSuffix("total_cost")).toBeNull();
-    expect(extractWindowSuffix("reset_at_primary")).toBeNull();
-  });
 });
 
-describe("computeStatusMicroMeter", () => {
-  it("picks the first configured status percent field and falls back to provider percent field", () => {
-    const okResult: ReaderResult = {
-      provider: "codex",
-      status: ReaderStatus.OK,
-      lastUpdated: 1_700_000_000,
-      fields: [
-        { name: "used_percent_primary", value: 30, status: FieldStatus.OK },
-        { name: "used_percent_secondary", value: 65, status: FieldStatus.OK },
-      ],
-    };
+describe("meterFromViews", () => {
+  const okResult: ReaderResult = {
+    provider: "codex",
+    status: ReaderStatus.OK,
+    fromCache: false,
+    lastUpdated: 1_700_000_000,
+    fields: [
+      { name: "used_percent_primary", value: 30, status: FieldStatus.OK },
+      { name: "used_percent_secondary", value: 65, status: FieldStatus.OK },
+    ],
+  };
 
-    const secondPicked = computeStatusMicroMeter(CODEX_FIELDS, okResult, [
-      "reset_at_primary",
-      "used_percent_secondary",
-    ]);
+  it("derives the meter from already-derived views in their given order", () => {
+    const secondaryFirst = deriveFieldViews(
+      CODEX_FIELDS,
+      okResult,
+      ["used_percent_secondary", "used_percent_primary"],
+      VIEW_OPTIONS,
+    );
+    const secondPicked = meterFromViews(secondaryFirst);
     expect(secondPicked.hasValue).toBeTrue();
     expect(secondPicked.ratio).toBeCloseTo(0.65, 5);
     expect(secondPicked.tone).toBe("warning");
     expect(secondPicked.isError).toBeFalse();
 
-    const fallbackPicked = computeStatusMicroMeter(CODEX_FIELDS, okResult, ["plan_type"]);
+    const primaryFirst = deriveFieldViews(
+      CODEX_FIELDS,
+      okResult,
+      ["used_percent_primary", "used_percent_secondary"],
+      VIEW_OPTIONS,
+    );
+    const fallbackPicked = meterFromViews(primaryFirst);
     expect(fallbackPicked.hasValue).toBeTrue();
     expect(fallbackPicked.ratio).toBeCloseTo(0.3, 5);
     expect(fallbackPicked.tone).toBe("ok");
   });
 
-  it("returns critical error spec on ERROR/UNAVAILABLE and neutral when percent value is missing", () => {
-    const errResult: ReaderResult = {
-      provider: "codex",
-      status: ReaderStatus.ERROR,
-      lastUpdated: 1_700_000_000,
-      fields: [],
-      lastError: "Auth expired",
-    };
-    const errSpec = computeStatusMicroMeter(CODEX_FIELDS, errResult, ["used_percent_primary"]);
-    expect(errSpec.isError).toBeTrue();
-    expect(errSpec.hasValue).toBeFalse();
-    expect(errSpec.tone).toBe("critical");
-
+  it("returns a neutral spec when no derived percent view has a value", () => {
     const emptyOkResult: ReaderResult = {
       provider: "codex",
       status: ReaderStatus.OK,
+      fromCache: false,
       lastUpdated: 1_700_000_000,
       fields: [{ name: "used_percent_primary", value: null, status: FieldStatus.UNAVAILABLE }],
     };
-    const neutralSpec = computeStatusMicroMeter(CODEX_FIELDS, emptyOkResult, [
-      "used_percent_primary",
-    ]);
+    const views = deriveFieldViews(
+      CODEX_FIELDS,
+      emptyOkResult,
+      ["used_percent_primary"],
+      VIEW_OPTIONS,
+    );
+    const neutralSpec = meterFromViews(views);
     expect(neutralSpec.isError).toBeFalse();
     expect(neutralSpec.hasValue).toBeFalse();
     expect(neutralSpec.tone).toBe("neutral");
   });
+
+  it("carries the error meter on models for ERROR and UNAVAILABLE results", () => {
+    for (const status of [ReaderStatus.ERROR, ReaderStatus.UNAVAILABLE] as const) {
+      const result: ReaderResult = {
+        provider: "codex",
+        status,
+        fromCache: false,
+        lastUpdated: 1_700_000_000,
+        fields: [],
+        lastError: "Auth expired",
+      };
+      const model = deriveDisplayModel("codex", result, {
+        fieldDefs: CODEX_FIELDS,
+        statusFields: [],
+        panelFields: [],
+        displayName: "Codex",
+        shortDisplayName: "Codex",
+        locale: "en",
+        t: (message) => message,
+      });
+      expect(model).toBeDefined();
+      expect(model!.facts.meter.isError).toBeTrue();
+      expect(model!.facts.meter.hasValue).toBeFalse();
+      expect(model!.facts.meter.tone).toBe("critical");
+    }
+  });
 });
 
-describe("partitionProviderPanel & chunking", () => {
+describe("panel field partitioning & chunking", () => {
   it("chunks gauges into balanced rows of 1-3 (with 4 split into 2+2) and Bento into pairs", () => {
     expect(chunkGauges([])).toEqual([]);
     expect(chunkGauges([1, 2])).toEqual([[1, 2]]);
@@ -232,6 +307,7 @@ describe("partitionProviderPanel & chunking", () => {
     const result: ReaderResult = {
       provider: "codex",
       status: ReaderStatus.OK,
+      fromCache: false,
       lastUpdated: 1_700_000_000,
       fields: [
         { name: "used_percent_primary", value: 40, status: FieldStatus.OK },
@@ -244,41 +320,41 @@ describe("partitionProviderPanel & chunking", () => {
       ],
     };
 
-    const partition = partitionProviderPanel(
-      CODEX_FIELDS,
-      result,
-      [
-        "used_percent_primary",
-        "reset_at_primary",
-        "used_percent_secondary",
-        "reset_at_secondary",
-        "reset_credits_expire_at",
-        "plan_type",
-        "limit_reached",
-        "unknown_field",
-      ],
-      "en",
-    );
+    const model = panelModel(CODEX_FIELDS, result, [
+      "used_percent_primary",
+      "reset_at_primary",
+      "used_percent_secondary",
+      "reset_at_secondary",
+      "reset_credits_expire_at",
+      "plan_type",
+      "limit_reached",
+      "unknown_field",
+    ]);
+    const gauges = model.facts.views.progress;
+    const bentoTiles = model.facts.views.keyValue;
+    const resetText = (name: string) => {
+      const pairing = model.resets.get(name);
+      return pairing ? resetSlotText(pairing, "panel", "en", identity) : null;
+    };
 
-    expect(partition.gauges.map((g) => g.fieldName)).toEqual([
+    expect(gauges.map((view) => view.name)).toEqual([
       "used_percent_primary",
       "used_percent_secondary",
     ]);
-    expect(partition.gauges[0].hasResetSlot).toBeTrue();
-    expect(partition.gauges[0].resetText).toContain("↻");
-    expect(partition.gauges[1].hasResetSlot).toBeTrue();
-    expect(partition.gauges[1].resetText).toBe("↻ —");
+    expect(resetText("used_percent_primary")).toContain("↻");
+    expect(resetText("used_percent_secondary")).toBe("↻ —");
 
     // Paired reset_at_primary and reset_at_secondary were consumed by gauges,
     // while unpaired reset_credits_expire_at, plan_type, and limit_reached stay in Bento!
-    expect(partition.bentoTiles.map((b) => b.fieldName)).toEqual([
+    expect(bentoTiles.map((view) => view.name)).toEqual([
       "reset_credits_expire_at",
       "plan_type",
       "limit_reached",
     ]);
-    expect(partition.bentoRows.length).toBe(2);
-    expect(partition.bentoRows[0].length).toBe(2);
-    expect(partition.bentoRows[1].length).toBe(1);
+    const bentoRows = chunkPairs(bentoTiles);
+    expect(bentoRows.length).toBe(2);
+    expect(bentoRows[0].length).toBe(2);
+    expect(bentoRows[1].length).toBe(1);
   });
 
   it("keeps unpaired reset_at_* in Bento when its companion percent gauge is not in panel fields", () => {
@@ -286,19 +362,21 @@ describe("partitionProviderPanel & chunking", () => {
     const result: ReaderResult = {
       provider: "codex",
       status: ReaderStatus.OK,
+      fromCache: false,
       lastUpdated: 1_700_000_000,
       fields: [{ name: "reset_at_primary", value: futureEpoch, status: FieldStatus.OK }],
     };
 
-    const partition = partitionProviderPanel(CODEX_FIELDS, result, ["reset_at_primary"], "en");
-    expect(partition.gauges.length).toBe(0);
-    expect(partition.bentoTiles.map((b) => b.fieldName)).toEqual(["reset_at_primary"]);
+    const model = panelModel(CODEX_FIELDS, result, ["reset_at_primary"]);
+    expect(model.facts.views.progress.length).toBe(0);
+    expect(model.facts.views.keyValue.map((view) => view.name)).toEqual(["reset_at_primary"]);
   });
 
   it("propagates field-level errors onto gauges and Bento tiles", () => {
     const result: ReaderResult = {
       provider: "claude",
       status: ReaderStatus.PARTIAL,
+      fromCache: false,
       lastUpdated: 1_700_000_000,
       fields: [
         {
@@ -316,20 +394,18 @@ describe("partitionProviderPanel & chunking", () => {
       ],
     };
 
-    const partition = partitionProviderPanel(
-      CLAUDE_FIELDS,
-      result,
-      ["used_percent_session", "has_extra_usage_enabled"],
-      "en",
-    );
-    expect(partition.gauges[0].errorText).toBe("Probe timeout");
-    expect(partition.bentoTiles[0].errorText).toBe("Missing token");
+    const model = panelModel(CLAUDE_FIELDS, result, [
+      "used_percent_session",
+      "has_extra_usage_enabled",
+    ]);
+    expect(model.facts.views.progress[0].errorText).toBe("Probe timeout");
+    expect(model.facts.views.keyValue[0].errorText).toBe("Missing token");
   });
 });
 
 describe("buildOverviewRowModel, tabs & structure keys", () => {
   it("builds loading, OK, Cached (last-known-good), Partial, and Error overview models", () => {
-    const loading = buildOverviewRowModel({
+    const loading = overviewRowFor({
       provider: "codex",
       displayName: "Codex",
       fieldsDefs: CODEX_FIELDS,
@@ -340,15 +416,18 @@ describe("buildOverviewRowModel, tabs & structure keys", () => {
     });
     expect(loading.badgeKind).toBe("loading");
     expect(loading.primaryText).toBe("…");
+    expect(loading.meter.tone).toBe("neutral");
+    expect(loading.meter.isError).toBeFalse();
 
     const futureEpoch = Math.floor(Date.now() / 1000) + 1800;
-    const okRow = buildOverviewRowModel({
+    const okRow = overviewRowFor({
       provider: "codex",
       displayName: "Codex",
       fieldsDefs: CODEX_FIELDS,
       result: {
         provider: "codex",
         status: ReaderStatus.OK,
+        fromCache: false,
         lastUpdated: 1_700_000_000,
         fields: [
           { name: "used_percent_primary", value: 55, status: FieldStatus.OK },
@@ -364,13 +443,14 @@ describe("buildOverviewRowModel, tabs & structure keys", () => {
     expect(okRow.primaryText).toBe("55%");
     expect(okRow.secondaryText).toContain("↻");
 
-    const cachedRow = buildOverviewRowModel({
+    const cachedRow = overviewRowFor({
       provider: "claude",
       displayName: "Claude",
       fieldsDefs: CLAUDE_FIELDS,
       result: {
         provider: "claude",
         status: ReaderStatus.PARTIAL,
+        fromCache: true,
         lastUpdated: 1_700_000_000,
         pathsTried: ["oauth-api", "last-known-good"],
         lastError: "HTTP 503",
@@ -384,13 +464,14 @@ describe("buildOverviewRowModel, tabs & structure keys", () => {
     expect(cachedRow.badgeText).toBe("Cached");
     expect(cachedRow.tone).toBe("warning");
 
-    const partialRow = buildOverviewRowModel({
+    const partialRow = overviewRowFor({
       provider: "opencode",
       displayName: "OpenCode Go",
       fieldsDefs: OPENCODE_FIELDS,
       result: {
         provider: "opencode",
         status: ReaderStatus.PARTIAL,
+        fromCache: false,
         lastUpdated: 1_700_000_000,
         pathsTried: ["sqlite"],
         fields: [{ name: "total_cost", value: 4.5, status: FieldStatus.OK }],
@@ -403,13 +484,14 @@ describe("buildOverviewRowModel, tabs & structure keys", () => {
     expect(partialRow.badgeText).toBe("Partial");
     expect(partialRow.primaryText).toBe("—");
 
-    const errorRow = buildOverviewRowModel({
+    const errorRow = overviewRowFor({
       provider: "grok",
       displayName: "Grok",
       fieldsDefs: GROK_FIELDS,
       result: {
         provider: "grok",
         status: ReaderStatus.ERROR,
+        fromCache: false,
         lastUpdated: 1_700_000_000,
         lastError: "Missing auth.json",
         fields: [],
@@ -437,72 +519,6 @@ describe("buildOverviewRowModel, tabs & structure keys", () => {
     expect(cycleTab("claude", enabled, 1)).toBe("codex");
     expect(cycleTab("overview", [], 1)).toBe("overview");
   });
-
-  it("produces stable providerDetailStructureKey values that change only on structural changes", () => {
-    const baseResult: ReaderResult = {
-      provider: "codex",
-      status: ReaderStatus.OK,
-      lastUpdated: 100,
-      fields: [
-        { name: "used_percent_primary", value: 20, status: FieldStatus.OK },
-        { name: "plan_type", value: "plus", status: FieldStatus.OK },
-      ],
-    };
-    const updatedResult: ReaderResult = {
-      provider: "codex",
-      status: ReaderStatus.OK,
-      lastUpdated: 200,
-      fields: [
-        { name: "used_percent_primary", value: 85, status: FieldStatus.OK },
-        { name: "plan_type", value: "pro", status: FieldStatus.OK },
-      ],
-    };
-
-    const p1 = partitionProviderPanel(
-      CODEX_FIELDS,
-      baseResult,
-      ["used_percent_primary", "plan_type"],
-      "en",
-    );
-    const p2 = partitionProviderPanel(
-      CODEX_FIELDS,
-      updatedResult,
-      ["used_percent_primary", "plan_type"],
-      "en",
-    );
-    const p3 = partitionProviderPanel(CODEX_FIELDS, updatedResult, ["used_percent_primary"], "en");
-
-    const k1 = providerDetailStructureKey({
-      provider: "codex",
-      displayName: "Codex",
-      status: "ok",
-      locale: "en",
-      hasCallout: false,
-      hasTimestamp: true,
-      partition: p1,
-    });
-    const k2 = providerDetailStructureKey({
-      provider: "codex",
-      displayName: "Codex",
-      status: "ok",
-      locale: "en",
-      hasCallout: false,
-      hasTimestamp: true,
-      partition: p2,
-    });
-    const k3 = providerDetailStructureKey({
-      provider: "codex",
-      displayName: "Codex",
-      status: "ok",
-      locale: "en",
-      hasCallout: false,
-      hasTimestamp: true,
-      partition: p3,
-    });
-
-    expect(k1).toBe(k2);
-    expect(k3).not.toBe(k1);
-  });
 });
 
 describe("Cairo vector drawing helpers & context disposal", () => {
@@ -521,7 +537,7 @@ describe("Cairo vector drawing helpers & context disposal", () => {
   });
 
   it("draws micro rings, radial gauges, and mini capsules with rounded line caps", () => {
-    const geom = computeGaugeGeometry("used_percent_primary", 64);
+    const geom = computeGaugeGeometry(gaugeView("used_percent_primary", 64));
     const okMeter = {
       ratio: geom.ratio,
       hasValue: true,
@@ -559,7 +575,12 @@ describe("Cairo vector drawing helpers & context disposal", () => {
     expect(radialCtx.ops.filter((o) => o.op === "stroke").length).toBe(3);
 
     const emptyRadialCtx = createMockCairoContext();
-    drawRadialGauge(emptyRadialCtx.cr, 80, 80, computeGaugeGeometry("used_percent_primary", null));
+    drawRadialGauge(
+      emptyRadialCtx.cr,
+      80,
+      80,
+      computeGaugeGeometry(gaugeView("used_percent_primary", null)),
+    );
     expect(emptyRadialCtx.ops.filter((o) => o.op === "stroke").length).toBe(2);
 
     const tinyRadialCtx = createMockCairoContext();
@@ -577,5 +598,42 @@ describe("Cairo vector drawing helpers & context disposal", () => {
     const tinyCapsuleCtx = createMockCairoContext();
     drawMiniCapsule(tinyCapsuleCtx.cr, 2, 1, okMeter);
     expect(tinyCapsuleCtx.ops.length).toBe(0);
+  });
+
+  it("connectRepaint owns the guard, size, disposal and queue for every surface", () => {
+    const calls: string[] = [];
+    const makeArea = (context: unknown) => {
+      const handlers: Array<() => void> = [];
+      return {
+        area: {
+          connect: (signal: string, handler: () => void) => {
+            expect(signal).toBe("repaint");
+            handlers.push(handler);
+          },
+          get_context: () => context,
+          get_surface_size: (): [number, number] => [56, 6],
+          queue_repaint: () => calls.push("queue"),
+        },
+        repaint: () => handlers.forEach((handler) => handler()),
+      };
+    };
+    const draw = (_cr: CairoContextLike, width: number, height: number, spec: string) => {
+      calls.push(`draw:${width}x${height}:${spec}`);
+    };
+
+    const good = createMockCairoContext();
+    const goodArea = makeArea(good.cr);
+    connectRepaint(goodArea.area, draw, "meter");
+    expect(calls).toEqual(["queue"]);
+    goodArea.repaint();
+    expect(calls).toEqual(["queue", "draw:56x6:meter"]);
+    expect(good.disposed()).toBeTrue();
+
+    calls.length = 0;
+    const nonCairo = { $dispose: () => calls.push("dispose") };
+    const nonCairoArea = makeArea(nonCairo);
+    connectRepaint(nonCairoArea.area, draw, "meter");
+    nonCairoArea.repaint();
+    expect(calls).toEqual(["queue", "dispose"]);
   });
 });

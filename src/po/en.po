@@ -625,8 +625,6 @@ msgstr "Toggle fields and set their order for the status bar and panel."
 msgid "Reset defaults"
 msgstr "Reset defaults"
 
-msgid "Top Bar"
-msgstr "Top Bar"
 
 msgid "Panel"
 msgstr "Panel"
@@ -642,3 +640,12 @@ msgstr "Active Providers"
 
 msgid "Enable, configure, and reorder AI coding providers. Expand any provider to edit credentials and the field matrix."
 msgstr "Enable, configure, and reorder AI coding providers. Expand any provider to edit credentials and the field matrix."
+
+msgid "Toggle which fields appear in the status bar and panel."
+msgstr "Toggle which fields appear in the status bar and panel."
+
+msgid "Reorder active fields with the arrow buttons or by dragging."
+msgstr "Reorder active fields with the arrow buttons or by dragging."
+
+msgid "No fields selected."
+msgstr "No fields selected."

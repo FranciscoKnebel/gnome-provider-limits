@@ -1,6 +1,61 @@
-/* Truly shared rules. The usage thresholds are defined once here and are
-   concatenated last so they win the cascade over every component color rule,
-   exactly as the trailing threshold blocks did in the original stylesheet. */
+/* Truly shared rules, used by more than one panel or status bar style. They are
+   concatenated last so their final values win the cascade over style-specific
+   component rules. The usage thresholds follow them and remain last overall. */
+
+.provider-limits-tnum {
+  font-feature-settings: "tnum";
+}
+
+.provider-limits-error {
+  color: #e01b24;
+}
+
+.provider-limits-status-bar {
+  spacing: 5px;
+  font-feature-settings: "tnum";
+}
+
+.provider-limits-provider-label {
+  font-weight: 600;
+  font-size: 0.92em;
+  color: inherit;
+  opacity: 0.88;
+}
+
+.provider-limits-panel-header {
+  font-weight: 700;
+  font-size: 0.96em;
+  color: inherit;
+}
+
+.provider-limits-field-label {
+  font-size: 0.88em;
+  color: inherit;
+  opacity: 0.7;
+}
+
+.provider-limits-field-value {
+  font-size: 0.88em;
+  font-feature-settings: "tnum";
+  color: inherit;
+  font-weight: 500;
+}
+
+.provider-limits-dim {
+  color: inherit;
+  opacity: 0.62;
+}
+
+.popup-menu-item.provider-limits-static-row:hover,
+.popup-menu-item.provider-limits-static-row:active,
+.popup-menu-item.provider-limits-static-row:checked {
+  background-color: transparent;
+  box-shadow: none;
+}
+
+/* Usage thresholds are defined once and stay last so they win over every
+   component color rule, exactly as the trailing threshold blocks did in the
+   original stylesheet. */
 
 .usage-critical {
   color: #e01b24;

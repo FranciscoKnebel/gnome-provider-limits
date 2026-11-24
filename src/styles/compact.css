@@ -1,18 +1,4 @@
-/* Compact style. Shared selectors are kept at their original last occurrence
-   so their final effective values continue to win for every panel style. */
-
-.provider-limits-tnum {
-  font-feature-settings: "tnum";
-}
-
-.provider-limits-error {
-  color: #e01b24;
-}
-
-.provider-limits-status-bar {
-  spacing: 5px;
-  font-feature-settings: "tnum";
-}
+/* Compact style. Selectors shared across styles live in base.css. */
 
 .provider-limits-status-placeholder {
   opacity: 0.72;
@@ -37,13 +23,6 @@
 .provider-limits-status-segment.status-partial,
 .provider-limits-status-metrics.status-partial {
   opacity: 0.82;
-}
-
-.provider-limits-provider-label {
-  font-weight: 600;
-  font-size: 0.92em;
-  color: inherit;
-  opacity: 0.88;
 }
 
 .provider-limits-status-metrics {
@@ -136,12 +115,6 @@
   opacity: 0.72;
 }
 
-.provider-limits-panel-header {
-  font-weight: 700;
-  font-size: 0.96em;
-  color: inherit;
-}
-
 .provider-limits-status-badge {
   font-size: 0.82em;
   opacity: 0.9;
@@ -195,28 +168,10 @@
   spacing: 8px;
 }
 
-.provider-limits-field-label {
-  font-size: 0.88em;
-  color: inherit;
-  opacity: 0.7;
-}
-
 .provider-limits-micro-bar {
   font-size: 0.76em;
   opacity: 0.68;
   letter-spacing: 0.5px;
-}
-
-.provider-limits-field-value {
-  font-size: 0.88em;
-  font-feature-settings: "tnum";
-  color: inherit;
-  font-weight: 500;
-}
-
-.provider-limits-dim {
-  color: inherit;
-  opacity: 0.62;
 }
 
 .provider-limits-last-updated {
@@ -252,11 +207,4 @@
 
 .provider-limits-empty-label {
   font-size: 0.88em;
-}
-
-.popup-menu-item.provider-limits-static-row:hover,
-.popup-menu-item.provider-limits-static-row:active,
-.popup-menu-item.provider-limits-static-row:checked {
-  background-color: transparent;
-  box-shadow: none;
 }

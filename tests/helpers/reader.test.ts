@@ -20,6 +20,7 @@ function result(overrides: Partial<ReaderResult> = {}): ReaderResult {
   return {
     provider: "codex",
     status: ReaderStatus.OK,
+    fromCache: false,
     fields: [field()],
     lastUpdated: 1000,
     ...overrides,
