@@ -29,10 +29,11 @@ import {
   normalizeGoogleAvailableModels,
   normalizeGoogleQuotaSummary,
   parseGoogleAuth,
-  parseGoogleTierName,
+  parseGoogleTier,
   parseGoogleTokenResponse,
   resolveGoogleQuotaEndpoints,
   type GoogleAuth,
+  type GoogleTier,
   type GoogleUsage,
   type GoogleWindow,
   type GoogleWindowId,
@@ -111,14 +112,20 @@ const GOOGLE_WINDOW_FIELDS: Record<GoogleWindowId, WindowFieldNames<"google">> =
 
 const FIVE_HOUR_WINDOW_IDS = new Set<GoogleWindowId>(["session", "thirdPartySession"]);
 
+const PLAN_CAPABILITIES: Record<string, { readonly fiveHourWindows: boolean }> = {
+  "free-tier": { fiveHourWindows: false },
+  "standard-tier": { fiveHourWindows: true },
+};
+
 const ABSENT_WINDOW_STATUS: Record<Exclude<GoogleWindow["state"], "present">, NonOkFieldStatus> = {
   unreported: FieldStatus.UNAVAILABLE,
   disabled: FieldStatus.NOT_APPLICABLE,
   malformed: FieldStatus.UNAVAILABLE,
 };
 
-function planSupportsFiveHourWindows(plan: string | null): boolean {
-  return plan === null || !/starter/i.test(plan);
+function tierSupportsFiveHourWindows(tier: GoogleTier | null): boolean {
+  if (!tier?.id) return true;
+  return PLAN_CAPABILITIES[tier.id]?.fiveHourWindows ?? true;
 }
 
 export class GoogleReader extends BaseReader<"google"> {
@@ -534,7 +541,8 @@ export class GoogleReader extends BaseReader<"google"> {
 
       const { auth, accessToken, usage, endpointUsed } = resolved as CandidateQuotaOutcome;
 
-      let plan: string | null = null;
+      let tier: GoogleTier | null = null;
+      let tierFailed = false;
       pushOnce(pathsTried, "tier-api");
       try {
         const tierPayload = await this._http!.postJson(
@@ -550,20 +558,27 @@ export class GoogleReader extends BaseReader<"google"> {
         );
         this._assertAlive();
         if (cancellable.is_cancelled()) return cancelledResult();
-        plan = parseGoogleTierName(tierPayload);
+        tier = parseGoogleTier(tierPayload);
       } catch (error) {
         this._assertAlive();
         if (cancellable.is_cancelled()) return cancelledResult();
+        tierFailed = true;
         logWarn("google subscription tier unavailable", error);
       }
 
       this._assertAlive();
       if (cancellable.is_cancelled()) return cancelledResult();
 
-      const fields = this._fieldsFromUsage(usage, plan, endpointUsed);
+      const fields = this._fieldsFromUsage(usage, tier, endpointUsed);
 
       return this._finalizeResult(
-        this._classifyResult(fields, pathsTried, "Google"),
+        this._classifyResult(
+          fields,
+          pathsTried,
+          "Google",
+          undefined,
+          tierFailed ? "source" : "fields",
+        ),
         pathsTried,
         _("Google: subscription quota unavailable. Try again later."),
       );
@@ -576,9 +591,11 @@ export class GoogleReader extends BaseReader<"google"> {
 
   private _fieldsFromUsage(
     usage: GoogleUsage,
-    plan: string | null,
+    tier: GoogleTier | null,
     endpointUsed: string,
   ): FieldResult[] {
+    const plan = tier?.name ?? tier?.id ?? null;
+    const supportsFiveHourWindows = tierSupportsFiveHourWindows(tier);
     const fields: FieldResult[] = [];
     for (const id of GOOGLE_WINDOW_IDS) {
       const names = GOOGLE_WINDOW_FIELDS[id];
@@ -598,9 +615,7 @@ export class GoogleReader extends BaseReader<"google"> {
         continue;
       }
       const unsupportedPlanWindow =
-        window.state === "unreported" &&
-        FIVE_HOUR_WINDOW_IDS.has(id) &&
-        !planSupportsFiveHourWindows(plan);
+        window.state === "unreported" && FIVE_HOUR_WINDOW_IDS.has(id) && !supportsFiveHourWindows;
       const status = unsupportedPlanWindow
         ? FieldStatus.NOT_APPLICABLE
         : ABSENT_WINDOW_STATUS[window.state];

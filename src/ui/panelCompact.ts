@@ -221,13 +221,9 @@ export class CompactPanelSection extends PanelStyleSection {
         style_class: "provider-limits-status-badge",
         y_align: Clutter.ActorAlign.CENTER,
       });
-      applyToneClass(
-        badgeLabel,
-        model.result.status === ReaderStatus.PARTIAL ? "warning" : "error",
-        {
-          quiet: true,
-        },
-      );
+      applyToneClass(badgeLabel, model.status === ReaderStatus.PARTIAL ? "warning" : "error", {
+        quiet: true,
+      });
       leftTitleBox.add_child(badgeLabel);
     }
 

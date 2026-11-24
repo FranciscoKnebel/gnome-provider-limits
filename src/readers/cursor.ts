@@ -249,6 +249,7 @@ export class CursorReader extends BaseReader<"cursor"> {
 
     let plan: string | null = null;
     let planResetAt: number | null = null;
+    let planFailed = false;
     pathsTried.push("plan-api");
     try {
       const planPayload = await this._http.postJson(
@@ -268,6 +269,7 @@ export class CursorReader extends BaseReader<"cursor"> {
     } catch (error) {
       this._assertAlive();
       if (cancellable.is_cancelled()) return cancelledResult();
+      planFailed = true;
       logWarn("cursor subscription plan unavailable", error);
     }
 
@@ -277,7 +279,13 @@ export class CursorReader extends BaseReader<"cursor"> {
     const fields = this._fieldsFromUsage(usage, plan, resetAtCredits);
 
     return this._finalizeResult(
-      this._classifyResult(fields, pathsTried, "Cursor"),
+      this._classifyResult(
+        fields,
+        pathsTried,
+        "Cursor",
+        undefined,
+        planFailed ? "source" : "fields",
+      ),
       pathsTried,
       _("Cursor: subscription credits unavailable. Try again later."),
     );

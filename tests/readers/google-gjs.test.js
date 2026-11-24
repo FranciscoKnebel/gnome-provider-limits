@@ -164,7 +164,9 @@ export async function run() {
           };
         }
         if (url.endsWith("/v1internal:loadCodeAssist")) {
-          return { currentTier: { name: "Antigravity Starter Quota" } };
+          return {
+            paidTier: { id: "free-tier", name: "Antigravity Starter Quota" },
+          };
         }
         throw new Error(`unexpected URL ${url}`);
       },
@@ -344,7 +346,7 @@ export async function run() {
             ],
           };
         }
-        return { currentTier: { name: "Google AI Pro" } };
+        return { currentTier: { id: "standard-tier", name: "Google AI Pro" } };
       },
     });
 

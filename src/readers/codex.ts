@@ -29,11 +29,13 @@ export class CodexReader extends BaseReader<"codex"> {
   private _http: HttpClient | null = null;
   private _cancellable: Gio.Cancellable | null = null;
   private _destroyed = false;
+  private _resetCreditsFailed = false;
 
   async read(_options?: ReadOptions): Promise<ReaderResult> {
     this._cancellable?.cancel();
     const cancellable = new Gio.Cancellable();
     this._cancellable = cancellable;
+    this._resetCreditsFailed = false;
     const pathsTried: string[] = [];
 
     // Path 1: OAuth API
@@ -47,7 +49,11 @@ export class CodexReader extends BaseReader<"codex"> {
         ]);
         if (payload) {
           return this._finalizeResult(
-            this._parsePayload(mergeResetCredits(payload, details), pathsTried),
+            this._parsePayload(
+              mergeResetCredits(payload, details),
+              pathsTried,
+              this._resetCreditsFailed,
+            ),
             pathsTried,
             CODEX_ALL_PATHS_FAILED,
           );
@@ -67,7 +73,7 @@ export class CodexReader extends BaseReader<"codex"> {
       const payload = await this._readFromDisk();
       if (payload) {
         return this._finalizeResult(
-          this._parsePayload(payload, pathsTried),
+          this._parsePayload(payload, pathsTried, false),
           pathsTried,
           CODEX_ALL_PATHS_FAILED,
         );
@@ -163,6 +169,7 @@ export class CodexReader extends BaseReader<"codex"> {
       return normalizeCodexResetCredits(payload);
     } catch (error) {
       logWarn("codex reset-credits failed", error);
+      this._resetCreditsFailed = true;
       return null;
     }
   }
@@ -184,6 +191,7 @@ export class CodexReader extends BaseReader<"codex"> {
   private _parsePayload(
     payload: CodexRateLimitsPayload,
     pathsTried: readonly string[],
+    sourceFailed: boolean,
   ): ReaderResult {
     const rl = payload.rate_limits;
     if (!rl) {
@@ -243,7 +251,13 @@ export class CodexReader extends BaseReader<"codex"> {
     );
     fields.push(...this._makeResetCreditFields(payload.reset_credits));
 
-    return this._classifyResult(fields, pathsTried, "Codex");
+    return this._classifyResult(
+      fields,
+      pathsTried,
+      "Codex",
+      undefined,
+      sourceFailed ? "source" : "fields",
+    );
   }
 
   private _makeResetCreditFields(

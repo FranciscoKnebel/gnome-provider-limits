@@ -246,9 +246,9 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
   protected _classifyResult(
     fields: FieldResult[],
     pathsTried: readonly string[],
-    prefix?: string,
-    partialError?: string,
-    cause: PartialCause = "fields",
+    prefix: string | undefined,
+    partialError: string | undefined,
+    cause: PartialCause,
   ): ReaderResult {
     const hasAny = fields.some((f) => f.status === FieldStatus.OK);
     if (!hasAny) {

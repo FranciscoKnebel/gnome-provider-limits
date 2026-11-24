@@ -81,7 +81,7 @@ class TestReader extends BaseReader {
     pathsTried: readonly string[],
     prefix?: string,
     partialError?: string,
-    cause?: "fields" | "source",
+    cause: "fields" | "source" = "fields",
   ): ReaderResult {
     return this._classifyResult(fields, pathsTried, prefix, partialError, cause);
   }

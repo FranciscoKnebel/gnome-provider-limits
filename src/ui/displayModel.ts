@@ -50,6 +50,7 @@ export interface ProviderDisplayModel {
   readonly displayName: string;
   readonly shortDisplayName: string;
   readonly result: ReaderResult;
+  readonly status: ReaderStatus;
   readonly statusViews: readonly FieldView[];
   readonly panelViews: readonly FieldView[];
   readonly resets: ReadonlyMap<string, ResetPairing>;
@@ -120,21 +121,24 @@ function classifyPanelViews(
   return { progress, keyValue, limit, telemetry };
 }
 
-function deriveDiagnostic(result: ReaderResult, tr: (s: string) => string): Diagnostic {
-  if (isHardError(result)) {
+function deriveDiagnostic(
+  status: ReaderStatus,
+  lastError: string | null,
+  fromCache: boolean,
+  tr: (s: string) => string,
+): Diagnostic {
+  if (status === ReaderStatus.ERROR || status === ReaderStatus.UNAVAILABLE) {
     return {
       kind: "error",
-      text:
-        result.lastError ??
-        tr(result.status === ReaderStatus.UNAVAILABLE ? "Unavailable" : "Error"),
+      text: lastError ?? tr(status === ReaderStatus.UNAVAILABLE ? "Unavailable" : "Error"),
       badge: tr("Error"),
     };
   }
-  if (result.status === ReaderStatus.PARTIAL && result.lastError) {
+  if (status === ReaderStatus.PARTIAL && lastError) {
     return {
       kind: "warning",
-      text: result.lastError,
-      badge: result.fromCache ? tr(CACHED_LABEL) : tr("Partial"),
+      text: lastError,
+      badge: fromCache ? tr(CACHED_LABEL) : tr("Partial"),
     };
   }
   return { kind: null, text: null, badge: null };
@@ -154,7 +158,7 @@ function deriveDisplayFacts(
   model: Omit<ProviderDisplayModel, "facts">,
   derivation: DisplayModelOptions & { readonly allViews: readonly FieldView[] },
 ): ProviderDisplayFacts {
-  const { result } = model;
+  const { result, status } = model;
   const hardError = isHardError(result);
   const { fieldDefs, statusFields, locale, t: tr, allViews } = derivation;
 
@@ -165,6 +169,7 @@ function deriveDisplayFacts(
 
   const health = deriveProviderHealth({
     result,
+    status,
     views: allViews,
     fieldDefs,
     t: tr,
@@ -193,7 +198,7 @@ function deriveDisplayFacts(
     ),
   };
 
-  const diagnostic = deriveDiagnostic(result, tr);
+  const diagnostic = deriveDiagnostic(status, result.lastError ?? null, result.fromCache, tr);
   const views = classifyPanelViews(model.panelViews, model.resets);
   const lastUpdatedText =
     !hardError && Number.isFinite(result.lastUpdated)
@@ -214,17 +219,17 @@ function deriveDisplayFacts(
   };
 }
 
-function withVisibleStatus(
+function resolveDisplayStatus(
   result: ReaderResult,
   statusFields: readonly string[],
   panelFields: readonly string[],
-): ReaderResult {
+): ReaderStatus {
   if (
     result.status !== ReaderStatus.PARTIAL ||
     result.fromCache ||
     result.partialCause !== "fields"
   ) {
-    return result;
+    return result.status;
   }
   const visible = new Set([...statusFields, ...panelFields]);
   const hasVisibleUnavailable = result.fields.some(
@@ -232,9 +237,7 @@ function withVisibleStatus(
       visible.has(field.name) &&
       (field.status === FieldStatus.UNAVAILABLE || field.status === FieldStatus.ERROR),
   );
-  return hasVisibleUnavailable
-    ? result
-    : { ...result, status: ReaderStatus.OK, lastError: null, partialCause: undefined };
+  return hasVisibleUnavailable ? result.status : ReaderStatus.OK;
 }
 
 /** Assemble one provider's display envelope from explicit options, no fake context. */
@@ -247,7 +250,7 @@ export function deriveDisplayModel(
 
   const { fieldDefs, statusFields, panelFields, locale, t: tr } = options;
   const hardError = isHardError(result);
-  const displayResult = withVisibleStatus(result, statusFields, panelFields);
+  const displayStatus = resolveDisplayStatus(result, statusFields, panelFields);
   const searchOrder = [...new Set([...statusFields, ...panelFields])];
   const viewOptions = { zone: "status" as const, locale, t: tr };
   const allViews = hardError ? [] : deriveFieldViews(fieldDefs, result, searchOrder, viewOptions);
@@ -262,7 +265,8 @@ export function deriveDisplayModel(
     provider,
     displayName: options.displayName,
     shortDisplayName: options.shortDisplayName,
-    result: displayResult,
+    result,
+    status: displayStatus,
     statusViews,
     panelViews,
     resets,

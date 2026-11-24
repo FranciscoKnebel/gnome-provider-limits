@@ -11,6 +11,7 @@ import {
   normalizeGoogleAvailableModels,
   normalizeGoogleQuotaSummary,
   parseGoogleAuth,
+  parseGoogleTier,
   parseGoogleTierName,
   parseGoogleTokenResponse,
   resolveGoogleQuotaEndpoints,
@@ -643,5 +644,15 @@ describe("hasActiveGoogleUsage, mergeGoogleUsage & parseGoogleTierName", () => {
     ).toBe("g1-pro-tier");
     expect(parseGoogleTierName({})).toBeNull();
     expect(parseGoogleTierName(null)).toBeNull();
+    expect(
+      parseGoogleTier({
+        paidTier: { id: "free-tier", name: "Antigravity Starter Quota" },
+        currentTier: { id: "free-tier", name: "Antigravity" },
+      }),
+    ).toEqual({ id: "free-tier", name: "Antigravity Starter Quota" });
+    expect(parseGoogleTier({ currentTier: { name: "Google AI Pro" } })).toEqual({
+      id: null,
+      name: "Google AI Pro",
+    });
   });
 });

@@ -283,6 +283,6 @@ export class ClaudeReader extends BaseReader<"claude"> {
       ),
     );
 
-    return this._classifyResult(fields, pathsTried, "Claude");
+    return this._classifyResult(fields, pathsTried, "Claude", undefined, "fields");
   }
 }

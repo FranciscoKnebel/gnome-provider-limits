@@ -45,8 +45,10 @@ The per-Field availability attached to a `FieldResult`: `OK`, `UNAVAILABLE`,
 `NOT_APPLICABLE`, or `ERROR`. `UNAVAILABLE` and `ERROR` degrade provider health when
 the Field is configured in the Status Bar or Panel. `NOT_APPLICABLE` means the
 Provider does not expose the Field for the current plan or window, so it never
-degrades health. Provider health is computed from the configured status and panel
-Fields, not from unselected Fields. Missing usage stays unavailable, not zero.
+degrades health. Display status and diagnostics are computed from the configured
+status and panel Fields. Health tone remains provider-wide: any returned percent
+Field can raise urgency even when it is not selected. Missing usage stays
+unavailable, not zero.
 _Avoid_: Null field, missing value, absent metric.
 
 **Partial Cause**:

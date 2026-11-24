@@ -452,14 +452,31 @@ export function mergeGoogleUsage(
   return buildGoogleUsage(windows);
 }
 
-export function parseGoogleTierName(raw: unknown): string | null {
+export interface GoogleTier {
+  id: string | null;
+  name: string | null;
+}
+
+export function parseGoogleTier(raw: unknown): GoogleTier | null {
   if (!isRecord(raw)) return null;
   const paid = isRecord(raw.paidTier) ? raw.paidTier : null;
   const current = isRecord(raw.currentTier) ? raw.currentTier : null;
-  for (const candidate of [paid?.name, current?.name, paid?.id, current?.id]) {
-    if (typeof candidate === "string" && candidate.trim()) {
-      return candidate.trim();
-    }
-  }
-  return null;
+  const id =
+    typeof paid?.id === "string" && paid.id.trim()
+      ? paid.id.trim()
+      : typeof current?.id === "string" && current.id.trim()
+        ? current.id.trim()
+        : null;
+  const name =
+    typeof paid?.name === "string" && paid.name.trim()
+      ? paid.name.trim()
+      : typeof current?.name === "string" && current.name.trim()
+        ? current.name.trim()
+        : null;
+  return id || name ? { id, name } : null;
+}
+
+export function parseGoogleTierName(raw: unknown): string | null {
+  const tier = parseGoogleTier(raw);
+  return tier?.name ?? tier?.id ?? null;
 }

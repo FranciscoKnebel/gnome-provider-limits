@@ -129,7 +129,8 @@ describe("deriveDisplayModel applies configured-zone health", () => {
 
   it("ignores unavailable fields outside the configured zones", () => {
     const model = modelFor(partialFields, ["used_percent_primary"], []);
-    expect(model.result.status).toBe(ReaderStatus.OK);
+    expect(model.result.status).toBe(ReaderStatus.PARTIAL);
+    expect(model.status).toBe(ReaderStatus.OK);
     expect(model.facts.health.state).toBe("ok");
     expect(model.facts.diagnostic.kind).toBeNull();
   });
@@ -137,6 +138,7 @@ describe("deriveDisplayModel applies configured-zone health", () => {
   it("keeps partial health when a configured field is unavailable", () => {
     const model = modelFor(partialFields, ["used_percent_primary"], ["used_percent_secondary"]);
     expect(model.result.status).toBe(ReaderStatus.PARTIAL);
+    expect(model.status).toBe(ReaderStatus.PARTIAL);
     expect(model.facts.health.state).toBe("partial");
     expect(model.facts.diagnostic.kind).toBe("warning");
   });
@@ -150,7 +152,8 @@ describe("deriveDisplayModel applies configured-zone health", () => {
       ],
     };
     const model = modelFor(notApplicable, ["used_percent_primary"], ["used_percent_secondary"]);
-    expect(model.result.status).toBe(ReaderStatus.OK);
+    expect(model.result.status).toBe(ReaderStatus.PARTIAL);
+    expect(model.status).toBe(ReaderStatus.OK);
     expect(model.facts.health.state).toBe("ok");
     expect(model.facts.diagnostic.kind).toBeNull();
   });
@@ -163,8 +166,22 @@ describe("deriveDisplayModel applies configured-zone health", () => {
     };
     const model = modelFor(sourcePartial, ["used_percent_primary"], []);
     expect(model.result.status).toBe(ReaderStatus.PARTIAL);
+    expect(model.status).toBe(ReaderStatus.PARTIAL);
     expect(model.facts.health.state).toBe("partial");
     expect(model.facts.diagnostic.text).toBe("source unavailable");
+  });
+
+  it("keeps health tone provider-wide for unselected percent fields", () => {
+    const critical: ReaderResult = {
+      provider: "codex",
+      status: ReaderStatus.OK,
+      fromCache: false,
+      lastUpdated: 1_700_000_000_000,
+      fields: [{ name: "used_percent_primary", value: 90, status: FieldStatus.OK }],
+    };
+    const model = modelFor(critical, [], []);
+    expect(model.status).toBe(ReaderStatus.OK);
+    expect(model.facts.health.tone).toBe("critical");
   });
 
   it("keeps the default Google zones healthy for a weekly-only Starter result", () => {
@@ -214,6 +231,7 @@ describe("deriveDisplayModel applies configured-zone health", () => {
     });
     if (!model) throw new Error("Provider google is disabled");
     expect(model.result.status).toBe(ReaderStatus.OK);
+    expect(model.status).toBe(ReaderStatus.OK);
     expect(model.facts.health.state).toBe("ok");
     expect(model.facts.health.tone).toBe("critical");
     expect(model.facts.diagnostic.kind).toBeNull();

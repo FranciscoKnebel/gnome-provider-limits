@@ -226,6 +226,7 @@ export function deriveSeverity(
 /** The single health contract: all data is required, no injection knobs. */
 export interface ProviderHealthData {
   readonly result: ReaderResult;
+  readonly status?: ReaderStatus;
   readonly views: readonly FieldView[];
   readonly fieldDefs: readonly FieldDef[];
   readonly t: (s: string) => string;
@@ -233,11 +234,11 @@ export interface ProviderHealthData {
 
 export function deriveProviderHealth({
   result,
+  status = result.status,
   views,
   fieldDefs,
   t: tr,
 }: ProviderHealthData): ProviderHealth {
-  const { status } = result;
   const worstTone = worstFieldTone(collectFieldTones(views, result.fields, fieldDefs));
   const hasUsableField =
     views.some((view) => view.hasValue) ||
