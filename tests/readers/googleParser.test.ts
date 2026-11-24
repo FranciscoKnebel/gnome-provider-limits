@@ -27,7 +27,8 @@ const presentWindow = (usedPercent: number, reset: GoogleWindowReset) => ({
   state: "present" as const,
   usage: { usedPercent, reset },
 });
-const absentWindow = () => ({ state: "absent" as const });
+const unreportedWindow = () => ({ state: "unreported" as const });
+const disabledWindow = () => ({ state: "disabled" as const });
 const malformedWindow = () => ({ state: "malformed" as const });
 
 describe("parseGoogleAuth", () => {
@@ -235,9 +236,9 @@ describe("normalizeGoogleQuotaSummary", () => {
     const usage = normalizeGoogleQuotaSummary(raw, Date.parse("2026-01-25T00:00:00Z"));
 
     expect(usage).toEqual({
-      session: absentWindow(),
+      session: unreportedWindow(),
       weekly: presentWindow(0, idleReset()),
-      thirdPartySession: absentWindow(),
+      thirdPartySession: unreportedWindow(),
       thirdPartyWeekly: presentWindow(100, presentReset(Date.parse("2026-01-26T00:00:00Z") / 1000)),
       limitReached: true,
     });
@@ -260,7 +261,7 @@ describe("normalizeGoogleQuotaSummary", () => {
     expect(usage?.session).toEqual(presentWindow(50, missingReset()));
   });
 
-  it("records a malformed window without treating absent windows as invalid", () => {
+  it("records an unusable window as unavailable without changing other windows", () => {
     const usage = normalizeGoogleQuotaSummary(
       {
         buckets: [
@@ -286,7 +287,7 @@ describe("normalizeGoogleQuotaSummary", () => {
     );
   });
 
-  it("treats a recognized disabled bucket as absent instead of malformed", () => {
+  it("treats a recognized disabled bucket as not applicable", () => {
     const usage = normalizeGoogleQuotaSummary(
       {
         buckets: [
@@ -306,7 +307,7 @@ describe("normalizeGoogleQuotaSummary", () => {
       NOW,
     );
 
-    expect(usage?.session).toEqual(absentWindow());
+    expect(usage?.session).toEqual(disabledWindow());
     expect(usage?.weekly).toEqual(
       presentWindow(50, presentReset(Date.parse("2026-04-24T12:00:00Z") / 1000)),
     );
@@ -476,7 +477,7 @@ describe("normalizeGoogleAvailableModels", () => {
     });
   });
 
-  it("keeps valid model windows and marks malformed quotas", () => {
+  it("keeps valid model windows and marks unusable quotas", () => {
     const usage = normalizeGoogleAvailableModels(
       {
         models: {
@@ -511,7 +512,7 @@ describe("normalizeGoogleAvailableModels", () => {
       presentWindow(50, presentReset(Date.parse("2026-04-25T00:00:00Z") / 1000)),
     );
     expect(usage?.thirdPartySession).toEqual(malformedWindow());
-    expect(usage?.thirdPartyWeekly).toEqual(absentWindow());
+    expect(usage?.thirdPartyWeekly).toEqual(unreportedWindow());
   });
 
   it("returns null when models map is missing or empty", () => {
@@ -525,15 +526,15 @@ describe("hasActiveGoogleUsage, mergeGoogleUsage & parseGoogleTierName", () => {
     const idle: GoogleUsage = {
       session: presentWindow(0, idleReset()),
       weekly: presentWindow(0, idleReset()),
-      thirdPartySession: absentWindow(),
-      thirdPartyWeekly: absentWindow(),
+      thirdPartySession: unreportedWindow(),
+      thirdPartyWeekly: unreportedWindow(),
       limitReached: false,
     };
     const active: GoogleUsage = {
       session: presentWindow(12, presentReset(1776660000)),
       weekly: presentWindow(0, presentReset(1777000000)),
       thirdPartySession: presentWindow(5, presentReset(1776663600)),
-      thirdPartyWeekly: absentWindow(),
+      thirdPartyWeekly: unreportedWindow(),
       limitReached: false,
     };
 
@@ -541,7 +542,7 @@ describe("hasActiveGoogleUsage, mergeGoogleUsage & parseGoogleTierName", () => {
     expect(hasActiveGoogleUsage(idle)).toBe(false);
     expect(hasActiveGoogleUsage(active)).toBe(true);
     expect(hasCompleteActiveGoogleUsage(null)).toBe(false);
-    expect(hasCompleteActiveGoogleUsage({ ...active, thirdPartySession: absentWindow() })).toBe(
+    expect(hasCompleteActiveGoogleUsage({ ...active, thirdPartySession: unreportedWindow() })).toBe(
       false,
     );
     expect(hasCompleteActiveGoogleUsage(active)).toBe(true);
@@ -552,7 +553,7 @@ describe("hasActiveGoogleUsage, mergeGoogleUsage & parseGoogleTierName", () => {
       session: presentWindow(12, presentReset(1776660000)),
       weekly: presentWindow(0, presentReset(1777000000)),
       thirdPartySession: presentWindow(5, presentReset(1776663600)),
-      thirdPartyWeekly: absentWindow(),
+      thirdPartyWeekly: unreportedWindow(),
       limitReached: false,
     });
   });
@@ -560,9 +561,9 @@ describe("hasActiveGoogleUsage, mergeGoogleUsage & parseGoogleTierName", () => {
   it("prefers idle over missing reset provenance independently of merge order", () => {
     const idleUsage: GoogleUsage = {
       session: presentWindow(10, idleReset()),
-      weekly: absentWindow(),
-      thirdPartySession: absentWindow(),
-      thirdPartyWeekly: absentWindow(),
+      weekly: unreportedWindow(),
+      thirdPartySession: unreportedWindow(),
+      thirdPartyWeekly: unreportedWindow(),
       limitReached: false,
     };
     const missingUsage: GoogleUsage = {
@@ -578,12 +579,12 @@ describe("hasActiveGoogleUsage, mergeGoogleUsage & parseGoogleTierName", () => {
     );
   });
 
-  it("prefers a valid window over a malformed one independently of merge order", () => {
+  it("prefers a valid window over an unavailable one independently of merge order", () => {
     const valid: GoogleUsage = {
       session: presentWindow(10, presentReset(1776660000)),
-      weekly: absentWindow(),
-      thirdPartySession: absentWindow(),
-      thirdPartyWeekly: absentWindow(),
+      weekly: unreportedWindow(),
+      thirdPartySession: unreportedWindow(),
+      thirdPartyWeekly: unreportedWindow(),
       limitReached: false,
     };
     const malformed: GoogleUsage = { ...valid, session: malformedWindow() };

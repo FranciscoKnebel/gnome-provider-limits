@@ -95,6 +95,65 @@ describe("deriveDisplayModel", () => {
   });
 });
 
+describe("deriveDisplayModel applies configured-zone health", () => {
+  const partialFields: ReaderResult = {
+    provider: "codex",
+    status: ReaderStatus.PARTIAL,
+    partialKind: "fields",
+    lastError: "codex: some fields unavailable.",
+    fromCache: false,
+    lastUpdated: 1_700_000_000_000,
+    fields: [
+      { name: "used_percent_primary", value: 25, status: FieldStatus.OK },
+      { name: "used_percent_secondary", value: null, status: FieldStatus.UNAVAILABLE },
+    ],
+  };
+
+  function modelFor(
+    result: ReaderResult,
+    statusFields: readonly string[],
+    panelFields: readonly string[],
+  ) {
+    const model = deriveDisplayModel("codex", result, {
+      fieldDefs: CODEX_FIELDS,
+      statusFields,
+      panelFields,
+      displayName: "Codex",
+      shortDisplayName: "Codex",
+      locale: "en",
+      t: (text) => text,
+    });
+    if (!model) throw new Error("Provider codex is disabled");
+    return model;
+  }
+
+  it("ignores unavailable fields outside the configured zones", () => {
+    const model = modelFor(partialFields, ["used_percent_primary"], []);
+    expect(model.status).toBe(ReaderStatus.OK);
+    expect(model.facts.health.state).toBe("ok");
+    expect(model.facts.diagnostic.kind).toBeNull();
+  });
+
+  it("keeps partial health when a configured field is unavailable", () => {
+    const model = modelFor(partialFields, ["used_percent_primary"], ["used_percent_secondary"]);
+    expect(model.status).toBe(ReaderStatus.PARTIAL);
+    expect(model.facts.health.state).toBe("partial");
+    expect(model.facts.diagnostic.kind).toBe("warning");
+  });
+
+  it("does not hide a source-level partial", () => {
+    const sourcePartial: ReaderResult = {
+      ...partialFields,
+      partialKind: "source",
+      lastError: "source unavailable",
+    };
+    const model = modelFor(sourcePartial, ["used_percent_primary"], []);
+    expect(model.status).toBe(ReaderStatus.PARTIAL);
+    expect(model.facts.health.state).toBe("partial");
+    expect(model.facts.diagnostic.text).toBe("source unavailable");
+  });
+});
+
 describe("deriveDisplayModel owns diagnostics and reset pairing", () => {
   function modelFor(
     result: ReaderResult,

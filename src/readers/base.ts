@@ -66,6 +66,8 @@ export interface ReaderResult {
   readonly lastError?: string | null;
   readonly pathsTried?: readonly string[];
   readonly fromCache: boolean;
+  /** Why a PARTIAL result exists: incomplete fields or a failed source. */
+  readonly partialKind?: "fields" | "source";
 }
 
 export function isHardError(result: ReaderResult): boolean {
@@ -177,6 +179,7 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
     fields: readonly FieldResult[],
     pathsTried: readonly string[],
     lastError?: string,
+    partialKind: "fields" | "source" = "source",
   ): ReaderResult {
     return {
       provider: this.providerName,
@@ -186,6 +189,7 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
       lastError: lastError ?? null,
       pathsTried,
       fromCache: false,
+      partialKind,
     };
   }
 
@@ -233,6 +237,7 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
       lastError: message,
       pathsTried: [...pathsTried, "last-known-good"],
       fromCache: true,
+      partialKind: "source",
     };
   }
 
@@ -255,6 +260,7 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
           fields,
           pathsTried,
           partialError ?? `${prefix ?? this.providerName}: some fields unavailable.`,
+          partialError ? "source" : "fields",
         )
       : this._okResult(fields, pathsTried);
   }

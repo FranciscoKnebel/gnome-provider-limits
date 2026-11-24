@@ -42,11 +42,11 @@ _Avoid_: Field registry, default zone metadata, duplicate field list.
 
 **Field Status**:
 The per-Field availability attached to a `FieldResult`: `OK`, `UNAVAILABLE`,
-`NOT_APPLICABLE`, or `ERROR`. `UNAVAILABLE` and `ERROR` degrade provider health
-because data is missing or failed. `NOT_APPLICABLE` means the Provider does not
-expose the Field for the current plan or window, so it does not degrade health.
-Provider health is computed from the complete `ReaderResult`, not from the Fields
-selected in the Status Bar or Panel. Missing usage stays unavailable, not zero.
+`NOT_APPLICABLE`, or `ERROR`. `UNAVAILABLE` and `ERROR` degrade provider health when
+the Field is configured in the Status Bar or Panel. `NOT_APPLICABLE` means the
+Provider does not expose the Field for the current plan or window, so it never
+degrades health. Provider health is computed from the configured status and panel
+Fields, not from unselected Fields. Missing usage stays unavailable, not zero.
 _Avoid_: Null field, missing value, absent metric.
 
 **FieldView**:
@@ -171,8 +171,9 @@ disk. Exposes Gemini 5-hour session and weekly windows (`used_percent_session`,
 Claude & GPT 5-hour and weekly pools on Antigravity (`used_percent_3p_session`,
 `used_percent_3p_weekly`). Untouched 0% windows whose distant reset time matches
 Google's idle placeholder horizon omit `reset_at` and report it as not applicable
-until active usage starts. Windows absent from the account's plan are also not
-applicable, while a reset timestamp missing from an active window stays unavailable.
+until active usage starts. Windows the provider explicitly disables are not
+applicable. A window missing from the payload stays unavailable, so truncated quota
+data still degrades the provider when that window is configured.
 _Avoid_: Google Cloud billing, Vertex AI pay-as-you-go spend, service-account keys.
 
 **Telemetry Field**:

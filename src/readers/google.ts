@@ -593,11 +593,12 @@ export class GoogleReader extends BaseReader<"google"> {
           );
           break;
         }
-        case "absent":
+        case "disabled":
           fields.push(
             ...this._makeWindowFields(names, null, { absent: FieldStatus.NOT_APPLICABLE }),
           );
           break;
+        case "unreported":
         case "malformed":
           fields.push(...this._makeWindowFields(names, null, { absent: FieldStatus.UNAVAILABLE }));
           break;

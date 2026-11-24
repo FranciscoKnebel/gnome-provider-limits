@@ -39,7 +39,7 @@ export class PillsStatusBarRenderer extends StatusBarRenderer {
 
     this.renderSegments(context.models, (model) => {
       const { health } = model.facts;
-      const isPartial = model.result.status === ReaderStatus.PARTIAL;
+      const isPartial = model.status === ReaderStatus.PARTIAL;
       const stateTag = health.stateTag;
 
       return buildStatusSegment(

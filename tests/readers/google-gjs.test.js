@@ -128,7 +128,7 @@ export async function run() {
     reader.destroy();
   });
 
-  await test("GoogleReader reports weekly-only plans as OK with not-applicable 5h fields", async () => {
+  await test("GoogleReader reports weekly-only plans with unavailable 5h fields", async () => {
     const weeklyReset = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     Gio.File.prototype.load_contents_async = async () =>
       encodeJson({
@@ -173,18 +173,18 @@ export async function run() {
     const result = await reader.read();
     const value = (name) => result.fields.find((f) => f.name === name)?.value;
     const status = (name) => result.fields.find((f) => f.name === name)?.status;
-    assertEqual(result.status, "ok");
-    assertEqual(result.lastError, undefined);
+    assertEqual(result.status, "partial");
+    assertEqual(result.lastError, "Google: some fields unavailable.");
     assertEqual(urls.length, 2);
     assertEqual(value("used_percent_weekly"), 0);
     assertEqual(value("remaining_percent_weekly"), 100);
     assertEqual(value("used_percent_3p_weekly"), 100);
     assertEqual(value("limit_reached"), true);
     assertEqual(value("plan_type"), "Antigravity Starter Quota");
-    assertEqual(status("used_percent_session"), "not_applicable");
-    assertEqual(status("reset_at_session"), "not_applicable");
-    assertEqual(status("used_percent_3p_session"), "not_applicable");
-    assertEqual(status("reset_at_3p_session"), "not_applicable");
+    assertEqual(status("used_percent_session"), "unavailable");
+    assertEqual(status("reset_at_session"), "unavailable");
+    assertEqual(status("used_percent_3p_session"), "unavailable");
+    assertEqual(status("reset_at_3p_session"), "unavailable");
     assertEqual(status("reset_at_weekly"), "not_applicable");
     reader.destroy();
   });
@@ -300,7 +300,7 @@ export async function run() {
 
     const result = await reader.read();
     const field = (name) => result.fields.find((f) => f.name === name);
-    assertEqual(result.status, "ok");
+    assertEqual(result.status, "partial");
     assertEqual(field("used_percent_session")?.status, "not_applicable");
     assertEqual(field("used_percent_weekly")?.value, 50);
     reader.destroy();
@@ -350,7 +350,7 @@ export async function run() {
 
     const result = await reader.read();
     const value = (name) => result.fields.find((f) => f.name === name)?.value;
-    assertEqual(result.status, "ok");
+    assertEqual(result.status, "partial");
     assertEqual(value("used_percent_session"), 35);
     assertEqual(value("plan_type"), "Google AI Pro");
     assertEqual(value("usage_source"), "daily-cloudcode-pa.googleapis.com");
@@ -395,7 +395,7 @@ export async function run() {
     });
 
     const result = await reader.read();
-    assertEqual(result.status, "ok");
+    assertEqual(result.status, "partial");
     assertEqual(quotaCalls, 2);
     assertEqual(result.fields.find((f) => f.name === "used_percent_session")?.value, 50);
     reader.destroy();
@@ -589,7 +589,7 @@ export async function run() {
     );
 
     const recovered = await fallbackReader.read();
-    assertEqual(recovered.status, "ok");
+    assertEqual(recovered.status, "partial");
     assertEqual(recovered.fields.find((f) => f.name === "used_percent_session")?.value, 40);
     assertEqual(
       recovered.fields.find((f) => f.name === "usage_source")?.value,

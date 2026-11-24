@@ -80,8 +80,9 @@ class TestReader extends BaseReader {
     fields: FieldResult[],
     pathsTried: readonly string[],
     prefix?: string,
+    partialError?: string,
   ): ReaderResult {
-    return this._classifyResult(fields, pathsTried, prefix);
+    return this._classifyResult(fields, pathsTried, prefix, partialError);
   }
 }
 
@@ -350,6 +351,19 @@ describe("BaseReader", () => {
       const result = reader.testClassifyResult([okField("a"), unavailableField("b")], ["p1"]);
       expect(result.status).toBe(ReaderStatus.PARTIAL);
       expect(result.lastError).toBe("codex: some fields unavailable.");
+      expect(result.partialKind).toBe("fields");
+    });
+
+    it("marks a caller-supplied partial error as source-level", () => {
+      const result = reader.testClassifyResult(
+        [okField("a"), unavailableField("b")],
+        ["p1"],
+        "codex",
+        "source unavailable",
+      );
+      expect(result.status).toBe(ReaderStatus.PARTIAL);
+      expect(result.lastError).toBe("source unavailable");
+      expect(result.partialKind).toBe("source");
     });
 
     it("returns PARTIAL with lastError when some fields are ERROR", () => {

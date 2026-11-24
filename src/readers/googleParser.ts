@@ -41,7 +41,8 @@ export type GoogleWindowId = (typeof GOOGLE_WINDOW_IDS)[number];
 
 export type GoogleWindow =
   | { readonly state: "present"; readonly usage: GoogleWindowUsage }
-  | { readonly state: "absent" }
+  | { readonly state: "unreported" }
+  | { readonly state: "disabled" }
   | { readonly state: "malformed" };
 
 export type GoogleUsage = Readonly<Record<GoogleWindowId, GoogleWindow>> & {
@@ -171,7 +172,7 @@ function parseBucketWindowUsage(
   window: QuotaWindow,
   requestedAtMs: number,
 ): GoogleWindow {
-  if (bucket.disabled === true) return { state: "absent" };
+  if (bucket.disabled === true) return { state: "disabled" };
 
   const rawResetSec = parseTimestampSeconds(bucket.resetTime);
   const rawFraction = bucket.remainingFraction;
@@ -246,19 +247,20 @@ function windowIdFor(family: QuotaFamily, window: QuotaWindow): GoogleWindowId {
   return window === "5h" ? "thirdPartySession" : "thirdPartyWeekly";
 }
 
-function absentWindows(): Record<GoogleWindowId, GoogleWindow> {
+function unreportedWindows(): Record<GoogleWindowId, GoogleWindow> {
   return {
-    session: { state: "absent" },
-    weekly: { state: "absent" },
-    thirdPartySession: { state: "absent" },
-    thirdPartyWeekly: { state: "absent" },
+    session: { state: "unreported" },
+    weekly: { state: "unreported" },
+    thirdPartySession: { state: "unreported" },
+    thirdPartyWeekly: { state: "unreported" },
   };
 }
 
 const WINDOW_RANK: Record<GoogleWindow["state"], number> = {
-  present: 2,
-  malformed: 1,
-  absent: 0,
+  present: 3,
+  malformed: 2,
+  disabled: 1,
+  unreported: 0,
 };
 
 function windowRank(window: GoogleWindow): number {
@@ -354,8 +356,8 @@ export function normalizeGoogleQuotaSummary(
     }
   }
 
-  const exact = absentWindows();
-  const fallback = absentWindows();
+  const exact = unreportedWindows();
+  const fallback = unreportedWindows();
 
   for (const { groupId, bucket } of collected) {
     const meta = classifyBucket(bucket, groupId);
@@ -366,7 +368,7 @@ export function normalizeGoogleQuotaSummary(
     target[id] = mergeWindows(target[id], parsed);
   }
 
-  const windows = absentWindows();
+  const windows = unreportedWindows();
   for (const id of GOOGLE_WINDOW_IDS) {
     windows[id] = preferExactWindow(exact[id], fallback[id]);
   }
@@ -379,7 +381,7 @@ export function normalizeGoogleAvailableModels(
 ): GoogleUsage | null {
   if (!isRecord(raw) || !isRecord(raw.models)) return null;
 
-  const windows = absentWindows();
+  const windows = unreportedWindows();
 
   for (const [modelId, model] of Object.entries(raw.models)) {
     if (!isRecord(model) || model.disabled === true) continue;
@@ -437,7 +439,7 @@ export function mergeGoogleUsage(
 ): GoogleUsage | null {
   if (!primary) return secondary;
   if (!secondary) return primary;
-  const windows = absentWindows();
+  const windows = unreportedWindows();
   for (const id of GOOGLE_WINDOW_IDS) {
     windows[id] = mergeWindows(primary[id], secondary[id]);
   }
