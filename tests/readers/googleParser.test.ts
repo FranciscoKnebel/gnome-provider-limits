@@ -18,6 +18,10 @@ import {
 
 const NOW = Date.parse("2026-04-20T03:00:00Z");
 
+const presentReset = (at: number) => ({ state: "present" as const, at });
+const idleReset = () => ({ state: "idle" as const });
+const missingReset = () => ({ state: "missing" as const });
+
 describe("parseGoogleAuth", () => {
   it("parses Gemini CLI oauth_creds.json with valid expiry_date", () => {
     const parsed = parseGoogleAuth(
@@ -207,19 +211,19 @@ describe("normalizeGoogleQuotaSummary", () => {
     expect(usage).toEqual({
       session: {
         usedPercent: 4,
-        resetAt: Date.parse("2026-04-20T05:10:00Z") / 1000,
+        reset: presentReset(Date.parse("2026-04-20T05:10:00Z") / 1000),
       },
       weekly: {
         usedPercent: 28,
-        resetAt: Date.parse("2026-04-24T12:00:00Z") / 1000,
+        reset: presentReset(Date.parse("2026-04-24T12:00:00Z") / 1000),
       },
       thirdPartySession: {
         usedPercent: 0,
-        resetAt: null,
+        reset: idleReset(),
       },
       thirdPartyWeekly: {
         usedPercent: 15,
-        resetAt: Date.parse("2026-04-25T00:00:00Z") / 1000,
+        reset: presentReset(Date.parse("2026-04-25T00:00:00Z") / 1000),
       },
       limitReached: false,
     });
@@ -232,20 +236,40 @@ describe("normalizeGoogleQuotaSummary", () => {
         "utf8",
       ),
     );
-    const usage = normalizeGoogleQuotaSummary(raw, Date.parse("2026-11-24T14:02:05Z"));
+    const usage = normalizeGoogleQuotaSummary(raw, Date.parse("2026-01-25T00:00:00Z"));
 
     expect(usage).toEqual({
       session: null,
       weekly: {
         usedPercent: 0,
-        resetAt: null,
+        reset: idleReset(),
       },
       thirdPartySession: null,
       thirdPartyWeekly: {
         usedPercent: 100,
-        resetAt: Date.parse("2026-11-25T12:21:53Z") / 1000,
+        reset: presentReset(Date.parse("2026-01-26T00:00:00Z") / 1000),
       },
       limitReached: true,
+    });
+  });
+
+  it("distinguishes a missing reset timestamp from an idle window", () => {
+    const usage = normalizeGoogleQuotaSummary(
+      {
+        buckets: [
+          {
+            bucketId: "gemini-5h",
+            window: "5h",
+            remainingFraction: 0.5,
+          },
+        ],
+      },
+      NOW,
+    );
+
+    expect(usage?.session).toEqual({
+      usedPercent: 50,
+      reset: missingReset(),
     });
   });
 
@@ -306,19 +330,19 @@ describe("normalizeGoogleQuotaSummary", () => {
     expect(usage).toEqual({
       session: {
         usedPercent: 75,
-        resetAt: Date.parse("2026-04-20T05:30:00Z") / 1000,
+        reset: presentReset(Date.parse("2026-04-20T05:30:00Z") / 1000),
       },
       weekly: {
         usedPercent: 30,
-        resetAt: Date.parse("2026-04-25T00:00:00Z") / 1000,
+        reset: presentReset(Date.parse("2026-04-25T00:00:00Z") / 1000),
       },
       thirdPartySession: {
         usedPercent: 10,
-        resetAt: Date.parse("2026-04-20T07:00:00Z") / 1000,
+        reset: presentReset(Date.parse("2026-04-20T07:00:00Z") / 1000),
       },
       thirdPartyWeekly: {
         usedPercent: 100,
-        resetAt: Date.parse("2026-04-25T00:00:00Z") / 1000,
+        reset: presentReset(Date.parse("2026-04-25T00:00:00Z") / 1000),
       },
       limitReached: true,
     });
@@ -392,19 +416,19 @@ describe("normalizeGoogleAvailableModels", () => {
     expect(usage).toEqual({
       session: {
         usedPercent: 20,
-        resetAt: Date.parse("2026-04-20T05:00:00Z") / 1000,
+        reset: presentReset(Date.parse("2026-04-20T05:00:00Z") / 1000),
       },
       weekly: {
         usedPercent: 50,
-        resetAt: Date.parse("2026-04-25T00:00:00Z") / 1000,
+        reset: presentReset(Date.parse("2026-04-25T00:00:00Z") / 1000),
       },
       thirdPartySession: {
         usedPercent: 10,
-        resetAt: Date.parse("2026-04-20T07:00:00Z") / 1000,
+        reset: presentReset(Date.parse("2026-04-20T07:00:00Z") / 1000),
       },
       thirdPartyWeekly: {
         usedPercent: 0,
-        resetAt: null,
+        reset: idleReset(),
       },
       limitReached: false,
     });
@@ -419,16 +443,16 @@ describe("normalizeGoogleAvailableModels", () => {
 describe("hasActiveGoogleUsage, mergeGoogleUsage & parseGoogleTierName", () => {
   it("detects active usage and merges primary and secondary endpoint windows", () => {
     const idle = {
-      session: { usedPercent: 0, resetAt: null },
-      weekly: { usedPercent: 0, resetAt: null },
+      session: { usedPercent: 0, reset: idleReset() },
+      weekly: { usedPercent: 0, reset: idleReset() },
       thirdPartySession: null,
       thirdPartyWeekly: null,
       limitReached: false,
     };
     const active = {
-      session: { usedPercent: 12, resetAt: 1776660000 },
-      weekly: { usedPercent: 0, resetAt: 1777000000 },
-      thirdPartySession: { usedPercent: 5, resetAt: 1776663600 },
+      session: { usedPercent: 12, reset: presentReset(1776660000) },
+      weekly: { usedPercent: 0, reset: presentReset(1777000000) },
+      thirdPartySession: { usedPercent: 5, reset: presentReset(1776663600) },
       thirdPartyWeekly: null,
       limitReached: false,
     };
@@ -443,9 +467,9 @@ describe("hasActiveGoogleUsage, mergeGoogleUsage & parseGoogleTierName", () => {
     expect(mergeGoogleUsage(null, active)).toEqual(active);
     expect(mergeGoogleUsage(active, null)).toEqual(active);
     expect(mergeGoogleUsage(idle, active)).toEqual({
-      session: { usedPercent: 12, resetAt: 1776660000 },
-      weekly: { usedPercent: 0, resetAt: 1777000000 },
-      thirdPartySession: { usedPercent: 5, resetAt: 1776663600 },
+      session: { usedPercent: 12, reset: presentReset(1776660000) },
+      weekly: { usedPercent: 0, reset: presentReset(1777000000) },
+      thirdPartySession: { usedPercent: 5, reset: presentReset(1776663600) },
       thirdPartyWeekly: null,
       limitReached: false,
     });

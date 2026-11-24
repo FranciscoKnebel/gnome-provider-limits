@@ -20,9 +20,14 @@ export interface GoogleAuth {
   projectId: string | null;
 }
 
+export type GoogleWindowReset =
+  | { readonly state: "present"; readonly at: number }
+  | { readonly state: "idle" }
+  | { readonly state: "missing" };
+
 export interface GoogleWindowUsage {
   usedPercent: number | null;
-  resetAt: number | null;
+  reset: GoogleWindowReset;
 }
 
 export interface GoogleUsage {
@@ -180,18 +185,23 @@ function parseBucketWindowUsage(
     usedPercent = Math.round((1 - remainingFraction) * 10_000) / 100;
   }
 
-  let resetAt = rawResetSec;
+  let reset: GoogleWindowReset =
+    rawResetSec === null ? { state: "missing" } : { state: "present", at: rawResetSec };
   const hasDescription =
     typeof bucket.description === "string" && bucket.description.trim().length > 0;
   if (remainingFraction === 1 && !hasDescription && rawResetSec !== null) {
     const windowMs = window === "5h" ? FIVE_HOUR_MS : WEEKLY_MS;
     const expectedResetMs = requestedAtMs + windowMs;
     if (Math.abs(rawResetSec * 1000 - expectedResetMs) <= UNTOUCHED_WINDOW_TOLERANCE_MS) {
-      resetAt = null;
+      reset = { state: "idle" };
     }
   }
 
-  return { usedPercent, resetAt };
+  return { usedPercent, reset };
+}
+
+function resetAtOf(reset: GoogleWindowReset): number | null {
+  return reset.state === "present" ? reset.at : null;
 }
 
 function pickHigherUsage(
@@ -204,12 +214,10 @@ function pickHigherUsage(
   const candPct = candidate.usedPercent ?? -1;
   if (candPct > curPct) return candidate;
   if (candPct < curPct) return current;
-  if (current.resetAt === null && candidate.resetAt !== null) return candidate;
-  if (
-    current.resetAt !== null &&
-    candidate.resetAt !== null &&
-    candidate.resetAt < current.resetAt
-  ) {
+  const currentResetAt = resetAtOf(current.reset);
+  const candidateResetAt = resetAtOf(candidate.reset);
+  if (currentResetAt === null && candidateResetAt !== null) return candidate;
+  if (currentResetAt !== null && candidateResetAt !== null && candidateResetAt < currentResetAt) {
     return candidate;
   }
   return current;

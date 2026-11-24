@@ -81,6 +81,13 @@ export interface ReadOptions {
   force?: boolean;
 }
 
+export interface WindowFieldStatus {
+  /** Status for every field when the provider does not expose the window. */
+  readonly absent?: FieldStatus;
+  /** Explicit status for the reset field when the window exists. */
+  readonly reset?: FieldStatus;
+}
+
 export abstract class BaseReader<P extends ProviderName = ProviderName> {
   protected _lastGood: ReaderResult | null = null;
 
@@ -131,15 +138,25 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
         }
       | null
       | undefined,
+    status: WindowFieldStatus = {},
   ): FieldResult[] {
+    if (!data) {
+      const absent = status.absent ?? FieldStatus.UNAVAILABLE;
+      return [
+        this._makeField(names.used, null, absent),
+        this._makeField(names.remaining, null, absent),
+        this._makeField(names.reset, null, absent),
+      ];
+    }
     const percentStatus =
-      typeof data?.used_percent === "number" && Number.isFinite(data.used_percent)
+      typeof data.used_percent === "number" && Number.isFinite(data.used_percent)
         ? FieldStatus.OK
         : FieldStatus.UNAVAILABLE;
-    const resetStatus = data?.reset_at != null ? FieldStatus.OK : FieldStatus.UNAVAILABLE;
+    const resetStatus =
+      status.reset ?? (data.reset_at != null ? FieldStatus.OK : FieldStatus.UNAVAILABLE);
     return [
-      ...this._makePercentFieldPair(names, data?.used_percent ?? null, percentStatus),
-      this._makeField(names.reset, data?.reset_at ?? null, resetStatus),
+      ...this._makePercentFieldPair(names, data.used_percent ?? null, percentStatus),
+      this._makeField(names.reset, data.reset_at ?? null, resetStatus),
     ];
   }
 
@@ -223,14 +240,14 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
     prefix?: string,
     partialError?: string,
   ): ReaderResult {
-    const configured = this._configuredFieldNames();
-    const considered = configured ? fields.filter((field) => configured.has(field.name)) : fields;
-    const hasAny = considered.some((f) => f.status === FieldStatus.OK);
+    const hasAny = fields.some(
+      (f) => f.status === FieldStatus.OK || f.status === FieldStatus.NOT_APPLICABLE,
+    );
     if (!hasAny) {
       return this._errorResult(`${prefix ?? this.providerName}: no usable fields.`, pathsTried);
     }
 
-    const hasUnavailable = considered.some(
+    const hasUnavailable = fields.some(
       (f) => f.status === FieldStatus.UNAVAILABLE || f.status === FieldStatus.ERROR,
     );
     return hasUnavailable
@@ -240,23 +257,5 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
           partialError ?? `${prefix ?? this.providerName}: some fields unavailable.`,
         )
       : this._okResult(fields, pathsTried);
-  }
-
-  /** Field names the user displays, or null when the settings stub has no zone arrays. */
-  private _configuredFieldNames(): ReadonlySet<string> | null {
-    const settings = this.settings as Partial<Pick<Gio.Settings, "get_strv">>;
-    if (typeof settings.get_strv !== "function") return null;
-    try {
-      const names = new Set<string>();
-      for (const key of [
-        `${this.providerName}-status-fields`,
-        `${this.providerName}-panel-fields`,
-      ]) {
-        for (const name of settings.get_strv(key)) names.add(name);
-      }
-      return names.size > 0 ? names : null;
-    } catch {
-      return null;
-    }
   }
 }

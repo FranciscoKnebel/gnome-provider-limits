@@ -342,18 +342,13 @@ describe("BaseReader", () => {
       expect(result.lastError).toBeUndefined();
     });
 
-    it("ignores unavailable fields outside the configured status and panel zones", () => {
-      const configuredReader = new TestReader(
-        {
-          get_strv: (key: string) => (key === "codex-status-fields" ? ["a"] : []),
-        } as unknown as Gio.Settings,
-        "codex",
-      );
-      const result = configuredReader.testClassifyResult(
-        [okField("a"), unavailableField("b")],
+    it("returns OK when every field is NOT_APPLICABLE", () => {
+      const result = reader.testClassifyResult(
+        [notApplicableField("a"), notApplicableField("b")],
         ["p1"],
       );
       expect(result.status).toBe(ReaderStatus.OK);
+      expect(result.lastError).toBeUndefined();
     });
 
     it("uses prefix in PARTIAL lastError", () => {

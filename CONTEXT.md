@@ -170,8 +170,8 @@ disk. Exposes Gemini 5-hour session and weekly windows (`used_percent_session`,
 Claude & GPT 5-hour and weekly pools on Antigravity (`used_percent_3p_session`,
 `used_percent_3p_weekly`). Untouched 0% windows whose distant reset time matches
 Google's idle placeholder horizon omit `reset_at` and report it as not applicable
-until active usage starts. Windows absent from the account's plan stay unavailable,
-but provider health only considers fields configured in the Status Bar and Panel.
+until active usage starts. Windows absent from the account's plan are also not
+applicable, while a reset timestamp missing from an active window stays unavailable.
 _Avoid_: Google Cloud billing, Vertex AI pay-as-you-go spend, service-account keys.
 
 **Telemetry Field**:

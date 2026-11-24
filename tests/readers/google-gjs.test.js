@@ -24,14 +24,8 @@ export async function run() {
     }
   };
 
-  const newReader = (http, path = "/mock/google-oauth.json", fields = null) => {
-    const reader = new GoogleReader(
-      {
-        get_string: () => path,
-        ...(fields ? { get_strv: (key) => fields[key] ?? [] } : {}),
-      },
-      "google",
-    );
+  const newReader = (http, path = "/mock/google-oauth.json") => {
+    const reader = new GoogleReader({ get_string: () => path }, "google");
     reader._http = {
       postForm: async () => ({}),
       postJson: async () => ({}),
@@ -134,7 +128,7 @@ export async function run() {
     reader.destroy();
   });
 
-  await test("GoogleReader reports weekly-only plans as OK when configured fields are available", async () => {
+  await test("GoogleReader reports weekly-only plans as OK with not-applicable 5h fields", async () => {
     const weeklyReset = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     Gio.File.prototype.load_contents_async = async () =>
       encodeJson({
@@ -143,52 +137,38 @@ export async function run() {
       });
 
     const urls = [];
-    const reader = newReader(
-      {
-        postJson: async (url) => {
-          urls.push(url);
-          if (url.endsWith("/v1internal:retrieveUserQuotaSummary")) {
-            return {
-              groups: [
-                {
-                  buckets: [
-                    {
-                      bucketId: "gemini-weekly",
-                      window: "weekly",
-                      remainingFraction: 1,
-                      resetTime: weeklyReset,
-                    },
-                    {
-                      bucketId: "3p-weekly",
-                      window: "weekly",
-                      remainingFraction: 0,
-                      resetTime: "2026-11-25T12:21:53Z",
-                      description: "You have hit your weekly limit.",
-                    },
-                  ],
-                },
-              ],
-            };
-          }
-          if (url.endsWith("/v1internal:loadCodeAssist")) {
-            return { currentTier: { name: "Antigravity Starter Quota" } };
-          }
-          throw new Error(`unexpected URL ${url}`);
-        },
+    const reader = newReader({
+      postJson: async (url) => {
+        urls.push(url);
+        if (url.endsWith("/v1internal:retrieveUserQuotaSummary")) {
+          return {
+            groups: [
+              {
+                buckets: [
+                  {
+                    bucketId: "gemini-weekly",
+                    window: "weekly",
+                    remainingFraction: 1,
+                    resetTime: weeklyReset,
+                  },
+                  {
+                    bucketId: "3p-weekly",
+                    window: "weekly",
+                    remainingFraction: 0,
+                    resetTime: "2026-01-26T00:00:00Z",
+                    description: "You have hit your weekly limit.",
+                  },
+                ],
+              },
+            ],
+          };
+        }
+        if (url.endsWith("/v1internal:loadCodeAssist")) {
+          return { currentTier: { name: "Antigravity Starter Quota" } };
+        }
+        throw new Error(`unexpected URL ${url}`);
       },
-      "/mock/google-oauth.json",
-      {
-        "google-status-fields": ["used_percent_weekly", "used_percent_3p_weekly"],
-        "google-panel-fields": [
-          "used_percent_weekly",
-          "reset_at_weekly",
-          "used_percent_3p_weekly",
-          "plan_type",
-          "reset_at_3p_weekly",
-          "limit_reached",
-        ],
-      },
-    );
+    });
 
     const result = await reader.read();
     const value = (name) => result.fields.find((f) => f.name === name)?.value;
@@ -201,11 +181,46 @@ export async function run() {
     assertEqual(value("used_percent_3p_weekly"), 100);
     assertEqual(value("limit_reached"), true);
     assertEqual(value("plan_type"), "Antigravity Starter Quota");
-    assertEqual(status("used_percent_session"), "unavailable");
-    assertEqual(status("reset_at_session"), "unavailable");
-    assertEqual(status("used_percent_3p_session"), "unavailable");
-    assertEqual(status("reset_at_3p_session"), "unavailable");
+    assertEqual(status("used_percent_session"), "not_applicable");
+    assertEqual(status("reset_at_session"), "not_applicable");
+    assertEqual(status("used_percent_3p_session"), "not_applicable");
+    assertEqual(status("reset_at_3p_session"), "not_applicable");
     assertEqual(status("reset_at_weekly"), "not_applicable");
+    reader.destroy();
+  });
+
+  await test("GoogleReader keeps an active window with a missing reset timestamp partial", async () => {
+    Gio.File.prototype.load_contents_async = async () =>
+      encodeJson({
+        access_token: "ya29.live",
+        expiry_date: Date.now() + 3600_000,
+      });
+
+    const reader = newReader({
+      postJson: async (url) => {
+        if (url.endsWith("/v1internal:retrieveUserQuotaSummary")) {
+          return {
+            buckets: [
+              {
+                bucketId: "gemini-5h",
+                window: "5h",
+                remainingFraction: 0.5,
+              },
+            ],
+          };
+        }
+        if (url.endsWith("/v1internal:loadCodeAssist")) {
+          return { paidTier: { name: "Google AI Pro" } };
+        }
+        throw new Error(`unexpected URL ${url}`);
+      },
+    });
+
+    const result = await reader.read();
+    const field = (name) => result.fields.find((f) => f.name === name);
+    assertEqual(result.status, "partial");
+    assertEqual(field("used_percent_session")?.value, 50);
+    assertEqual(field("reset_at_session")?.status, "unavailable");
     reader.destroy();
   });
 
@@ -253,7 +268,7 @@ export async function run() {
 
     const result = await reader.read();
     const value = (name) => result.fields.find((f) => f.name === name)?.value;
-    assertEqual(result.status, "partial");
+    assertEqual(result.status, "ok");
     assertEqual(value("used_percent_session"), 35);
     assertEqual(value("plan_type"), "Google AI Pro");
     assertEqual(value("usage_source"), "daily-cloudcode-pa.googleapis.com");
@@ -298,7 +313,7 @@ export async function run() {
     });
 
     const result = await reader.read();
-    assertEqual(result.status, "partial");
+    assertEqual(result.status, "ok");
     assertEqual(quotaCalls, 2);
     assertEqual(result.fields.find((f) => f.name === "used_percent_session")?.value, 50);
     reader.destroy();
@@ -492,7 +507,7 @@ export async function run() {
     );
 
     const recovered = await fallbackReader.read();
-    assertEqual(recovered.status, "partial");
+    assertEqual(recovered.status, "ok");
     assertEqual(recovered.fields.find((f) => f.name === "used_percent_session")?.value, 40);
     assertEqual(
       recovered.fields.find((f) => f.name === "usage_source")?.value,

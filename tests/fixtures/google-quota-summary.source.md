@@ -11,7 +11,9 @@ The contract and live behavior (`Google AI Ultra` tier, `gemini-5h`, `gemini-wee
 subscription account during development. No live account identifiers, project IDs,
 tokens, or raw account timestamps are stored in this repository.
 
-`google-quota-summary-weekly-only.json` is a captured payload from an
-`Antigravity Starter Quota` account on 2026-11-24. It contains only `gemini-weekly`
-and `3p-weekly` buckets, with no 5-hour buckets, and verifies that windows absent
-from the account's plan are not reported as unavailable fields.
+`google-quota-summary-weekly-only.json` is a sanitized payload captured from an
+`Antigravity Starter Quota` account. It contains only `gemini-weekly` and
+`3p-weekly` buckets, with no 5-hour buckets. Reset timestamps were replaced with
+synthetic values that preserve the relative window offsets. The fixture verifies
+that windows absent from the account's plan are reported as not applicable, not as
+unavailable fields.

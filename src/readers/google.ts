@@ -566,23 +566,21 @@ export class GoogleReader extends BaseReader<"google"> {
     const fields: FieldResult[] = [];
     for (const { names, data } of windows) {
       if (!data) {
-        fields.push(
-          this._makeField(names.used, null, FieldStatus.UNAVAILABLE),
-          this._makeField(names.remaining, null, FieldStatus.UNAVAILABLE),
-          this._makeField(names.reset, null, FieldStatus.UNAVAILABLE),
-        );
+        fields.push(...this._makeWindowFields(names, null, { absent: FieldStatus.NOT_APPLICABLE }));
         continue;
       }
+      const resetAt = data.reset.state === "present" ? data.reset.at : null;
+      const resetStatus =
+        data.reset.state === "present"
+          ? FieldStatus.OK
+          : data.reset.state === "idle"
+            ? FieldStatus.NOT_APPLICABLE
+            : FieldStatus.UNAVAILABLE;
       fields.push(
-        ...this._makePercentFieldPair(
-          { used: names.used, remaining: names.remaining },
-          data.usedPercent,
-          FieldStatus.OK,
-        ),
-        this._makeField(
-          names.reset,
-          data.resetAt,
-          data.resetAt !== null ? FieldStatus.OK : FieldStatus.NOT_APPLICABLE,
+        ...this._makeWindowFields(
+          names,
+          { used_percent: data.usedPercent, reset_at: resetAt },
+          { reset: resetStatus },
         ),
       );
     }
