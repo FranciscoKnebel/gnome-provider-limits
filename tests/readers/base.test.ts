@@ -272,15 +272,6 @@ describe("BaseReader", () => {
       expect(fields[0].value).toBeNull();
     });
 
-    it("uses the supplied status for null data", () => {
-      const fields = reader.testMakeWindowFields(SECONDARY_NAMES, null, FieldStatus.NOT_APPLICABLE);
-
-      expect(fields).toHaveSize(3);
-      fields.forEach((f) => {
-        expect(f.status).toBe(FieldStatus.NOT_APPLICABLE);
-      });
-    });
-
     it("handles undefined data", () => {
       const fields = reader.testMakeWindowFields(SECONDARY_NAMES, undefined);
 

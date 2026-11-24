@@ -1,4 +1,4 @@
-import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
+import { FieldStatus, ReaderStatus, type DisplayStatus } from "../../src/readers/base.js";
 import type { ReaderResult } from "../../src/readers/base.js";
 import { CODEX_FIELDS } from "../../src/readers/fields.js";
 import type { FieldTone } from "../../src/ui/fieldRows.js";
@@ -7,7 +7,6 @@ import { deriveFieldViews } from "../../src/ui/fieldViews.js";
 import {
   deriveProviderHealth,
   deriveSeverity,
-  type DisplayStatus,
   HEALTH_BY_SEVERITY,
   isLastKnownGood,
   worstFieldTone,
@@ -283,9 +282,10 @@ describe("providerHealth pure helpers", () => {
   });
 
   it("uses the required data contract to compute health and localized state text", () => {
+    const resultStatus: DisplayStatus = ReaderStatus.PARTIAL;
     const result: ReaderResult = {
       provider: "codex",
-      status: ReaderStatus.PARTIAL,
+      status: resultStatus,
       fromCache: true,
       lastUpdated: 1_700_000_000_000,
       pathsTried: ["oauth-api", "last-known-good"],
@@ -299,13 +299,13 @@ describe("providerHealth pure helpers", () => {
     const health = deriveProviderHealth({
       fields: result.fields,
       fromCache: result.fromCache,
-      status: result.status as DisplayStatus,
+      status: resultStatus,
       views,
       fieldDefs: CODEX_FIELDS,
       t: (text) => `T:${text}`,
     });
 
-    expect(isLastKnownGood(result.status as DisplayStatus, result.fromCache)).toBeTrue();
+    expect(isLastKnownGood(resultStatus, result.fromCache)).toBeTrue();
     expect(health.severity).toBe("cached-warning");
     expect(health.state).toBe("cached");
     expect(health.tone).toBe("partial");
@@ -315,11 +315,12 @@ describe("providerHealth pure helpers", () => {
     expect(health.stateTag).toBe("~");
     expect(health.stateAccessibleText).toBe("T:Cached");
 
-    const errorResult: ReaderResult = { ...result, status: ReaderStatus.ERROR, pathsTried: [] };
+    const errorStatus: DisplayStatus = ReaderStatus.ERROR;
+    const errorResult: ReaderResult = { ...result, status: errorStatus, pathsTried: [] };
     const errorHealth = deriveProviderHealth({
       fields: errorResult.fields,
       fromCache: errorResult.fromCache,
-      status: errorResult.status as DisplayStatus,
+      status: errorStatus,
       views,
       fieldDefs: CODEX_FIELDS,
       t: (text) => `T:${text}`,

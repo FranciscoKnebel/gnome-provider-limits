@@ -11,8 +11,6 @@ import { fieldTone } from "./fieldRows.js";
 import type { FieldView } from "./fieldViews.js";
 import type { HealthTone, StatusAttention } from "./tone.js";
 
-export type { DisplayStatus } from "../readers/base.js";
-
 export type ProviderState = "idle" | "ok" | "partial" | "cached" | "error" | "unavailable";
 
 const PARTIAL_TAG = "(partial)";

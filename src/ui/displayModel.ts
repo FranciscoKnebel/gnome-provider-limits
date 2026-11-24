@@ -2,12 +2,13 @@ import type { ProviderName } from "../constants.js";
 import { formatAbsoluteTimestamp } from "../formatters.js";
 import type { FieldDef, ReaderResult } from "../readers/base.js";
 import { isHardStatus, ReaderStatus } from "../readers/base.js";
+import type { DisplayStatus } from "../readers/base.js";
 import { emptyMeter } from "./cairoDrawing.js";
 import type { FieldView, UsageFacts } from "./fieldViews.js";
 import { deriveFieldViews, meterFromViews, projectUsageFacts, selectViews } from "./fieldViews.js";
 import type { GaugeSpec } from "./gaugeTypes.js";
 import type { ProviderHealth } from "./providerHealth.js";
-import type { DisplayStatus, Presentation } from "./providerHealth.js";
+import type { Presentation } from "./providerHealth.js";
 import {
   cardBadgeText,
   CACHED_LABEL,

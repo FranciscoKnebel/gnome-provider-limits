@@ -54,7 +54,7 @@ _Avoid_: Null field, missing value, absent metric.
 **Display Status**:
 The Reader Result status after excluding `DISABLED` and applying the configured
 Field policy. A `PARTIAL` result becomes `OK` when no selected Field degrades
-health and the result is not cached. `DisplayStatus` in `providerHealth.ts` is the
+health and the result is not cached. `DisplayStatus` in `readers/base.ts` is the
 canonical type; health severity and diagnostics consume it.
 _Avoid_: Raw status, effective status, visible status.
 

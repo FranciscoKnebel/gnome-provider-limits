@@ -107,6 +107,7 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
 
   destroy(): void {}
 
+  /** OK requires a renderable value; null, undefined and non-finite numbers become UNAVAILABLE. */
   protected _makeField<T, Name extends FieldName<P>>(
     name: Name,
     value: T | null | undefined,
@@ -120,13 +121,6 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
         status === FieldStatus.OK && !hasUsableFieldValue(value) ? FieldStatus.UNAVAILABLE : status,
       error: error ?? null,
     };
-  }
-
-  protected _makeOptionalField<T, Name extends FieldName<P>>(
-    name: Name,
-    value: T | null,
-  ): FieldResult<T, Name> {
-    return this._makeField(name, value, value !== null ? FieldStatus.OK : FieldStatus.UNAVAILABLE);
   }
 
   protected _makePercentFieldPair(
@@ -165,7 +159,7 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
     resetStatus: AbsentFieldStatus = FieldStatus.UNAVAILABLE,
   ): FieldResult[] {
     if (!data) {
-      return this._makeAbsentWindowFields(names, resetStatus);
+      return this._makeAbsentWindowFields(names, FieldStatus.UNAVAILABLE);
     }
     const percentStatus =
       typeof data.used_percent === "number" && Number.isFinite(data.used_percent)

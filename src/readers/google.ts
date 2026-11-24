@@ -616,8 +616,8 @@ export class GoogleReader extends BaseReader<"google"> {
       fields.push(...this._makeAbsentWindowFields(names, status));
     }
 
-    fields.push(this._makeOptionalField("limit_reached", usage.limitReached));
-    fields.push(this._makeOptionalField("plan_type", plan));
+    fields.push(this._makeField("limit_reached", usage.limitReached, FieldStatus.OK));
+    fields.push(this._makeField("plan_type", plan, FieldStatus.OK));
     fields.push(this._makeField("usage_source", hostFromEndpoint(endpointUsed), FieldStatus.OK));
     return fields;
   }

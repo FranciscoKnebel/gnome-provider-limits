@@ -121,9 +121,9 @@ export class GrokReader extends BaseReader<"grok"> {
           reset_at: usage.resetAt,
         },
       ),
-      this._makeOptionalField("prepaid_balance", usage.prepaidBalance),
-      this._makeOptionalField("unified_billing", usage.unifiedBilling),
-      this._makeOptionalField("plan_type", plan),
+      this._makeField("prepaid_balance", usage.prepaidBalance, FieldStatus.OK),
+      this._makeField("unified_billing", usage.unifiedBilling, FieldStatus.OK),
+      this._makeField("plan_type", plan, FieldStatus.OK),
       this._makeField("usage_source", "cli-chat-proxy.grok.com", FieldStatus.OK),
     ];
   }
