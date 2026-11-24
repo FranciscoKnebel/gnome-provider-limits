@@ -285,11 +285,12 @@ function preferExactWindow(exact: GoogleWindow, fallback: GoogleWindow): GoogleW
 }
 
 function buildGoogleUsage(windows: Record<GoogleWindowId, GoogleWindow>): GoogleUsage | null {
+  const reported = GOOGLE_WINDOW_IDS.some((id) => windows[id].state !== "unreported");
+  if (!reported) return null;
   const present = GOOGLE_WINDOW_IDS.flatMap((id) => {
     const window = windows[id];
     return window.state === "present" ? [window.usage] : [];
   });
-  if (present.length === 0) return null;
 
   return {
     ...windows,
@@ -461,17 +462,14 @@ export function parseGoogleTier(raw: unknown): GoogleTier | null {
   if (!isRecord(raw)) return null;
   const paid = isRecord(raw.paidTier) ? raw.paidTier : null;
   const current = isRecord(raw.currentTier) ? raw.currentTier : null;
-  const id =
-    typeof paid?.id === "string" && paid.id.trim()
-      ? paid.id.trim()
-      : typeof current?.id === "string" && current.id.trim()
-        ? current.id.trim()
-        : null;
-  const name =
-    typeof paid?.name === "string" && paid.name.trim()
-      ? paid.name.trim()
-      : typeof current?.name === "string" && current.name.trim()
-        ? current.name.trim()
-        : null;
+  const tierString = (record: Record<string, unknown> | null, key: string) => {
+    const value = record?.[key];
+    return typeof value === "string" && value.trim() ? value.trim() : null;
+  };
+  const paidId = tierString(paid, "id");
+  const paidName = tierString(paid, "name");
+  const source = paidId !== null || paidName !== null ? paid : current;
+  const id = tierString(source, "id");
+  const name = tierString(source, "name");
   return id || name ? { id, name } : null;
 }

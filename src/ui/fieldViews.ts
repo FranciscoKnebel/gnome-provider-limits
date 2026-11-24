@@ -6,7 +6,7 @@ import type {
   FieldZone,
   ReaderResult,
 } from "../readers/base.js";
-import { FieldStatus, isHardError, isLimitReached, ReaderStatus } from "../readers/base.js";
+import { FieldStatus, hasUsableFieldValue, isLimitReached, ReaderStatus } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
 import { emptyMeter, gaugeArc } from "./cairoDrawing.js";
 import type { FieldTone } from "./fieldRows.js";
@@ -68,11 +68,7 @@ export function deriveFieldViews(
 
     const field = fieldByName.get(name);
     const value = field?.value ?? null;
-    const hasValue =
-      field?.status === FieldStatus.OK &&
-      value !== null &&
-      value !== undefined &&
-      (typeof value !== "number" || Number.isFinite(value));
+    const hasValue = field?.status === FieldStatus.OK && hasUsableFieldValue(value);
 
     let usageRatio: number | null = null;
     let ratio: number | null = null;
@@ -182,23 +178,23 @@ export interface UsageFacts {
 
 export interface UsageProjectionOptions extends UsageViewSelection {
   readonly t: (s: string) => string;
+  readonly status: ReaderStatus;
   readonly resetTextFor?: (view: FieldView) => string | null;
 }
 
 export function projectUsageFacts(
-  result: ReaderResult,
   views: readonly FieldView[],
   preferredFieldNames: readonly string[],
   options: UsageProjectionOptions,
 ): UsageFacts {
   const tr = options.t;
-  if (isHardError(result)) {
+  if (options.status === ReaderStatus.ERROR || options.status === ReaderStatus.UNAVAILABLE) {
     return {
       valueText: "—",
       fillRatio: null,
       tone: "error",
       resetText: null,
-      summaryText: result.status === ReaderStatus.ERROR ? tr("Error") : tr(UNAVAILABLE_TAG),
+      summaryText: options.status === ReaderStatus.ERROR ? tr("Error") : tr(UNAVAILABLE_TAG),
     };
   }
 

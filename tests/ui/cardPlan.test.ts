@@ -252,7 +252,8 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       expect(views.every((view) => view.type !== "percent")).toBeTrue();
       expect(
         deriveProviderHealth({
-          result,
+          fields: result.fields,
+          fromCache: result.fromCache,
           displayStatus: result.status,
           views,
           fieldDefs: CODEX_FIELDS,
@@ -310,7 +311,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         JSON.stringify([
           model.provider,
           model.shortDisplayName,
-          model.result.status,
+          model.facts.displayStatus,
           model.statusViews.map((view) => view.name),
         ]),
       );

@@ -4,7 +4,6 @@ import St from "gi://St";
 import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { bindActivation } from "../helpers/keyboard.js";
-import { ReaderStatus } from "../readers/base.js";
 import { diagnosticMessage, type ProviderDisplayModel } from "./displayModel.js";
 import { createErrorLabel } from "./errorLabel.js";
 import { clampFillRatio } from "./fieldRows.js";
@@ -221,13 +220,9 @@ export class CompactPanelSection extends PanelStyleSection {
         style_class: "provider-limits-status-badge",
         y_align: Clutter.ActorAlign.CENTER,
       });
-      applyToneClass(
-        badgeLabel,
-        model.displayStatus === ReaderStatus.PARTIAL ? "warning" : "error",
-        {
-          quiet: true,
-        },
-      );
+      applyToneClass(badgeLabel, model.facts.health.stateTag === "~" ? "warning" : "error", {
+        quiet: true,
+      });
       leftTitleBox.add_child(badgeLabel);
     }
 

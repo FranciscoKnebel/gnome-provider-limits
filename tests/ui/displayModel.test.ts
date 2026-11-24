@@ -128,16 +128,15 @@ describe("deriveDisplayModel applies configured-zone health", () => {
 
   it("ignores unavailable fields outside the configured zones", () => {
     const model = modelFor(partialFields, ["used_percent_primary"], []);
-    expect(model.result.status).toBe(ReaderStatus.PARTIAL);
-    expect(model.displayStatus).toBe(ReaderStatus.OK);
+    expect(partialFields.status).toBe(ReaderStatus.PARTIAL);
+    expect(model.facts.displayStatus).toBe(ReaderStatus.OK);
     expect(model.facts.health.state).toBe("ok");
     expect(model.facts.diagnostic.kind).toBeNull();
   });
 
   it("keeps partial health when a configured field is unavailable", () => {
     const model = modelFor(partialFields, ["used_percent_primary"], ["used_percent_secondary"]);
-    expect(model.result.status).toBe(ReaderStatus.PARTIAL);
-    expect(model.displayStatus).toBe(ReaderStatus.PARTIAL);
+    expect(model.facts.displayStatus).toBe(ReaderStatus.PARTIAL);
     expect(model.facts.health.state).toBe("partial");
     expect(model.facts.diagnostic.kind).toBe("warning");
   });
@@ -151,8 +150,8 @@ describe("deriveDisplayModel applies configured-zone health", () => {
       ],
     };
     const model = modelFor(notApplicable, ["used_percent_primary"], ["used_percent_secondary"]);
-    expect(model.result.status).toBe(ReaderStatus.PARTIAL);
-    expect(model.displayStatus).toBe(ReaderStatus.OK);
+    expect(notApplicable.status).toBe(ReaderStatus.PARTIAL);
+    expect(model.facts.displayStatus).toBe(ReaderStatus.OK);
     expect(model.facts.health.state).toBe("ok");
     expect(model.facts.diagnostic.kind).toBeNull();
   });
@@ -163,8 +162,8 @@ describe("deriveDisplayModel applies configured-zone health", () => {
       lastError: "source unavailable",
     };
     const model = modelFor(sourcePartial, ["used_percent_primary"], []);
-    expect(model.result.status).toBe(ReaderStatus.PARTIAL);
-    expect(model.displayStatus).toBe(ReaderStatus.OK);
+    expect(sourcePartial.status).toBe(ReaderStatus.PARTIAL);
+    expect(model.facts.displayStatus).toBe(ReaderStatus.OK);
     expect(model.facts.health.state).toBe("ok");
     expect(model.facts.diagnostic.kind).toBeNull();
   });
@@ -178,7 +177,7 @@ describe("deriveDisplayModel applies configured-zone health", () => {
       fields: [{ name: "used_percent_primary", value: 90, status: FieldStatus.OK }],
     };
     const model = modelFor(critical, [], []);
-    expect(model.displayStatus).toBe(ReaderStatus.OK);
+    expect(model.facts.displayStatus).toBe(ReaderStatus.OK);
     expect(model.facts.health.tone).toBe("critical");
   });
 
@@ -228,8 +227,8 @@ describe("deriveDisplayModel applies configured-zone health", () => {
       t: (text) => text,
     });
     if (!model) throw new Error("Provider google is disabled");
-    expect(model.result.status).toBe(ReaderStatus.OK);
-    expect(model.displayStatus).toBe(ReaderStatus.OK);
+    expect(googleResult.status).toBe(ReaderStatus.OK);
+    expect(model.facts.displayStatus).toBe(ReaderStatus.OK);
     expect(model.facts.health.state).toBe("ok");
     expect(model.facts.health.tone).toBe("critical");
     expect(model.facts.diagnostic.kind).toBeNull();
@@ -362,7 +361,7 @@ describe("deriveDisplayModel owns diagnostics and reset pairing", () => {
 
     const errorResult: ReaderResult = { ...result, status: ReaderStatus.ERROR, lastError: "Login" };
     const error = modelFor(errorResult, []);
-    expect(error.result.status).toBe(ReaderStatus.ERROR);
+    expect(error.facts.displayStatus).toBe(ReaderStatus.ERROR);
     expect(error.facts.diagnostic).toEqual({ kind: "error", badge: "Error", text: "Login" });
 
     const unavailableResult: ReaderResult = {

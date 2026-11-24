@@ -313,6 +313,28 @@ describe("normalizeGoogleQuotaSummary", () => {
     );
   });
 
+  it("keeps an all-disabled window set instead of discarding it", () => {
+    const usage = normalizeGoogleQuotaSummary(
+      {
+        buckets: [
+          { bucketId: "gemini-5h", window: "5h", disabled: true },
+          { bucketId: "gemini-weekly", window: "weekly", disabled: true },
+          { bucketId: "3p-5h", window: "5h", disabled: true },
+          { bucketId: "3p-weekly", window: "weekly", disabled: true },
+        ],
+      },
+      NOW,
+    );
+
+    expect(usage).toEqual({
+      session: disabledWindow(),
+      weekly: disabledWindow(),
+      thirdPartySession: disabledWindow(),
+      thirdPartyWeekly: disabledWindow(),
+      limitReached: false,
+    });
+  });
+
   it("uses the same priority for exact and fallback buckets", () => {
     const cases = [
       { exact: { disabled: true }, fallback: { remainingFraction: 1.5 } },
@@ -430,7 +452,7 @@ describe("normalizeGoogleQuotaSummary", () => {
     });
   });
 
-  it("rejects empty or invalid quota summary payloads", () => {
+  it("returns null for empty payloads and keeps invalid buckets as malformed", () => {
     expect(normalizeGoogleQuotaSummary(null, NOW)).toBeNull();
     expect(normalizeGoogleQuotaSummary({}, NOW)).toBeNull();
     expect(
@@ -444,7 +466,13 @@ describe("normalizeGoogleQuotaSummary", () => {
         },
         NOW,
       ),
-    ).toBeNull();
+    ).toEqual({
+      session: malformedWindow(),
+      weekly: malformedWindow(),
+      thirdPartySession: malformedWindow(),
+      thirdPartyWeekly: unreportedWindow(),
+      limitReached: false,
+    });
   });
 });
 
@@ -666,5 +694,11 @@ describe("hasActiveGoogleUsage, mergeGoogleUsage & parseGoogleTier", () => {
       id: null,
       name: "Google AI Pro",
     });
+    expect(
+      parseGoogleTier({
+        paidTier: { name: "Google AI Pro" },
+        currentTier: { id: "free-tier", name: "Antigravity" },
+      }),
+    ).toEqual({ id: null, name: "Google AI Pro" });
   });
 });

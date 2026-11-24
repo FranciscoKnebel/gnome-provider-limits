@@ -581,12 +581,12 @@ export class GoogleReader extends BaseReader<"google"> {
       if (window.state === "present") {
         const data = window.usage;
         const resetAt = data.reset.state === "present" ? data.reset.at : null;
-        const resetOverride = data.reset.state === "idle" ? FieldStatus.NOT_APPLICABLE : undefined;
+        const resetStatus = data.reset.state === "idle" ? FieldStatus.NOT_APPLICABLE : undefined;
         fields.push(
           ...this._makeWindowFields(
             names,
             { used_percent: data.usedPercent, reset_at: resetAt },
-            { reset: resetOverride },
+            resetStatus,
           ),
         );
         continue;
@@ -596,7 +596,7 @@ export class GoogleReader extends BaseReader<"google"> {
       const status = unsupportedPlanWindow
         ? FieldStatus.NOT_APPLICABLE
         : ABSENT_WINDOW_STATUS[window.state];
-      fields.push(...this._makeWindowFields(names, null, { absent: status }));
+      fields.push(...this._makeAbsentWindowFields(names, status));
     }
 
     fields.push(this._makeField("limit_reached", usage.limitReached, FieldStatus.OK));

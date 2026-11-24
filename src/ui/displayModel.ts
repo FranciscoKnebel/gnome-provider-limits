@@ -1,6 +1,6 @@
 import type { ProviderName } from "../constants.js";
 import { formatAbsoluteTimestamp } from "../formatters.js";
-import type { FieldDef, ReaderResult } from "../readers/base.js";
+import type { FieldDef, FieldResult, ReaderResult } from "../readers/base.js";
 import { fieldStatusDegrades, isHardError, ReaderStatus } from "../readers/base.js";
 import { emptyMeter } from "./cairoDrawing.js";
 import type { FieldView, UsageFacts } from "./fieldViews.js";
@@ -44,13 +44,19 @@ export interface ProviderDisplayUsage {
   readonly overview: UsageFacts;
 }
 
+export interface ProviderDisplayResult {
+  readonly fields: readonly FieldResult[];
+  readonly lastError: string | null;
+  readonly fromCache: boolean;
+  readonly lastUpdated: number;
+}
+
 /** Identity, derived view sets and their eagerly computed presentational facts. */
 export interface ProviderDisplayModel {
   readonly provider: ProviderName;
   readonly displayName: string;
   readonly shortDisplayName: string;
-  readonly result: ReaderResult;
-  readonly displayStatus: ReaderStatus;
+  readonly result: ProviderDisplayResult;
   readonly statusViews: readonly FieldView[];
   readonly panelViews: readonly FieldView[];
   readonly resets: ReadonlyMap<string, ResetPairing>;
@@ -59,6 +65,7 @@ export interface ProviderDisplayModel {
 
 /** Surface-agnostic presentational facts, computed once with the model. */
 export interface ProviderDisplayFacts {
+  readonly displayStatus: ReaderStatus;
   readonly health: ProviderHealth;
   readonly badges: DisplayBadges;
   readonly usage: ProviderDisplayUsage;
@@ -149,17 +156,26 @@ function deriveDiagnostic(
  * the diagnostic badge. Cards use diagnostic.text directly, preserving the
  * "Unavailable" banner label when an unavailable result has no lastError.
  */
-export function diagnosticMessage(result: ReaderResult, diagnostic: Diagnostic): string | null {
+export function diagnosticMessage(
+  result: { readonly lastError?: string | null },
+  diagnostic: Diagnostic,
+): string | null {
   if (diagnostic.kind === null || diagnostic.text === null) return null;
   return diagnostic.kind === "warning" ? diagnostic.text : (result.lastError ?? diagnostic.badge);
 }
 
 function deriveDisplayFacts(
   model: Omit<ProviderDisplayModel, "facts">,
-  derivation: DisplayModelOptions & { readonly allViews: readonly FieldView[] },
+  derivation: DisplayModelOptions & {
+    readonly allViews: readonly FieldView[];
+    readonly displayStatus: ReaderStatus;
+    readonly readerResult: ReaderResult;
+  },
 ): ProviderDisplayFacts {
-  const { result, displayStatus } = model;
-  const hardError = isHardError(result);
+  const { result } = model;
+  const hardError =
+    derivation.displayStatus === ReaderStatus.ERROR ||
+    derivation.displayStatus === ReaderStatus.UNAVAILABLE;
   const { fieldDefs, statusFields, locale, t: tr, allViews } = derivation;
 
   const resetTextFor = (view: FieldView): string | null => {
@@ -168,8 +184,9 @@ function deriveDisplayFacts(
   };
 
   const health = deriveProviderHealth({
-    result,
-    displayStatus,
+    fields: derivation.readerResult.fields,
+    fromCache: derivation.readerResult.fromCache,
+    displayStatus: derivation.displayStatus,
     views: allViews,
     fieldDefs,
     t: tr,
@@ -184,23 +201,27 @@ function deriveDisplayFacts(
   };
 
   const usage: ProviderDisplayUsage = {
-    header: projectUsageFacts(result, allViews, statusFields, {
+    header: projectUsageFacts(allViews, statusFields, {
       limitOnly: true,
       requireFiniteValue: true,
+      status: derivation.displayStatus,
       t: tr,
       resetTextFor,
     }),
     overview: projectUsageFacts(
-      result,
       allViews,
       [...new Set([...statusFields, ...derivation.panelFields])],
-      { t: tr, resetTextFor },
+      {
+        status: derivation.displayStatus,
+        t: tr,
+        resetTextFor,
+      },
     ),
   };
 
   const diagnostic = deriveDiagnostic(
-    displayStatus,
-    result.lastError ?? null,
+    derivation.displayStatus,
+    result.lastError,
     result.fromCache,
     tr,
   );
@@ -211,6 +232,7 @@ function deriveDisplayFacts(
       : null;
 
   return {
+    displayStatus: derivation.displayStatus,
     health,
     badges,
     usage,
@@ -252,17 +274,27 @@ export function deriveDisplayModel(
   const panelViews = selectViews(panelSource, panelFields);
   const resets = deriveResetPairings(fieldDefs, result, allViews, searchOrder, panelFields);
   const displayStatus = resolveDisplayStatus(result, allViews);
+  const displayResult: ProviderDisplayResult = {
+    fields: result.fields,
+    lastError: result.lastError ?? null,
+    fromCache: result.fromCache,
+    lastUpdated: result.lastUpdated,
+  };
 
   const modelBase = {
     provider,
     displayName: options.displayName,
     shortDisplayName: options.shortDisplayName,
-    result,
-    displayStatus,
+    result: displayResult,
     statusViews,
     panelViews,
     resets,
   };
-  const facts = deriveDisplayFacts(modelBase, { ...options, allViews });
+  const facts = deriveDisplayFacts(modelBase, {
+    ...options,
+    allViews,
+    displayStatus,
+    readerResult: result,
+  });
   return { ...modelBase, facts };
 }

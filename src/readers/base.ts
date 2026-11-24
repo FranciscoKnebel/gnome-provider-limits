@@ -83,11 +83,10 @@ export interface ReadOptions {
 
 export type AbsentFieldStatus = FieldStatus.UNAVAILABLE | FieldStatus.NOT_APPLICABLE;
 
-export interface WindowFieldStatus {
-  /** Status for every field when the provider does not expose the window. */
-  readonly absent?: AbsentFieldStatus;
-  /** Status for a missing reset timestamp; a present timestamp is always OK. */
-  readonly reset?: AbsentFieldStatus;
+export function hasUsableFieldValue(value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  if (typeof value === "number") return Number.isFinite(value);
+  return true;
 }
 
 export function fieldStatusDegrades(status: FieldStatus): boolean {
@@ -112,11 +111,11 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
     status: FieldStatus,
     error?: string | null,
   ): FieldResult<T, Name> {
-    const hasValue = value !== null && value !== undefined;
     return {
       name,
       value: value ?? null,
-      status: status === FieldStatus.OK && !hasValue ? FieldStatus.UNAVAILABLE : status,
+      status:
+        status === FieldStatus.OK && !hasUsableFieldValue(value) ? FieldStatus.UNAVAILABLE : status,
       error: error ?? null,
     };
   }
@@ -141,6 +140,17 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
     ];
   }
 
+  protected _makeAbsentWindowFields(
+    names: WindowFieldNames<P>,
+    status: AbsentFieldStatus,
+  ): FieldResult[] {
+    return [
+      this._makeField(names.used, null, status),
+      this._makeField(names.remaining, null, status),
+      this._makeField(names.reset, null, status),
+    ];
+  }
+
   protected _makeWindowFields(
     names: WindowFieldNames<P>,
     data:
@@ -150,25 +160,19 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
         }
       | null
       | undefined,
-    status: WindowFieldStatus = {},
+    resetStatus: AbsentFieldStatus = FieldStatus.UNAVAILABLE,
   ): FieldResult[] {
     if (!data) {
-      const absent = status.absent ?? FieldStatus.UNAVAILABLE;
-      return [
-        this._makeField(names.used, null, absent),
-        this._makeField(names.remaining, null, absent),
-        this._makeField(names.reset, null, absent),
-      ];
+      return this._makeAbsentWindowFields(names, FieldStatus.UNAVAILABLE);
     }
     const percentStatus =
       typeof data.used_percent === "number" && Number.isFinite(data.used_percent)
         ? FieldStatus.OK
         : FieldStatus.UNAVAILABLE;
-    const resetStatus =
-      data.reset_at != null ? FieldStatus.OK : (status.reset ?? FieldStatus.UNAVAILABLE);
+    const resolvedResetStatus = data.reset_at != null ? FieldStatus.OK : resetStatus;
     return [
       ...this._makePercentFieldPair(names, data.used_percent ?? null, percentStatus),
-      this._makeField(names.reset, data.reset_at ?? null, resetStatus),
+      this._makeField(names.reset, data.reset_at ?? null, resolvedResetStatus),
     ];
   }
 

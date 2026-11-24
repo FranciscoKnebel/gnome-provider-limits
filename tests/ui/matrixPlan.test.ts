@@ -163,7 +163,7 @@ describe("matrixPlan", () => {
         JSON.stringify([
           model.provider,
           model.shortDisplayName,
-          model.result.status,
+          model.facts.displayStatus,
           model.statusViews.map((view) => view.name),
         ]),
       );
@@ -232,7 +232,7 @@ describe("matrixPlan", () => {
       expect(models[0].facts.health.attention).toBe("quiet");
       expect(models[1].statusViews.map((view) => view.valueText).join("·")).toContain("82%·");
       expect(models[1].facts.health.attention).toBe("critical");
-      expect(models[2].result.status).toBe(ReaderStatus.ERROR);
+      expect(models[2].facts.displayStatus).toBe(ReaderStatus.ERROR);
       expect(models[2].facts.health.state).toBe("error");
       expect(models[2].facts.health.attention).toBe("error");
     });

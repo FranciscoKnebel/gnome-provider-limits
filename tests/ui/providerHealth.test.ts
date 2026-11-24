@@ -249,7 +249,8 @@ describe("providerHealth pure helpers", () => {
               fields: [],
             };
             const health = deriveProviderHealth({
-              result,
+              fields: result.fields,
+              fromCache: result.fromCache,
               displayStatus: status,
               views: [viewFor(tone, hasUsableField)],
               fieldDefs: [],
@@ -293,7 +294,8 @@ describe("providerHealth pure helpers", () => {
       t: (text) => text,
     });
     const health = deriveProviderHealth({
-      result,
+      fields: result.fields,
+      fromCache: result.fromCache,
       displayStatus: result.status,
       views,
       fieldDefs: CODEX_FIELDS,
@@ -312,7 +314,8 @@ describe("providerHealth pure helpers", () => {
 
     const errorResult: ReaderResult = { ...result, status: ReaderStatus.ERROR, pathsTried: [] };
     const errorHealth = deriveProviderHealth({
-      result: errorResult,
+      fields: errorResult.fields,
+      fromCache: errorResult.fromCache,
       displayStatus: errorResult.status,
       views,
       fieldDefs: CODEX_FIELDS,

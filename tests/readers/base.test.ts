@@ -4,12 +4,13 @@ import {
   BaseReader,
   FieldStatus,
   fieldStatusDegrades,
+  hasUsableFieldValue,
   ReaderStatus,
+  type AbsentFieldStatus,
   type FieldResult,
   type PercentFieldNames,
   type ReaderResult,
   type WindowFieldNames,
-  type WindowFieldStatus,
 } from "../../src/readers/base.js";
 import type { FieldName } from "../../src/readers/fields.js";
 
@@ -47,6 +48,13 @@ class TestReader extends BaseReader {
     return this._makePercentFieldPair(names, usedPct, status);
   }
 
+  testMakeAbsentWindowFields(
+    names: WindowFieldNames<"codex">,
+    status: AbsentFieldStatus,
+  ): FieldResult[] {
+    return this._makeAbsentWindowFields(names, status);
+  }
+
   testMakeWindowFields(
     names: WindowFieldNames<"codex">,
     data:
@@ -56,9 +64,9 @@ class TestReader extends BaseReader {
         }
       | null
       | undefined,
-    status?: WindowFieldStatus,
+    resetStatus?: AbsentFieldStatus,
   ): FieldResult[] {
-    return this._makeWindowFields(names, data, status);
+    return this._makeWindowFields(names, data, resetStatus);
   }
 
   testOkResult(fields: readonly FieldResult[], pathsTried: readonly string[]): ReaderResult {
@@ -142,6 +150,13 @@ describe("BaseReader", () => {
       const field = reader.testMakeField("empty_field", null, FieldStatus.OK);
       expect(field.value).toBeNull();
       expect(field.status).toBe(FieldStatus.UNAVAILABLE);
+    });
+
+    it("normalizes OK with a non-finite number to UNAVAILABLE", () => {
+      const field = reader.testMakeField("nan_field", Number.NaN, FieldStatus.OK);
+      expect(field.status).toBe(FieldStatus.UNAVAILABLE);
+      expect(hasUsableFieldValue(Number.NaN)).toBeFalse();
+      expect(hasUsableFieldValue(0)).toBeTrue();
     });
 
     it("classifies degrading field statuses", () => {
@@ -278,9 +293,7 @@ describe("BaseReader", () => {
     });
 
     it("marks an absent window with the provided status", () => {
-      const fields = reader.testMakeWindowFields(SECONDARY_NAMES, null, {
-        absent: FieldStatus.NOT_APPLICABLE,
-      });
+      const fields = reader.testMakeAbsentWindowFields(SECONDARY_NAMES, FieldStatus.NOT_APPLICABLE);
 
       expect(fields).toHaveSize(3);
       fields.forEach((f) => {
@@ -292,7 +305,7 @@ describe("BaseReader", () => {
       const missingReset = reader.testMakeWindowFields(
         PRIMARY_NAMES,
         { used_percent: 25 },
-        { reset: FieldStatus.NOT_APPLICABLE },
+        FieldStatus.NOT_APPLICABLE,
       );
       expect(missingReset[2].value).toBeNull();
       expect(missingReset[2].status).toBe(FieldStatus.NOT_APPLICABLE);
@@ -300,7 +313,7 @@ describe("BaseReader", () => {
       const presentReset = reader.testMakeWindowFields(
         PRIMARY_NAMES,
         { used_percent: 25, reset_at: 1700000000 },
-        { reset: FieldStatus.NOT_APPLICABLE },
+        FieldStatus.NOT_APPLICABLE,
       );
       expect(presentReset[2].value).toBe(1700000000);
       expect(presentReset[2].status).toBe(FieldStatus.OK);
