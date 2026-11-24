@@ -22,71 +22,8 @@ const CURSOR_PLAN_URL = `${CURSOR_BACKEND_URL}/aiserver.v1.DashboardService/GetP
 
 Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish");
 
-export const CURSOR_FIELDS: readonly FieldDef[] = [
-  {
-    name: "used_percent_credits",
-    label: "Used % (credits)",
-    type: "percent",
-    description: "Provider-reported subscription credit usage for the current billing cycle.",
-    defaultZone: "status",
-  },
-  {
-    name: "remaining_percent_credits",
-    label: "Remaining % (credits)",
-    type: "percent",
-    defaultZone: "status",
-  },
-  {
-    name: "reset_at_credits",
-    label: "Reset at (credits)",
-    type: "timestamp",
-    defaultZone: "status",
-  },
-  {
-    name: "used_percent_auto",
-    label: "Used % (Auto + Composer)",
-    type: "percent",
-    description: "Usage percentage of the Auto + Composer subscription pool.",
-    defaultZone: "panel",
-  },
-  {
-    name: "remaining_percent_auto",
-    label: "Remaining % (Auto + Composer)",
-    type: "percent",
-    defaultZone: "panel",
-  },
-  {
-    name: "used_percent_api",
-    label: "Used % (API pool)",
-    type: "percent",
-    description: "Usage percentage of the named-model API subscription pool.",
-    defaultZone: "panel",
-  },
-  {
-    name: "remaining_percent_api",
-    label: "Remaining % (API pool)",
-    type: "percent",
-    defaultZone: "panel",
-  },
-  {
-    name: "remaining_credits",
-    label: "Remaining credits",
-    type: "cost",
-    description: "Remaining included subscription credits in USD.",
-    defaultZone: "panel",
-  },
-  {
-    name: "spend_limit_used",
-    label: "On-demand spend",
-    type: "cost",
-    description:
-      "On-demand spend in USD for the current billing cycle, separate from included subscription credits.",
-    defaultZone: "panel",
-  },
-  { name: "limit_reached", label: "Limit reached", type: "bool", defaultZone: "panel" },
-  { name: "plan_type", label: "Plan type", type: "text", defaultZone: "panel" },
-  { name: "usage_source", label: "Usage source", type: "text", defaultZone: "panel" },
-];
+import { CURSOR_FIELDS } from "./fields.js";
+export { CURSOR_FIELDS };
 
 function makeRpcHeaders(token: string): Record<string, string> {
   return {

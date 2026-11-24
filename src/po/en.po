@@ -510,3 +510,135 @@ msgstr "Sign in with Gemini CLI or Antigravity."
 msgid "Leave the authentication file empty to use ~/.gemini/oauth_creds.json or Antigravity credentials."
 msgstr "Leave the authentication file empty to use ~/.gemini/oauth_creds.json or Antigravity credentials."
 
+
+msgid "Cached"
+msgstr "Cached"
+
+msgid "Loading provider limits…"
+msgstr "Loading provider limits…"
+
+msgid "Live"
+msgstr "Live"
+
+msgid "Unavailable"
+msgstr "Unavailable"
+
+msgid "No providers enabled"
+msgstr "No providers enabled"
+
+msgid "Enable a provider in Settings to monitor usage limits."
+msgstr "Enable a provider in Settings to monitor usage limits."
+
+msgid "Waiting for provider data…"
+msgstr "Waiting for provider data…"
+
+msgid "OK"
+msgstr "OK"
+
+msgid "Partial"
+msgstr "Partial"
+
+msgid "Limits"
+msgstr "Limits"
+
+msgid "Telemetry"
+msgstr "Telemetry"
+
+msgid "No providers enabled. Open Settings to enable a provider."
+msgstr "No providers enabled. Open Settings to enable a provider."
+
+msgid "Reading provider limits…"
+msgstr "Reading provider limits…"
+
+msgid "Expand all"
+msgstr "Expand all"
+
+msgid "Collapse all"
+msgstr "Collapse all"
+
+msgid "Waiting for initial refresh to complete."
+msgstr "Waiting for initial refresh to complete."
+
+msgid "Overview"
+msgstr "Overview"
+
+msgid "No panel fields configured for this provider."
+msgstr "No panel fields configured for this provider."
+
+msgid "Number of consecutive identical reads before switching to the long interval."
+msgstr "Number of consecutive identical reads before switching to the long interval."
+
+msgid "Appearance"
+msgstr "Appearance"
+
+msgid "Choose the visual styles for the top bar and dropdown menu."
+msgstr "Choose the visual styles for the top bar and dropdown menu."
+
+msgid "Capsule pills"
+msgstr "Capsule pills"
+
+msgid "Micro-ring gauges"
+msgstr "Micro-ring gauges"
+
+msgid "Compact text"
+msgstr "Compact text"
+
+msgid "Status bar style"
+msgstr "Status bar style"
+
+msgid "Visual presentation of metrics in the top bar."
+msgstr "Visual presentation of metrics in the top bar."
+
+msgid "Tabbed cockpit & gauges"
+msgstr "Tabbed cockpit & gauges"
+
+msgid "Quick settings cards"
+msgstr "Quick settings cards"
+
+msgid "Collapsible matrix HUD"
+msgstr "Collapsible matrix HUD"
+
+msgid "Dropdown panel style"
+msgstr "Dropdown panel style"
+
+msgid "Visual presentation of details in the dropdown panel."
+msgstr "Visual presentation of details in the dropdown panel."
+
+msgid "Follow system"
+msgstr "Follow system"
+
+msgid "Choose an explicit language or follow the system locale."
+msgstr "Choose an explicit language or follow the system locale."
+
+msgid "Move field up"
+msgstr "Move field up"
+
+msgid "Move field down"
+msgstr "Move field down"
+
+msgid "Field Matrix"
+msgstr "Field Matrix"
+
+msgid "Toggle fields and set their order for the status bar and panel."
+msgstr "Toggle fields and set their order for the status bar and panel."
+
+msgid "Reset defaults"
+msgstr "Reset defaults"
+
+msgid "Top Bar"
+msgstr "Top Bar"
+
+msgid "Panel"
+msgstr "Panel"
+
+msgid "Move provider up"
+msgstr "Move provider up"
+
+msgid "Move provider down"
+msgstr "Move provider down"
+
+msgid "Active Providers"
+msgstr "Active Providers"
+
+msgid "Enable, configure, and reorder AI coding providers. Expand any provider to edit credentials and the field matrix."
+msgstr "Enable, configure, and reorder AI coding providers. Expand any provider to edit credentials and the field matrix."

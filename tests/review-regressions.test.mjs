@@ -215,7 +215,8 @@ test("preferences close disconnects bindings/pages and cancels pending rebuild; 
   let cleanups = 0;
   prefs._buildWindow = () => {
     prefs._pages.push({ cleanup: () => cleanups++ });
-    prefs._enabledChangedIds.push(settings.connect("enabled", () => {}));
+    if (prefs._languageChangedId) settings.disconnect(prefs._languageChangedId);
+    prefs._languageChangedId = settings.connect("enabled", () => {});
   };
   for (let round = 0; round < 2; round++) {
     const signals = new Map();
@@ -421,6 +422,7 @@ test("HTTP error construction through actual Codex Reader logging excludes provi
     Error,
   });
   const K = load("src/readers/codex.ts", "CodexReader", {
+    CODEX_FIELDS: [],
     Gio: gio,
     BaseReader: class {},
     HttpError,
@@ -455,6 +457,7 @@ for (const phase of ["auth", "billing", "settings"])
     let clients = 0;
     let destroyed = 0;
     const K = load("src/readers/grok.ts", "GrokReader", {
+      GROK_FIELDS: [],
       Gio: {
         ...gio,
         File: {
@@ -523,6 +526,7 @@ for (const phase of ["auth", "exchange", "usage", "plan"])
     let clients = 0;
     let destroyed = 0;
     const K = load("src/readers/cursor.ts", "CursorReader", {
+      CURSOR_FIELDS: [],
       Gio: {
         ...gio,
         File: {
@@ -599,6 +603,7 @@ for (const phase of ["auth", "refresh", "quota", "tier"])
     let clients = 0;
     let destroyed = 0;
     const K = load("src/readers/google.ts", "GoogleReader", {
+      GOOGLE_FIELDS: [],
       Gio: {
         _promisify() {},
         Cancellable: class {
@@ -754,30 +759,17 @@ test("Language override, system selection, self-heal and disable preserve shared
   assert.equal(unrelated(), before);
 });
 
-test("Panel keeps footer actors across structural/value updates and scrolls focused fields", () => {
-  const focused = [];
+test("Panel swaps style sections on setting change and forwards render and running state", () => {
   class Actor {
     children = [];
-    signals = new Map();
-    clutter_text = {};
-    label;
     constructor(props = {}) {
       Object.assign(this, props);
     }
     add_child(child) {
       this.children.push(child);
-      child.parent = this;
     }
     remove_child(child) {
-      this.children = this.children.filter((v) => v !== child);
-    }
-    connect(name, fn) {
-      this.signals.set(name, fn);
-    }
-    add_style_class_name() {}
-    remove_style_class_name() {}
-    get_stage() {
-      return {};
+      this.children = this.children.filter((value) => value !== child);
     }
   }
   class Section {
@@ -788,77 +780,86 @@ test("Panel keeps footer actors across structural/value updates and scrolls focu
       this.items.push(item);
       this.box.add_child(item.actor ?? item);
     }
-    removeAll() {
-      this.items = [];
-      this.actor.children = [];
+    destroy() {}
+  }
+  const created = [];
+  class SectionStub {
+    constructor(settings, readers, openPreferences, onRefresh) {
+      this.settings = settings;
+      this.readers = readers;
+      this.openPreferences = openPreferences;
+      this.onRefresh = onRefresh;
+      this.rendered = [];
+      this.running = null;
+      this.destroyed = false;
+      created.push(this);
+    }
+    actor = new Actor();
+    render(results, lastRefreshAt) {
+      this.rendered.push([results, lastRefreshAt]);
+    }
+    setRunning(running) {
+      this.running = running;
+    }
+    destroy() {
+      this.destroyed = true;
     }
   }
-  class Item extends Actor {
-    constructor(text, props) {
-      super(props ?? text);
-      this.label = new Actor({ text });
-    }
-  }
-  class Scroll extends Actor {
-    set_policy(h, v) {
-      this.policy = [h, v];
-    }
-    set_child(child) {
-      this.add_child(child);
-    }
-  }
+  class GaugesStub extends SectionStub {}
+  class CardsStub extends SectionStub {}
+  class CompactStub extends SectionStub {}
+
   const K = load("src/ui/panel.ts", "PanelWidget", {
-    PopupMenu: {
-      PopupMenuSection: Section,
-      PopupBaseMenuItem: Item,
-      PopupMenuItem: Item,
-      PopupSeparatorMenuItem: Item,
-    },
-    St: {
-      ScrollView: Scroll,
-      Label: Actor,
-      BoxLayout: Actor,
-      PolicyType: { NEVER: 0, AUTOMATIC: 1 },
-      ThemeContext: { get_for_stage: () => ({ scale_factor: 2 }) },
-    },
-    Clutter: { ActorAlign: { START: 0, END: 1 } },
-    Spinner: class extends Actor {
-      play() {}
-      stop() {}
-    },
-    _: (s) => s,
-    GLib: { getenv: () => "en" },
-    resolveLocale: () => "en",
-    Main: {
-      layoutManager: {
-        findMonitorForActor: () => ({ index: 0 }),
-        getWorkAreaForMonitor: () => ({ height: 768 }),
-      },
-    },
-    formatTimestampTemplate: (_t, at) => String(at),
-    applyToneClass() {},
-    ensureActorVisibleInScrollView: (scroll, row) => focused.push([scroll, row]),
+    PopupMenu: { PopupMenuSection: Section },
+    GaugesPanelSection: GaugesStub,
+    CardsPanelSection: CardsStub,
+    CompactPanelSection: CompactStub,
   });
-  const panel = new K({ get_string: () => "en" }, new Map(), () => {});
-  assert.ok(panel._scroll.children.includes(panel._body.actor));
-  const refresh = panel._refreshRow;
-  const settings = panel._settingsItem;
-  assert.ok(panel.box.children.includes(refresh));
-  assert.ok(!panel._scroll.children.includes(refresh));
-  panel._scroll.mapped = true;
-  panel._scroll.signals.get("notify::mapped")();
-  assert.equal(panel._scroll.style, "max-height: 230px;");
-  panel._addSection = () => ({ fields: [] });
-  panel._rebuild([{ rows: [] }], 100);
-  panel._rebuild([{ rows: [] }, { rows: [] }], 200);
-  panel._update([{ rows: [] }, { rows: [] }], 300);
-  assert.equal(panel._refreshRow, refresh);
-  assert.equal(panel._settingsItem, settings);
-  assert.equal(panel._lastRefreshLabel.text, "300");
-  const field = panel._addStaticRow();
-  assert.equal(field.can_focus, true);
-  field.signals.get("key-focus-in")();
-  assert.deepEqual(focused[0], [panel._scroll, field]);
+
+  let style = "gauges";
+  let nextListenerId = 1;
+  const listeners = new Map();
+  const settings = {
+    get_string: () => style,
+    connect: (name, fn) => {
+      const id = nextListenerId++;
+      listeners.set(id, { name, fn });
+      return id;
+    },
+    disconnect: (id) => listeners.delete(id),
+  };
+  const fireStyleChange = () => {
+    for (const { name, fn } of listeners.values()) {
+      if (name === "changed::panel-style") fn();
+    }
+  };
+  const panel = new K(settings, new Map(), () => {});
+  assert.equal(created.length, 1);
+  assert.ok(created[0] instanceof GaugesStub);
+
+  const results = new Map([["codex", {}]]);
+  panel.render(results, 100);
+  assert.deepEqual(created[0].rendered, [[results, 100]]);
+  panel.setRunning(true);
+  assert.equal(created[0].running, true);
+
+  style = "cards";
+  fireStyleChange();
+  assert.equal(created.length, 2);
+  assert.ok(created[1] instanceof CardsStub);
+  assert.equal(created[0].destroyed, true);
+  assert.deepEqual(created[1].rendered, [[results, 100]]);
+  assert.equal(created[1].running, true);
+
+  style = "compact";
+  fireStyleChange();
+  assert.equal(created.length, 3);
+  assert.ok(created[2] instanceof CompactStub);
+  assert.equal(created[1].destroyed, true);
+
+  panel.destroy();
+  assert.equal(created[2].destroyed, true);
+  assert.equal(listeners.size, 0);
 });
 
 test("late destruction of an old preferences window cannot tear down a reopened window", async () => {

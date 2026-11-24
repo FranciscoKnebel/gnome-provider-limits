@@ -505,3 +505,135 @@ msgstr ""
 msgid "Leave the authentication file empty to use ~/.gemini/oauth_creds.json or Antigravity credentials."
 msgstr ""
 
+
+msgid "Cached"
+msgstr ""
+
+msgid "Loading provider limits…"
+msgstr ""
+
+msgid "Live"
+msgstr ""
+
+msgid "Unavailable"
+msgstr ""
+
+msgid "No providers enabled"
+msgstr ""
+
+msgid "Enable a provider in Settings to monitor usage limits."
+msgstr ""
+
+msgid "Waiting for provider data…"
+msgstr ""
+
+msgid "OK"
+msgstr ""
+
+msgid "Partial"
+msgstr ""
+
+msgid "Limits"
+msgstr ""
+
+msgid "Telemetry"
+msgstr ""
+
+msgid "No providers enabled. Open Settings to enable a provider."
+msgstr ""
+
+msgid "Reading provider limits…"
+msgstr ""
+
+msgid "Expand all"
+msgstr ""
+
+msgid "Collapse all"
+msgstr ""
+
+msgid "Waiting for initial refresh to complete."
+msgstr ""
+
+msgid "Overview"
+msgstr ""
+
+msgid "No panel fields configured for this provider."
+msgstr ""
+
+msgid "Number of consecutive identical reads before switching to the long interval."
+msgstr ""
+
+msgid "Appearance"
+msgstr ""
+
+msgid "Choose the visual styles for the top bar and dropdown menu."
+msgstr ""
+
+msgid "Capsule pills"
+msgstr ""
+
+msgid "Micro-ring gauges"
+msgstr ""
+
+msgid "Compact text"
+msgstr ""
+
+msgid "Status bar style"
+msgstr ""
+
+msgid "Visual presentation of metrics in the top bar."
+msgstr ""
+
+msgid "Tabbed cockpit & gauges"
+msgstr ""
+
+msgid "Quick settings cards"
+msgstr ""
+
+msgid "Collapsible matrix HUD"
+msgstr ""
+
+msgid "Dropdown panel style"
+msgstr ""
+
+msgid "Visual presentation of details in the dropdown panel."
+msgstr ""
+
+msgid "Follow system"
+msgstr ""
+
+msgid "Choose an explicit language or follow the system locale."
+msgstr ""
+
+msgid "Move field up"
+msgstr ""
+
+msgid "Move field down"
+msgstr ""
+
+msgid "Field Matrix"
+msgstr ""
+
+msgid "Toggle fields and set their order for the status bar and panel."
+msgstr ""
+
+msgid "Reset defaults"
+msgstr ""
+
+msgid "Top Bar"
+msgstr ""
+
+msgid "Panel"
+msgstr ""
+
+msgid "Move provider up"
+msgstr ""
+
+msgid "Move provider down"
+msgstr ""
+
+msgid "Active Providers"
+msgstr ""
+
+msgid "Enable, configure, and reorder AI coding providers. Expand any provider to edit credentials and the field matrix."
+msgstr ""

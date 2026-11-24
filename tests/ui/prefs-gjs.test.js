@@ -12,6 +12,18 @@ const PROVIDER_DISPLAY_NAMES = {
   google: "Google AI Ultra",
 };
 
+function findAllWidgets(widget, predicate, acc = []) {
+  if (predicate(widget)) acc.push(widget);
+
+  let child = widget.get_first_child?.() ?? null;
+  while (child) {
+    findAllWidgets(child, predicate, acc);
+    child = child.get_next_sibling();
+  }
+
+  return acc;
+}
+
 function skipResult(reason) {
   return [
     { name: "preferences page binds the status bar position setting", skipped: true, reason },
@@ -62,6 +74,13 @@ export async function run() {
   );
   const { ProviderLimitsPreferencesPage } = await import(mainPageUrl);
   const { ProviderPage } = await import(providerPageUrl);
+  const gettextUrl = GLib.Uri.resolve_relative(
+    import.meta.url,
+    "../../dist/helpers/gettext.js",
+    GLib.UriFlags.NONE,
+  );
+  const { configureTranslations } = await import(gettextUrl);
+  configureTranslations("/nonexistent-locale-path", "en");
 
   const results = [];
 
@@ -176,6 +195,63 @@ export async function run() {
     results.push({ name: "MockSettings.set_strv emits signal", passed: true });
   } catch (e) {
     results.push({ name: "MockSettings.set_strv emits signal", passed: false, error: String(e) });
+  }
+
+  // Test 5: Field Matrix toggles visibility and reorders inside each zone row
+  try {
+    const settings = new MockSettings({
+      "codex-enabled": true,
+      "codex-display-name": "Codex",
+      "codex-display-name-short": "CX",
+      "codex-cli-path": "",
+      "codex-status-fields": ["used_percent_primary", "reset_at_primary"],
+      "codex-panel-fields": [],
+      language: "en",
+    });
+    const page = new ProviderPage(settings, "codex");
+    const rows = findAllWidgets(
+      page,
+      (w) => w instanceof Adw.ActionRow && w.title === "Used % (5h window)",
+    );
+    assertEqual(rows.length, 1, "one matrix row should exist for the field");
+
+    const row = rows[0];
+    const panelToggle = findWidget(
+      row,
+      (w) => w instanceof Gtk.ToggleButton && w.label === "Panel",
+    );
+    assertNotNull(panelToggle, "Panel toggle should exist in the matrix row");
+    panelToggle.active = true;
+    assertEqual(
+      settings.get_strv("codex-panel-fields").includes("used_percent_primary"),
+      true,
+      "toggling Panel should add the field to panel fields",
+    );
+
+    const topBarUp = findWidget(
+      row,
+      (w) => w instanceof Gtk.Button && w.icon_name === "go-up-symbolic",
+    );
+    const topBarDown = findAllWidgets(
+      row,
+      (w) => w instanceof Gtk.Button && w.icon_name === "go-down-symbolic",
+    )[0];
+    assertEqual(topBarUp.sensitive, false, "first field cannot move up");
+    assertEqual(topBarDown.sensitive, true, "first field can move down");
+    topBarDown.emit("clicked");
+    assertEqual(
+      JSON.stringify(settings.get_strv("codex-status-fields")),
+      JSON.stringify(["reset_at_primary", "used_percent_primary"]),
+      "inline down button should reorder status fields",
+    );
+    assertEqual(topBarUp.sensitive, true, "field can now move up");
+    results.push({ name: "Field Matrix toggles visibility and reorders inline", passed: true });
+  } catch (e) {
+    results.push({
+      name: "Field Matrix toggles visibility and reorders inline",
+      passed: false,
+      error: String(e),
+    });
   }
 
   return results;

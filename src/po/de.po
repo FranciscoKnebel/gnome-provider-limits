@@ -510,3 +510,135 @@ msgstr "Mit Gemini CLI oder Antigravity anmelden."
 msgid "Leave the authentication file empty to use ~/.gemini/oauth_creds.json or Antigravity credentials."
 msgstr "Authentifizierungsdatei leer lassen, um ~/.gemini/oauth_creds.json oder Antigravity-Zugangsdaten zu verwenden."
 
+
+msgid "Cached"
+msgstr "Zwischengespeichert"
+
+msgid "Loading provider limits…"
+msgstr "Anbieterlimits werden geladen…"
+
+msgid "Live"
+msgstr "Live"
+
+msgid "Unavailable"
+msgstr "Nicht verfügbar"
+
+msgid "No providers enabled"
+msgstr "Keine Anbieter aktiviert"
+
+msgid "Enable a provider in Settings to monitor usage limits."
+msgstr "Aktivieren Sie einen Anbieter in den Einstellungen, um die Nutzungsgrenzen zu überwachen."
+
+msgid "Waiting for provider data…"
+msgstr "Warten auf Anbieterdaten…"
+
+msgid "OK"
+msgstr "OK"
+
+msgid "Partial"
+msgstr "Teilweise"
+
+msgid "Limits"
+msgstr "Grenzen"
+
+msgid "Telemetry"
+msgstr "Telemetrie"
+
+msgid "No providers enabled. Open Settings to enable a provider."
+msgstr "Keine Anbieter aktiviert. Öffnen Sie die Einstellungen, um einen Anbieter zu aktivieren."
+
+msgid "Reading provider limits…"
+msgstr "Anbieterlimits werden gelesen…"
+
+msgid "Expand all"
+msgstr "Alle aufklappen"
+
+msgid "Collapse all"
+msgstr "Alle zuklappen"
+
+msgid "Waiting for initial refresh to complete."
+msgstr "Warten auf den Abschluss der ersten Aktualisierung."
+
+msgid "Overview"
+msgstr "Übersicht"
+
+msgid "No panel fields configured for this provider."
+msgstr "Keine Felder für das Panel dieses Anbieters konfiguriert."
+
+msgid "Number of consecutive identical reads before switching to the long interval."
+msgstr "Anzahl aufeinanderfolgender identischer Lesevorgänge vor dem Wechsel zum langen Intervall."
+
+msgid "Appearance"
+msgstr "Darstellung"
+
+msgid "Choose the visual styles for the top bar and dropdown menu."
+msgstr "Wählen Sie die visuellen Stile für die obere Leiste und das Dropdown-Menü."
+
+msgid "Capsule pills"
+msgstr "Kapseln"
+
+msgid "Micro-ring gauges"
+msgstr "Mikroring-Anzeigen"
+
+msgid "Compact text"
+msgstr "Kompakttext"
+
+msgid "Status bar style"
+msgstr "Stil der Statusleiste"
+
+msgid "Visual presentation of metrics in the top bar."
+msgstr "Visuelle Darstellung der Metriken in der oberen Leiste."
+
+msgid "Tabbed cockpit & gauges"
+msgstr "Tab-Cockpit und Anzeigen"
+
+msgid "Quick settings cards"
+msgstr "Schnelleinstellungs-Karten"
+
+msgid "Collapsible matrix HUD"
+msgstr "Einklappbares Matrix-HUD"
+
+msgid "Dropdown panel style"
+msgstr "Stil des Dropdown-Panels"
+
+msgid "Visual presentation of details in the dropdown panel."
+msgstr "Visuelle Darstellung der Details im Dropdown-Panel."
+
+msgid "Follow system"
+msgstr "System folgen"
+
+msgid "Choose an explicit language or follow the system locale."
+msgstr "Wählen Sie eine explizite Sprache oder folgen Sie der Systemeinstellung."
+
+msgid "Move field up"
+msgstr "Feld nach oben verschieben"
+
+msgid "Move field down"
+msgstr "Feld nach unten verschieben"
+
+msgid "Field Matrix"
+msgstr "Feldmatrix"
+
+msgid "Toggle fields and set their order for the status bar and panel."
+msgstr "Felder aktivieren und ihre Reihenfolge für Statusleiste und Panel festlegen."
+
+msgid "Reset defaults"
+msgstr "Standardwerte wiederherstellen"
+
+msgid "Top Bar"
+msgstr "Obere Leiste"
+
+msgid "Panel"
+msgstr "Panel"
+
+msgid "Move provider up"
+msgstr "Anbieter nach oben verschieben"
+
+msgid "Move provider down"
+msgstr "Anbieter nach unten verschieben"
+
+msgid "Active Providers"
+msgstr "Aktive Anbieter"
+
+msgid "Enable, configure, and reorder AI coding providers. Expand any provider to edit credentials and the field matrix."
+msgstr "Aktivieren, konfigurieren und ordnen Sie KI-Programmieranbieter neu. Klappen Sie einen Anbieter auf, um Anmeldedaten und die Feldmatrix zu bearbeiten."
