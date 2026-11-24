@@ -2,7 +2,6 @@ import { PROVIDER_NAMES, type ProviderName } from "../../src/constants.js";
 import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
 import type { FieldDef, ReaderResult } from "../../src/readers/base.js";
 import { PROVIDER_FIELDS } from "../../src/readers/fields.js";
-import { diagnosticMessage } from "../../src/ui/displayModel.js";
 import { clampFillRatio, type FieldTone } from "../../src/ui/fieldRows.js";
 import {
   areAllProvidersExpanded,
@@ -380,9 +379,7 @@ describe("matrixPlan", () => {
       expect(formatSegmentedBar(facts.usage.header.fillRatio ?? 0, 5)).toBe("▰▰▰▰▱");
       expect(facts.usage.header.tone).toBe("warning");
       expect(facts.diagnostic.kind).toBe("warning");
-      expect(diagnosticMessage(model.result, facts.diagnostic)).toBe(
-        "Showing recent cached limits",
-      );
+      expect(facts.diagnostic.message).toBe("Showing recent cached limits");
       expect(facts.lastUpdatedText).toContain("Last updated:");
 
       const limits = model.panelViews.filter((view) => view.category !== "telemetry");
@@ -501,16 +498,12 @@ describe("matrixPlan", () => {
 
       const codexExpanded = expandedContext.models.find((model) => model.provider === "codex");
       expect(codexExpanded?.facts.diagnostic.kind).toBe("error");
-      expect(
-        codexExpanded && diagnosticMessage(codexExpanded.result, codexExpanded.facts.diagnostic),
-      ).toBe("Codex login required");
+      expect(codexExpanded?.facts.diagnostic.message).toBe("Codex login required");
 
       const claudeExpanded = expandedContext.models.find((model) => model.provider === "claude");
       expect(claudeExpanded?.facts.usage.header.summaryText).toBe("(unavailable)");
       expect(claudeExpanded?.facts.diagnostic.text).toBe("Unavailable");
-      expect(
-        claudeExpanded && diagnosticMessage(claudeExpanded.result, claudeExpanded.facts.diagnostic),
-      ).toBe("Error");
+      expect(claudeExpanded?.facts.diagnostic.message).toBe("Error");
     });
   });
 

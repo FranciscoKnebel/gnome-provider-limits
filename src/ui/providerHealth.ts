@@ -1,4 +1,4 @@
-import type { FieldDef, FieldResult, ReaderResult } from "../readers/base.js";
+import type { FieldDef, FieldResult } from "../readers/base.js";
 import { FieldStatus, isLimitReached, ReaderStatus } from "../readers/base.js";
 import type { FieldTone } from "./fieldRows.js";
 import { fieldTone } from "./fieldRows.js";
@@ -198,8 +198,8 @@ export function collectFieldTones(
   return tones;
 }
 
-export function isLastKnownGood(result: ReaderResult): boolean {
-  return result.status === ReaderStatus.PARTIAL && result.fromCache;
+export function isLastKnownGood(status: ReaderStatus, fromCache: boolean): boolean {
+  return status === ReaderStatus.PARTIAL && fromCache;
 }
 
 /** The single derivation: all surface vocabularies are lookups over this value. */
@@ -248,7 +248,7 @@ export function deriveProviderHealth({
     displayStatus,
     worstTone,
     hasUsableField,
-    displayStatus === ReaderStatus.PARTIAL && fromCache,
+    isLastKnownGood(displayStatus, fromCache),
   );
   const { presentation, state, tone, attention } = HEALTH_BY_SEVERITY[severity];
   const { pillTag, pillAccessibleText } = presentation;

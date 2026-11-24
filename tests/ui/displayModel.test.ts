@@ -2,7 +2,7 @@ import { providerRecord } from "../../src/constants.js";
 import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
 import type { FieldDef, ReaderResult } from "../../src/readers/base.js";
 import { CODEX_FIELDS, GOOGLE_FIELDS, PROVIDER_FIELDS } from "../../src/readers/fields.js";
-import { deriveDisplayModel, diagnosticMessage } from "../../src/ui/displayModel.js";
+import { deriveDisplayModel } from "../../src/ui/displayModel.js";
 import { progressResetPresentation } from "../../src/ui/panelCards.js";
 import { consumedResetNames, resetDetailText, resetSlotText } from "../../src/ui/resetModel.js";
 import { viewContextFromFixture, type ViewFixtureInput } from "./contextFixture.js";
@@ -344,8 +344,9 @@ describe("deriveDisplayModel owns diagnostics and reset pairing", () => {
       kind: "warning",
       badge: "Cached",
       text: "HTTP 503",
+      message: "HTTP 503",
     });
-    expect(diagnosticMessage(cachedResult, cached.facts.diagnostic)).toBe("HTTP 503");
+    expect(cached.facts.diagnostic.message).toBe("HTTP 503");
 
     const partialResult: ReaderResult = {
       ...result,
@@ -362,7 +363,12 @@ describe("deriveDisplayModel owns diagnostics and reset pairing", () => {
     const errorResult: ReaderResult = { ...result, status: ReaderStatus.ERROR, lastError: "Login" };
     const error = modelFor(errorResult, []);
     expect(error.facts.displayStatus).toBe(ReaderStatus.ERROR);
-    expect(error.facts.diagnostic).toEqual({ kind: "error", badge: "Error", text: "Login" });
+    expect(error.facts.diagnostic).toEqual({
+      kind: "error",
+      badge: "Error",
+      text: "Login",
+      message: "Login",
+    });
 
     const unavailableResult: ReaderResult = {
       ...result,
@@ -373,12 +379,13 @@ describe("deriveDisplayModel owns diagnostics and reset pairing", () => {
       kind: "error",
       badge: "Error",
       text: "Unavailable",
+      message: "Error",
     });
-    expect(diagnosticMessage(unavailableResult, unavailable.facts.diagnostic)).toBe("Error");
+    expect(unavailable.facts.diagnostic.message).toBe("Error");
 
     const healthy = modelFor(result, []);
     expect(healthy.facts.diagnostic.kind).toBeNull();
-    expect(diagnosticMessage(result, healthy.facts.diagnostic)).toBeNull();
+    expect(healthy.facts.diagnostic.message).toBeNull();
     expect(healthy.facts.lastUpdatedText).toContain("Last updated:");
   });
 });

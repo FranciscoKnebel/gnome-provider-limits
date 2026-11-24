@@ -68,8 +68,12 @@ export interface ReaderResult {
   readonly fromCache: boolean;
 }
 
+export function isHardStatus(status: ReaderStatus): boolean {
+  return status === ReaderStatus.ERROR || status === ReaderStatus.UNAVAILABLE;
+}
+
 export function isHardError(result: ReaderResult): boolean {
-  return result.status === ReaderStatus.ERROR || result.status === ReaderStatus.UNAVAILABLE;
+  return isHardStatus(result.status);
 }
 
 export function isLimitReached(fields: readonly FieldResult[] | undefined): boolean {

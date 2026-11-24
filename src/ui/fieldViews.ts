@@ -6,7 +6,13 @@ import type {
   FieldZone,
   ReaderResult,
 } from "../readers/base.js";
-import { FieldStatus, hasUsableFieldValue, isLimitReached, ReaderStatus } from "../readers/base.js";
+import {
+  FieldStatus,
+  hasUsableFieldValue,
+  isHardStatus,
+  isLimitReached,
+  ReaderStatus,
+} from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
 import { emptyMeter, gaugeArc } from "./cairoDrawing.js";
 import type { FieldTone } from "./fieldRows.js";
@@ -188,7 +194,7 @@ export function projectUsageFacts(
   options: UsageProjectionOptions,
 ): UsageFacts {
   const tr = options.t;
-  if (options.status === ReaderStatus.ERROR || options.status === ReaderStatus.UNAVAILABLE) {
+  if (isHardStatus(options.status)) {
     return {
       valueText: "—",
       fillRatio: null,

@@ -5,7 +5,7 @@ import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { connectRepaint, drawRadialGauge } from "./cairoDrawing.js";
 import { chunkGauges, chunkPairs, computeGaugeGeometry } from "./cockpitModel.js";
-import { diagnosticMessage, type Diagnostic, type ProviderDisplayModel } from "./displayModel.js";
+import { type Diagnostic, type ProviderDisplayModel } from "./displayModel.js";
 import { createErrorLabel } from "./errorLabel.js";
 import type { FieldView } from "./fieldViews.js";
 import type { RadialGaugeGeometry } from "./gaugeTypes.js";
@@ -71,7 +71,7 @@ export class DetailRenderer {
 
     return {
       diagnostic: facts.diagnostic,
-      calloutText: diagnosticMessage(model.result, facts.diagnostic),
+      calloutText: facts.diagnostic.message,
       isError,
       gaugeRows: chunkGauges(gauges),
       gaugeCount: gauges.length,

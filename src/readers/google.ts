@@ -24,6 +24,7 @@ import {
   GOOGLE_WINDOW_IDS,
   hasActiveGoogleUsage,
   hasCompleteActiveGoogleUsage,
+  hasPresentGoogleUsage,
   isAntigravityAuthPath,
   mergeGoogleUsage,
   normalizeGoogleAvailableModels,
@@ -276,6 +277,7 @@ export class GoogleReader extends BaseReader<"google"> {
     const body = projectId ? { project: projectId } : {};
     const requestedAtMs = Date.now();
 
+    let summary: GoogleUsage | null = null;
     try {
       const summaryRaw = await this._http!.postJson(
         `${endpoint}/v1internal:retrieveUserQuotaSummary`,
@@ -288,8 +290,8 @@ export class GoogleReader extends BaseReader<"google"> {
       );
       this._assertAlive();
       if (cancellable.is_cancelled()) return null;
-      const summary = normalizeGoogleQuotaSummary(summaryRaw, requestedAtMs);
-      if (summary) return summary;
+      summary = normalizeGoogleQuotaSummary(summaryRaw, requestedAtMs);
+      if (hasPresentGoogleUsage(summary)) return summary;
     } catch (error) {
       this._assertAlive();
       if (cancellable.is_cancelled()) return null;
@@ -308,7 +310,7 @@ export class GoogleReader extends BaseReader<"google"> {
     );
     this._assertAlive();
     if (cancellable.is_cancelled()) return null;
-    return normalizeGoogleAvailableModels(modelsRaw, requestedAtMs);
+    return mergeGoogleUsage(normalizeGoogleAvailableModels(modelsRaw, requestedAtMs), summary);
   }
 
   private async _queryQuotaWithToken(
@@ -581,7 +583,8 @@ export class GoogleReader extends BaseReader<"google"> {
       if (window.state === "present") {
         const data = window.usage;
         const resetAt = data.reset.state === "present" ? data.reset.at : null;
-        const resetStatus = data.reset.state === "idle" ? FieldStatus.NOT_APPLICABLE : undefined;
+        const resetStatus =
+          data.reset.state === "idle" ? FieldStatus.NOT_APPLICABLE : FieldStatus.UNAVAILABLE;
         fields.push(
           ...this._makeWindowFields(
             names,
@@ -599,7 +602,7 @@ export class GoogleReader extends BaseReader<"google"> {
       fields.push(...this._makeAbsentWindowFields(names, status));
     }
 
-    fields.push(this._makeField("limit_reached", usage.limitReached, FieldStatus.OK));
+    fields.push(this._makeOptionalField("limit_reached", usage.limitReached));
     fields.push(this._makeOptionalField("plan_type", plan));
     fields.push(this._makeField("usage_source", hostFromEndpoint(endpointUsed), FieldStatus.OK));
     return fields;

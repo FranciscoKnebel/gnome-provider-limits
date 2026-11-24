@@ -327,6 +327,9 @@ export async function run() {
             ],
           };
         }
+        if (url.endsWith("/v1internal:fetchAvailableModels")) {
+          return { models: {} };
+        }
         if (url.endsWith("/v1internal:loadCodeAssist")) {
           return { paidTier: { id: "standard-tier", name: "Google AI Pro" } };
         }
@@ -336,7 +339,7 @@ export async function run() {
 
     const result = await reader.read();
     const field = (name) => result.fields.find((f) => f.name === name);
-    assertEqual(result.status, "ok");
+    assertEqual(result.status, "partial");
     for (const name of [
       "used_percent_session",
       "used_percent_weekly",
@@ -345,6 +348,61 @@ export async function run() {
     ]) {
       assertEqual(field(name)?.status, "not_applicable");
     }
+    assertEqual(field("limit_reached")?.status, "unavailable");
+    reader.destroy();
+  });
+
+  await test("GoogleReader falls back to models when the summary has no present window", async () => {
+    Gio.File.prototype.load_contents_async = async () =>
+      encodeJson({
+        access_token: "ya29.live",
+        expiry_date: Date.now() + 3600_000,
+      });
+
+    let summaryCalls = 0;
+    let modelCalls = 0;
+    const reader = newReader({
+      postJson: async (url) => {
+        if (url.endsWith("/v1internal:retrieveUserQuotaSummary")) {
+          summaryCalls++;
+          return {
+            buckets: [
+              { bucketId: "gemini-5h", window: "5h", remainingFraction: 1.5 },
+              { bucketId: "gemini-weekly", window: "weekly", remainingFraction: -0.1 },
+              { bucketId: "3p-5h", window: "5h", remainingFraction: 1.5 },
+              { bucketId: "3p-weekly", window: "weekly", remainingFraction: -0.1 },
+            ],
+          };
+        }
+        if (url.endsWith("/v1internal:fetchAvailableModels")) {
+          modelCalls++;
+          return {
+            models: {
+              "gemini-2.5-pro": {
+                modelProvider: "MODEL_PROVIDER_GOOGLE",
+                quotaInfo: {
+                  remainingFraction: 0.5,
+                  resetTime: "2026-04-20T06:00:00Z",
+                },
+                weeklyQuotaInfo: {
+                  remainingFraction: 0.8,
+                  resetTime: "2026-04-25T00:00:00Z",
+                },
+              },
+            },
+          };
+        }
+        if (url.endsWith("/v1internal:loadCodeAssist")) {
+          return { paidTier: { id: "standard-tier", name: "Google AI Pro" } };
+        }
+        throw new Error(`unexpected URL ${url}`);
+      },
+    });
+
+    const result = await reader.read();
+    assertEqual(summaryCalls, 1);
+    assertEqual(modelCalls, 1);
+    assertEqual(result.fields.find((f) => f.name === "used_percent_session")?.value, 50);
     reader.destroy();
   });
 

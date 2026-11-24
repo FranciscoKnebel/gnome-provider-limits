@@ -1,6 +1,7 @@
 import Clutter from "gi://Clutter";
 import St from "gi://St";
 
+import { ReaderStatus } from "../readers/base.js";
 import { StatusBarRenderer } from "./statusBarRenderer.js";
 import { buildStatusSegment, statusValueLabels } from "./statusBarSegments.js";
 import { applyHealthToneClass } from "./tone.js";
@@ -38,7 +39,7 @@ export class PillsStatusBarRenderer extends StatusBarRenderer {
 
     this.renderSegments(context.models, (model) => {
       const { health } = model.facts;
-      const isPartial = model.facts.health.stateTag === "~";
+      const isPartial = model.facts.displayStatus === ReaderStatus.PARTIAL;
       const stateTag = health.stateTag;
 
       return buildStatusSegment(

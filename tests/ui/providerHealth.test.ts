@@ -302,7 +302,7 @@ describe("providerHealth pure helpers", () => {
       t: (text) => `T:${text}`,
     });
 
-    expect(isLastKnownGood(result)).toBeTrue();
+    expect(isLastKnownGood(result.status, result.fromCache)).toBeTrue();
     expect(health.severity).toBe("cached-warning");
     expect(health.state).toBe("cached");
     expect(health.tone).toBe("partial");

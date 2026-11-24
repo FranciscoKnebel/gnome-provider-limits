@@ -1,6 +1,7 @@
 import Clutter from "gi://Clutter";
 import St from "gi://St";
 
+import { ReaderStatus } from "../readers/base.js";
 import { StatusBarRenderer } from "./statusBarRenderer.js";
 import { buildStatusSegment } from "./statusBarSegments.js";
 import type { ProviderViewContext } from "./viewContext.js";
@@ -35,7 +36,7 @@ export class CompactStatusBarRenderer extends StatusBarRenderer {
         accessibleText = `${shortLabel} ${badgeWord}`.trim();
       } else {
         const joined = model.statusViews.map((view) => view.valueText).join("·");
-        const prefix = model.facts.health.stateTag === "~" ? "~" : "";
+        const prefix = model.facts.displayStatus === ReaderStatus.PARTIAL ? "~" : "";
         metricsText = joined ? `${prefix}${joined}` : prefix;
         const spokenRows = model.statusViews.map((view) => view.accessibleText).join(", ");
         const headerPart = badgeWord ? `${shortLabel} ${badgeWord}` : shortLabel;

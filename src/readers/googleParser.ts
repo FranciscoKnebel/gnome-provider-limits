@@ -46,7 +46,7 @@ export type GoogleWindow =
   | { readonly state: "malformed" };
 
 export type GoogleUsage = Readonly<Record<GoogleWindowId, GoogleWindow>> & {
-  readonly limitReached: boolean;
+  readonly limitReached: boolean | null;
 };
 
 type QuotaFamily = "gemini" | "3p";
@@ -294,7 +294,7 @@ function buildGoogleUsage(windows: Record<GoogleWindowId, GoogleWindow>): Google
 
   return {
     ...windows,
-    limitReached: present.some((window) => window.usedPercent >= 100),
+    limitReached: present.length > 0 ? present.some((window) => window.usedPercent >= 100) : null,
   };
 }
 
@@ -427,6 +427,10 @@ export function normalizeGoogleAvailableModels(
   return buildGoogleUsage(windows);
 }
 
+export function hasPresentGoogleUsage(usage: GoogleUsage | null): boolean {
+  return usage !== null && GOOGLE_WINDOW_IDS.some((id) => usage[id].state === "present");
+}
+
 export function hasActiveGoogleUsage(usage: GoogleUsage | null): boolean {
   if (!usage) return false;
   return GOOGLE_WINDOW_IDS.some((id) => {
@@ -458,14 +462,15 @@ export interface GoogleTier {
   name: string | null;
 }
 
+function tierString(record: Record<string, unknown> | null, key: string): string | null {
+  const value = record?.[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
 export function parseGoogleTier(raw: unknown): GoogleTier | null {
   if (!isRecord(raw)) return null;
   const paid = isRecord(raw.paidTier) ? raw.paidTier : null;
   const current = isRecord(raw.currentTier) ? raw.currentTier : null;
-  const tierString = (record: Record<string, unknown> | null, key: string) => {
-    const value = record?.[key];
-    return typeof value === "string" && value.trim() ? value.trim() : null;
-  };
   const paidId = tierString(paid, "id");
   const paidName = tierString(paid, "name");
   const source = paidId !== null || paidName !== null ? paid : current;

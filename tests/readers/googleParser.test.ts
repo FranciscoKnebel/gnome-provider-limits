@@ -5,6 +5,7 @@ import {
   GOOGLE_CLOUDCODE_PROD_URL,
   GOOGLE_OAUTH_TOKEN_URL,
   hasActiveGoogleUsage,
+  hasPresentGoogleUsage,
   hasCompleteActiveGoogleUsage,
   isAntigravityAuthPath,
   mergeGoogleUsage,
@@ -331,7 +332,7 @@ describe("normalizeGoogleQuotaSummary", () => {
       weekly: disabledWindow(),
       thirdPartySession: disabledWindow(),
       thirdPartyWeekly: disabledWindow(),
-      limitReached: false,
+      limitReached: null,
     });
   });
 
@@ -471,7 +472,7 @@ describe("normalizeGoogleQuotaSummary", () => {
       weekly: malformedWindow(),
       thirdPartySession: malformedWindow(),
       thirdPartyWeekly: unreportedWindow(),
-      limitReached: false,
+      limitReached: null,
     });
   });
 });
@@ -596,6 +597,8 @@ describe("hasActiveGoogleUsage, mergeGoogleUsage & parseGoogleTier", () => {
     expect(hasActiveGoogleUsage(null)).toBe(false);
     expect(hasActiveGoogleUsage(idle)).toBe(false);
     expect(hasActiveGoogleUsage(active)).toBe(true);
+    expect(hasPresentGoogleUsage(null)).toBe(false);
+    expect(hasPresentGoogleUsage(idle)).toBe(true);
     expect(hasCompleteActiveGoogleUsage(null)).toBe(false);
     expect(hasCompleteActiveGoogleUsage({ ...active, thirdPartySession: unreportedWindow() })).toBe(
       false,

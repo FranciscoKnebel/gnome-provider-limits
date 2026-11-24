@@ -4,7 +4,8 @@ import St from "gi://St";
 import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { bindActivation } from "../helpers/keyboard.js";
-import { diagnosticMessage, type ProviderDisplayModel } from "./displayModel.js";
+import { ReaderStatus } from "../readers/base.js";
+import { type ProviderDisplayModel } from "./displayModel.js";
 import { createErrorLabel } from "./errorLabel.js";
 import { clampFillRatio } from "./fieldRows.js";
 import type { FieldView, UsageFacts } from "./fieldViews.js";
@@ -142,10 +143,8 @@ export class CompactPanelSection extends PanelStyleSection {
     const fiveSegmentBar = header.fillRatio !== null ? formatSegmentedBar(header.fillRatio, 5) : "";
     const headerTone = header.tone;
     const diagnostic = facts.diagnostic;
-    const errorText =
-      diagnostic.kind === "error" ? diagnosticMessage(model.result, diagnostic) : null;
-    const detailText =
-      diagnostic.kind === "warning" ? diagnosticMessage(model.result, diagnostic) : null;
+    const errorText = diagnostic.kind === "error" ? diagnostic.message : null;
+    const detailText = diagnostic.kind === "warning" ? diagnostic.message : null;
     const showRows = errorText === null;
 
     const accessibleParts = [model.displayName];
@@ -220,9 +219,11 @@ export class CompactPanelSection extends PanelStyleSection {
         style_class: "provider-limits-status-badge",
         y_align: Clutter.ActorAlign.CENTER,
       });
-      applyToneClass(badgeLabel, model.facts.health.stateTag === "~" ? "warning" : "error", {
-        quiet: true,
-      });
+      applyToneClass(
+        badgeLabel,
+        model.facts.displayStatus === ReaderStatus.PARTIAL ? "warning" : "error",
+        { quiet: true },
+      );
       leftTitleBox.add_child(badgeLabel);
     }
 
