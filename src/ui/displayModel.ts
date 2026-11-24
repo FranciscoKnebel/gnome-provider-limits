@@ -81,13 +81,11 @@ export interface DisplayModelOptions {
 }
 
 export interface ClassifiedPanelViewGroup {
-  readonly all: readonly FieldView[];
   readonly progress: readonly FieldView[];
   readonly keyValue: readonly FieldView[];
 }
 
 export interface ClassifiedPanelViews {
-  readonly all: readonly FieldView[];
   readonly progress: readonly FieldView[];
   readonly keyValue: readonly FieldView[];
   readonly limit: ClassifiedPanelViewGroup;
@@ -96,7 +94,6 @@ export interface ClassifiedPanelViews {
 
 /** The one panel classification shared by cards, gauges and matrix rows. */
 interface MutableClassifiedGroup {
-  all: FieldView[];
   progress: FieldView[];
   keyValue: FieldView[];
 }
@@ -106,25 +103,22 @@ function classifyPanelViews(
   resets: ReadonlyMap<string, ResetPairing>,
 ): ClassifiedPanelViews {
   const consumed = consumedResetNames(resets);
-  const limit: MutableClassifiedGroup = { all: [], progress: [], keyValue: [] };
-  const telemetry: MutableClassifiedGroup = { all: [], progress: [], keyValue: [] };
-  const all: FieldView[] = [];
+  const limit: MutableClassifiedGroup = { progress: [], keyValue: [] };
+  const telemetry: MutableClassifiedGroup = { progress: [], keyValue: [] };
   const progress: FieldView[] = [];
   const keyValue: FieldView[] = [];
   for (const view of panelViews) {
     if (consumed.has(view.name)) continue;
     const group = view.category === "telemetry" ? telemetry : limit;
-    group.all.push(view);
-    all.push(view);
     if (view.type === "percent") {
-      group.progress.push(view);
       progress.push(view);
+      if (group === limit) group.progress.push(view);
     } else {
       group.keyValue.push(view);
       keyValue.push(view);
     }
   }
-  return { all, progress, keyValue, limit, telemetry };
+  return { progress, keyValue, limit, telemetry };
 }
 
 function deriveDiagnostic(result: ReaderResult, tr: (s: string) => string): Diagnostic {
