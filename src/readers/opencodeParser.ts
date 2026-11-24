@@ -94,6 +94,19 @@ export function parseOpenCodeAuthKey(text: string): string | null {
   return typeof key === "string" && key.trim() ? key.trim() : null;
 }
 
+export function parseOpenCodeCredential(text: string): string | null {
+  let credential: unknown;
+  try {
+    credential = JSON.parse(text) as unknown;
+  } catch {
+    return null;
+  }
+
+  if (!isRecord(credential)) return null;
+  const token = credential.access ?? credential.key;
+  return typeof token === "string" && token.trim() ? token.trim() : null;
+}
+
 function normalizeWindow(value: unknown): OpenCodeUsageWindow | null {
   if (!isRecord(value)) return null;
 

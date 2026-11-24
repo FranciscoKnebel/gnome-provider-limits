@@ -2,6 +2,7 @@ import {
   normalizeOpenCodeDbRow,
   normalizeOpenCodeUsagePayload,
   parseOpenCodeAuthKey,
+  parseOpenCodeCredential,
 } from "../../src/readers/opencodeParser.js";
 
 describe("opencodeParser", () => {
@@ -60,6 +61,43 @@ describe("opencodeParser", () => {
       expect(parseOpenCodeAuthKey("{}")).toBeNull();
       expect(parseOpenCodeAuthKey(JSON.stringify({ "opencode-go": null }))).toBeNull();
       expect(parseOpenCodeAuthKey(JSON.stringify({ "opencode-go": { key: "   " } }))).toBeNull();
+    });
+  });
+
+  describe("parseOpenCodeCredential", () => {
+    it("reads the OAuth access token from a v2 credential row", () => {
+      expect(
+        parseOpenCodeCredential(
+          JSON.stringify({
+            type: "oauth",
+            methodID: "device",
+            access: "st-access-token",
+            refresh: "rt-refresh-token",
+            expires: 1798071074143,
+            metadata: { server: "https://opencode.ai" },
+          }),
+        ),
+      ).toBe("st-access-token");
+    });
+
+    it("reads the API key from a v2 key credential row", () => {
+      expect(parseOpenCodeCredential(JSON.stringify({ type: "key", key: "sk-opencode-abc" }))).toBe(
+        "sk-opencode-abc",
+      );
+    });
+
+    it("prefers the access token over a key", () => {
+      expect(
+        parseOpenCodeCredential(JSON.stringify({ access: "st-access-token", key: "sk-legacy" })),
+      ).toBe("st-access-token");
+    });
+
+    it("returns null on malformed or empty input", () => {
+      expect(parseOpenCodeCredential("not json")).toBeNull();
+      expect(parseOpenCodeCredential("null")).toBeNull();
+      expect(parseOpenCodeCredential("[]")).toBeNull();
+      expect(parseOpenCodeCredential(JSON.stringify({ type: "oauth", access: "  " }))).toBeNull();
+      expect(parseOpenCodeCredential(JSON.stringify({ type: "oauth" }))).toBeNull();
     });
   });
 

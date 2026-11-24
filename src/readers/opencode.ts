@@ -1,7 +1,7 @@
 import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 
-import { HttpClient } from "../helpers/http.js";
+import { HttpClient, TokenError } from "../helpers/http.js";
 import { logWarn } from "../helpers/log.js";
 import { resolveOpenCodeDataDir } from "../helpers/paths.js";
 import { querySqlite } from "../helpers/sqlite.js";
@@ -16,11 +16,21 @@ import {
   normalizeOpenCodeUsagePayload,
   openCodePartialError,
   parseOpenCodeAuthKey,
+  parseOpenCodeCredential,
 } from "./opencodeParser.js";
 
 const OPENCODE_ALL_PATHS_FAILED =
   "OpenCode: no usage data. Run `opencode auth login` and start OpenCode Go.";
+const OPENCODE_CREDENTIAL_SQL =
+  "SELECT value FROM credential WHERE integration_id = 'opencode' AND active = 1 ORDER BY time_updated DESC LIMIT 1";
 const OPENCODE_USAGE_URL = "https://opencode.ai/zen/go/v1/usage";
+
+type OpenCodeCredentialSource = "v2-database" | "v1-auth-file" | "environment";
+
+interface OpenCodeCredential {
+  readonly source: OpenCodeCredentialSource;
+  readonly token: string;
+}
 
 Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish");
 
@@ -96,26 +106,67 @@ export class OpenCodeReader extends BaseReader<"opencode"> {
     );
   }
 
-  private async _readApiKey(cancellable: Gio.Cancellable | null): Promise<string | null> {
-    let key: string | null = null;
+  private async _availableCredentials(
+    cancellable: Gio.Cancellable | null,
+  ): Promise<OpenCodeCredential[]> {
+    const credentials: OpenCodeCredential[] = [];
+
+    const databaseToken = await this._readV2Credential();
+    if (databaseToken) credentials.push({ source: "v2-database", token: databaseToken });
+
+    const authFileToken = await this._readV1Credential(cancellable);
+    if (authFileToken) credentials.push({ source: "v1-auth-file", token: authFileToken });
+
+    const environmentToken = GLib.getenv("OPENCODE_API_KEY")?.trim();
+    if (environmentToken) credentials.push({ source: "environment", token: environmentToken });
+
+    return credentials;
+  }
+
+  private async _readV2Credential(): Promise<string | null> {
+    const dbPath = GLib.build_filenamev([this._dataDir(), "opencode.db"]);
+    const rows = await querySqlite(dbPath, OPENCODE_CREDENTIAL_SQL, {
+      timeoutSeconds: 5,
+      cache: false,
+    });
+    if (!Array.isArray(rows)) return null;
+    for (const row of rows) {
+      if (typeof row !== "object" || row === null || Array.isArray(row)) continue;
+      const value = (row as Record<string, unknown>).value;
+      if (typeof value !== "string") continue;
+      const token = parseOpenCodeCredential(value);
+      if (token) return token;
+    }
+    return null;
+  }
+
+  private async _readV1Credential(cancellable: Gio.Cancellable | null): Promise<string | null> {
     try {
       const file = Gio.File.new_for_path(GLib.build_filenamev([this._dataDir(), "auth.json"]));
       const [contents] = await file.load_contents_async(cancellable);
-      key = parseOpenCodeAuthKey(new TextDecoder().decode(contents));
+      return parseOpenCodeAuthKey(new TextDecoder().decode(contents));
     } catch {
-      key = null;
+      return null;
     }
-
-    if (key) return key;
-
-    const envKey = GLib.getenv("OPENCODE_API_KEY");
-    return envKey && envKey.trim() ? envKey.trim() : null;
   }
 
   private async _readUsage(cancellable: Gio.Cancellable | null): Promise<OpenCodeUsage | null> {
-    const key = await this._readApiKey(cancellable);
-    if (!key) return null;
-    return this._fetchUsage(key, cancellable);
+    const credentials = await this._availableCredentials(cancellable);
+    let firstError: unknown = null;
+
+    for (const credential of credentials) {
+      if (cancellable?.is_cancelled()) break;
+      try {
+        const usage = await this._fetchUsage(credential.token, cancellable);
+        if (usage) return usage;
+      } catch (error) {
+        firstError ??= error;
+        if (!(error instanceof TokenError)) throw error;
+      }
+    }
+
+    if (firstError) throw firstError;
+    return null;
   }
 
   private async _fetchUsage(
