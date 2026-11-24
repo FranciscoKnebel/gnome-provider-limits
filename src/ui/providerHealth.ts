@@ -1,5 +1,5 @@
 import type { FieldDef, FieldResult } from "../readers/base.js";
-import { FieldStatus, isLimitReached, ReaderStatus } from "../readers/base.js";
+import { FieldStatus, fieldStatusDegrades, isLimitReached, ReaderStatus } from "../readers/base.js";
 import type { FieldTone } from "./fieldRows.js";
 import { fieldTone } from "./fieldRows.js";
 import type { FieldView } from "./fieldViews.js";
@@ -29,7 +29,10 @@ export const PROVIDER_SEVERITIES = [
 ] as const;
 export type ProviderSeverity = (typeof PROVIDER_SEVERITIES)[number];
 
+export type DisplayStatus = Exclude<ReaderStatus, ReaderStatus.DISABLED>;
+
 export interface ProviderHealth {
+  readonly displayStatus: DisplayStatus;
   readonly severity: ProviderSeverity;
   readonly state: ProviderState;
   readonly tone: HealthTone;
@@ -223,11 +226,20 @@ export function deriveSeverity(
   return "idle";
 }
 
+export function resolveDisplayStatus(
+  status: DisplayStatus,
+  fromCache: boolean,
+  views: readonly FieldView[],
+): DisplayStatus {
+  if (status !== ReaderStatus.PARTIAL || fromCache) return status;
+  return views.some((view) => fieldStatusDegrades(view.status)) ? status : ReaderStatus.OK;
+}
+
 /** The single health contract: all data is required, no injection knobs. */
 export interface ProviderHealthData {
   readonly fields: readonly FieldResult[];
   readonly fromCache: boolean;
-  readonly displayStatus: ReaderStatus;
+  readonly status: DisplayStatus;
   readonly views: readonly FieldView[];
   readonly fieldDefs: readonly FieldDef[];
   readonly t: (s: string) => string;
@@ -236,11 +248,12 @@ export interface ProviderHealthData {
 export function deriveProviderHealth({
   fields,
   fromCache,
-  displayStatus,
+  status,
   views,
   fieldDefs,
   t: tr,
 }: ProviderHealthData): ProviderHealth {
+  const displayStatus = resolveDisplayStatus(status, fromCache, views);
   const worstTone = worstFieldTone(collectFieldTones(views, fields, fieldDefs));
   const hasUsableField =
     views.some((view) => view.hasValue) || fields.some((field) => field.status === FieldStatus.OK);
@@ -254,6 +267,7 @@ export function deriveProviderHealth({
   const { pillTag, pillAccessibleText } = presentation;
 
   return {
+    displayStatus,
     severity,
     state,
     tone,

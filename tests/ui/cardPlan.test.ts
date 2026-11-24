@@ -254,7 +254,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         deriveProviderHealth({
           fields: result.fields,
           fromCache: result.fromCache,
-          displayStatus: result.status,
+          status: ReaderStatus.OK,
           views,
           fieldDefs: CODEX_FIELDS,
           t: (text) => text,
@@ -447,7 +447,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       expect(card.facts.badges.card).toBe("live");
       expect(card.facts.badges.cardText).toBe("Live");
       expect(card.facts.health.tone).toBe("warning");
-      expect(card.facts.diagnostic.text).toBeNull();
+      expect(card.facts.diagnostic).toEqual({ kind: null });
       expect(card.facts.views.limit.progress).toHaveSize(1);
       expect(card.facts.views.limit.progress[0].fillPercent).toBe(72);
       expect(card.facts.views.limit.progress[0].tone).toBe("warning");
@@ -530,8 +530,12 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         locale: "en",
       });
       expect(partialCard.facts.badges.card).toBe("cached");
-      expect(partialCard.facts.diagnostic.kind).toBe("warning");
-      expect(partialCard.facts.diagnostic.text).toContain("Last-Known-Good");
+      expect(partialCard.facts.diagnostic).toEqual({
+        kind: "warning",
+        text: "CLI fallback failed; showing Last-Known-Good.",
+        badge: "Cached",
+        message: "CLI fallback failed; showing Last-Known-Good.",
+      });
       expect(partialCard.facts.views.limit.progress).toHaveSize(1);
 
       const errorCard = cardFor({
@@ -550,8 +554,12 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         locale: "en",
       });
       expect(errorCard.facts.badges.card).toBe("error");
-      expect(errorCard.facts.diagnostic.kind).toBe("error");
-      expect(errorCard.facts.diagnostic.text).toBe("Run codex login.");
+      expect(errorCard.facts.diagnostic).toEqual({
+        kind: "error",
+        text: "Run codex login.",
+        badge: "Error",
+        message: "Run codex login.",
+      });
       expect(errorCard.facts.views.limit.progress).toEqual([]);
       expect(errorCard.facts.lastUpdatedText).toBeNull();
 
@@ -570,9 +578,12 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         locale: "en",
       });
       expect(unavailableCard.facts.badges.card).toBe("unavailable");
-      expect(unavailableCard.facts.diagnostic.kind).toBe("error");
-      expect(unavailableCard.facts.diagnostic.text).toBe("Unavailable");
-      expect(unavailableCard.facts.diagnostic.badge).toBe("Error");
+      expect(unavailableCard.facts.diagnostic).toEqual({
+        kind: "error",
+        text: "Unavailable",
+        badge: "Error",
+        message: "Error",
+      });
     });
 
     it("derives empty, loading, ready and refresh-aware card states from the view", () => {

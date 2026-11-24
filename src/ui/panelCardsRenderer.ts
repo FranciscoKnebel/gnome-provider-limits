@@ -120,7 +120,7 @@ export class CardsPanelSection extends PanelStyleSection {
     card.add_child(header);
 
     const diagnostic = facts.diagnostic;
-    if (diagnostic.kind !== null && diagnostic.text !== null) {
+    if (diagnostic.kind !== null) {
       const bannerBox = new St.BoxLayout({
         style_class: bannerStyleClass(diagnostic.kind),
         x_expand: true,

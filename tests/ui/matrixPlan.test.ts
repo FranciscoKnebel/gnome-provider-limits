@@ -378,8 +378,12 @@ describe("matrixPlan", () => {
       expect(facts.usage.header.fillRatio).toBe(0.75);
       expect(formatSegmentedBar(facts.usage.header.fillRatio ?? 0, 5)).toBe("▰▰▰▰▱");
       expect(facts.usage.header.tone).toBe("warning");
-      expect(facts.diagnostic.kind).toBe("warning");
-      expect(facts.diagnostic.message).toBe("Showing recent cached limits");
+      expect(facts.diagnostic).toEqual({
+        kind: "warning",
+        text: "Showing recent cached limits",
+        badge: "Partial",
+        message: "Showing recent cached limits",
+      });
       expect(facts.lastUpdatedText).toContain("Last updated:");
 
       const limits = model.panelViews.filter((view) => view.category !== "telemetry");
@@ -497,13 +501,21 @@ describe("matrixPlan", () => {
       );
 
       const codexExpanded = expandedContext.models.find((model) => model.provider === "codex");
-      expect(codexExpanded?.facts.diagnostic.kind).toBe("error");
-      expect(codexExpanded?.facts.diagnostic.message).toBe("Codex login required");
+      expect(codexExpanded?.facts.diagnostic).toEqual({
+        kind: "error",
+        text: "Codex login required",
+        badge: "Error",
+        message: "Codex login required",
+      });
 
       const claudeExpanded = expandedContext.models.find((model) => model.provider === "claude");
       expect(claudeExpanded?.facts.usage.header.summaryText).toBe("(unavailable)");
-      expect(claudeExpanded?.facts.diagnostic.text).toBe("Unavailable");
-      expect(claudeExpanded?.facts.diagnostic.message).toBe("Error");
+      expect(claudeExpanded?.facts.diagnostic).toEqual({
+        kind: "error",
+        text: "Unavailable",
+        badge: "Error",
+        message: "Error",
+      });
     });
   });
 

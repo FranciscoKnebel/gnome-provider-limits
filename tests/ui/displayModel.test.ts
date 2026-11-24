@@ -346,7 +346,6 @@ describe("deriveDisplayModel owns diagnostics and reset pairing", () => {
       text: "HTTP 503",
       message: "HTTP 503",
     });
-    expect(cached.facts.diagnostic.message).toBe("HTTP 503");
 
     const partialResult: ReaderResult = {
       ...result,
@@ -358,7 +357,12 @@ describe("deriveDisplayModel owns diagnostics and reset pairing", () => {
       ],
     };
     const partial = modelFor(partialResult, ["used_percent_secondary"]);
-    expect(partial.facts.diagnostic.badge).toBe("Partial");
+    expect(partial.facts.diagnostic).toEqual({
+      kind: "warning",
+      badge: "Partial",
+      text: "CLI failed",
+      message: "CLI failed",
+    });
 
     const errorResult: ReaderResult = { ...result, status: ReaderStatus.ERROR, lastError: "Login" };
     const error = modelFor(errorResult, []);
@@ -381,11 +385,9 @@ describe("deriveDisplayModel owns diagnostics and reset pairing", () => {
       text: "Unavailable",
       message: "Error",
     });
-    expect(unavailable.facts.diagnostic.message).toBe("Error");
 
     const healthy = modelFor(result, []);
-    expect(healthy.facts.diagnostic.kind).toBeNull();
-    expect(healthy.facts.diagnostic.message).toBeNull();
+    expect(healthy.facts.diagnostic).toEqual({ kind: null });
     expect(healthy.facts.lastUpdatedText).toContain("Last updated:");
   });
 });

@@ -281,12 +281,11 @@ function compactContext() {
   const model = (provider) => ({
     provider,
     displayName: provider,
-    status: "ok",
-    result: { lastError: null },
     facts: {
+      displayStatus: "ok",
       badges: { status: "" },
       usage: { header: { fillRatio: 0.5, tone: "ok", summaryText: "50%" } },
-      diagnostic: { kind: null, text: null, badge: null },
+      diagnostic: { kind: null },
       panelViews: [],
       lastUpdatedText: null,
     },

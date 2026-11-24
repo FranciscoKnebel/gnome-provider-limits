@@ -460,7 +460,10 @@ export function mergeGoogleUsage(
 export interface GoogleTier {
   id: string | null;
   name: string | null;
+  supportsFiveHourWindows: boolean;
 }
+
+const TIERS_WITHOUT_FIVE_HOUR_WINDOWS = new Set(["free-tier"]);
 
 function tierString(record: Record<string, unknown> | null, key: string): string | null {
   const value = record?.[key];
@@ -476,5 +479,10 @@ export function parseGoogleTier(raw: unknown): GoogleTier | null {
   const source = paidId !== null || paidName !== null ? paid : current;
   const id = tierString(source, "id");
   const name = tierString(source, "name");
-  return id || name ? { id, name } : null;
+  if (!id && !name) return null;
+  return {
+    id,
+    name,
+    supportsFiveHourWindows: id === null || !TIERS_WITHOUT_FIVE_HOUR_WINDOWS.has(id),
+  };
 }

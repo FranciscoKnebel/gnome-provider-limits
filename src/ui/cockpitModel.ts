@@ -76,7 +76,7 @@ export function buildOverviewRowModel(model: ProviderDisplayModel): OverviewRowM
   const meter = facts.meter;
 
   if (badgeKind === "error") {
-    const errSummary = facts.diagnostic.message ?? "Error";
+    const errSummary = facts.diagnostic.kind === "error" ? facts.diagnostic.message : "Error";
     return {
       provider,
       displayName,

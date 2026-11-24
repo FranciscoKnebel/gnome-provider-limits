@@ -1,6 +1,6 @@
 import { formatField } from "../formatters.js";
 import type { FieldDef, FieldZone, ReaderResult } from "../readers/base.js";
-import { FieldStatus } from "../readers/base.js";
+import { FieldStatus, hasUsableFieldValue } from "../readers/base.js";
 import type { FieldView } from "./fieldViews.js";
 
 /** The one reset pairing per percent field, independent of the consuming surface. */
@@ -32,10 +32,7 @@ export function deriveResetPairings(
     if (defByName.get(view.resetName)?.type !== "timestamp") continue;
 
     const resetField = fieldByName.get(view.resetName);
-    const hasValue =
-      resetField?.status === FieldStatus.OK &&
-      resetField.value !== null &&
-      resetField.value !== undefined;
+    const hasValue = resetField?.status === FieldStatus.OK && hasUsableFieldValue(resetField.value);
     const inPanel = panelFields.includes(view.resetName);
     if (!hasValue && !zoneFields.includes(view.resetName)) continue;
     const isClaimed = panelFields.includes(view.name) && !claimed.has(view.resetName);

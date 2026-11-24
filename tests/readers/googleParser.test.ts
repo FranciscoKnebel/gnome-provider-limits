@@ -665,6 +665,7 @@ describe("hasActiveGoogleUsage, mergeGoogleUsage & parseGoogleTier", () => {
     expect(parseGoogleTier(raw)).toEqual({
       id: "free-tier",
       name: "Antigravity Starter Quota",
+      supportsFiveHourWindows: false,
     });
   });
 
@@ -674,17 +675,17 @@ describe("hasActiveGoogleUsage, mergeGoogleUsage & parseGoogleTier", () => {
         paidTier: { id: "g1-ultra-tier", name: "Google AI Ultra" },
         currentTier: { id: "standard-tier", name: "Gemini Code Assist" },
       }),
-    ).toEqual({ id: "g1-ultra-tier", name: "Google AI Ultra" });
+    ).toEqual({ id: "g1-ultra-tier", name: "Google AI Ultra", supportsFiveHourWindows: true });
     expect(
       parseGoogleTier({
         currentTier: { id: "standard-tier", name: "Google AI Pro" },
       }),
-    ).toEqual({ id: "standard-tier", name: "Google AI Pro" });
+    ).toEqual({ id: "standard-tier", name: "Google AI Pro", supportsFiveHourWindows: true });
     expect(
       parseGoogleTier({
         paidTier: { id: "g1-pro-tier" },
       }),
-    ).toEqual({ id: "g1-pro-tier", name: null });
+    ).toEqual({ id: "g1-pro-tier", name: null, supportsFiveHourWindows: true });
     expect(parseGoogleTier({})).toBeNull();
     expect(parseGoogleTier(null)).toBeNull();
     expect(
@@ -692,16 +693,21 @@ describe("hasActiveGoogleUsage, mergeGoogleUsage & parseGoogleTier", () => {
         paidTier: { id: "free-tier", name: "Antigravity Starter Quota" },
         currentTier: { id: "free-tier", name: "Antigravity" },
       }),
-    ).toEqual({ id: "free-tier", name: "Antigravity Starter Quota" });
+    ).toEqual({
+      id: "free-tier",
+      name: "Antigravity Starter Quota",
+      supportsFiveHourWindows: false,
+    });
     expect(parseGoogleTier({ currentTier: { name: "Google AI Pro" } })).toEqual({
       id: null,
       name: "Google AI Pro",
+      supportsFiveHourWindows: true,
     });
     expect(
       parseGoogleTier({
         paidTier: { name: "Google AI Pro" },
         currentTier: { id: "free-tier", name: "Antigravity" },
       }),
-    ).toEqual({ id: null, name: "Google AI Pro" });
+    ).toEqual({ id: null, name: "Google AI Pro", supportsFiveHourWindows: true });
   });
 });

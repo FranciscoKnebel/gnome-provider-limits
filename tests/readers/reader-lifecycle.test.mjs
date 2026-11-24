@@ -249,7 +249,11 @@ for (const phase of ["auth", "refresh", "quota", "tier"])
       normalizeGoogleAvailableModels: () => null,
       hasActiveGoogleUsage: () => true,
       mergeGoogleUsage: (_a, b) => b,
-      parseGoogleTier: () => ({ id: "g1-ultra-tier", name: "Google AI Ultra" }),
+      parseGoogleTier: () => ({
+        id: "g1-ultra-tier",
+        name: "Google AI Ultra",
+        supportsFiveHourWindows: true,
+      }),
       FieldStatus: { OK: "ok", UNAVAILABLE: "unavailable", NOT_APPLICABLE: "not_applicable" },
       logWarn() {},
       _: (s) => s,

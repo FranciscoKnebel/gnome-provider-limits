@@ -7,6 +7,7 @@ import { deriveFieldViews } from "../../src/ui/fieldViews.js";
 import {
   deriveProviderHealth,
   deriveSeverity,
+  type DisplayStatus,
   HEALTH_BY_SEVERITY,
   isLastKnownGood,
   worstFieldTone,
@@ -225,13 +226,12 @@ describe("providerHealth pure helpers", () => {
     expect(attentionForTones(ReaderStatus.ERROR, [])).toBe("error");
   });
 
-  it("keeps all 80 status, tone, usable-field and last-known-good combinations identical", () => {
+  it("keeps all 64 status, tone, usable-field and last-known-good combinations identical", () => {
     const statuses = [
       ReaderStatus.OK,
       ReaderStatus.PARTIAL,
       ReaderStatus.ERROR,
       ReaderStatus.UNAVAILABLE,
-      ReaderStatus.DISABLED,
     ];
     const tones: readonly (FieldTone | undefined)[] = [undefined, "ok", "warning", "critical"];
     let checked = 0;
@@ -248,11 +248,15 @@ describe("providerHealth pure helpers", () => {
               pathsTried: [],
               fields: [],
             };
+            const views =
+              status === ReaderStatus.PARTIAL
+                ? [viewFor(tone, hasUsableField), viewFor(undefined, false)]
+                : [viewFor(tone, hasUsableField)];
             const health = deriveProviderHealth({
               fields: result.fields,
               fromCache: result.fromCache,
-              displayStatus: status,
-              views: [viewFor(tone, hasUsableField)],
+              status: status as DisplayStatus,
+              views,
               fieldDefs: [],
               t: (text) => text,
             });
@@ -276,7 +280,7 @@ describe("providerHealth pure helpers", () => {
         }
       }
     }
-    expect(checked).toBe(80);
+    expect(checked).toBe(64);
   });
 
   it("uses the required data contract to compute health and localized state text", () => {
@@ -296,7 +300,7 @@ describe("providerHealth pure helpers", () => {
     const health = deriveProviderHealth({
       fields: result.fields,
       fromCache: result.fromCache,
-      displayStatus: result.status,
+      status: result.status as DisplayStatus,
       views,
       fieldDefs: CODEX_FIELDS,
       t: (text) => `T:${text}`,
@@ -316,7 +320,7 @@ describe("providerHealth pure helpers", () => {
     const errorHealth = deriveProviderHealth({
       fields: errorResult.fields,
       fromCache: errorResult.fromCache,
-      displayStatus: errorResult.status,
+      status: errorResult.status as DisplayStatus,
       views,
       fieldDefs: CODEX_FIELDS,
       t: (text) => `T:${text}`,

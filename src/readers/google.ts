@@ -82,32 +82,45 @@ interface CandidateQuotaOutcome {
   endpointUsed: string;
 }
 
-const GOOGLE_WINDOW_FIELDS: Record<GoogleWindowId, WindowFieldNames<"google">> = {
+interface GoogleWindowSpec {
+  readonly fields: WindowFieldNames<"google">;
+  readonly fiveHour: boolean;
+}
+
+const GOOGLE_WINDOW_SPECS: Record<GoogleWindowId, GoogleWindowSpec> = {
   session: {
-    used: "used_percent_session",
-    remaining: "remaining_percent_session",
-    reset: "reset_at_session",
+    fiveHour: true,
+    fields: {
+      used: "used_percent_session",
+      remaining: "remaining_percent_session",
+      reset: "reset_at_session",
+    },
   },
   weekly: {
-    used: "used_percent_weekly",
-    remaining: "remaining_percent_weekly",
-    reset: "reset_at_weekly",
+    fiveHour: false,
+    fields: {
+      used: "used_percent_weekly",
+      remaining: "remaining_percent_weekly",
+      reset: "reset_at_weekly",
+    },
   },
   thirdPartySession: {
-    used: "used_percent_3p_session",
-    remaining: "remaining_percent_3p_session",
-    reset: "reset_at_3p_session",
+    fiveHour: true,
+    fields: {
+      used: "used_percent_3p_session",
+      remaining: "remaining_percent_3p_session",
+      reset: "reset_at_3p_session",
+    },
   },
   thirdPartyWeekly: {
-    used: "used_percent_3p_weekly",
-    remaining: "remaining_percent_3p_weekly",
-    reset: "reset_at_3p_weekly",
+    fiveHour: false,
+    fields: {
+      used: "used_percent_3p_weekly",
+      remaining: "remaining_percent_3p_weekly",
+      reset: "reset_at_3p_weekly",
+    },
   },
 };
-
-const FIVE_HOUR_WINDOW_IDS = new Set<GoogleWindowId>(["session", "thirdPartySession"]);
-
-const TIERS_WITHOUT_FIVE_HOUR_WINDOWS = new Set(["free-tier"]);
 
 const ABSENT_WINDOW_STATUS: Record<Exclude<GoogleWindow["state"], "present">, AbsentFieldStatus> = {
   unreported: FieldStatus.UNAVAILABLE,
@@ -575,10 +588,11 @@ export class GoogleReader extends BaseReader<"google"> {
     endpointUsed: string,
   ): FieldResult[] {
     const plan = tier?.name ?? tier?.id ?? null;
-    const weeklyOnlyTier = tier?.id != null && TIERS_WITHOUT_FIVE_HOUR_WINDOWS.has(tier.id);
+    const weeklyOnlyTier = tier?.supportsFiveHourWindows === false;
     const fields: FieldResult[] = [];
     for (const id of GOOGLE_WINDOW_IDS) {
-      const names = GOOGLE_WINDOW_FIELDS[id];
+      const spec = GOOGLE_WINDOW_SPECS[id];
+      const names = spec.fields;
       const window = usage[id];
       if (window.state === "present") {
         const data = window.usage;
@@ -595,7 +609,7 @@ export class GoogleReader extends BaseReader<"google"> {
         continue;
       }
       const unsupportedPlanWindow =
-        window.state === "unreported" && FIVE_HOUR_WINDOW_IDS.has(id) && weeklyOnlyTier;
+        window.state === "unreported" && spec.fiveHour && weeklyOnlyTier;
       const status = unsupportedPlanWindow
         ? FieldStatus.NOT_APPLICABLE
         : ABSENT_WINDOW_STATUS[window.state];

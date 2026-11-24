@@ -71,7 +71,7 @@ export class DetailRenderer {
 
     return {
       diagnostic: facts.diagnostic,
-      calloutText: facts.diagnostic.message,
+      calloutText: facts.diagnostic.kind === null ? null : facts.diagnostic.message,
       isError,
       gaugeRows: chunkGauges(gauges),
       gaugeCount: gauges.length,
@@ -99,7 +99,7 @@ export class DetailRenderer {
       lastUpdatedText,
     } = plan;
 
-    if (diagnostic.kind !== null && diagnostic.badge !== null && message !== null) {
+    if (diagnostic.kind !== null && message !== null) {
       const row = this._addRow(null);
       const box = new St.BoxLayout({
         vertical: true,

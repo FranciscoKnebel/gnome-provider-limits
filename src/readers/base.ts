@@ -72,10 +72,6 @@ export function isHardStatus(status: ReaderStatus): boolean {
   return status === ReaderStatus.ERROR || status === ReaderStatus.UNAVAILABLE;
 }
 
-export function isHardError(result: ReaderResult): boolean {
-  return isHardStatus(result.status);
-}
-
 export function isLimitReached(fields: readonly FieldResult[] | undefined): boolean {
   const field = fields?.find((candidate) => candidate.name === "limit_reached");
   return field?.status === FieldStatus.OK && field.value === true;
