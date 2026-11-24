@@ -418,12 +418,11 @@ export async function run() {
       () =>
         new GoogleReader(new MockSettings(), "google")._fieldsFromUsage(
           {
-            session: null,
-            weekly: null,
-            thirdPartySession: null,
-            thirdPartyWeekly: null,
+            session: { state: "omitted" },
+            weekly: { state: "omitted" },
+            thirdPartySession: { state: "omitted" },
+            thirdPartyWeekly: { state: "omitted" },
             limitReached: null,
-            invalidWindows: [],
           },
           null,
           "cloudcode-pa.googleapis.com",

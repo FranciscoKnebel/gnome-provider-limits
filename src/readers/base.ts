@@ -81,13 +81,18 @@ export interface ReadOptions {
   force?: boolean;
 }
 
-export type ResetFieldStatus = FieldStatus.NOT_APPLICABLE | FieldStatus.UNAVAILABLE;
+export type ResetFieldStatus = FieldStatus.UNAVAILABLE | FieldStatus.NOT_APPLICABLE;
+
+export interface WindowResetField {
+  readonly at: number | null;
+  readonly status: FieldStatus;
+}
 
 export interface WindowFieldStatus {
-  /** Status for every field when the provider does not expose the window. */
-  readonly absent?: FieldStatus;
-  /** Non-OK status for a missing reset timestamp; a present timestamp is always OK. */
-  readonly reset?: ResetFieldStatus;
+  /** Non-OK status for every field when the provider does not expose the window. */
+  readonly absent?: ResetFieldStatus;
+  /** Value and status for the reset field when the window exists. */
+  readonly reset?: WindowResetField;
 }
 
 export abstract class BaseReader<P extends ProviderName = ProviderName> {
@@ -122,9 +127,10 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
     names: PercentFieldNames<P>,
     usedPct: number | null | undefined,
     status: FieldStatus,
+    absentStatus: ResetFieldStatus = FieldStatus.UNAVAILABLE,
   ): [FieldResult, FieldResult] {
     const hasUsedPct = typeof usedPct === "number" && Number.isFinite(usedPct);
-    const fieldStatus = hasUsedPct ? status : FieldStatus.UNAVAILABLE;
+    const fieldStatus = hasUsedPct ? status : absentStatus;
     return [
       this._makeField(names.used, hasUsedPct ? usedPct : null, fieldStatus),
       this._makeField(names.remaining, hasUsedPct ? 100 - usedPct : null, fieldStatus),
@@ -145,8 +151,7 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
     if (!data) {
       const absent = status.absent ?? FieldStatus.UNAVAILABLE;
       return [
-        this._makeField(names.used, null, absent),
-        this._makeField(names.remaining, null, absent),
+        ...this._makePercentFieldPair(names, null, absent, absent),
         this._makeField(names.reset, null, absent),
       ];
     }
@@ -154,11 +159,16 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
       typeof data.used_percent === "number" && Number.isFinite(data.used_percent)
         ? FieldStatus.OK
         : FieldStatus.UNAVAILABLE;
-    const resetStatus =
-      data.reset_at != null ? FieldStatus.OK : (status.reset ?? FieldStatus.UNAVAILABLE);
+    const reset = status.reset;
+    const resetAt = reset ? reset.at : (data.reset_at ?? null);
+    const resetStatus = reset
+      ? reset.status
+      : data.reset_at != null
+        ? FieldStatus.OK
+        : FieldStatus.UNAVAILABLE;
     return [
       ...this._makePercentFieldPair(names, data.used_percent ?? null, percentStatus),
-      this._makeField(names.reset, data.reset_at ?? null, resetStatus),
+      this._makeField(names.reset, resetAt, resetStatus),
     ];
   }
 

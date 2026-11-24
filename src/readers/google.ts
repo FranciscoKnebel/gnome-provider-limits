@@ -10,13 +10,7 @@ import {
   resolveGooglePrimaryAuthPaths,
   type Env,
 } from "../helpers/paths.js";
-import {
-  BaseReader,
-  FieldStatus,
-  type FieldResult,
-  type ReaderResult,
-  type WindowFieldStatus,
-} from "./base.js";
+import { BaseReader, FieldStatus, type FieldResult, type ReaderResult } from "./base.js";
 import {
   GOOGLE_CLOUDCODE_DAILY_URL,
   GOOGLE_OAUTH_TOKEN_URL,
@@ -77,15 +71,19 @@ interface CandidateQuotaOutcome {
   endpointUsed: string;
 }
 
-function resetOverrideFor(reset: GoogleWindowReset): WindowFieldStatus["reset"] {
+function resetStatusFor(reset: GoogleWindowReset): FieldStatus {
   switch (reset.state) {
     case "present":
-      return undefined;
+      return FieldStatus.OK;
     case "idle":
       return FieldStatus.NOT_APPLICABLE;
     case "missing":
       return FieldStatus.UNAVAILABLE;
   }
+}
+
+function assertNever(value: never): never {
+  throw new Error(`unexpected Google window state: ${String(value)}`);
 }
 
 export class GoogleReader extends BaseReader<"google"> {
@@ -548,60 +546,66 @@ export class GoogleReader extends BaseReader<"google"> {
   ): FieldResult[] {
     const windows = [
       {
-        id: "session",
         names: {
           used: "used_percent_session",
           remaining: "remaining_percent_session",
           reset: "reset_at_session",
         },
-        data: usage.session,
+        window: usage.session,
       },
       {
-        id: "weekly",
         names: {
           used: "used_percent_weekly",
           remaining: "remaining_percent_weekly",
           reset: "reset_at_weekly",
         },
-        data: usage.weekly,
+        window: usage.weekly,
       },
       {
-        id: "thirdPartySession",
         names: {
           used: "used_percent_3p_session",
           remaining: "remaining_percent_3p_session",
           reset: "reset_at_3p_session",
         },
-        data: usage.thirdPartySession,
+        window: usage.thirdPartySession,
       },
       {
-        id: "thirdPartyWeekly",
         names: {
           used: "used_percent_3p_weekly",
           remaining: "remaining_percent_3p_weekly",
           reset: "reset_at_3p_weekly",
         },
-        data: usage.thirdPartyWeekly,
+        window: usage.thirdPartyWeekly,
       },
     ] as const;
 
     const fields: FieldResult[] = [];
-    for (const { id, names, data } of windows) {
-      if (!data) {
-        const absent = usage.invalidWindows.includes(id)
-          ? FieldStatus.UNAVAILABLE
-          : FieldStatus.NOT_APPLICABLE;
-        fields.push(...this._makeWindowFields(names, null, { absent }));
-        continue;
+    for (const { names, window } of windows) {
+      switch (window.state) {
+        case "present": {
+          const data = window.usage;
+          const resetAt = data.reset.state === "present" ? data.reset.at : null;
+          fields.push(
+            ...this._makeWindowFields(
+              names,
+              { used_percent: data.usedPercent, reset_at: resetAt },
+              { reset: { at: resetAt, status: resetStatusFor(data.reset) } },
+            ),
+          );
+          break;
+        }
+        case "omitted":
+        case "disabled":
+          fields.push(
+            ...this._makeWindowFields(names, null, { absent: FieldStatus.NOT_APPLICABLE }),
+          );
+          break;
+        case "malformed":
+          fields.push(...this._makeWindowFields(names, null, { absent: FieldStatus.UNAVAILABLE }));
+          break;
+        default:
+          assertNever(window);
       }
-      const resetAt = data.reset.state === "present" ? data.reset.at : null;
-      fields.push(
-        ...this._makeWindowFields(
-          names,
-          { used_percent: data.usedPercent, reset_at: resetAt },
-          { reset: resetOverrideFor(data.reset) },
-        ),
-      );
     }
 
     fields.push(this._makeOptionalField("limit_reached", usage.limitReached));

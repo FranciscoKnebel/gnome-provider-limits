@@ -15,6 +15,7 @@ import {
   parseGoogleTokenResponse,
   resolveGoogleQuotaEndpoints,
   type GoogleUsage,
+  type GoogleWindowReset,
 } from "../../src/readers/googleParser.js";
 
 const NOW = Date.parse("2026-04-20T03:00:00Z");
@@ -22,6 +23,13 @@ const NOW = Date.parse("2026-04-20T03:00:00Z");
 const presentReset = (at: number) => ({ state: "present" as const, at });
 const idleReset = () => ({ state: "idle" as const });
 const missingReset = () => ({ state: "missing" as const });
+const presentWindow = (usedPercent: number, reset: GoogleWindowReset) => ({
+  state: "present" as const,
+  usage: { usedPercent, reset },
+});
+const omittedWindow = () => ({ state: "omitted" as const });
+const disabledWindow = () => ({ state: "disabled" as const });
+const malformedWindow = () => ({ state: "malformed" as const });
 
 describe("parseGoogleAuth", () => {
   it("parses Gemini CLI oauth_creds.json with valid expiry_date", () => {
@@ -210,24 +218,11 @@ describe("normalizeGoogleQuotaSummary", () => {
     const usage = normalizeGoogleQuotaSummary(raw, NOW);
 
     expect(usage).toEqual({
-      session: {
-        usedPercent: 4,
-        reset: presentReset(Date.parse("2026-04-20T05:10:00Z") / 1000),
-      },
-      weekly: {
-        usedPercent: 28,
-        reset: presentReset(Date.parse("2026-04-24T12:00:00Z") / 1000),
-      },
-      thirdPartySession: {
-        usedPercent: 0,
-        reset: idleReset(),
-      },
-      thirdPartyWeekly: {
-        usedPercent: 15,
-        reset: presentReset(Date.parse("2026-04-25T00:00:00Z") / 1000),
-      },
+      session: presentWindow(4, presentReset(Date.parse("2026-04-20T05:10:00Z") / 1000)),
+      weekly: presentWindow(28, presentReset(Date.parse("2026-04-24T12:00:00Z") / 1000)),
+      thirdPartySession: presentWindow(0, idleReset()),
+      thirdPartyWeekly: presentWindow(15, presentReset(Date.parse("2026-04-25T00:00:00Z") / 1000)),
       limitReached: false,
-      invalidWindows: [],
     });
   });
 
@@ -241,18 +236,11 @@ describe("normalizeGoogleQuotaSummary", () => {
     const usage = normalizeGoogleQuotaSummary(raw, Date.parse("2026-01-25T00:00:00Z"));
 
     expect(usage).toEqual({
-      session: null,
-      weekly: {
-        usedPercent: 0,
-        reset: idleReset(),
-      },
-      thirdPartySession: null,
-      thirdPartyWeekly: {
-        usedPercent: 100,
-        reset: presentReset(Date.parse("2026-01-26T00:00:00Z") / 1000),
-      },
+      session: omittedWindow(),
+      weekly: presentWindow(0, idleReset()),
+      thirdPartySession: omittedWindow(),
+      thirdPartyWeekly: presentWindow(100, presentReset(Date.parse("2026-01-26T00:00:00Z") / 1000)),
       limitReached: true,
-      invalidWindows: [],
     });
   });
 
@@ -270,10 +258,7 @@ describe("normalizeGoogleQuotaSummary", () => {
       NOW,
     );
 
-    expect(usage?.session).toEqual({
-      usedPercent: 50,
-      reset: missingReset(),
-    });
+    expect(usage?.session).toEqual(presentWindow(50, missingReset()));
   });
 
   it("records a malformed window without treating absent windows as invalid", () => {
@@ -296,8 +281,36 @@ describe("normalizeGoogleQuotaSummary", () => {
       NOW,
     );
 
-    expect(usage?.weekly?.usedPercent).toBe(50);
-    expect(usage?.invalidWindows).toEqual(["session"]);
+    expect(usage?.session).toEqual(malformedWindow());
+    expect(usage?.weekly).toEqual(
+      presentWindow(50, presentReset(Date.parse("2026-04-24T12:00:00Z") / 1000)),
+    );
+  });
+
+  it("marks a recognized disabled bucket as disabled instead of malformed", () => {
+    const usage = normalizeGoogleQuotaSummary(
+      {
+        buckets: [
+          {
+            bucketId: "gemini-5h",
+            window: "5h",
+            disabled: true,
+          },
+          {
+            bucketId: "gemini-weekly",
+            window: "weekly",
+            remainingFraction: 0.5,
+            resetTime: "2026-04-24T12:00:00Z",
+          },
+        ],
+      },
+      NOW,
+    );
+
+    expect(usage?.session).toEqual(disabledWindow());
+    expect(usage?.weekly).toEqual(
+      presentWindow(50, presentReset(Date.parse("2026-04-24T12:00:00Z") / 1000)),
+    );
   });
 
   it("handles top-level buckets, proto3 omitted zero remainingFraction, and fallback non-exact bucket aggregation", () => {
@@ -355,24 +368,11 @@ describe("normalizeGoogleQuotaSummary", () => {
     );
 
     expect(usage).toEqual({
-      session: {
-        usedPercent: 75,
-        reset: presentReset(Date.parse("2026-04-20T05:30:00Z") / 1000),
-      },
-      weekly: {
-        usedPercent: 30,
-        reset: presentReset(Date.parse("2026-04-25T00:00:00Z") / 1000),
-      },
-      thirdPartySession: {
-        usedPercent: 10,
-        reset: presentReset(Date.parse("2026-04-20T07:00:00Z") / 1000),
-      },
-      thirdPartyWeekly: {
-        usedPercent: 100,
-        reset: presentReset(Date.parse("2026-04-25T00:00:00Z") / 1000),
-      },
+      session: presentWindow(75, presentReset(Date.parse("2026-04-20T05:30:00Z") / 1000)),
+      weekly: presentWindow(30, presentReset(Date.parse("2026-04-25T00:00:00Z") / 1000)),
+      thirdPartySession: presentWindow(10, presentReset(Date.parse("2026-04-20T07:00:00Z") / 1000)),
+      thirdPartyWeekly: presentWindow(100, presentReset(Date.parse("2026-04-25T00:00:00Z") / 1000)),
       limitReached: true,
-      invalidWindows: [],
     });
   });
 
@@ -442,25 +442,50 @@ describe("normalizeGoogleAvailableModels", () => {
     );
 
     expect(usage).toEqual({
-      session: {
-        usedPercent: 20,
-        reset: presentReset(Date.parse("2026-04-20T05:00:00Z") / 1000),
-      },
-      weekly: {
-        usedPercent: 50,
-        reset: presentReset(Date.parse("2026-04-25T00:00:00Z") / 1000),
-      },
-      thirdPartySession: {
-        usedPercent: 10,
-        reset: presentReset(Date.parse("2026-04-20T07:00:00Z") / 1000),
-      },
-      thirdPartyWeekly: {
-        usedPercent: 0,
-        reset: idleReset(),
-      },
+      session: presentWindow(20, presentReset(Date.parse("2026-04-20T05:00:00Z") / 1000)),
+      weekly: presentWindow(50, presentReset(Date.parse("2026-04-25T00:00:00Z") / 1000)),
+      thirdPartySession: presentWindow(10, presentReset(Date.parse("2026-04-20T07:00:00Z") / 1000)),
+      thirdPartyWeekly: presentWindow(0, idleReset()),
       limitReached: false,
-      invalidWindows: [],
     });
+  });
+
+  it("keeps valid model windows and marks malformed quotas", () => {
+    const usage = normalizeGoogleAvailableModels(
+      {
+        models: {
+          "gemini-bad": {
+            modelProvider: "MODEL_PROVIDER_GOOGLE",
+            quotaInfo: { remainingFraction: 1.5 },
+          },
+          "gemini-good": {
+            modelProvider: "MODEL_PROVIDER_GOOGLE",
+            quotaInfo: {
+              remainingFraction: 0.6,
+              resetTime: "2026-04-20T06:00:00Z",
+            },
+            weeklyQuotaInfo: {
+              remainingFraction: 0.5,
+              resetTime: "2026-04-25T00:00:00Z",
+            },
+          },
+          "claude-bad": {
+            modelProvider: "MODEL_PROVIDER_ANTHROPIC",
+            quotaInfo: { remainingFraction: -0.1 },
+          },
+        },
+      },
+      NOW,
+    );
+
+    expect(usage?.session).toEqual(
+      presentWindow(40, presentReset(Date.parse("2026-04-20T06:00:00Z") / 1000)),
+    );
+    expect(usage?.weekly).toEqual(
+      presentWindow(50, presentReset(Date.parse("2026-04-25T00:00:00Z") / 1000)),
+    );
+    expect(usage?.thirdPartySession).toEqual(malformedWindow());
+    expect(usage?.thirdPartyWeekly).toEqual(omittedWindow());
   });
 
   it("returns null when models map is missing or empty", () => {
@@ -471,58 +496,78 @@ describe("normalizeGoogleAvailableModels", () => {
 
 describe("hasActiveGoogleUsage, mergeGoogleUsage & parseGoogleTierName", () => {
   it("detects active usage and merges primary and secondary endpoint windows", () => {
-    const idle = {
-      session: { usedPercent: 0, reset: idleReset() },
-      weekly: { usedPercent: 0, reset: idleReset() },
-      thirdPartySession: null,
-      thirdPartyWeekly: null,
+    const idle: GoogleUsage = {
+      session: presentWindow(0, idleReset()),
+      weekly: presentWindow(0, idleReset()),
+      thirdPartySession: omittedWindow(),
+      thirdPartyWeekly: omittedWindow(),
       limitReached: false,
-      invalidWindows: [],
     };
-    const active = {
-      session: { usedPercent: 12, reset: presentReset(1776660000) },
-      weekly: { usedPercent: 0, reset: presentReset(1777000000) },
-      thirdPartySession: { usedPercent: 5, reset: presentReset(1776663600) },
-      thirdPartyWeekly: null,
+    const active: GoogleUsage = {
+      session: presentWindow(12, presentReset(1776660000)),
+      weekly: presentWindow(0, presentReset(1777000000)),
+      thirdPartySession: presentWindow(5, presentReset(1776663600)),
+      thirdPartyWeekly: omittedWindow(),
       limitReached: false,
-      invalidWindows: [],
     };
 
     expect(hasActiveGoogleUsage(null)).toBe(false);
     expect(hasActiveGoogleUsage(idle)).toBe(false);
     expect(hasActiveGoogleUsage(active)).toBe(true);
     expect(hasCompleteActiveGoogleUsage(null)).toBe(false);
-    expect(hasCompleteActiveGoogleUsage({ ...active, thirdPartySession: null })).toBe(false);
+    expect(hasCompleteActiveGoogleUsage({ ...active, thirdPartySession: omittedWindow() })).toBe(
+      false,
+    );
     expect(hasCompleteActiveGoogleUsage(active)).toBe(true);
 
     expect(mergeGoogleUsage(null, active)).toEqual(active);
     expect(mergeGoogleUsage(active, null)).toEqual(active);
     expect(mergeGoogleUsage(idle, active)).toEqual({
-      session: { usedPercent: 12, reset: presentReset(1776660000) },
-      weekly: { usedPercent: 0, reset: presentReset(1777000000) },
-      thirdPartySession: { usedPercent: 5, reset: presentReset(1776663600) },
-      thirdPartyWeekly: null,
+      session: presentWindow(12, presentReset(1776660000)),
+      weekly: presentWindow(0, presentReset(1777000000)),
+      thirdPartySession: presentWindow(5, presentReset(1776663600)),
+      thirdPartyWeekly: omittedWindow(),
       limitReached: false,
-      invalidWindows: [],
     });
   });
 
   it("prefers idle over missing reset provenance independently of merge order", () => {
     const idleUsage: GoogleUsage = {
-      session: { usedPercent: 10, reset: idleReset() },
-      weekly: null,
-      thirdPartySession: null,
-      thirdPartyWeekly: null,
+      session: presentWindow(10, idleReset()),
+      weekly: omittedWindow(),
+      thirdPartySession: omittedWindow(),
+      thirdPartyWeekly: omittedWindow(),
       limitReached: false,
-      invalidWindows: [],
     };
     const missingUsage: GoogleUsage = {
       ...idleUsage,
-      session: { usedPercent: 10, reset: missingReset() },
+      session: presentWindow(10, missingReset()),
     };
 
-    expect(mergeGoogleUsage(idleUsage, missingUsage)?.session?.reset).toEqual(idleReset());
-    expect(mergeGoogleUsage(missingUsage, idleUsage)?.session?.reset).toEqual(idleReset());
+    expect(mergeGoogleUsage(idleUsage, missingUsage)?.session).toEqual(
+      presentWindow(10, idleReset()),
+    );
+    expect(mergeGoogleUsage(missingUsage, idleUsage)?.session).toEqual(
+      presentWindow(10, idleReset()),
+    );
+  });
+
+  it("prefers a valid window over a malformed one independently of merge order", () => {
+    const valid: GoogleUsage = {
+      session: presentWindow(10, presentReset(1776660000)),
+      weekly: omittedWindow(),
+      thirdPartySession: omittedWindow(),
+      thirdPartyWeekly: omittedWindow(),
+      limitReached: false,
+    };
+    const malformed: GoogleUsage = { ...valid, session: malformedWindow() };
+
+    expect(mergeGoogleUsage(valid, malformed)?.session).toEqual(
+      presentWindow(10, presentReset(1776660000)),
+    );
+    expect(mergeGoogleUsage(malformed, valid)?.session).toEqual(
+      presentWindow(10, presentReset(1776660000)),
+    );
   });
 
   it("parses paidTier and currentTier names or IDs from loadCodeAssist", () => {

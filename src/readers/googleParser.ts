@@ -26,21 +26,37 @@ export type GoogleWindowReset =
   | { readonly state: "missing" };
 
 export interface GoogleWindowUsage {
-  usedPercent: number | null;
+  usedPercent: number;
   reset: GoogleWindowReset;
 }
 
 export type GoogleWindowId = "session" | "weekly" | "thirdPartySession" | "thirdPartyWeekly";
 
+const GOOGLE_WINDOW_IDS: readonly GoogleWindowId[] = [
+  "session",
+  "weekly",
+  "thirdPartySession",
+  "thirdPartyWeekly",
+];
+
+export type GoogleWindow =
+  | { readonly state: "present"; readonly usage: GoogleWindowUsage }
+  | { readonly state: "omitted" }
+  | { readonly state: "disabled" }
+  | { readonly state: "malformed" };
+
 export interface GoogleUsage {
-  session: GoogleWindowUsage | null;
-  weekly: GoogleWindowUsage | null;
-  thirdPartySession: GoogleWindowUsage | null;
-  thirdPartyWeekly: GoogleWindowUsage | null;
+  session: GoogleWindow;
+  weekly: GoogleWindow;
+  thirdPartySession: GoogleWindow;
+  thirdPartyWeekly: GoogleWindow;
   limitReached: boolean | null;
-  /** Windows the provider reported but the parser could not use. */
-  invalidWindows: readonly GoogleWindowId[];
 }
+
+type ParsedBucket =
+  | { readonly state: "present"; readonly usage: GoogleWindowUsage }
+  | { readonly state: "disabled" }
+  | { readonly state: "malformed" };
 
 type QuotaFamily = "gemini" | "3p";
 type QuotaWindow = "5h" | "weekly";
@@ -164,8 +180,8 @@ function parseBucketWindowUsage(
   bucket: Record<string, unknown>,
   window: QuotaWindow,
   requestedAtMs: number,
-): GoogleWindowUsage | null {
-  if (bucket.disabled === true) return null;
+): ParsedBucket {
+  if (bucket.disabled === true) return { state: "disabled" };
 
   const rawResetSec = parseTimestampSeconds(bucket.resetTime);
   const rawFraction = bucket.remainingFraction;
@@ -173,7 +189,7 @@ function parseBucketWindowUsage(
   let usedPercent: number;
   let remainingFraction: number;
   if (rawFraction === undefined) {
-    if (rawResetSec === null) return null;
+    if (rawResetSec === null) return { state: "malformed" };
     remainingFraction = 0;
     usedPercent = 100;
   } else {
@@ -183,7 +199,7 @@ function parseBucketWindowUsage(
       rawFraction < 0 ||
       rawFraction > 1
     ) {
-      return null;
+      return { state: "malformed" };
     }
     remainingFraction = rawFraction;
     usedPercent = Math.round((1 - remainingFraction) * 10_000) / 100;
@@ -201,7 +217,7 @@ function parseBucketWindowUsage(
     }
   }
 
-  return { usedPercent, reset };
+  return { state: "present", usage: { usedPercent, reset } };
 }
 
 function resetAtOf(reset: GoogleWindowReset): number | null {
@@ -220,15 +236,11 @@ function resetRank(reset: GoogleWindowReset): number {
 }
 
 function pickHigherUsage(
-  current: GoogleWindowUsage | null,
-  candidate: GoogleWindowUsage | null,
-): GoogleWindowUsage | null {
-  if (!candidate) return current;
-  if (!current) return candidate;
-  const curPct = current.usedPercent ?? -1;
-  const candPct = candidate.usedPercent ?? -1;
-  if (candPct > curPct) return candidate;
-  if (candPct < curPct) return current;
+  current: GoogleWindowUsage,
+  candidate: GoogleWindowUsage,
+): GoogleWindowUsage {
+  if (candidate.usedPercent > current.usedPercent) return candidate;
+  if (candidate.usedPercent < current.usedPercent) return current;
   const currentRank = resetRank(current.reset);
   const candidateRank = resetRank(candidate.reset);
   if (candidateRank !== currentRank) return candidateRank > currentRank ? candidate : current;
@@ -245,36 +257,56 @@ function windowIdFor(family: QuotaFamily, window: QuotaWindow): GoogleWindowId {
   return window === "5h" ? "thirdPartySession" : "thirdPartyWeekly";
 }
 
-function buildGoogleUsage(
-  session: GoogleWindowUsage | null,
-  weekly: GoogleWindowUsage | null,
-  thirdPartySession: GoogleWindowUsage | null,
-  thirdPartyWeekly: GoogleWindowUsage | null,
-  invalidWindows: readonly GoogleWindowId[] = [],
-): GoogleUsage | null {
-  const all = [session, weekly, thirdPartySession, thirdPartyWeekly];
-  const present: Record<GoogleWindowId, boolean> = {
-    session: session !== null,
-    weekly: weekly !== null,
-    thirdPartySession: thirdPartySession !== null,
-    thirdPartyWeekly: thirdPartyWeekly !== null,
+function omittedWindows(): Record<GoogleWindowId, GoogleWindow> {
+  return {
+    session: { state: "omitted" },
+    weekly: { state: "omitted" },
+    thirdPartySession: { state: "omitted" },
+    thirdPartyWeekly: { state: "omitted" },
   };
-  const invalid = [...new Set(invalidWindows)].filter((id) => !present[id]);
-  if (all.every((w) => w === null)) return null;
+}
 
-  const withPct = all.filter(
-    (w): w is GoogleWindowUsage & { usedPercent: number } =>
-      w !== null && typeof w.usedPercent === "number",
-  );
-  const limitReached = withPct.length > 0 ? withPct.some((w) => w.usedPercent >= 100) : null;
+function windowRank(window: GoogleWindow): number {
+  switch (window.state) {
+    case "present":
+      return 3;
+    case "malformed":
+      return 2;
+    case "disabled":
+      return 1;
+    case "omitted":
+      return 0;
+  }
+}
+
+function mergeWindows(current: GoogleWindow, candidate: GoogleWindow): GoogleWindow {
+  if (current.state === "present" && candidate.state === "present") {
+    return { state: "present", usage: pickHigherUsage(current.usage, candidate.usage) };
+  }
+  return windowRank(candidate) > windowRank(current) ? candidate : current;
+}
+
+function preferExactWindow(exact: GoogleWindow, fallback: GoogleWindow): GoogleWindow {
+  if (exact.state === "present") return exact;
+  if (fallback.state === "present") return fallback;
+  return exact.state !== "omitted" ? exact : fallback;
+}
+
+function buildGoogleUsage(windows: Record<GoogleWindowId, GoogleWindow>): GoogleUsage | null {
+  const present = [
+    windows.session,
+    windows.weekly,
+    windows.thirdPartySession,
+    windows.thirdPartyWeekly,
+  ].flatMap((window) => (window.state === "present" ? [window.usage] : []));
+  if (present.length === 0) return null;
 
   return {
-    session,
-    weekly,
-    thirdPartySession,
-    thirdPartyWeekly,
-    limitReached,
-    invalidWindows: invalid,
+    session: windows.session,
+    weekly: windows.weekly,
+    thirdPartySession: windows.thirdPartySession,
+    thirdPartyWeekly: windows.thirdPartyWeekly,
+    limitReached: present.some((window) => window.usedPercent >= 100),
   };
 }
 
@@ -343,48 +375,23 @@ export function normalizeGoogleQuotaSummary(
     }
   }
 
-  let exactSession: GoogleWindowUsage | null = null;
-  let exactWeekly: GoogleWindowUsage | null = null;
-  let exact3pSession: GoogleWindowUsage | null = null;
-  let exact3pWeekly: GoogleWindowUsage | null = null;
-
-  let maxSession: GoogleWindowUsage | null = null;
-  let maxWeekly: GoogleWindowUsage | null = null;
-  let max3pSession: GoogleWindowUsage | null = null;
-  let max3pWeekly: GoogleWindowUsage | null = null;
-  const invalidWindows = new Set<GoogleWindowId>();
+  const exact = omittedWindows();
+  const fallback = omittedWindows();
 
   for (const { groupId, bucket } of collected) {
     const meta = classifyBucket(bucket, groupId);
     if (!meta) continue;
-    const usage = parseBucketWindowUsage(bucket, meta.window, requestedAtMs);
-    if (!usage) {
-      invalidWindows.add(windowIdFor(meta.family, meta.window));
-      continue;
-    }
-
-    if (meta.family === "gemini" && meta.window === "5h") {
-      if (meta.exactAggregate) exactSession = usage;
-      else maxSession = pickHigherUsage(maxSession, usage);
-    } else if (meta.family === "gemini" && meta.window === "weekly") {
-      if (meta.exactAggregate) exactWeekly = usage;
-      else maxWeekly = pickHigherUsage(maxWeekly, usage);
-    } else if (meta.family === "3p" && meta.window === "5h") {
-      if (meta.exactAggregate) exact3pSession = usage;
-      else max3pSession = pickHigherUsage(max3pSession, usage);
-    } else {
-      if (meta.exactAggregate) exact3pWeekly = usage;
-      else max3pWeekly = pickHigherUsage(max3pWeekly, usage);
-    }
+    const parsed = parseBucketWindowUsage(bucket, meta.window, requestedAtMs);
+    const id = windowIdFor(meta.family, meta.window);
+    const target = meta.exactAggregate ? exact : fallback;
+    target[id] = mergeWindows(target[id], parsed);
   }
 
-  return buildGoogleUsage(
-    exactSession ?? maxSession,
-    exactWeekly ?? maxWeekly,
-    exact3pSession ?? max3pSession,
-    exact3pWeekly ?? max3pWeekly,
-    [...invalidWindows],
-  );
+  const windows = omittedWindows();
+  for (const id of GOOGLE_WINDOW_IDS) {
+    windows[id] = preferExactWindow(exact[id], fallback[id]);
+  }
+  return buildGoogleUsage(windows);
 }
 
 export function normalizeGoogleAvailableModels(
@@ -393,11 +400,7 @@ export function normalizeGoogleAvailableModels(
 ): GoogleUsage | null {
   if (!isRecord(raw) || !isRecord(raw.models)) return null;
 
-  let session: GoogleWindowUsage | null = null;
-  let weekly: GoogleWindowUsage | null = null;
-  let thirdPartySession: GoogleWindowUsage | null = null;
-  let thirdPartyWeekly: GoogleWindowUsage | null = null;
-  const invalidWindows = new Set<GoogleWindowId>();
+  const windows = omittedWindows();
 
   for (const [modelId, model] of Object.entries(raw.models)) {
     if (!isRecord(model) || model.disabled === true) continue;
@@ -418,34 +421,35 @@ export function normalizeGoogleAvailableModels(
     if (!family) continue;
 
     if (isRecord(model.quotaInfo)) {
-      const usage = parseBucketWindowUsage(model.quotaInfo, "5h", requestedAtMs);
-      if (!usage) invalidWindows.add(family === "gemini" ? "session" : "thirdPartySession");
-      else if (family === "gemini") session = pickHigherUsage(session, usage);
-      else thirdPartySession = pickHigherUsage(thirdPartySession, usage);
+      const id = family === "gemini" ? "session" : "thirdPartySession";
+      windows[id] = mergeWindows(
+        windows[id],
+        parseBucketWindowUsage(model.quotaInfo, "5h", requestedAtMs),
+      );
     }
     if (isRecord(model.weeklyQuotaInfo)) {
-      const usage = parseBucketWindowUsage(model.weeklyQuotaInfo, "weekly", requestedAtMs);
-      if (!usage) invalidWindows.add(family === "gemini" ? "weekly" : "thirdPartyWeekly");
-      else if (family === "gemini") weekly = pickHigherUsage(weekly, usage);
-      else thirdPartyWeekly = pickHigherUsage(thirdPartyWeekly, usage);
+      const id = family === "gemini" ? "weekly" : "thirdPartyWeekly";
+      windows[id] = mergeWindows(
+        windows[id],
+        parseBucketWindowUsage(model.weeklyQuotaInfo, "weekly", requestedAtMs),
+      );
     }
   }
 
-  return buildGoogleUsage(session, weekly, thirdPartySession, thirdPartyWeekly, [
-    ...invalidWindows,
-  ]);
+  return buildGoogleUsage(windows);
 }
 
 export function hasActiveGoogleUsage(usage: GoogleUsage | null): boolean {
   if (!usage) return false;
-  return [usage.session, usage.weekly, usage.thirdPartySession, usage.thirdPartyWeekly].some(
-    (w) => (w?.usedPercent ?? 0) > 0,
-  );
+  return GOOGLE_WINDOW_IDS.some((id) => {
+    const window = usage[id];
+    return window.state === "present" && window.usage.usedPercent > 0;
+  });
 }
 
 export function hasCompleteActiveGoogleUsage(usage: GoogleUsage | null): boolean {
   if (!usage || !hasActiveGoogleUsage(usage)) return false;
-  return usage.thirdPartySession !== null || usage.thirdPartyWeekly !== null;
+  return usage.thirdPartySession.state === "present" || usage.thirdPartyWeekly.state === "present";
 }
 
 export function mergeGoogleUsage(
@@ -454,13 +458,11 @@ export function mergeGoogleUsage(
 ): GoogleUsage | null {
   if (!primary) return secondary;
   if (!secondary) return primary;
-  return buildGoogleUsage(
-    pickHigherUsage(primary.session, secondary.session),
-    pickHigherUsage(primary.weekly, secondary.weekly),
-    pickHigherUsage(primary.thirdPartySession, secondary.thirdPartySession),
-    pickHigherUsage(primary.thirdPartyWeekly, secondary.thirdPartyWeekly),
-    [...new Set([...primary.invalidWindows, ...secondary.invalidWindows])],
-  );
+  const windows = omittedWindows();
+  for (const id of GOOGLE_WINDOW_IDS) {
+    windows[id] = mergeWindows(primary[id], secondary[id]);
+  }
+  return buildGoogleUsage(windows);
 }
 
 export function parseGoogleTierName(raw: unknown): string | null {
