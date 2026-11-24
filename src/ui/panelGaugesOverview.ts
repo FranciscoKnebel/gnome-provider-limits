@@ -125,21 +125,33 @@ interface OverviewRowsContext {
 
 /** Rebuilds the overview body rows and their mini bars from canonical models. */
 class OverviewRowsRenderer {
+  private readonly _rows = new Map<ProviderName, PopupMenu.PopupBaseMenuItem>();
+  private _focusedProvider: ProviderName | null = null;
+
   constructor(private readonly host: OverviewHost) {}
 
   render(context: OverviewRowsContext): void {
+    const focusedProvider =
+      [...this._rows].find(([, item]) => item.has_key_focus())?.[0] ?? this._focusedProvider;
+    this._rows.clear();
+
     const byProvider = new Map(context.models.map((model) => [model.provider, model]));
     for (const provider of context.enabledProviders) {
       const model = byProvider.get(provider);
-      this._addRow(
+      const row = this._addRow(
         model
           ? buildOverviewRowModel(model)
           : loadingOverviewRow(provider, context.displayNames[provider]),
       );
+      this._rows.set(provider, row);
+    }
+
+    if (focusedProvider !== null) {
+      this._rows.get(focusedProvider)?.grab_key_focus?.();
     }
   }
 
-  private _addRow(model: OverviewRowModel): void {
+  private _addRow(model: OverviewRowModel): PopupMenu.PopupBaseMenuItem {
     const item = new PopupMenu.PopupBaseMenuItem({
       reactive: true,
       can_focus: true,
@@ -151,6 +163,12 @@ class OverviewRowsRenderer {
     item.connect("key-focus-in", () =>
       ensureActorVisibleInScrollView(this.host.shell.scrollView, item),
     );
+    item.connect("key-focus-in", () => {
+      this._focusedProvider = model.provider;
+    });
+    item.connect("key-focus-out", () => {
+      if (this._focusedProvider === model.provider) this._focusedProvider = null;
+    });
     bindActivation(item, () => this.host.selectTab(model.provider, true), {
       pointerSignals: ["button-release-event"],
       onOtherKey: (event) => this.host.handleArrowNavigation(event),
@@ -237,6 +255,7 @@ class OverviewRowsRenderer {
 
     item.add_child(outer);
     this.host.shell.addBodyItem(item);
+    return item;
   }
 }
 
