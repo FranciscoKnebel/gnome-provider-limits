@@ -81,13 +81,17 @@ export interface ReadOptions {
   force?: boolean;
 }
 
-export type NonOkFieldStatus = FieldStatus.UNAVAILABLE | FieldStatus.NOT_APPLICABLE;
+export type AbsentFieldStatus = FieldStatus.UNAVAILABLE | FieldStatus.NOT_APPLICABLE;
 
 export interface WindowFieldStatus {
-  /** Non-OK status for every field when the provider does not expose the window. */
-  readonly absent?: NonOkFieldStatus;
-  /** Non-OK status for a missing reset timestamp; a present timestamp is always OK. */
-  readonly reset?: NonOkFieldStatus;
+  /** Status for every field when the provider does not expose the window. */
+  readonly absent?: AbsentFieldStatus;
+  /** Status for a missing reset timestamp; a present timestamp is always OK. */
+  readonly reset?: AbsentFieldStatus;
+}
+
+export function fieldStatusDegrades(status: FieldStatus): boolean {
+  return status === FieldStatus.UNAVAILABLE || status === FieldStatus.ERROR;
 }
 
 export abstract class BaseReader<P extends ProviderName = ProviderName> {
@@ -108,7 +112,13 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
     status: FieldStatus,
     error?: string | null,
   ): FieldResult<T, Name> {
-    return { name, value: value ?? null, status, error: error ?? null };
+    const hasValue = value !== null && value !== undefined;
+    return {
+      name,
+      value: value ?? null,
+      status: status === FieldStatus.OK && !hasValue ? FieldStatus.UNAVAILABLE : status,
+      error: error ?? null,
+    };
   }
 
   protected _makeOptionalField<T, Name extends FieldName<P>>(
@@ -247,9 +257,7 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
       return this._errorResult(`${prefix ?? this.providerName}: no usable fields.`, pathsTried);
     }
 
-    const hasUnavailable = fields.some(
-      (f) => f.status === FieldStatus.UNAVAILABLE || f.status === FieldStatus.ERROR,
-    );
+    const hasUnavailable = fields.some((f) => fieldStatusDegrades(f.status));
     return hasUnavailable
       ? this._partialResult(
           fields,

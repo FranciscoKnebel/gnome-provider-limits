@@ -1,7 +1,7 @@
 import type { ProviderName } from "../constants.js";
 import { formatAbsoluteTimestamp } from "../formatters.js";
 import type { FieldDef, ReaderResult } from "../readers/base.js";
-import { FieldStatus, isHardError, ReaderStatus } from "../readers/base.js";
+import { fieldStatusDegrades, isHardError, ReaderStatus } from "../readers/base.js";
 import { emptyMeter } from "./cairoDrawing.js";
 import type { FieldView, UsageFacts } from "./fieldViews.js";
 import { deriveFieldViews, meterFromViews, projectUsageFacts, selectViews } from "./fieldViews.js";
@@ -50,7 +50,7 @@ export interface ProviderDisplayModel {
   readonly displayName: string;
   readonly shortDisplayName: string;
   readonly result: ReaderResult;
-  readonly status: ReaderStatus;
+  readonly displayStatus: ReaderStatus;
   readonly statusViews: readonly FieldView[];
   readonly panelViews: readonly FieldView[];
   readonly resets: ReadonlyMap<string, ResetPairing>;
@@ -158,7 +158,7 @@ function deriveDisplayFacts(
   model: Omit<ProviderDisplayModel, "facts">,
   derivation: DisplayModelOptions & { readonly allViews: readonly FieldView[] },
 ): ProviderDisplayFacts {
-  const { result, status } = model;
+  const { result, displayStatus } = model;
   const hardError = isHardError(result);
   const { fieldDefs, statusFields, locale, t: tr, allViews } = derivation;
 
@@ -169,7 +169,7 @@ function deriveDisplayFacts(
 
   const health = deriveProviderHealth({
     result,
-    displayStatus: status,
+    displayStatus,
     views: allViews,
     fieldDefs,
     t: tr,
@@ -198,7 +198,12 @@ function deriveDisplayFacts(
     ),
   };
 
-  const diagnostic = deriveDiagnostic(status, result.lastError ?? null, result.fromCache, tr);
+  const diagnostic = deriveDiagnostic(
+    displayStatus,
+    result.lastError ?? null,
+    result.fromCache,
+    tr,
+  );
   const views = classifyPanelViews(model.panelViews, model.resets);
   const lastUpdatedText =
     !hardError && Number.isFinite(result.lastUpdated)
@@ -223,9 +228,7 @@ function resolveDisplayStatus(result: ReaderResult, views: readonly FieldView[])
   if (result.status !== ReaderStatus.PARTIAL || result.fromCache) {
     return result.status;
   }
-  const hasUnavailable = views.some(
-    (view) => view.status === FieldStatus.UNAVAILABLE || view.status === FieldStatus.ERROR,
-  );
+  const hasUnavailable = views.some((view) => fieldStatusDegrades(view.status));
   return hasUnavailable ? result.status : ReaderStatus.OK;
 }
 
@@ -255,7 +258,7 @@ export function deriveDisplayModel(
     displayName: options.displayName,
     shortDisplayName: options.shortDisplayName,
     result,
-    status: displayStatus,
+    displayStatus,
     statusViews,
     panelViews,
     resets,

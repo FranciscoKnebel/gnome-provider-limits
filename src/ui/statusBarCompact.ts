@@ -36,7 +36,7 @@ export class CompactStatusBarRenderer extends StatusBarRenderer {
         accessibleText = `${shortLabel} ${badgeWord}`.trim();
       } else {
         const joined = model.statusViews.map((view) => view.valueText).join("·");
-        const prefix = model.status === ReaderStatus.PARTIAL ? "~" : "";
+        const prefix = model.displayStatus === ReaderStatus.PARTIAL ? "~" : "";
         metricsText = joined ? `${prefix}${joined}` : prefix;
         const spokenRows = model.statusViews.map((view) => view.accessibleText).join(", ");
         const headerPart = badgeWord ? `${shortLabel} ${badgeWord}` : shortLabel;

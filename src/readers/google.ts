@@ -14,7 +14,7 @@ import {
   BaseReader,
   FieldStatus,
   type FieldResult,
-  type NonOkFieldStatus,
+  type AbsentFieldStatus,
   type ReaderResult,
   type WindowFieldNames,
 } from "./base.js";
@@ -37,7 +37,6 @@ import {
   type GoogleUsage,
   type GoogleWindow,
   type GoogleWindowId,
-  type GoogleWindowReset,
 } from "./googleParser.js";
 
 const GOOGLE_USER_AGENT = "antigravity/hub/2.24.0 (aidev_client; os_type=linux; arch=x64)";
@@ -82,11 +81,6 @@ interface CandidateQuotaOutcome {
   endpointUsed: string;
 }
 
-const RESET_OVERRIDE: Record<Exclude<GoogleWindowReset["state"], "present">, NonOkFieldStatus> = {
-  idle: FieldStatus.NOT_APPLICABLE,
-  missing: FieldStatus.UNAVAILABLE,
-};
-
 const GOOGLE_WINDOW_FIELDS: Record<GoogleWindowId, WindowFieldNames<"google">> = {
   session: {
     used: "used_percent_session",
@@ -112,21 +106,13 @@ const GOOGLE_WINDOW_FIELDS: Record<GoogleWindowId, WindowFieldNames<"google">> =
 
 const FIVE_HOUR_WINDOW_IDS = new Set<GoogleWindowId>(["session", "thirdPartySession"]);
 
-const PLAN_CAPABILITIES: Record<string, { readonly fiveHourWindows: boolean }> = {
-  "free-tier": { fiveHourWindows: false },
-  "standard-tier": { fiveHourWindows: true },
-};
+const TIERS_WITHOUT_FIVE_HOUR_WINDOWS = new Set(["free-tier"]);
 
-const ABSENT_WINDOW_STATUS: Record<Exclude<GoogleWindow["state"], "present">, NonOkFieldStatus> = {
+const ABSENT_WINDOW_STATUS: Record<Exclude<GoogleWindow["state"], "present">, AbsentFieldStatus> = {
   unreported: FieldStatus.UNAVAILABLE,
   disabled: FieldStatus.NOT_APPLICABLE,
   malformed: FieldStatus.UNAVAILABLE,
 };
-
-function tierSupportsFiveHourWindows(tier: GoogleTier | null): boolean {
-  if (!tier?.id) return true;
-  return PLAN_CAPABILITIES[tier.id]?.fiveHourWindows ?? true;
-}
 
 export class GoogleReader extends BaseReader<"google"> {
   private _http: HttpClient | null = null;
@@ -587,7 +573,7 @@ export class GoogleReader extends BaseReader<"google"> {
     endpointUsed: string,
   ): FieldResult[] {
     const plan = tier?.name ?? tier?.id ?? null;
-    const supportsFiveHourWindows = tierSupportsFiveHourWindows(tier);
+    const weeklyOnlyTier = tier?.id != null && TIERS_WITHOUT_FIVE_HOUR_WINDOWS.has(tier.id);
     const fields: FieldResult[] = [];
     for (const id of GOOGLE_WINDOW_IDS) {
       const names = GOOGLE_WINDOW_FIELDS[id];
@@ -595,8 +581,7 @@ export class GoogleReader extends BaseReader<"google"> {
       if (window.state === "present") {
         const data = window.usage;
         const resetAt = data.reset.state === "present" ? data.reset.at : null;
-        const resetOverride =
-          data.reset.state === "present" ? undefined : RESET_OVERRIDE[data.reset.state];
+        const resetOverride = data.reset.state === "idle" ? FieldStatus.NOT_APPLICABLE : undefined;
         fields.push(
           ...this._makeWindowFields(
             names,
@@ -607,7 +592,7 @@ export class GoogleReader extends BaseReader<"google"> {
         continue;
       }
       const unsupportedPlanWindow =
-        window.state === "unreported" && FIVE_HOUR_WINDOW_IDS.has(id) && !supportsFiveHourWindows;
+        window.state === "unreported" && FIVE_HOUR_WINDOW_IDS.has(id) && weeklyOnlyTier;
       const status = unsupportedPlanWindow
         ? FieldStatus.NOT_APPLICABLE
         : ABSENT_WINDOW_STATUS[window.state];

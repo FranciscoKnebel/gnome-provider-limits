@@ -3,6 +3,7 @@ import type Gio from "gi://Gio";
 import {
   BaseReader,
   FieldStatus,
+  fieldStatusDegrades,
   ReaderStatus,
   type FieldResult,
   type PercentFieldNames,
@@ -135,6 +136,19 @@ describe("BaseReader", () => {
         status: FieldStatus.OK,
         error: null,
       });
+    });
+
+    it("normalizes OK with a null value to UNAVAILABLE", () => {
+      const field = reader.testMakeField("empty_field", null, FieldStatus.OK);
+      expect(field.value).toBeNull();
+      expect(field.status).toBe(FieldStatus.UNAVAILABLE);
+    });
+
+    it("classifies degrading field statuses", () => {
+      expect(fieldStatusDegrades(FieldStatus.OK)).toBeFalse();
+      expect(fieldStatusDegrades(FieldStatus.NOT_APPLICABLE)).toBeFalse();
+      expect(fieldStatusDegrades(FieldStatus.UNAVAILABLE)).toBeTrue();
+      expect(fieldStatusDegrades(FieldStatus.ERROR)).toBeTrue();
     });
 
     it("sets error to null when omitted", () => {

@@ -205,9 +205,10 @@ _Avoid_: Per-style badge, renderer-local diagnostic, presentation cache.
 The one ordered health value for a Provider, `PROVIDER_SEVERITIES` in
 `providerHealth.ts`. State, tone, status attention and presentation come from
 one table keyed by it (`HEALTH_BY_SEVERITY`); the severity itself is derived
-from the ReaderResult status, worst field tone, usable-field presence and
-Last-Known-Good provenance. No surface recombines those attributes through a
-second table.
+from the Provider's display status (the Reader Result status adjusted for the
+configured fields and Last-Known-Good provenance), worst field tone, and
+usable-field presence. No surface recombines those attributes through a second
+table.
 _Avoid_: Health level, status color, per-style state.
 
 **View Phase**:

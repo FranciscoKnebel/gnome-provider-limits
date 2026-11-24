@@ -408,14 +408,14 @@ export function normalizeGoogleAvailableModels(
     if (!family) continue;
 
     if (isRecord(model.quotaInfo)) {
-      const id = family === "gemini" ? "session" : "thirdPartySession";
+      const id = windowIdFor(family, "5h");
       windows[id] = mergeWindows(
         windows[id],
         parseBucketWindowUsage(model.quotaInfo, "5h", requestedAtMs),
       );
     }
     if (isRecord(model.weeklyQuotaInfo)) {
-      const id = family === "gemini" ? "weekly" : "thirdPartyWeekly";
+      const id = windowIdFor(family, "weekly");
       windows[id] = mergeWindows(
         windows[id],
         parseBucketWindowUsage(model.weeklyQuotaInfo, "weekly", requestedAtMs),
