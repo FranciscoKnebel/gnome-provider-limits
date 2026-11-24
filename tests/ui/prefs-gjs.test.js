@@ -231,7 +231,7 @@ export async function run() {
     results.push({ name: "MockSettings.set_strv emits signal", passed: false, error: String(e) });
   }
 
-  // Test 5: Field Matrix toggles visibility and reorders inside each zone row
+  // Test 5: Field Matrix toggles visibility; ordering lives in separate lists
   try {
     const settings = new MockSettings({
       "codex-enabled": true,
@@ -242,19 +242,20 @@ export async function run() {
       "codex-panel-fields": [],
       language: "en",
     });
-    const page = new ProviderExpanderRow(settings, "codex");
-    const rows = findAllWidgets(
-      page,
+    const row = new ProviderExpanderRow(settings, "codex");
+    const titled = findAllWidgets(
+      row,
       (w) => w instanceof Adw.ActionRow && w.title === "Used % (5h window)",
     );
-    assertEqual(rows.length, 1, "one matrix row should exist for the field");
+    const matrixRow = titled.find((candidate) =>
+      findWidget(candidate, (w) => w instanceof Gtk.ToggleButton && w.label === "Panel"),
+    );
+    assertNotNull(matrixRow, "matrix row should exist for the field");
 
-    const row = rows[0];
     const panelToggle = findWidget(
-      row,
+      matrixRow,
       (w) => w instanceof Gtk.ToggleButton && w.label === "Panel",
     );
-    assertNotNull(panelToggle, "Panel toggle should exist in the matrix row");
     panelToggle.active = true;
     assertEqual(
       settings.get_strv("codex-panel-fields").includes("used_percent_primary"),
@@ -262,27 +263,29 @@ export async function run() {
       "toggling Panel should add the field to panel fields",
     );
 
-    const topBarUp = findWidget(
+    const orderRows = findAllWidgets(
       row,
-      (w) => w instanceof Gtk.Button && w.icon_name === "go-up-symbolic",
+      (w) => w instanceof Adw.ActionRow && w.title === "Used % (5h window)" && w !== matrixRow,
     );
-    const topBarDown = findAllWidgets(
-      row,
+    assertEqual(orderRows.length >= 1, true, "a separate order row should exist");
+    const downButtons = findAllWidgets(
+      orderRows[0],
       (w) => w instanceof Gtk.Button && w.icon_name === "go-down-symbolic",
-    )[0];
-    assertEqual(topBarUp.sensitive, false, "first field cannot move up");
-    assertEqual(topBarDown.sensitive, true, "first field can move down");
-    topBarDown.emit("clicked");
+    );
+    assertEqual(downButtons.length, 1, "order row should have a down button");
+    downButtons[0].emit("clicked");
     assertEqual(
       JSON.stringify(settings.get_strv("codex-status-fields")),
       JSON.stringify(["reset_at_primary", "used_percent_primary"]),
-      "inline down button should reorder status fields",
+      "order list down button should reorder status fields",
     );
-    assertEqual(topBarUp.sensitive, true, "field can now move up");
-    results.push({ name: "Field Matrix toggles visibility and reorders inline", passed: true });
+    results.push({
+      name: "Field Matrix toggles visibility and separate lists reorder",
+      passed: true,
+    });
   } catch (e) {
     results.push({
-      name: "Field Matrix toggles visibility and reorders inline",
+      name: "Field Matrix toggles visibility and separate lists reorder",
       passed: false,
       error: String(e),
     });

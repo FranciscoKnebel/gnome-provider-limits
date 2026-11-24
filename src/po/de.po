@@ -642,3 +642,12 @@ msgstr "Aktive Anbieter"
 
 msgid "Enable, configure, and reorder AI coding providers. Expand any provider to edit credentials and the field matrix."
 msgstr "Aktivieren, konfigurieren und ordnen Sie KI-Programmieranbieter neu. Klappen Sie einen Anbieter auf, um Anmeldedaten und die Feldmatrix zu bearbeiten."
+
+msgid "Toggle which fields appear in the status bar and panel."
+msgstr "Legt fest, welche Felder in der Statusleiste und im Panel angezeigt werden."
+
+msgid "Reorder active fields with the arrow buttons or by dragging."
+msgstr "Aktive Felder mit den Pfeilschaltflächen oder durch Ziehen neu anordnen."
+
+msgid "No fields selected."
+msgstr "Keine Felder ausgewählt."

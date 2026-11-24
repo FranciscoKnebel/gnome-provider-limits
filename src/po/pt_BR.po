@@ -642,3 +642,12 @@ msgstr "Provedores ativos"
 
 msgid "Enable, configure, and reorder AI coding providers. Expand any provider to edit credentials and the field matrix."
 msgstr "Habilite, configure e reordene provedores de IA para programação. Expanda um provedor para editar credenciais e a matriz de campos."
+
+msgid "Toggle which fields appear in the status bar and panel."
+msgstr "Escolha quais campos aparecem na barra de status e no painel."
+
+msgid "Reorder active fields with the arrow buttons or by dragging."
+msgstr "Reordene os campos ativos com os botões de seta ou arrastando."
+
+msgid "No fields selected."
+msgstr "Nenhum campo selecionado."
