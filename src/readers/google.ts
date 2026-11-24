@@ -10,7 +10,13 @@ import {
   resolveGooglePrimaryAuthPaths,
   type Env,
 } from "../helpers/paths.js";
-import { BaseReader, FieldStatus, type FieldResult, type ReaderResult } from "./base.js";
+import {
+  BaseReader,
+  FieldStatus,
+  type FieldResult,
+  type ReaderResult,
+  type WindowFieldStatus,
+} from "./base.js";
 import {
   GOOGLE_CLOUDCODE_DAILY_URL,
   GOOGLE_OAUTH_TOKEN_URL,
@@ -26,6 +32,7 @@ import {
   resolveGoogleQuotaEndpoints,
   type GoogleAuth,
   type GoogleUsage,
+  type GoogleWindowReset,
 } from "./googleParser.js";
 
 const GOOGLE_USER_AGENT = "antigravity/hub/2.24.0 (aidev_client; os_type=linux; arch=x64)";
@@ -68,6 +75,17 @@ interface CandidateQuotaOutcome {
   accessToken: string;
   usage: GoogleUsage;
   endpointUsed: string;
+}
+
+function resetOverrideFor(reset: GoogleWindowReset): WindowFieldStatus["reset"] {
+  switch (reset.state) {
+    case "present":
+      return undefined;
+    case "idle":
+      return FieldStatus.NOT_APPLICABLE;
+    case "missing":
+      return FieldStatus.UNAVAILABLE;
+  }
 }
 
 export class GoogleReader extends BaseReader<"google"> {
@@ -530,6 +548,7 @@ export class GoogleReader extends BaseReader<"google"> {
   ): FieldResult[] {
     const windows = [
       {
+        id: "session",
         names: {
           used: "used_percent_session",
           remaining: "remaining_percent_session",
@@ -538,6 +557,7 @@ export class GoogleReader extends BaseReader<"google"> {
         data: usage.session,
       },
       {
+        id: "weekly",
         names: {
           used: "used_percent_weekly",
           remaining: "remaining_percent_weekly",
@@ -546,6 +566,7 @@ export class GoogleReader extends BaseReader<"google"> {
         data: usage.weekly,
       },
       {
+        id: "thirdPartySession",
         names: {
           used: "used_percent_3p_session",
           remaining: "remaining_percent_3p_session",
@@ -554,6 +575,7 @@ export class GoogleReader extends BaseReader<"google"> {
         data: usage.thirdPartySession,
       },
       {
+        id: "thirdPartyWeekly",
         names: {
           used: "used_percent_3p_weekly",
           remaining: "remaining_percent_3p_weekly",
@@ -564,23 +586,20 @@ export class GoogleReader extends BaseReader<"google"> {
     ] as const;
 
     const fields: FieldResult[] = [];
-    for (const { names, data } of windows) {
+    for (const { id, names, data } of windows) {
       if (!data) {
-        fields.push(...this._makeWindowFields(names, null, { absent: FieldStatus.NOT_APPLICABLE }));
+        const absent = usage.invalidWindows.includes(id)
+          ? FieldStatus.UNAVAILABLE
+          : FieldStatus.NOT_APPLICABLE;
+        fields.push(...this._makeWindowFields(names, null, { absent }));
         continue;
       }
       const resetAt = data.reset.state === "present" ? data.reset.at : null;
-      const resetStatus =
-        data.reset.state === "present"
-          ? FieldStatus.OK
-          : data.reset.state === "idle"
-            ? FieldStatus.NOT_APPLICABLE
-            : FieldStatus.UNAVAILABLE;
       fields.push(
         ...this._makeWindowFields(
           names,
           { used_percent: data.usedPercent, reset_at: resetAt },
-          { reset: resetStatus },
+          { reset: resetOverrideFor(data.reset) },
         ),
       );
     }

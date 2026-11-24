@@ -42,10 +42,11 @@ _Avoid_: Field registry, default zone metadata, duplicate field list.
 
 **Field Status**:
 The per-Field availability attached to a `FieldResult`: `OK`, `UNAVAILABLE`,
-`NOT_APPLICABLE`, or `ERROR`. `UNAVAILABLE` and `ERROR` degrade provider health when
-the Field is configured in the Status Bar or Panel. `NOT_APPLICABLE` means the
-Provider does not expose the Field for the current plan or window, so it never
-degrades health. Missing usage stays unavailable, not zero.
+`NOT_APPLICABLE`, or `ERROR`. `UNAVAILABLE` and `ERROR` degrade provider health
+because data is missing or failed. `NOT_APPLICABLE` means the Provider does not
+expose the Field for the current plan or window, so it does not degrade health.
+Provider health is computed from the complete `ReaderResult`, not from the Fields
+selected in the Status Bar or Panel. Missing usage stays unavailable, not zero.
 _Avoid_: Null field, missing value, absent metric.
 
 **FieldView**:

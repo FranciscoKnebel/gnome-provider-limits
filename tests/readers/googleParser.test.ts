@@ -14,6 +14,7 @@ import {
   parseGoogleTierName,
   parseGoogleTokenResponse,
   resolveGoogleQuotaEndpoints,
+  type GoogleUsage,
 } from "../../src/readers/googleParser.js";
 
 const NOW = Date.parse("2026-04-20T03:00:00Z");
@@ -226,6 +227,7 @@ describe("normalizeGoogleQuotaSummary", () => {
         reset: presentReset(Date.parse("2026-04-25T00:00:00Z") / 1000),
       },
       limitReached: false,
+      invalidWindows: [],
     });
   });
 
@@ -250,6 +252,7 @@ describe("normalizeGoogleQuotaSummary", () => {
         reset: presentReset(Date.parse("2026-01-26T00:00:00Z") / 1000),
       },
       limitReached: true,
+      invalidWindows: [],
     });
   });
 
@@ -271,6 +274,30 @@ describe("normalizeGoogleQuotaSummary", () => {
       usedPercent: 50,
       reset: missingReset(),
     });
+  });
+
+  it("records a malformed window without treating absent windows as invalid", () => {
+    const usage = normalizeGoogleQuotaSummary(
+      {
+        buckets: [
+          {
+            bucketId: "gemini-5h",
+            window: "5h",
+            remainingFraction: 1.5,
+          },
+          {
+            bucketId: "gemini-weekly",
+            window: "weekly",
+            remainingFraction: 0.5,
+            resetTime: "2026-04-24T12:00:00Z",
+          },
+        ],
+      },
+      NOW,
+    );
+
+    expect(usage?.weekly?.usedPercent).toBe(50);
+    expect(usage?.invalidWindows).toEqual(["session"]);
   });
 
   it("handles top-level buckets, proto3 omitted zero remainingFraction, and fallback non-exact bucket aggregation", () => {
@@ -345,6 +372,7 @@ describe("normalizeGoogleQuotaSummary", () => {
         reset: presentReset(Date.parse("2026-04-25T00:00:00Z") / 1000),
       },
       limitReached: true,
+      invalidWindows: [],
     });
   });
 
@@ -431,6 +459,7 @@ describe("normalizeGoogleAvailableModels", () => {
         reset: idleReset(),
       },
       limitReached: false,
+      invalidWindows: [],
     });
   });
 
@@ -448,6 +477,7 @@ describe("hasActiveGoogleUsage, mergeGoogleUsage & parseGoogleTierName", () => {
       thirdPartySession: null,
       thirdPartyWeekly: null,
       limitReached: false,
+      invalidWindows: [],
     };
     const active = {
       session: { usedPercent: 12, reset: presentReset(1776660000) },
@@ -455,6 +485,7 @@ describe("hasActiveGoogleUsage, mergeGoogleUsage & parseGoogleTierName", () => {
       thirdPartySession: { usedPercent: 5, reset: presentReset(1776663600) },
       thirdPartyWeekly: null,
       limitReached: false,
+      invalidWindows: [],
     };
 
     expect(hasActiveGoogleUsage(null)).toBe(false);
@@ -472,7 +503,26 @@ describe("hasActiveGoogleUsage, mergeGoogleUsage & parseGoogleTierName", () => {
       thirdPartySession: { usedPercent: 5, reset: presentReset(1776663600) },
       thirdPartyWeekly: null,
       limitReached: false,
+      invalidWindows: [],
     });
+  });
+
+  it("prefers idle over missing reset provenance independently of merge order", () => {
+    const idleUsage: GoogleUsage = {
+      session: { usedPercent: 10, reset: idleReset() },
+      weekly: null,
+      thirdPartySession: null,
+      thirdPartyWeekly: null,
+      limitReached: false,
+      invalidWindows: [],
+    };
+    const missingUsage: GoogleUsage = {
+      ...idleUsage,
+      session: { usedPercent: 10, reset: missingReset() },
+    };
+
+    expect(mergeGoogleUsage(idleUsage, missingUsage)?.session?.reset).toEqual(idleReset());
+    expect(mergeGoogleUsage(missingUsage, idleUsage)?.session?.reset).toEqual(idleReset());
   });
 
   it("parses paidTier and currentTier names or IDs from loadCodeAssist", () => {

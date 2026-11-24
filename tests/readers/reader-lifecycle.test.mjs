@@ -236,11 +236,12 @@ for (const phase of ["auth", "refresh", "quota", "tier"])
       parseGoogleTokenResponse: () => "synthetic-access",
       resolveGoogleQuotaEndpoints: () => ["https://cloudcode-pa.googleapis.com"],
       normalizeGoogleQuotaSummary: () => ({
-        session: { usedPercent: 15, resetAt: 1776000000 },
+        session: { usedPercent: 15, reset: { state: "present", at: 1776000000 } },
         weekly: null,
         thirdPartySession: null,
         thirdPartyWeekly: null,
         limitReached: false,
+        invalidWindows: [],
       }),
       normalizeGoogleAvailableModels: () => null,
       hasActiveGoogleUsage: () => true,

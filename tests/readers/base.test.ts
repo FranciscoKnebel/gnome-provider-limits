@@ -8,6 +8,7 @@ import {
   type PercentFieldNames,
   type ReaderResult,
   type WindowFieldNames,
+  type WindowFieldStatus,
 } from "../../src/readers/base.js";
 import type { FieldName } from "../../src/readers/fields.js";
 
@@ -54,8 +55,9 @@ class TestReader extends BaseReader {
         }
       | null
       | undefined,
+    status?: WindowFieldStatus,
   ): FieldResult[] {
-    return this._makeWindowFields(names, data);
+    return this._makeWindowFields(names, data, status);
   }
 
   testOkResult(fields: readonly FieldResult[], pathsTried: readonly string[]): ReaderResult {
@@ -260,6 +262,35 @@ describe("BaseReader", () => {
       });
     });
 
+    it("marks an absent window with the provided status", () => {
+      const fields = reader.testMakeWindowFields(SECONDARY_NAMES, null, {
+        absent: FieldStatus.NOT_APPLICABLE,
+      });
+
+      expect(fields).toHaveSize(3);
+      fields.forEach((f) => {
+        expect(f.status).toBe(FieldStatus.NOT_APPLICABLE);
+      });
+    });
+
+    it("only applies a non-OK reset override when reset_at is null", () => {
+      const missingReset = reader.testMakeWindowFields(
+        PRIMARY_NAMES,
+        { used_percent: 25 },
+        { reset: FieldStatus.NOT_APPLICABLE },
+      );
+      expect(missingReset[2].value).toBeNull();
+      expect(missingReset[2].status).toBe(FieldStatus.NOT_APPLICABLE);
+
+      const presentReset = reader.testMakeWindowFields(
+        PRIMARY_NAMES,
+        { used_percent: 25, reset_at: 1700000000 },
+        { reset: FieldStatus.NOT_APPLICABLE },
+      );
+      expect(presentReset[2].value).toBe(1700000000);
+      expect(presentReset[2].status).toBe(FieldStatus.OK);
+    });
+
     it("handles string reset_at", () => {
       const fields = reader.testMakeWindowFields(PRIMARY_NAMES, {
         reset_at: "1700000000",
@@ -342,13 +373,13 @@ describe("BaseReader", () => {
       expect(result.lastError).toBeUndefined();
     });
 
-    it("returns OK when every field is NOT_APPLICABLE", () => {
+    it("returns ERROR when every field is NOT_APPLICABLE", () => {
       const result = reader.testClassifyResult(
         [notApplicableField("a"), notApplicableField("b")],
         ["p1"],
       );
-      expect(result.status).toBe(ReaderStatus.OK);
-      expect(result.lastError).toBeUndefined();
+      expect(result.status).toBe(ReaderStatus.ERROR);
+      expect(result.lastError).toBe("codex: no usable fields.");
     });
 
     it("uses prefix in PARTIAL lastError", () => {

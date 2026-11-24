@@ -423,6 +423,7 @@ export async function run() {
             thirdPartySession: null,
             thirdPartyWeekly: null,
             limitReached: null,
+            invalidWindows: [],
           },
           null,
           "cloudcode-pa.googleapis.com",

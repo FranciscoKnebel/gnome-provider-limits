@@ -81,11 +81,13 @@ export interface ReadOptions {
   force?: boolean;
 }
 
+export type ResetFieldStatus = FieldStatus.NOT_APPLICABLE | FieldStatus.UNAVAILABLE;
+
 export interface WindowFieldStatus {
   /** Status for every field when the provider does not expose the window. */
   readonly absent?: FieldStatus;
-  /** Explicit status for the reset field when the window exists. */
-  readonly reset?: FieldStatus;
+  /** Non-OK status for a missing reset timestamp; a present timestamp is always OK. */
+  readonly reset?: ResetFieldStatus;
 }
 
 export abstract class BaseReader<P extends ProviderName = ProviderName> {
@@ -153,7 +155,7 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
         ? FieldStatus.OK
         : FieldStatus.UNAVAILABLE;
     const resetStatus =
-      status.reset ?? (data.reset_at != null ? FieldStatus.OK : FieldStatus.UNAVAILABLE);
+      data.reset_at != null ? FieldStatus.OK : (status.reset ?? FieldStatus.UNAVAILABLE);
     return [
       ...this._makePercentFieldPair(names, data.used_percent ?? null, percentStatus),
       this._makeField(names.reset, data.reset_at ?? null, resetStatus),
@@ -240,9 +242,7 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
     prefix?: string,
     partialError?: string,
   ): ReaderResult {
-    const hasAny = fields.some(
-      (f) => f.status === FieldStatus.OK || f.status === FieldStatus.NOT_APPLICABLE,
-    );
+    const hasAny = fields.some((f) => f.status === FieldStatus.OK);
     if (!hasAny) {
       return this._errorResult(`${prefix ?? this.providerName}: no usable fields.`, pathsTried);
     }

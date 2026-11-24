@@ -224,6 +224,47 @@ export async function run() {
     reader.destroy();
   });
 
+  await test("GoogleReader reports a malformed window as unavailable without hiding valid data", async () => {
+    Gio.File.prototype.load_contents_async = async () =>
+      encodeJson({
+        access_token: "ya29.live",
+        expiry_date: Date.now() + 3600_000,
+      });
+
+    const reader = newReader({
+      postJson: async (url) => {
+        if (url.endsWith("/v1internal:retrieveUserQuotaSummary")) {
+          return {
+            buckets: [
+              {
+                bucketId: "gemini-5h",
+                window: "5h",
+                remainingFraction: 1.5,
+              },
+              {
+                bucketId: "gemini-weekly",
+                window: "weekly",
+                remainingFraction: 0.5,
+                resetTime: "2026-04-24T12:00:00Z",
+              },
+            ],
+          };
+        }
+        if (url.endsWith("/v1internal:loadCodeAssist")) {
+          return { paidTier: { name: "Google AI Pro" } };
+        }
+        throw new Error(`unexpected URL ${url}`);
+      },
+    });
+
+    const result = await reader.read();
+    const field = (name) => result.fields.find((f) => f.name === name);
+    assertEqual(result.status, "partial");
+    assertEqual(field("used_percent_session")?.status, "unavailable");
+    assertEqual(field("used_percent_weekly")?.value, 50);
+    reader.destroy();
+  });
+
   await test("GoogleReader falls back to fetchAvailableModels and merges secondary endpoint when primary is idle", async () => {
     Gio.File.prototype.load_contents_async = async () =>
       encodeJson({
