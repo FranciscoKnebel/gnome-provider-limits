@@ -289,12 +289,6 @@ export class OpenCodeReader extends BaseReader<"opencode"> {
       ),
     );
 
-    return this._classifyResult(
-      fields,
-      pathsTried,
-      "OpenCode",
-      lastError,
-      lastError ? "source" : "fields",
-    );
+    return this._classifyResult(fields, pathsTried, "OpenCode", lastError);
   }
 }

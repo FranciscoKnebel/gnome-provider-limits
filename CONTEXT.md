@@ -51,18 +51,12 @@ Field can raise urgency even when it is not selected. Missing usage stays
 unavailable, not zero.
 _Avoid_: Null field, missing value, absent metric.
 
-**Partial Cause**:
-The reason a `ReaderResult` is `PARTIAL`: `fields` when some Fields are
-unavailable or errored, or `source` when a provider source failed or last-known-good
-data is being served. Display health may ignore field gaps outside the configured
-Status Bar and Panel zones, but it never ignores a source failure.
-_Avoid_: Partial kind, partial reason, error type.
-
 **FieldView**:
 The one zone-aware formatted projection of a Field, derived by
 `deriveFieldViews` in `fieldViews.ts`. Renderers consume its already computed
-`labelText`, `valueText`, `accessibleText`, `tone`, `ratio`, `fillPercent` and
-`errorText` without a second formatting stage or any provider-specific state.
+`labelText`, `valueText`, `accessibleText`, `status`, `tone`, `ratio`,
+`fillPercent` and `errorText` without a second formatting stage or any
+provider-specific state.
 _Avoid_: Field widget, formatted row, renderer-local field copy.
 
 **Status Bar**:

@@ -88,7 +88,6 @@ export class GrokReader extends BaseReader<"grok"> {
     }
 
     let plan: string | null = null;
-    let planFailed = false;
     pathsTried.push("settings-api");
     try {
       const settings = await this._http.getJson(`${GROK_BASE_URL}/settings`, { headers });
@@ -97,14 +96,13 @@ export class GrokReader extends BaseReader<"grok"> {
         if (typeof value === "string" && value.trim()) plan = value.trim();
       }
     } catch {
-      planFailed = true;
       logWarn("grok subscription plan unavailable");
     }
 
     this._assertAlive();
     const fields = this._fieldsFromUsage(usage, plan);
     return this._finalizeResult(
-      this._classifyResult(fields, pathsTried, "Grok", undefined, planFailed ? "source" : "fields"),
+      this._classifyResult(fields, pathsTried, "Grok"),
       pathsTried,
       _("Grok: subscription credits unavailable. Try again later."),
     );

@@ -542,7 +542,6 @@ export class GoogleReader extends BaseReader<"google"> {
       const { auth, accessToken, usage, endpointUsed } = resolved as CandidateQuotaOutcome;
 
       let tier: GoogleTier | null = null;
-      let tierFailed = false;
       pushOnce(pathsTried, "tier-api");
       try {
         const tierPayload = await this._http!.postJson(
@@ -562,7 +561,6 @@ export class GoogleReader extends BaseReader<"google"> {
       } catch (error) {
         this._assertAlive();
         if (cancellable.is_cancelled()) return cancelledResult();
-        tierFailed = true;
         logWarn("google subscription tier unavailable", error);
       }
 
@@ -572,13 +570,7 @@ export class GoogleReader extends BaseReader<"google"> {
       const fields = this._fieldsFromUsage(usage, tier, endpointUsed);
 
       return this._finalizeResult(
-        this._classifyResult(
-          fields,
-          pathsTried,
-          "Google",
-          undefined,
-          tierFailed ? "source" : "fields",
-        ),
+        this._classifyResult(fields, pathsTried, "Google"),
         pathsTried,
         _("Google: subscription quota unavailable. Try again later."),
       );

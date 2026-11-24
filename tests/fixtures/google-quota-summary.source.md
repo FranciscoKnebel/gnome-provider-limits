@@ -16,7 +16,12 @@ tokens, or raw account timestamps are stored in this repository.
 `3p-weekly` buckets, with no 5-hour buckets. Reset timestamps were replaced with
 synthetic values that preserve the relative window offsets. The fixture verifies
 that the parser records the 5-hour windows as unreported. The reader maps unreported
-5-hour windows to not applicable only when the plan is known not to expose them, as
-with Antigravity Starter Quota; under other or unknown plans they stay unavailable.
+5-hour windows to not applicable only when the tier id is `free-tier`, as with
+Antigravity Starter Quota; under other or unknown tiers they stay unavailable.
 Explicitly disabled buckets are not applicable, while malformed buckets and
-unreported windows on supported plans remain unavailable.
+unreported windows on supported tiers remain unavailable.
+
+`google-tier-starter.json` is a sanitized `v1internal:loadCodeAssist` response from
+the same Antigravity Starter Quota account. It keeps `currentTier` and `paidTier`
+ids and names to pin the `free-tier` capability signal. Privacy notices, account
+URLs and project identifiers were removed.

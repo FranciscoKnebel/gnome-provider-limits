@@ -475,8 +475,3 @@ export function parseGoogleTier(raw: unknown): GoogleTier | null {
         : null;
   return id || name ? { id, name } : null;
 }
-
-export function parseGoogleTierName(raw: unknown): string | null {
-  const tier = parseGoogleTier(raw);
-  return tier?.name ?? tier?.id ?? null;
-}

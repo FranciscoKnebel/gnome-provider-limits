@@ -12,7 +12,6 @@ import {
   normalizeGoogleQuotaSummary,
   parseGoogleAuth,
   parseGoogleTier,
-  parseGoogleTierName,
   parseGoogleTokenResponse,
   resolveGoogleQuotaEndpoints,
   type GoogleUsage,
@@ -549,7 +548,7 @@ describe("normalizeGoogleAvailableModels", () => {
   });
 });
 
-describe("hasActiveGoogleUsage, mergeGoogleUsage & parseGoogleTierName", () => {
+describe("hasActiveGoogleUsage, mergeGoogleUsage & parseGoogleTier", () => {
   it("detects active usage and merges primary and secondary endpoint windows", () => {
     const idle: GoogleUsage = {
       session: presentWindow(0, idleReset()),
@@ -625,25 +624,38 @@ describe("hasActiveGoogleUsage, mergeGoogleUsage & parseGoogleTierName", () => {
     );
   });
 
+  it("parses the captured Starter tier capability", () => {
+    const raw = JSON.parse(
+      readFileSync(
+        new URL("../../../tests/fixtures/google-tier-starter.json", import.meta.url),
+        "utf8",
+      ),
+    );
+    expect(parseGoogleTier(raw)).toEqual({
+      id: "free-tier",
+      name: "Antigravity Starter Quota",
+    });
+  });
+
   it("parses paidTier and currentTier names or IDs from loadCodeAssist", () => {
     expect(
-      parseGoogleTierName({
+      parseGoogleTier({
         paidTier: { id: "g1-ultra-tier", name: "Google AI Ultra" },
         currentTier: { id: "standard-tier", name: "Gemini Code Assist" },
       }),
-    ).toBe("Google AI Ultra");
+    ).toEqual({ id: "g1-ultra-tier", name: "Google AI Ultra" });
     expect(
-      parseGoogleTierName({
+      parseGoogleTier({
         currentTier: { id: "standard-tier", name: "Google AI Pro" },
       }),
-    ).toBe("Google AI Pro");
+    ).toEqual({ id: "standard-tier", name: "Google AI Pro" });
     expect(
-      parseGoogleTierName({
+      parseGoogleTier({
         paidTier: { id: "g1-pro-tier" },
       }),
-    ).toBe("g1-pro-tier");
-    expect(parseGoogleTierName({})).toBeNull();
-    expect(parseGoogleTierName(null)).toBeNull();
+    ).toEqual({ id: "g1-pro-tier", name: null });
+    expect(parseGoogleTier({})).toBeNull();
+    expect(parseGoogleTier(null)).toBeNull();
     expect(
       parseGoogleTier({
         paidTier: { id: "free-tier", name: "Antigravity Starter Quota" },

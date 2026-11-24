@@ -474,9 +474,12 @@ describe("buildOverviewRowModel, tabs & structure keys", () => {
         fromCache: false,
         lastUpdated: 1_700_000_000,
         pathsTried: ["sqlite"],
-        fields: [{ name: "total_cost", value: 4.5, status: FieldStatus.OK }],
+        fields: [
+          { name: "total_cost", value: 4.5, status: FieldStatus.OK },
+          { name: "sessions_count", value: null, status: FieldStatus.UNAVAILABLE },
+        ],
       },
-      statusFieldNames: ["total_cost"],
+      statusFieldNames: ["total_cost", "sessions_count"],
       panelFieldNames: [],
       locale: "en",
     });

@@ -69,7 +69,7 @@ class TestReader extends BaseReader {
     pathsTried: readonly string[],
     lastError?: string,
   ): ReaderResult {
-    return this._partialResult(fields, pathsTried, lastError, "source");
+    return this._partialResult(fields, pathsTried, lastError);
   }
 
   testErrorResult(message: string, pathsTried: readonly string[]): ReaderResult {
@@ -81,9 +81,8 @@ class TestReader extends BaseReader {
     pathsTried: readonly string[],
     prefix?: string,
     partialError?: string,
-    cause: "fields" | "source" = "fields",
   ): ReaderResult {
-    return this._classifyResult(fields, pathsTried, prefix, partialError, cause);
+    return this._classifyResult(fields, pathsTried, prefix, partialError);
   }
 }
 
@@ -352,19 +351,6 @@ describe("BaseReader", () => {
       const result = reader.testClassifyResult([okField("a"), unavailableField("b")], ["p1"]);
       expect(result.status).toBe(ReaderStatus.PARTIAL);
       expect(result.lastError).toBe("codex: some fields unavailable.");
-      expect(result.partialCause).toBe("fields");
-    });
-
-    it("carries an explicit source cause", () => {
-      const result = reader.testClassifyResult(
-        [okField("a"), unavailableField("b")],
-        ["p1"],
-        "codex",
-        "source unavailable",
-        "source",
-      );
-      expect(result.status).toBe(ReaderStatus.PARTIAL);
-      expect(result.partialCause).toBe("source");
     });
 
     it("returns PARTIAL with lastError when some fields are ERROR", () => {

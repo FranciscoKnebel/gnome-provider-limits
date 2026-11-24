@@ -169,7 +169,7 @@ function deriveDisplayFacts(
 
   const health = deriveProviderHealth({
     result,
-    status,
+    displayStatus: status,
     views: allViews,
     fieldDefs,
     t: tr,
@@ -219,25 +219,14 @@ function deriveDisplayFacts(
   };
 }
 
-function resolveDisplayStatus(
-  result: ReaderResult,
-  statusFields: readonly string[],
-  panelFields: readonly string[],
-): ReaderStatus {
-  if (
-    result.status !== ReaderStatus.PARTIAL ||
-    result.fromCache ||
-    result.partialCause !== "fields"
-  ) {
+function resolveDisplayStatus(result: ReaderResult, views: readonly FieldView[]): ReaderStatus {
+  if (result.status !== ReaderStatus.PARTIAL || result.fromCache) {
     return result.status;
   }
-  const visible = new Set([...statusFields, ...panelFields]);
-  const hasVisibleUnavailable = result.fields.some(
-    (field) =>
-      visible.has(field.name) &&
-      (field.status === FieldStatus.UNAVAILABLE || field.status === FieldStatus.ERROR),
+  const hasUnavailable = views.some(
+    (view) => view.status === FieldStatus.UNAVAILABLE || view.status === FieldStatus.ERROR,
   );
-  return hasVisibleUnavailable ? result.status : ReaderStatus.OK;
+  return hasUnavailable ? result.status : ReaderStatus.OK;
 }
 
 /** Assemble one provider's display envelope from explicit options, no fake context. */
@@ -250,7 +239,6 @@ export function deriveDisplayModel(
 
   const { fieldDefs, statusFields, panelFields, locale, t: tr } = options;
   const hardError = isHardError(result);
-  const displayStatus = resolveDisplayStatus(result, statusFields, panelFields);
   const searchOrder = [...new Set([...statusFields, ...panelFields])];
   const viewOptions = { zone: "status" as const, locale, t: tr };
   const allViews = hardError ? [] : deriveFieldViews(fieldDefs, result, searchOrder, viewOptions);
@@ -260,6 +248,7 @@ export function deriveDisplayModel(
   const statusViews = selectViews(allViews, statusFields);
   const panelViews = selectViews(panelSource, panelFields);
   const resets = deriveResetPairings(fieldDefs, result, allViews, searchOrder, panelFields);
+  const displayStatus = resolveDisplayStatus(result, allViews);
 
   const modelBase = {
     provider,

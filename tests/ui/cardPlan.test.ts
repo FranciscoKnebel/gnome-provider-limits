@@ -253,6 +253,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       expect(
         deriveProviderHealth({
           result,
+          displayStatus: result.status,
           views,
           fieldDefs: CODEX_FIELDS,
           t: (text) => text,
@@ -301,7 +302,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       provider === "codex"
         ? ["used_percent_primary"]
         : provider === "claude"
-          ? ["used_percent_session"]
+          ? ["used_percent_session", "reset_at_session"]
           : [];
 
     const identity = (models: ProviderViewContext["models"]): string[] =>
@@ -338,7 +339,10 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
             fromCache: false,
             lastUpdated: 1000,
             lastError: "cached",
-            fields: [{ name: "used_percent_session", value: 60, status: FieldStatus.OK }],
+            fields: [
+              { name: "used_percent_session", value: 20, status: FieldStatus.OK },
+              { name: "reset_at_session", value: null, status: FieldStatus.UNAVAILABLE },
+            ],
           },
         ],
         [
@@ -516,7 +520,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         result: {
           provider: "claude",
           status: ReaderStatus.PARTIAL,
-          fromCache: false,
+          fromCache: true,
           lastUpdated: Date.now(),
           lastError: "CLI fallback failed; showing Last-Known-Good.",
           fields: [{ name: "used_percent_weekly", value: 25, status: FieldStatus.OK }],

@@ -224,6 +224,7 @@ for (const phase of ["auth", "refresh", "quota", "tier"])
         }
       },
       GOOGLE_OAUTH_TOKEN_URL: "https://oauth2.googleapis.com/token",
+      GOOGLE_WINDOW_IDS: ["session", "weekly", "thirdPartySession", "thirdPartyWeekly"],
       expandHomePath: (p) => p,
       resolveGoogleAuthPaths: () => ["/synthetic/oauth_creds.json"],
       parseGoogleAuth: () => ({
@@ -248,7 +249,7 @@ for (const phase of ["auth", "refresh", "quota", "tier"])
       normalizeGoogleAvailableModels: () => null,
       hasActiveGoogleUsage: () => true,
       mergeGoogleUsage: (_a, b) => b,
-      parseGoogleTierName: () => "Google AI Ultra",
+      parseGoogleTier: () => ({ id: "g1-ultra-tier", name: "Google AI Ultra" }),
       FieldStatus: { OK: "ok", UNAVAILABLE: "unavailable", NOT_APPLICABLE: "not_applicable" },
       logWarn() {},
       _: (s) => s,

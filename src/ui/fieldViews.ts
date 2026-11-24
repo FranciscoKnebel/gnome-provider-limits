@@ -27,6 +27,7 @@ export interface FieldView {
   readonly valueText: string;
   readonly accessibleText: string;
   readonly hasValue: boolean;
+  readonly status: FieldStatus;
   readonly tone?: FieldTone;
   readonly errorText?: string;
   readonly ratio: number | null;
@@ -106,6 +107,7 @@ export function deriveFieldViews(
       valueText,
       accessibleText: `${labelText}: ${valueText}`,
       hasValue,
+      status: field?.status ?? FieldStatus.UNAVAILABLE,
       ...(tone ? { tone } : {}),
       ...(errorText ? { errorText } : {}),
       ratio,

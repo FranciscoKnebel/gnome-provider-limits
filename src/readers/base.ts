@@ -58,8 +58,6 @@ export interface FieldResult<T = unknown, TName extends string = string> {
   readonly error?: string | null;
 }
 
-export type PartialCause = "fields" | "source";
-
 export interface ReaderResult {
   readonly provider: ProviderName;
   readonly status: ReaderStatus;
@@ -68,8 +66,6 @@ export interface ReaderResult {
   readonly lastError?: string | null;
   readonly pathsTried?: readonly string[];
   readonly fromCache: boolean;
-  /** Why a PARTIAL result exists: incomplete fields or a failed source. */
-  readonly partialCause?: PartialCause;
 }
 
 export function isHardError(result: ReaderResult): boolean {
@@ -180,8 +176,7 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
   protected _partialResult(
     fields: readonly FieldResult[],
     pathsTried: readonly string[],
-    lastError: string | undefined,
-    cause: PartialCause,
+    lastError?: string,
   ): ReaderResult {
     return {
       provider: this.providerName,
@@ -191,7 +186,6 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
       lastError: lastError ?? null,
       pathsTried,
       fromCache: false,
-      partialCause: cause,
     };
   }
 
@@ -239,16 +233,14 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
       lastError: message,
       pathsTried: [...pathsTried, "last-known-good"],
       fromCache: true,
-      partialCause: "source",
     };
   }
 
   protected _classifyResult(
     fields: FieldResult[],
     pathsTried: readonly string[],
-    prefix: string | undefined,
-    partialError: string | undefined,
-    cause: PartialCause,
+    prefix?: string,
+    partialError?: string,
   ): ReaderResult {
     const hasAny = fields.some((f) => f.status === FieldStatus.OK);
     if (!hasAny) {
@@ -263,7 +255,6 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
           fields,
           pathsTried,
           partialError ?? `${prefix ?? this.providerName}: some fields unavailable.`,
-          cause,
         )
       : this._okResult(fields, pathsTried);
   }

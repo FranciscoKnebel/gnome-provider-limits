@@ -22,6 +22,7 @@ function viewFor(tone: FieldTone | undefined, hasValue: boolean): FieldView {
     valueText: "",
     accessibleText: "",
     hasValue,
+    status: hasValue ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
     tone,
     ratio: null,
     usageRatio: null,
@@ -249,6 +250,7 @@ describe("providerHealth pure helpers", () => {
             };
             const health = deriveProviderHealth({
               result,
+              displayStatus: status,
               views: [viewFor(tone, hasUsableField)],
               fieldDefs: [],
               t: (text) => text,
@@ -292,6 +294,7 @@ describe("providerHealth pure helpers", () => {
     });
     const health = deriveProviderHealth({
       result,
+      displayStatus: result.status,
       views,
       fieldDefs: CODEX_FIELDS,
       t: (text) => `T:${text}`,
@@ -310,6 +313,7 @@ describe("providerHealth pure helpers", () => {
     const errorResult: ReaderResult = { ...result, status: ReaderStatus.ERROR, pathsTried: [] };
     const errorHealth = deriveProviderHealth({
       result: errorResult,
+      displayStatus: errorResult.status,
       views,
       fieldDefs: CODEX_FIELDS,
       t: (text) => `T:${text}`,

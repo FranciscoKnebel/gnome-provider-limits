@@ -1,0 +1,10 @@
+{
+  "currentTier": {
+    "id": "free-tier",
+    "name": "Antigravity"
+  },
+  "paidTier": {
+    "id": "free-tier",
+    "name": "Antigravity Starter Quota"
+  }
+}

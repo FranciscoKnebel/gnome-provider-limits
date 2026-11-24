@@ -128,7 +128,7 @@ export async function run() {
     reader.destroy();
   });
 
-  await test("GoogleReader reports weekly-only plans with unavailable 5h fields", async () => {
+  await test("GoogleReader reports weekly-only plans with not-applicable 5h fields", async () => {
     const weeklyReset = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
     Gio.File.prototype.load_contents_async = async () =>
       encodeJson({

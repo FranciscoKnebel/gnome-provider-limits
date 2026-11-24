@@ -99,7 +99,6 @@ describe("deriveDisplayModel applies configured-zone health", () => {
   const partialFields: ReaderResult = {
     provider: "codex",
     status: ReaderStatus.PARTIAL,
-    partialCause: "fields",
     lastError: "codex: some fields unavailable.",
     fromCache: false,
     lastUpdated: 1_700_000_000_000,
@@ -158,17 +157,16 @@ describe("deriveDisplayModel applies configured-zone health", () => {
     expect(model.facts.diagnostic.kind).toBeNull();
   });
 
-  it("does not hide a source-level partial", () => {
+  it("upgrades a source failure when every configured field is still available", () => {
     const sourcePartial: ReaderResult = {
       ...partialFields,
-      partialCause: "source",
       lastError: "source unavailable",
     };
     const model = modelFor(sourcePartial, ["used_percent_primary"], []);
     expect(model.result.status).toBe(ReaderStatus.PARTIAL);
-    expect(model.status).toBe(ReaderStatus.PARTIAL);
-    expect(model.facts.health.state).toBe("partial");
-    expect(model.facts.diagnostic.text).toBe("source unavailable");
+    expect(model.status).toBe(ReaderStatus.OK);
+    expect(model.facts.health.state).toBe("ok");
+    expect(model.facts.diagnostic.kind).toBeNull();
   });
 
   it("keeps health tone provider-wide for unselected percent fields", () => {
@@ -354,8 +352,12 @@ describe("deriveDisplayModel owns diagnostics and reset pairing", () => {
       ...result,
       status: ReaderStatus.PARTIAL,
       lastError: "CLI failed",
+      fields: [
+        ...result.fields,
+        { name: "used_percent_secondary", value: null, status: FieldStatus.UNAVAILABLE },
+      ],
     };
-    const partial = modelFor(partialResult, []);
+    const partial = modelFor(partialResult, ["used_percent_secondary"]);
     expect(partial.facts.diagnostic.badge).toBe("Partial");
 
     const errorResult: ReaderResult = { ...result, status: ReaderStatus.ERROR, lastError: "Login" };
