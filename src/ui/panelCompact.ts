@@ -55,6 +55,8 @@ export class CompactPanelSection extends PanelStyleSection {
   private _lastView: ProviderViewContext;
   private _defaultExpanded = false;
   private _expandedOverrides: Map<ProviderName, boolean> = new Map();
+  private readonly _headerRows = new Map<ProviderName, ReturnType<PanelShell["addStaticRow"]>>();
+  private _focusedProvider: ProviderName | null = null;
   private readonly _expandAll: ExpandAllControl;
 
   constructor(shell: PanelShell, expandAll: ExpandAllControl) {
@@ -72,6 +74,9 @@ export class CompactPanelSection extends PanelStyleSection {
     this._lastView = context.view;
     this._defaultExpanded = context.view.activeProviders.length <= 2;
 
+    const focusedProvider = this._focusedProvider;
+    this._headerRows.clear();
+
     if (!addPlaceholderIfNeeded(this.shell, context.view, matrixMessages)) {
       const models = context.view.models;
       models.forEach((model, index) => {
@@ -84,6 +89,12 @@ export class CompactPanelSection extends PanelStyleSection {
       });
     }
     this._syncToolbar();
+
+    if (focusedProvider !== null) {
+      const header = this._headerRows.get(focusedProvider);
+      if (header) header.grab_key_focus();
+      else this._focusedProvider = null;
+    }
   }
 
   private _toggleProvider(provider: ProviderName, forceState?: boolean): void {
@@ -144,6 +155,13 @@ export class CompactPanelSection extends PanelStyleSection {
     const headerAccessibleName = accessibleParts.join(" ");
 
     const headerRow = this.shell.addStaticRow();
+    this._headerRows.set(model.provider, headerRow);
+    headerRow.connect("key-focus-in", () => {
+      this._focusedProvider = model.provider;
+    });
+    headerRow.connect("key-focus-out", () => {
+      if (this._focusedProvider === model.provider) this._focusedProvider = null;
+    });
     headerRow.add_style_class_name("provider-limits-matrix-header");
     if (divided) {
       headerRow.add_style_class_name("provider-limits-matrix-group-divided");

@@ -53,6 +53,7 @@ class TabBarRenderer {
   ) {}
 
   render(context: TabBarContext): void {
+    const focusedTab = [...this._buttons].find(([, button]) => button.has_key_focus())?.[0] ?? null;
     clearChildren(this.bar, (child) => child.destroy());
     this._buttons.clear();
 
@@ -107,6 +108,8 @@ class TabBarRenderer {
       this.bar.add_child(button);
       this._buttons.set(tab, button);
     }
+
+    if (focusedTab !== null) this.focusButton(focusedTab);
   }
 
   focusButton(tab: CockpitTab): void {

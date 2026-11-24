@@ -131,13 +131,13 @@ const EXPECTED = {
     state: "ok",
     tone: "critical",
     attention: "critical",
-    card: "live",
-    overview: "ok",
-    statusTag: "",
+    card: "cached",
+    overview: "partial",
+    statusTag: "(partial)",
     pill: "~",
     pillA11y: "Cached",
-    cardLabel: "Live",
-    overviewLabel: "OK",
+    cardLabel: "Cached",
+    overviewLabel: "Partial",
   },
   error: {
     state: "error",
@@ -254,10 +254,6 @@ describe("providerHealth pure helpers", () => {
               t: (text) => text,
             });
             const expected = EXPECTED[deriveSeverity(status, tone, hasUsableField, lastKnownGood)];
-            const partialPill =
-              status === ReaderStatus.PARTIAL && expected.pill === null
-                ? { pill: "~", pillA11y: "Cached" }
-                : { pill: expected.pill, pillA11y: expected.pillA11y };
             const label = `combination ${status}/${tone ?? "none"}/${hasUsableField}/${lastKnownGood}`;
 
             expect(health.state).withContext(label).toBe(expected.state);
@@ -270,8 +266,8 @@ describe("providerHealth pure helpers", () => {
             expect(health.presentation.label.overview)
               .withContext(label)
               .toBe(expected.overviewLabel);
-            expect(health.stateTag).withContext(label).toBe(partialPill.pill);
-            expect(health.stateAccessibleText).withContext(label).toBe(partialPill.pillA11y);
+            expect(health.stateTag).withContext(label).toBe(expected.pill);
+            expect(health.stateAccessibleText).withContext(label).toBe(expected.pillA11y);
             checked += 1;
           }
         }

@@ -38,7 +38,7 @@ export function deriveResetPairings(
       resetField.value !== undefined;
     const inPanel = panelFields.includes(view.resetName);
     if (!hasValue && !zoneFields.includes(view.resetName)) continue;
-    const isClaimed = !claimed.has(view.resetName);
+    const isClaimed = panelFields.includes(view.name) && !claimed.has(view.resetName);
     if (isClaimed) claimed.add(view.resetName);
 
     pairings.set(view.name, {

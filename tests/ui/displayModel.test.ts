@@ -3,6 +3,7 @@ import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
 import type { FieldDef, ReaderResult } from "../../src/readers/base.js";
 import { CODEX_FIELDS, PROVIDER_FIELDS } from "../../src/readers/fields.js";
 import { deriveDisplayModel, diagnosticMessage } from "../../src/ui/displayModel.js";
+import { progressResetPresentation } from "../../src/ui/panelCards.js";
 import { consumedResetNames, resetDetailText, resetSlotText } from "../../src/ui/resetModel.js";
 import { viewContextFromFixture, type ViewFixtureInput } from "./contextFixture.js";
 
@@ -124,6 +125,34 @@ describe("deriveDisplayModel owns diagnostics and reset pairing", () => {
     );
     expect(model.resets.has("used_percent_primary")).toBeTrue();
     expect(Array.from(consumedResetNames(model.resets))).toEqual(["reset_at_primary"]);
+  });
+
+  it("lets a panel percent field claim a reset also used by a status-only field", () => {
+    const model = deriveDisplayModel("codex", result, {
+      fieldDefs: CODEX_FIELDS,
+      statusFields: ["used_percent_primary"],
+      panelFields: ["reset_at_primary", "remaining_percent_primary"],
+      displayName: "codex",
+      shortDisplayName: "codex",
+      locale: "en",
+      t: (text) => text,
+    });
+    if (!model) throw new Error("Provider codex is disabled");
+
+    const statusPairing = model.resets.get("used_percent_primary");
+    const panelPairing = model.resets.get("remaining_percent_primary");
+    if (!statusPairing || !panelPairing) throw new Error("missing reset pairing");
+
+    expect(statusPairing.claimed).toBeFalse();
+    expect(panelPairing.claimed).toBeTrue();
+    expect(Array.from(consumedResetNames(model.resets))).toEqual(["reset_at_primary"]);
+
+    const panelView = model.panelViews.find((view) => view.name === "remaining_percent_primary");
+    if (!panelView) throw new Error("missing panel percent view");
+    const presentation = progressResetPresentation(panelView, panelPairing, "en", (text) => text);
+    expect(presentation.resetText).toContain("Reset at (5h window):");
+
+    expect(resetSlotText(statusPairing, "status", "en", (text) => text)).toContain("↻");
   });
 
   it("pairs resets from explicit FieldDef metadata only, never from name suffixes", () => {

@@ -24,7 +24,12 @@ export interface ReorderRowContext {
 export function isDisposablePage(
   page: Adw.PreferencesPage,
 ): page is Adw.PreferencesPage & DisposablePage {
-  return "cleanup" in page && typeof (page as Partial<DisposablePage>).cleanup === "function";
+  return "cleanup" in page && typeof page.cleanup === "function";
+}
+
+/** Rows in a rebuilt list own subscriptions that must be released before unparenting. */
+function isDisposableWidget(widget: Gtk.Widget): widget is Gtk.Widget & DisposablePage {
+  return "cleanup" in widget && typeof widget.cleanup === "function";
 }
 
 export function bindSetting(
@@ -46,7 +51,10 @@ export function unbindSettings(bindings: SettingsBinding[]): void {
 }
 
 export function clearListBox(listBox: Gtk.ListBox): void {
-  clearChildren(listBox, (child) => listBox.remove(child));
+  clearChildren(listBox, (child) => {
+    if (isDisposableWidget(child)) child.cleanup();
+    listBox.remove(child);
+  });
 }
 
 export function setupDragSource(row: Gtk.Widget, value: string): void {

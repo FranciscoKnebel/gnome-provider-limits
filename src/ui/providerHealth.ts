@@ -138,14 +138,14 @@ export const HEALTH_BY_SEVERITY: Readonly<Record<ProviderSeverity, HealthProfile
     pillAccessibleText: null,
     label: { card: "Live", overview: "OK" },
   }),
-  // PARTIAL read with a critical field: critical presentation, cached pill.
+  // PARTIAL read with a critical field: cached/partial presentation, critical tone.
   "critical-partial": profile("ok", "critical", "critical", {
-    cardBadge: "live",
-    overviewBadge: "ok",
-    statusTag: "",
+    cardBadge: "cached",
+    overviewBadge: "partial",
+    statusTag: PARTIAL_TAG,
     pillTag: PILL_PARTIAL_MARKER,
     pillAccessibleText: CACHED_LABEL,
-    label: { card: "Live", overview: "OK" },
+    label: { card: CACHED_LABEL, overview: "Partial" },
   }),
   error: profile("error", "error", "error", {
     cardBadge: "error",
