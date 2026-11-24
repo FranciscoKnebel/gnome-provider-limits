@@ -159,7 +159,14 @@ export function selectUsageView(
 /** Builds the compact gauge spec from views that have already been derived. */
 export function meterFromViews(views: readonly FieldView[]): GaugeSpec {
   const primary = views.find((view) => view.type === "percent" && view.hasValue);
-  if (!primary) return emptyMeter("neutral", false);
+  if (!primary) {
+    // An explicit limit_reached flag is a full critical meter even when the
+    // percentage windows are unavailable.
+    if (views.some((view) => view.name === "limit_reached" && view.tone === "critical")) {
+      return gaugeArc(1, "critical");
+    }
+    return emptyMeter("neutral", false);
+  }
   return gaugeArc(primary.usageRatio ?? 0, primary.tone ?? "ok");
 }
 
