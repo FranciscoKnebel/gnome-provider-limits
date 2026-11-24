@@ -10,7 +10,13 @@ import {
   resolveGooglePrimaryAuthPaths,
   type Env,
 } from "../helpers/paths.js";
-import { BaseReader, FieldStatus, type FieldResult, type ReaderResult } from "./base.js";
+import {
+  BaseReader,
+  FieldStatus,
+  type FieldResult,
+  type ReaderResult,
+  type ResetFieldStatus,
+} from "./base.js";
 import {
   GOOGLE_CLOUDCODE_DAILY_URL,
   GOOGLE_OAUTH_TOKEN_URL,
@@ -71,16 +77,11 @@ interface CandidateQuotaOutcome {
   endpointUsed: string;
 }
 
-function resetStatusFor(reset: GoogleWindowReset): FieldStatus {
-  switch (reset.state) {
-    case "present":
-      return FieldStatus.OK;
-    case "idle":
-      return FieldStatus.NOT_APPLICABLE;
-    case "missing":
-      return FieldStatus.UNAVAILABLE;
-  }
-}
+const RESET_OVERRIDE: Record<GoogleWindowReset["state"], ResetFieldStatus | undefined> = {
+  present: undefined,
+  idle: FieldStatus.NOT_APPLICABLE,
+  missing: FieldStatus.UNAVAILABLE,
+};
 
 function assertNever(value: never): never {
   throw new Error(`unexpected Google window state: ${String(value)}`);
@@ -589,13 +590,12 @@ export class GoogleReader extends BaseReader<"google"> {
             ...this._makeWindowFields(
               names,
               { used_percent: data.usedPercent, reset_at: resetAt },
-              { reset: { at: resetAt, status: resetStatusFor(data.reset) } },
+              { reset: RESET_OVERRIDE[data.reset.state] },
             ),
           );
           break;
         }
-        case "omitted":
-        case "disabled":
+        case "absent":
           fields.push(
             ...this._makeWindowFields(names, null, { absent: FieldStatus.NOT_APPLICABLE }),
           );
@@ -608,7 +608,7 @@ export class GoogleReader extends BaseReader<"google"> {
       }
     }
 
-    fields.push(this._makeOptionalField("limit_reached", usage.limitReached));
+    fields.push(this._makeField("limit_reached", usage.limitReached, FieldStatus.OK));
     fields.push(this._makeOptionalField("plan_type", plan));
     fields.push(this._makeField("usage_source", hostFromEndpoint(endpointUsed), FieldStatus.OK));
     return fields;

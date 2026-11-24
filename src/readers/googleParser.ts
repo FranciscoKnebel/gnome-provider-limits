@@ -41,8 +41,7 @@ const GOOGLE_WINDOW_IDS: readonly GoogleWindowId[] = [
 
 export type GoogleWindow =
   | { readonly state: "present"; readonly usage: GoogleWindowUsage }
-  | { readonly state: "omitted" }
-  | { readonly state: "disabled" }
+  | { readonly state: "absent" }
   | { readonly state: "malformed" };
 
 export interface GoogleUsage {
@@ -50,13 +49,8 @@ export interface GoogleUsage {
   weekly: GoogleWindow;
   thirdPartySession: GoogleWindow;
   thirdPartyWeekly: GoogleWindow;
-  limitReached: boolean | null;
+  limitReached: boolean;
 }
-
-type ParsedBucket =
-  | { readonly state: "present"; readonly usage: GoogleWindowUsage }
-  | { readonly state: "disabled" }
-  | { readonly state: "malformed" };
 
 type QuotaFamily = "gemini" | "3p";
 type QuotaWindow = "5h" | "weekly";
@@ -180,8 +174,8 @@ function parseBucketWindowUsage(
   bucket: Record<string, unknown>,
   window: QuotaWindow,
   requestedAtMs: number,
-): ParsedBucket {
-  if (bucket.disabled === true) return { state: "disabled" };
+): GoogleWindow {
+  if (bucket.disabled === true) return { state: "absent" };
 
   const rawResetSec = parseTimestampSeconds(bucket.resetTime);
   const rawFraction = bucket.remainingFraction;
@@ -224,15 +218,14 @@ function resetAtOf(reset: GoogleWindowReset): number | null {
   return reset.state === "present" ? reset.at : null;
 }
 
+const RESET_RANK: Record<GoogleWindowReset["state"], number> = {
+  present: 2,
+  idle: 1,
+  missing: 0,
+};
+
 function resetRank(reset: GoogleWindowReset): number {
-  switch (reset.state) {
-    case "present":
-      return 2;
-    case "idle":
-      return 1;
-    case "missing":
-      return 0;
-  }
+  return RESET_RANK[reset.state];
 }
 
 function pickHigherUsage(
@@ -257,26 +250,23 @@ function windowIdFor(family: QuotaFamily, window: QuotaWindow): GoogleWindowId {
   return window === "5h" ? "thirdPartySession" : "thirdPartyWeekly";
 }
 
-function omittedWindows(): Record<GoogleWindowId, GoogleWindow> {
+function absentWindows(): Record<GoogleWindowId, GoogleWindow> {
   return {
-    session: { state: "omitted" },
-    weekly: { state: "omitted" },
-    thirdPartySession: { state: "omitted" },
-    thirdPartyWeekly: { state: "omitted" },
+    session: { state: "absent" },
+    weekly: { state: "absent" },
+    thirdPartySession: { state: "absent" },
+    thirdPartyWeekly: { state: "absent" },
   };
 }
 
+const WINDOW_RANK: Record<GoogleWindow["state"], number> = {
+  present: 2,
+  malformed: 1,
+  absent: 0,
+};
+
 function windowRank(window: GoogleWindow): number {
-  switch (window.state) {
-    case "present":
-      return 3;
-    case "malformed":
-      return 2;
-    case "disabled":
-      return 1;
-    case "omitted":
-      return 0;
-  }
+  return WINDOW_RANK[window.state];
 }
 
 function mergeWindows(current: GoogleWindow, candidate: GoogleWindow): GoogleWindow {
@@ -287,9 +277,7 @@ function mergeWindows(current: GoogleWindow, candidate: GoogleWindow): GoogleWin
 }
 
 function preferExactWindow(exact: GoogleWindow, fallback: GoogleWindow): GoogleWindow {
-  if (exact.state === "present") return exact;
-  if (fallback.state === "present") return fallback;
-  return exact.state !== "omitted" ? exact : fallback;
+  return windowRank(exact) >= windowRank(fallback) ? exact : fallback;
 }
 
 function buildGoogleUsage(windows: Record<GoogleWindowId, GoogleWindow>): GoogleUsage | null {
@@ -375,8 +363,8 @@ export function normalizeGoogleQuotaSummary(
     }
   }
 
-  const exact = omittedWindows();
-  const fallback = omittedWindows();
+  const exact = absentWindows();
+  const fallback = absentWindows();
 
   for (const { groupId, bucket } of collected) {
     const meta = classifyBucket(bucket, groupId);
@@ -387,7 +375,7 @@ export function normalizeGoogleQuotaSummary(
     target[id] = mergeWindows(target[id], parsed);
   }
 
-  const windows = omittedWindows();
+  const windows = absentWindows();
   for (const id of GOOGLE_WINDOW_IDS) {
     windows[id] = preferExactWindow(exact[id], fallback[id]);
   }
@@ -400,7 +388,7 @@ export function normalizeGoogleAvailableModels(
 ): GoogleUsage | null {
   if (!isRecord(raw) || !isRecord(raw.models)) return null;
 
-  const windows = omittedWindows();
+  const windows = absentWindows();
 
   for (const [modelId, model] of Object.entries(raw.models)) {
     if (!isRecord(model) || model.disabled === true) continue;
@@ -458,7 +446,7 @@ export function mergeGoogleUsage(
 ): GoogleUsage | null {
   if (!primary) return secondary;
   if (!secondary) return primary;
-  const windows = omittedWindows();
+  const windows = absentWindows();
   for (const id of GOOGLE_WINDOW_IDS) {
     windows[id] = mergeWindows(primary[id], secondary[id]);
   }

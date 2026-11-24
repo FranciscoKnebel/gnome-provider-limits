@@ -273,19 +273,19 @@ describe("BaseReader", () => {
       });
     });
 
-    it("uses the supplied reset value and status", () => {
+    it("uses the supplied reset status only when reset_at is null", () => {
       const missingReset = reader.testMakeWindowFields(
         PRIMARY_NAMES,
         { used_percent: 25 },
-        { reset: { at: null, status: FieldStatus.NOT_APPLICABLE } },
+        { reset: FieldStatus.NOT_APPLICABLE },
       );
       expect(missingReset[2].value).toBeNull();
       expect(missingReset[2].status).toBe(FieldStatus.NOT_APPLICABLE);
 
       const presentReset = reader.testMakeWindowFields(
         PRIMARY_NAMES,
-        { used_percent: 25 },
-        { reset: { at: 1700000000, status: FieldStatus.OK } },
+        { used_percent: 25, reset_at: 1700000000 },
+        { reset: FieldStatus.NOT_APPLICABLE },
       );
       expect(presentReset[2].value).toBe(1700000000);
       expect(presentReset[2].status).toBe(FieldStatus.OK);
