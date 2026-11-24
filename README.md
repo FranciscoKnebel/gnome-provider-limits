@@ -29,14 +29,18 @@ This extension reads the local files and SQLite databases that providers already
 
 ## Provider support
 
-| Provider         | Limit fields                                                                                       | Telemetry fields                                                | Data source                                                                                                  |
-| ---------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Codex            | Used % (5h), Used % (weekly), Reset at, Limit reached                                              | Plan type                                                       | OAuth API (`chatgpt.com`), SQLite disk fallback (`~/.codex/logs_2.sqlite`)                                   |
-| Claude           | Used % (session 5h), Used % (weekly), Used % (Sonnet), Used % (Opus), Reset at                     | Extra usage status                                              | OAuth API (`api.anthropic.com`), CLI PTY fallback                                                            |
-| OpenCode Go      | Used % (rolling 5h), Used % (weekly), Used % (monthly), Reset at, Limit reached                    | Total cost, Sessions count                                      | Usage API (`opencode.ai/zen/go/v1/usage`), SQLite telemetry (`~/.local/share/opencode/opencode.db`)          |
-| Grok / SuperGrok | Used % (credits), Remaining % (credits), Reset at (credits)                                        | Purchased credits (USD), Shared subscription credits, Plan type | Grok subscription credits API (`cli-chat-proxy.grok.com`), login from `~/.grok/auth.json`                    |
-| Cursor           | Used % (credits), Remaining % (credits), Reset at (credits), Used % (Auto + Composer / API), Limit | Remaining credits (USD), On-demand spend (USD), Plan type       | Cursor SDK `DashboardService` (`api2.cursor.sh`), login from `~/.cursor/sdk/auth.json` or `~/.config/cursor` |
-| Google           | Used % (session 5h), Used % (weekly), Used % (Claude & GPT 5h / weekly), Reset at, Limit reached   | Plan type                                                       | Google Cloud Code quota API (`cloudcode-pa.googleapis.com`), login from Gemini CLI or Antigravity            |
+| Provider         | Limit fields                                                                                       | Telemetry fields                                                | Data source                                                                                                                          |
+| ---------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
+| Codex            | Used % (5h), Used % (weekly), Reset at, Limit reached                                              | Plan type                                                       | OAuth API (`chatgpt.com`), SQLite disk fallback (`~/.codex/logs_2.sqlite`)                                                           |
+| Claude           | Used % (session 5h), Used % (weekly), Used % (Sonnet), Used % (Opus), Reset at                     | Extra usage status                                              | OAuth API (`api.anthropic.com`), CLI PTY fallback                                                                                    |
+| OpenCode Go      | Used % (rolling 5h), Used % (weekly), Used % (monthly), Reset at, Limit reached                    | Total cost, Sessions count                                      | Usage API (`opencode.ai/zen/go/v1/usage`), SQLite telemetry (`~/.local/share/opencode/opencode.db`)                                  |
+| Grok / SuperGrok | Used % (credits), Remaining % (credits), Reset at (credits)                                        | Purchased credits (USD), Shared subscription credits, Plan type | Grok subscription credits API (`cli-chat-proxy.grok.com`), login from `~/.grok/auth.json`                                            |
+| Cursor           | Used % (credits), Remaining % (credits), Reset at (credits), Used % (Auto + Composer / API), Limit | Remaining credits (USD), On-demand spend (USD), Plan type       | Cursor SDK `DashboardService` (`api2.cursor.sh`), login from `~/.cursor/sdk/auth.json`, `~/.cursor/auth.json`, or `~/.config/cursor` |
+| Google           | Used % (session 5h), Used % (weekly), Used % (Claude & GPT 5h / weekly), Reset at, Limit reached   | Plan type                                                       | Google Cloud Code quota API (`cloudcode-pa.googleapis.com`), login from Gemini CLI or Antigravity                                    |
+
+Each provider needs its own CLI login or local credential file. See
+[Provider dependencies](#provider-dependencies) for the required dependency and
+the files or environment variables the extension reads.
 
 ## Requirements
 
@@ -88,9 +92,57 @@ From there you can:
 - Toggle each provider on or off.
 - Reorder the providers as they appear in the top bar.
 - Choose which fields show up in the status bar and the dropdown panel.
-- Set the path to the CLI executable for each provider.
+- Set the path to the Claude CLI or to an existing authentication file for Grok, Cursor, or Google.
 - Customize the display names and short labels.
 - Set the interface language (defaults to your system locale).
+
+### Provider dependencies
+
+The extension reads credentials and usage state that the official provider tools
+already store locally. Install the provider tool and sign in once before enabling
+the provider. The extension does not install provider tools and does not launch
+them during refreshes, except for the Claude CLI fallback.
+
+| Provider         | Required dependency                               | Sign-in                                       | What the extension reads                                                                                                                |
+| ---------------- | ------------------------------------------------- | --------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| Codex            | Codex CLI (`codex`)                               | `codex login`                                 | `$CODEX_HOME/auth.json` or `~/.codex/auth.json`; `logs_2.sqlite` for disk fallback                                                      |
+| Claude           | Claude Code CLI (`claude`)                        | Sign in by running `claude`                   | `$CLAUDE_CONFIG_DIR/.credentials.json` or `~/.claude/.credentials.json`; CLI fallback for `/usage`                                      |
+| OpenCode Go      | OpenCode CLI (`opencode`) with OpenCode Go access | `opencode auth login`, then start OpenCode Go | `$XDG_DATA_HOME/opencode/opencode.db` or `~/.local/share/opencode/opencode.db`; `auth.json`; `OPENCODE_API_KEY`                         |
+| Grok / SuperGrok | Grok Build CLI (`grok`)                           | `grok login`                                  | `$GROK_HOME/auth.json` or `~/.grok/auth.json`                                                                                           |
+| Cursor           | Cursor CLI (`cursor-agent`)                       | `cursor-agent login`                          | `$CURSOR_HOME/sdk/auth.json`, `$XDG_CONFIG_HOME/cursor/auth.json`, or `$CURSOR_HOME/auth.json`; `CURSOR_AUTH_TOKEN` or `CURSOR_API_KEY` |
+| Google           | Gemini CLI (`gemini`) or Antigravity              | Sign in with either tool                      | Gemini `oauth_creds.json`, Antigravity ACP token, or Google Application Default Credentials                                             |
+
+The Codex and OpenCode Go disk sources use the Python 3 SQLite helper listed in
+[Requirements](#requirements). `CODEX_HOME`, `CLAUDE_CONFIG_DIR`, `XDG_DATA_HOME`,
+`GROK_HOME`, `CURSOR_HOME`, and `XDG_CONFIG_HOME` are read from the GNOME Shell
+environment when set.
+
+#### Codex
+
+Install the Codex CLI and run `codex login`. The reader reads
+`$CODEX_HOME/auth.json` or `~/.codex/auth.json` and queries the ChatGPT usage API.
+When the API is unavailable, it reads the latest `codex.rate_limits` entry from
+`$CODEX_HOME/logs_2.sqlite` or `~/.codex/logs_2.sqlite`, so run the CLI at least
+once after signing in. The extension does not launch the Codex CLI.
+
+#### Claude
+
+Install the Claude Code CLI and sign in by running `claude`. The reader reads
+`$CLAUDE_CONFIG_DIR/.credentials.json` or `~/.claude/.credentials.json` and
+queries the Anthropic usage API. When OAuth credentials are unavailable or
+expired, it launches `claude --allowed-tools ""` in a temporary directory, sends
+`/usage` and `/exit`, and parses the output. Set **Claude CLI path** in preferences
+if `claude` is not in `PATH`.
+
+#### OpenCode Go
+
+Install the OpenCode CLI, run `opencode auth login`, and start OpenCode Go at least
+once. The reader reads the active OpenCode credential from
+`$XDG_DATA_HOME/opencode/opencode.db` or `~/.local/share/opencode/opencode.db`
+(v2), or from `auth.json` in the same directory (v1), and queries the Zen Go usage
+API. `OPENCODE_API_KEY` is also accepted. Disk telemetry, including total cost and
+session count, comes from `opencode.db`. The extension does not launch the
+OpenCode CLI.
 
 ### Grok / SuperGrok
 
@@ -129,13 +181,23 @@ No live account payload or credential is stored in this repository.
 
 ### Cursor
 
-Cursor is disabled by default. Sign in with `cursor-agent login` (or `@cursor/sdk`),
-then enable Cursor in the extension preferences. The reader checks
+Cursor is disabled by default. Install the Cursor CLI and sign in:
+
+```bash
+curl https://cursor.com/install -fsS | bash
+cursor-agent login
+```
+
+The installer also creates an `agent` alias. Use `cursor-agent` if another tool
+already provides `agent`. Installing the Cursor IDE alone is not enough. Cursor SDK
+auth files are also accepted.
+
+Then enable Cursor in the extension preferences. The reader checks
 `$CURSOR_HOME/sdk/auth.json` (`~/.cursor/sdk/auth.json`), `~/.config/cursor/auth.json`,
 and `~/.cursor/auth.json` on every refresh (falling back to `CURSOR_AUTH_TOKEN` or
 `CURSOR_API_KEY` when no custom file is configured). You can also specify an explicit
-authentication file in the Cursor preferences (`~/` is supported). Encrypted desktop IDE
-keyring state (`state.vscdb`) is intentionally not read.
+authentication file in the Cursor preferences (`~/` is supported). The encrypted
+desktop IDE keyring state (`state.vscdb`) is intentionally not read.
 
 When an SDK `apiKey` is present without a session token, the reader exchanges it for a
 short-lived bearer token via `https://api2.cursor.sh/auth/exchange_user_api_key` and
