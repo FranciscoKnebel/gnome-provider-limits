@@ -118,12 +118,14 @@ print(json.dumps(rows, default=str))
 export async function querySqlite(
   dbPath: string,
   query: string,
-  options?: { timeoutSeconds?: number },
+  options?: { timeoutSeconds?: number; cache?: boolean },
 ): Promise<unknown> {
   if (!GLib.file_test(dbPath, GLib.FileTest.EXISTS)) return [];
 
   const cacheKey = `${dbPath}:${query}`;
-  const cached = cache.get(cacheKey);
+  // Credential queries opt out: their rows hold secrets that must not outlive the read.
+  const useCache = options?.cache !== false;
+  const cached = useCache ? cache.get(cacheKey) : undefined;
   if (cached && (cached.expiresAt === null || cached.expiresAt > Date.now())) {
     return cached.promise;
   }
@@ -131,7 +133,7 @@ export async function querySqlite(
   const timeoutSeconds = options?.timeoutSeconds ?? 10;
   const entry: CacheEntry = { promise: Promise.resolve(), expiresAt: null };
   entry.promise = trackEntry(cacheKey, entry, dbPath, query, timeoutSeconds);
-  cache.set(cacheKey, entry);
+  if (useCache) cache.set(cacheKey, entry);
 
   return entry.promise;
 }
