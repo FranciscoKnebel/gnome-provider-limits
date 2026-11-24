@@ -330,6 +330,7 @@ export async function run() {
   try {
     assertEqual(FieldStatus.OK, "ok");
     assertEqual(FieldStatus.UNAVAILABLE, "unavailable");
+    assertEqual(FieldStatus.NOT_APPLICABLE, "not_applicable");
     assertEqual(FieldStatus.ERROR, "error");
     results.push({ name: "FieldStatus enum values correct", passed: true });
   } catch (e) {

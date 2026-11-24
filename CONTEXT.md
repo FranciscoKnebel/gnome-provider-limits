@@ -40,6 +40,14 @@ of it: the GSettings schema `<default>` arrays (`<provider>-status-fields` and
 appears by default.
 _Avoid_: Field registry, default zone metadata, duplicate field list.
 
+**Field Status**:
+The per-Field availability attached to a `FieldResult`: `OK`, `UNAVAILABLE`,
+`NOT_APPLICABLE`, or `ERROR`. `UNAVAILABLE` and `ERROR` degrade provider health when
+the Field is configured in the Status Bar or Panel. `NOT_APPLICABLE` means the
+Provider does not expose the Field for the current plan or window, so it never
+degrades health. Missing usage stays unavailable, not zero.
+_Avoid_: Null field, missing value, absent metric.
+
 **FieldView**:
 The one zone-aware formatted projection of a Field, derived by
 `deriveFieldViews` in `fieldViews.ts`. Renderers consume its already computed
@@ -161,7 +169,9 @@ disk. Exposes Gemini 5-hour session and weekly windows (`used_percent_session`,
 `reset_at_session`, `used_percent_weekly`, `reset_at_weekly`) plus optional third-party
 Claude & GPT 5-hour and weekly pools on Antigravity (`used_percent_3p_session`,
 `used_percent_3p_weekly`). Untouched 0% windows whose distant reset time matches
-Google's idle placeholder horizon omit `reset_at` until active usage starts.
+Google's idle placeholder horizon omit `reset_at` and report it as not applicable
+until active usage starts. Windows absent from the account's plan stay unavailable,
+but provider health only considers fields configured in the Status Bar and Panel.
 _Avoid_: Google Cloud billing, Vertex AI pay-as-you-go spend, service-account keys.
 
 **Telemetry Field**:

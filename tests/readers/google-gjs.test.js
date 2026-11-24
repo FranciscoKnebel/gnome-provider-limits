@@ -24,8 +24,14 @@ export async function run() {
     }
   };
 
-  const newReader = (http, path = "/mock/google-oauth.json") => {
-    const reader = new GoogleReader({ get_string: () => path }, "google");
+  const newReader = (http, path = "/mock/google-oauth.json", fields = null) => {
+    const reader = new GoogleReader(
+      {
+        get_string: () => path,
+        ...(fields ? { get_strv: (key) => fields[key] ?? [] } : {}),
+      },
+      "google",
+    );
     reader._http = {
       postForm: async () => ({}),
       postJson: async () => ({}),
@@ -125,6 +131,81 @@ export async function run() {
     assertEqual(value("limit_reached"), false);
     assertEqual(value("plan_type"), "Google AI Ultra");
     assertEqual(value("usage_source"), "daily-cloudcode-pa.googleapis.com");
+    reader.destroy();
+  });
+
+  await test("GoogleReader reports weekly-only plans as OK when configured fields are available", async () => {
+    const weeklyReset = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    Gio.File.prototype.load_contents_async = async () =>
+      encodeJson({
+        access_token: "ya29.live",
+        expiry_date: Date.now() + 3600_000,
+      });
+
+    const urls = [];
+    const reader = newReader(
+      {
+        postJson: async (url) => {
+          urls.push(url);
+          if (url.endsWith("/v1internal:retrieveUserQuotaSummary")) {
+            return {
+              groups: [
+                {
+                  buckets: [
+                    {
+                      bucketId: "gemini-weekly",
+                      window: "weekly",
+                      remainingFraction: 1,
+                      resetTime: weeklyReset,
+                    },
+                    {
+                      bucketId: "3p-weekly",
+                      window: "weekly",
+                      remainingFraction: 0,
+                      resetTime: "2026-11-25T12:21:53Z",
+                      description: "You have hit your weekly limit.",
+                    },
+                  ],
+                },
+              ],
+            };
+          }
+          if (url.endsWith("/v1internal:loadCodeAssist")) {
+            return { currentTier: { name: "Antigravity Starter Quota" } };
+          }
+          throw new Error(`unexpected URL ${url}`);
+        },
+      },
+      "/mock/google-oauth.json",
+      {
+        "google-status-fields": ["used_percent_weekly", "used_percent_3p_weekly"],
+        "google-panel-fields": [
+          "used_percent_weekly",
+          "reset_at_weekly",
+          "used_percent_3p_weekly",
+          "plan_type",
+          "reset_at_3p_weekly",
+          "limit_reached",
+        ],
+      },
+    );
+
+    const result = await reader.read();
+    const value = (name) => result.fields.find((f) => f.name === name)?.value;
+    const status = (name) => result.fields.find((f) => f.name === name)?.status;
+    assertEqual(result.status, "ok");
+    assertEqual(result.lastError, undefined);
+    assertEqual(urls.length, 2);
+    assertEqual(value("used_percent_weekly"), 0);
+    assertEqual(value("remaining_percent_weekly"), 100);
+    assertEqual(value("used_percent_3p_weekly"), 100);
+    assertEqual(value("limit_reached"), true);
+    assertEqual(value("plan_type"), "Antigravity Starter Quota");
+    assertEqual(status("used_percent_session"), "unavailable");
+    assertEqual(status("reset_at_session"), "unavailable");
+    assertEqual(status("used_percent_3p_session"), "unavailable");
+    assertEqual(status("reset_at_3p_session"), "unavailable");
+    assertEqual(status("reset_at_weekly"), "not_applicable");
     reader.destroy();
   });
 

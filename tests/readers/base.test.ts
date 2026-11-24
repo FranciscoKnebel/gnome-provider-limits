@@ -91,6 +91,10 @@ function unavailableField(name: string): FieldResult {
   return { name, value: null, status: FieldStatus.UNAVAILABLE };
 }
 
+function notApplicableField(name: string): FieldResult {
+  return { name, value: null, status: FieldStatus.NOT_APPLICABLE };
+}
+
 function errorField(name: string): FieldResult {
   return { name, value: null, status: FieldStatus.ERROR };
 }
@@ -330,6 +334,26 @@ describe("BaseReader", () => {
       );
       expect(result.status).toBe(ReaderStatus.PARTIAL);
       expect(result.lastError).toBe("codex: some fields unavailable.");
+    });
+
+    it("returns OK when the only non-OK fields are NOT_APPLICABLE", () => {
+      const result = reader.testClassifyResult([okField("a"), notApplicableField("b")], ["p1"]);
+      expect(result.status).toBe(ReaderStatus.OK);
+      expect(result.lastError).toBeUndefined();
+    });
+
+    it("ignores unavailable fields outside the configured status and panel zones", () => {
+      const configuredReader = new TestReader(
+        {
+          get_strv: (key: string) => (key === "codex-status-fields" ? ["a"] : []),
+        } as unknown as Gio.Settings,
+        "codex",
+      );
+      const result = configuredReader.testClassifyResult(
+        [okField("a"), unavailableField("b")],
+        ["p1"],
+      );
+      expect(result.status).toBe(ReaderStatus.OK);
     });
 
     it("uses prefix in PARTIAL lastError", () => {

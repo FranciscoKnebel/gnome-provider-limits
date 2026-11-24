@@ -528,54 +528,68 @@ export class GoogleReader extends BaseReader<"google"> {
     plan: string | null,
     endpointUsed: string,
   ): FieldResult[] {
-    return [
-      ...this._makeWindowFields(
-        {
+    const windows = [
+      {
+        names: {
           used: "used_percent_session",
           remaining: "remaining_percent_session",
           reset: "reset_at_session",
         },
-        {
-          used_percent: usage.session?.usedPercent ?? null,
-          reset_at: usage.session?.resetAt ?? null,
-        },
-      ),
-      ...this._makeWindowFields(
-        {
+        data: usage.session,
+      },
+      {
+        names: {
           used: "used_percent_weekly",
           remaining: "remaining_percent_weekly",
           reset: "reset_at_weekly",
         },
-        {
-          used_percent: usage.weekly?.usedPercent ?? null,
-          reset_at: usage.weekly?.resetAt ?? null,
-        },
-      ),
-      ...this._makeWindowFields(
-        {
+        data: usage.weekly,
+      },
+      {
+        names: {
           used: "used_percent_3p_session",
           remaining: "remaining_percent_3p_session",
           reset: "reset_at_3p_session",
         },
-        {
-          used_percent: usage.thirdPartySession?.usedPercent ?? null,
-          reset_at: usage.thirdPartySession?.resetAt ?? null,
-        },
-      ),
-      ...this._makeWindowFields(
-        {
+        data: usage.thirdPartySession,
+      },
+      {
+        names: {
           used: "used_percent_3p_weekly",
           remaining: "remaining_percent_3p_weekly",
           reset: "reset_at_3p_weekly",
         },
-        {
-          used_percent: usage.thirdPartyWeekly?.usedPercent ?? null,
-          reset_at: usage.thirdPartyWeekly?.resetAt ?? null,
-        },
-      ),
-      this._makeOptionalField("limit_reached", usage.limitReached),
-      this._makeOptionalField("plan_type", plan),
-      this._makeField("usage_source", hostFromEndpoint(endpointUsed), FieldStatus.OK),
-    ];
+        data: usage.thirdPartyWeekly,
+      },
+    ] as const;
+
+    const fields: FieldResult[] = [];
+    for (const { names, data } of windows) {
+      if (!data) {
+        fields.push(
+          this._makeField(names.used, null, FieldStatus.UNAVAILABLE),
+          this._makeField(names.remaining, null, FieldStatus.UNAVAILABLE),
+          this._makeField(names.reset, null, FieldStatus.UNAVAILABLE),
+        );
+        continue;
+      }
+      fields.push(
+        ...this._makePercentFieldPair(
+          { used: names.used, remaining: names.remaining },
+          data.usedPercent,
+          FieldStatus.OK,
+        ),
+        this._makeField(
+          names.reset,
+          data.resetAt,
+          data.resetAt !== null ? FieldStatus.OK : FieldStatus.NOT_APPLICABLE,
+        ),
+      );
+    }
+
+    fields.push(this._makeOptionalField("limit_reached", usage.limitReached));
+    fields.push(this._makeOptionalField("plan_type", plan));
+    fields.push(this._makeField("usage_source", hostFromEndpoint(endpointUsed), FieldStatus.OK));
+    return fields;
   }
 }

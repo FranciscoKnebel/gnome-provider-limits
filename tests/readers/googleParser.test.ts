@@ -225,6 +225,30 @@ describe("normalizeGoogleQuotaSummary", () => {
     });
   });
 
+  it("normalizes a weekly-only plan without inventing 5h windows", () => {
+    const raw = JSON.parse(
+      readFileSync(
+        new URL("../../../tests/fixtures/google-quota-summary-weekly-only.json", import.meta.url),
+        "utf8",
+      ),
+    );
+    const usage = normalizeGoogleQuotaSummary(raw, Date.parse("2026-11-24T14:02:05Z"));
+
+    expect(usage).toEqual({
+      session: null,
+      weekly: {
+        usedPercent: 0,
+        resetAt: null,
+      },
+      thirdPartySession: null,
+      thirdPartyWeekly: {
+        usedPercent: 100,
+        resetAt: Date.parse("2026-11-25T12:21:53Z") / 1000,
+      },
+      limitReached: true,
+    });
+  });
+
   it("handles top-level buckets, proto3 omitted zero remainingFraction, and fallback non-exact bucket aggregation", () => {
     const usage = normalizeGoogleQuotaSummary(
       {
