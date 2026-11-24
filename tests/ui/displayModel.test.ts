@@ -19,6 +19,42 @@ const result: ReaderResult = {
   ],
 };
 
+function configuredModelFor(
+  readerResult: ReaderResult,
+  statusFields: readonly string[],
+  panelFields: readonly string[],
+) {
+  const model = deriveDisplayModel("codex", readerResult, {
+    fieldDefs: CODEX_FIELDS,
+    statusFields,
+    panelFields,
+    displayName: "Codex",
+    shortDisplayName: "Codex",
+    locale: "en",
+    t: (text) => text,
+  });
+  if (!model) throw new Error("Provider codex is disabled");
+  return model;
+}
+
+function diagnosticModelFor(
+  readerResult: ReaderResult,
+  panelFields: readonly string[],
+  fieldDefs: readonly FieldDef[] = CODEX_FIELDS,
+) {
+  const model = deriveDisplayModel(readerResult.provider, readerResult, {
+    fieldDefs,
+    statusFields: [],
+    panelFields,
+    displayName: readerResult.provider,
+    shortDisplayName: readerResult.provider,
+    locale: "en",
+    t: (text) => text,
+  });
+  if (!model) throw new Error(`Provider ${readerResult.provider} is disabled`);
+  return model;
+}
+
 describe("deriveDisplayModel", () => {
   it("assembles one provider from explicit options with no surrounding context", () => {
     const model = deriveDisplayModel("codex", result, {
@@ -108,26 +144,8 @@ describe("deriveDisplayModel applies configured-zone health", () => {
     ],
   };
 
-  function modelFor(
-    result: ReaderResult,
-    statusFields: readonly string[],
-    panelFields: readonly string[],
-  ) {
-    const model = deriveDisplayModel("codex", result, {
-      fieldDefs: CODEX_FIELDS,
-      statusFields,
-      panelFields,
-      displayName: "Codex",
-      shortDisplayName: "Codex",
-      locale: "en",
-      t: (text) => text,
-    });
-    if (!model) throw new Error("Provider codex is disabled");
-    return model;
-  }
-
   it("ignores unavailable fields outside the configured zones", () => {
-    const model = modelFor(partialFields, ["used_percent_primary"], []);
+    const model = configuredModelFor(partialFields, ["used_percent_primary"], []);
     expect(partialFields.status).toBe(ReaderStatus.PARTIAL);
     expect(model.facts.health.displayStatus).toBe(ReaderStatus.OK);
     expect(model.facts.health.state).toBe("ok");
@@ -135,7 +153,11 @@ describe("deriveDisplayModel applies configured-zone health", () => {
   });
 
   it("keeps partial health when a configured field is unavailable", () => {
-    const model = modelFor(partialFields, ["used_percent_primary"], ["used_percent_secondary"]);
+    const model = configuredModelFor(
+      partialFields,
+      ["used_percent_primary"],
+      ["used_percent_secondary"],
+    );
     expect(model.facts.health.displayStatus).toBe(ReaderStatus.PARTIAL);
     expect(model.facts.health.state).toBe("partial");
     expect(model.facts.diagnostic.kind).toBe("warning");
@@ -149,7 +171,11 @@ describe("deriveDisplayModel applies configured-zone health", () => {
         { name: "used_percent_secondary", value: null, status: FieldStatus.NOT_APPLICABLE },
       ],
     };
-    const model = modelFor(notApplicable, ["used_percent_primary"], ["used_percent_secondary"]);
+    const model = configuredModelFor(
+      notApplicable,
+      ["used_percent_primary"],
+      ["used_percent_secondary"],
+    );
     expect(notApplicable.status).toBe(ReaderStatus.PARTIAL);
     expect(model.facts.health.displayStatus).toBe(ReaderStatus.OK);
     expect(model.facts.health.state).toBe("ok");
@@ -161,7 +187,7 @@ describe("deriveDisplayModel applies configured-zone health", () => {
       ...partialFields,
       lastError: "source unavailable",
     };
-    const model = modelFor(sourcePartial, ["used_percent_primary"], []);
+    const model = configuredModelFor(sourcePartial, ["used_percent_primary"], []);
     expect(sourcePartial.status).toBe(ReaderStatus.PARTIAL);
     expect(model.facts.health.displayStatus).toBe(ReaderStatus.OK);
     expect(model.facts.health.state).toBe("ok");
@@ -176,13 +202,13 @@ describe("deriveDisplayModel applies configured-zone health", () => {
       lastUpdated: 1_700_000_000_000,
       fields: [{ name: "used_percent_primary", value: 90, status: FieldStatus.OK }],
     };
-    const model = modelFor(critical, [], []);
+    const model = configuredModelFor(critical, [], []);
     expect(model.facts.health.displayStatus).toBe(ReaderStatus.OK);
     expect(model.facts.health.tone).toBe("critical");
   });
 
   it("stays idle when configured views are empty despite unselected OK fields", () => {
-    const model = modelFor(partialFields, [], []);
+    const model = configuredModelFor(partialFields, [], []);
     expect(model.facts.health.state).toBe("idle");
   });
 
@@ -241,26 +267,8 @@ describe("deriveDisplayModel applies configured-zone health", () => {
 });
 
 describe("deriveDisplayModel owns diagnostics and reset pairing", () => {
-  function modelFor(
-    result: ReaderResult,
-    panelFields: readonly string[],
-    fieldDefs: readonly FieldDef[] = CODEX_FIELDS,
-  ) {
-    const model = deriveDisplayModel(result.provider, result, {
-      fieldDefs,
-      statusFields: [],
-      panelFields,
-      displayName: result.provider,
-      shortDisplayName: result.provider,
-      locale: "en",
-      t: (text) => text,
-    });
-    if (!model) throw new Error(`Provider ${result.provider} is disabled`);
-    return model;
-  }
-
   it("carries one fully formed reset model instead of re-deriving it in renderers", () => {
-    const model = modelFor(result, ["used_percent_primary", "reset_at_primary"]);
+    const model = diagnosticModelFor(result, ["used_percent_primary", "reset_at_primary"]);
     const reset = model.resets.get("used_percent_primary");
     if (!reset) throw new Error("missing reset pairing");
 
@@ -327,7 +335,11 @@ describe("deriveDisplayModel owns diagnostics and reset pairing", () => {
       ],
     };
 
-    const model = modelFor(customResult, ["used_percent_custom", "reset_at_custom"], fieldDefs);
+    const model = diagnosticModelFor(
+      customResult,
+      ["used_percent_custom", "reset_at_custom"],
+      fieldDefs,
+    );
     expect(model.resets.size).toBe(0);
     expect(consumedResetNames(model.resets).size).toBe(0);
     expect(model.panelViews.map((view) => view.name)).toEqual([
@@ -344,7 +356,7 @@ describe("deriveDisplayModel owns diagnostics and reset pairing", () => {
       pathsTried: ["oauth-api", "last-known-good"],
       lastError: "HTTP 503",
     };
-    const cached = modelFor(cachedResult, []);
+    const cached = diagnosticModelFor(cachedResult, []);
     expect(cached.facts.diagnostic).toEqual({
       kind: "warning",
       badge: "Cached",
@@ -361,7 +373,7 @@ describe("deriveDisplayModel owns diagnostics and reset pairing", () => {
         { name: "used_percent_secondary", value: null, status: FieldStatus.UNAVAILABLE },
       ],
     };
-    const partial = modelFor(partialResult, ["used_percent_secondary"]);
+    const partial = diagnosticModelFor(partialResult, ["used_percent_secondary"]);
     expect(partial.facts.diagnostic).toEqual({
       kind: "warning",
       badge: "Partial",
@@ -370,7 +382,7 @@ describe("deriveDisplayModel owns diagnostics and reset pairing", () => {
     });
 
     const errorResult: ReaderResult = { ...result, status: ReaderStatus.ERROR, lastError: "Login" };
-    const error = modelFor(errorResult, []);
+    const error = diagnosticModelFor(errorResult, []);
     expect(error.facts.health.displayStatus).toBe(ReaderStatus.ERROR);
     expect(error.facts.diagnostic).toEqual({
       kind: "error",
@@ -383,7 +395,7 @@ describe("deriveDisplayModel owns diagnostics and reset pairing", () => {
       ...result,
       status: ReaderStatus.UNAVAILABLE,
     };
-    const unavailable = modelFor(unavailableResult, []);
+    const unavailable = diagnosticModelFor(unavailableResult, []);
     expect(unavailable.facts.diagnostic).toEqual({
       kind: "error",
       badge: "Error",
@@ -391,7 +403,7 @@ describe("deriveDisplayModel owns diagnostics and reset pairing", () => {
       calloutText: "Error",
     });
 
-    const healthy = modelFor(result, []);
+    const healthy = diagnosticModelFor(result, []);
     expect(healthy.facts.diagnostic).toEqual({ kind: null });
     expect(healthy.facts.lastUpdatedText).toContain("Last updated:");
   });
