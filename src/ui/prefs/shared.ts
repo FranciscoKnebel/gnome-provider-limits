@@ -63,63 +63,6 @@ export function stringArraysEqual(a: readonly string[], b: readonly string[]): b
   return a.length === b.length && a.every((value, index) => value === b[index]);
 }
 
-export function resetStrvSetting(
-  settings: Gio.Settings,
-  key: string,
-  defaults: readonly string[],
-): void {
-  settings.set_strv(key, [...defaults]);
-}
-
-export function createMoveButtons(options: {
-  settings: Gio.Settings;
-  key: string;
-  visibleValues: readonly string[];
-  index: number;
-  moveUpLabel: string;
-  moveDownLabel: string;
-}): Gtk.Box {
-  const { settings, key, visibleValues, index, moveUpLabel, moveDownLabel } = options;
-  const current = visibleValues[index];
-
-  const box = new Gtk.Box({
-    spacing: 2,
-    valign: Gtk.Align.CENTER,
-  });
-
-  const upButton = new Gtk.Button({
-    icon_name: "go-up-symbolic",
-    valign: Gtk.Align.CENTER,
-    tooltip_text: moveUpLabel,
-    sensitive: index > 0,
-  });
-  upButton.add_css_class("flat");
-  upButton.connect("clicked", () => {
-    if (index <= 0) return;
-    const prev = visibleValues[index - 1];
-    const reordered = reorderValue(settings.get_strv(key), current, prev);
-    if (reordered) settings.set_strv(key, reordered);
-  });
-
-  const downButton = new Gtk.Button({
-    icon_name: "go-down-symbolic",
-    valign: Gtk.Align.CENTER,
-    tooltip_text: moveDownLabel,
-    sensitive: index < visibleValues.length - 1,
-  });
-  downButton.add_css_class("flat");
-  downButton.connect("clicked", () => {
-    if (index >= visibleValues.length - 1) return;
-    const next = visibleValues[index + 1];
-    const reordered = reorderValue(settings.get_strv(key), current, next);
-    if (reordered) settings.set_strv(key, reordered);
-  });
-
-  box.append(upButton);
-  box.append(downButton);
-  return box;
-}
-
 export function buildReorderableList(
   settings: Gio.Settings,
   key: string,

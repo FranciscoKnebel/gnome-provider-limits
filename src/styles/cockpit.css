@@ -1,0 +1,378 @@
+/* Gauges (cockpit) style. Shared selectors are kept at their original last
+   occurrence so the combined cascade still resolves in the same order. */
+
+.pl-status-placeholder {
+  font-weight: 600;
+  opacity: 0.72;
+  padding: 0 2px;
+}
+
+.pl-status-segment {
+  spacing: 5px;
+}
+
+.pl-status-gauge {
+  width: 14px;
+  height: 14px;
+}
+
+.pl-status-label {
+  font-weight: 700;
+  font-size: 0.92em;
+  color: inherit;
+}
+
+.pl-status-value {
+  font-size: 0.92em;
+  font-feature-settings: "tnum";
+  color: inherit;
+}
+
+.pl-status-divider {
+  width: 1px;
+  height: 12px;
+  margin: 0 3px;
+  background-color: rgba(127, 127, 127, 0.35);
+}
+
+.pl-cockpit-panel {
+  min-width: 372px;
+}
+
+.popup-menu-item.provider-limits-static-row {
+  padding: 0;
+  spacing: 0;
+  padding-top: 4px;
+  padding-bottom: 4px;
+}
+
+.popup-menu-item.pl-tab-header-row {
+  padding: 6px 10px 6px 10px;
+}
+
+.pl-tab-bar {
+  spacing: 3px;
+  padding: 3px;
+  border-radius: 10px;
+  background-color: rgba(127, 127, 127, 0.14);
+  border: 1px solid rgba(127, 127, 127, 0.16);
+}
+
+.pl-tab-button {
+  padding: 5px 9px;
+  border-radius: 7px;
+  font-size: 0.88em;
+  font-weight: 600;
+  color: inherit;
+  opacity: 0.76;
+  transition-duration: 120ms;
+}
+
+.pl-tab-button:hover {
+  opacity: 0.95;
+  background-color: rgba(127, 127, 127, 0.14);
+}
+
+.pl-tab-button:focus {
+  box-shadow: inset 0 0 0 2px rgba(53, 132, 228, 0.75);
+}
+
+.pl-tab-button-active,
+.pl-tab-button-active:hover {
+  opacity: 1;
+  font-weight: 700;
+  background-color: rgba(127, 127, 127, 0.26);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.16);
+}
+
+.pl-tab-button-content {
+  spacing: 5px;
+}
+
+.pl-tab-label {
+  font-size: 0.95em;
+}
+
+.pl-health-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 99px;
+  background-color: rgba(127, 127, 127, 0.55);
+}
+
+.pl-health-ok {
+  background-color: #2ec27e;
+}
+
+.pl-health-partial {
+  background-color: #e5a50a;
+}
+
+.pl-health-error {
+  background-color: #e01b24;
+}
+
+.pl-health-loading {
+  background-color: rgba(127, 127, 127, 0.55);
+}
+
+.pl-badge {
+  font-size: 0.75em;
+  font-weight: 700;
+  padding: 1px 6px;
+  border-radius: 99px;
+  background-color: rgba(127, 127, 127, 0.18);
+}
+
+.pl-badge-ok {
+  color: #2ec27e;
+  background-color: rgba(46, 194, 126, 0.16);
+}
+
+.pl-badge-cached,
+.pl-badge-partial {
+  color: #e5a50a;
+  background-color: rgba(229, 165, 10, 0.18);
+}
+
+.pl-badge-error {
+  color: #e01b24;
+  background-color: rgba(224, 27, 36, 0.18);
+}
+
+.pl-badge-loading {
+  opacity: 0.7;
+}
+
+.pl-callout {
+  spacing: 4px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background-color: rgba(127, 127, 127, 0.1);
+  border: 1px solid rgba(127, 127, 127, 0.22);
+}
+
+.pl-callout-warning {
+  background-color: rgba(229, 165, 10, 0.1);
+  border-color: rgba(229, 165, 10, 0.35);
+}
+
+.pl-callout-error {
+  background-color: rgba(224, 27, 36, 0.1);
+  border-color: rgba(224, 27, 36, 0.38);
+}
+
+.popup-menu-item.pl-overview-row {
+  padding: 7px 12px;
+  margin: 2px 8px;
+  border-radius: 10px;
+  background-color: rgba(127, 127, 127, 0.08);
+  border: 1px solid rgba(127, 127, 127, 0.14);
+}
+
+.popup-menu-item.pl-overview-row:hover,
+.popup-menu-item.pl-overview-row:focus {
+  background-color: rgba(127, 127, 127, 0.18);
+  border-color: rgba(127, 127, 127, 0.28);
+}
+
+.pl-overview-content {
+  spacing: 3px;
+}
+
+.pl-overview-top {
+  spacing: 10px;
+}
+
+.pl-overview-left {
+  spacing: 7px;
+}
+
+.pl-overview-name {
+  font-weight: 700;
+  font-size: 0.96em;
+}
+
+.pl-overview-right {
+  spacing: 8px;
+}
+
+.pl-overview-bar {
+  width: 56px;
+  height: 6px;
+}
+
+.pl-overview-primary {
+  font-weight: 700;
+  font-size: 0.95em;
+  font-feature-settings: "tnum";
+  min-width: 36px;
+  text-align: right;
+}
+
+.pl-overview-secondary {
+  font-size: 0.8em;
+  font-feature-settings: "tnum";
+}
+
+.pl-overview-chevron {
+  font-size: 1.15em;
+  font-weight: 700;
+  padding-left: 2px;
+}
+
+.popup-menu-item.pl-gauge-row-item {
+  padding: 4px 10px;
+}
+
+.pl-gauge-row {
+  spacing: 8px;
+}
+
+.pl-gauge-card {
+  spacing: 3px;
+  padding: 10px 8px 8px 8px;
+  border-radius: 12px;
+  background-color: rgba(127, 127, 127, 0.09);
+  border: 1px solid rgba(127, 127, 127, 0.15);
+}
+
+.pl-gauge-ring-wrap {
+  width: 80px;
+  height: 80px;
+}
+
+.pl-radial-gauge {
+  width: 80px;
+  height: 80px;
+}
+
+.pl-gauge-center-value {
+  font-weight: 800;
+  font-size: 1.15em;
+  font-feature-settings: "tnum";
+  text-align: center;
+}
+
+.pl-gauge-label {
+  font-size: 0.8em;
+  font-weight: 600;
+  text-align: center;
+  max-width: 118px;
+}
+
+.pl-gauge-reset {
+  font-size: 0.76em;
+  font-feature-settings: "tnum";
+  text-align: center;
+}
+
+.pl-gauge-error {
+  font-size: 0.76em;
+  text-align: center;
+}
+
+.popup-menu-item.pl-bento-row-item {
+  padding: 3px 10px;
+}
+
+.pl-bento-row {
+  spacing: 8px;
+}
+
+.pl-bento-tile {
+  spacing: 2px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background-color: rgba(127, 127, 127, 0.08);
+  border: 1px solid rgba(127, 127, 127, 0.14);
+}
+
+.pl-bento-label {
+  font-size: 0.76em;
+  font-weight: 600;
+}
+
+.pl-bento-value {
+  font-size: 0.94em;
+  font-weight: 700;
+  font-feature-settings: "tnum";
+}
+
+.pl-bento-error {
+  font-size: 0.76em;
+}
+
+.pl-provider-updated {
+  font-size: 0.78em;
+  font-feature-settings: "tnum";
+  padding: 0 2px;
+}
+
+.pl-empty-state {
+  spacing: 4px;
+  padding: 18px 16px;
+}
+
+.pl-empty-title {
+  font-weight: 700;
+  font-size: 0.98em;
+  text-align: center;
+}
+
+.pl-empty-subtitle {
+  font-size: 0.84em;
+  text-align: center;
+}
+
+.pl-empty-fields {
+  font-size: 0.84em;
+  text-align: center;
+}
+
+.popup-menu-item.pl-footer-row {
+  padding: 6px 10px 4px 10px;
+  margin-top: 4px;
+  border-top: 1px solid rgba(127, 127, 127, 0.2);
+}
+
+.pl-footer-toolbar {
+  spacing: 8px;
+}
+
+.pl-footer-button {
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 0.86em;
+  font-weight: 600;
+  background-color: rgba(127, 127, 127, 0.12);
+  border: 1px solid rgba(127, 127, 127, 0.16);
+  transition-duration: 120ms;
+}
+
+.pl-footer-button:hover {
+  background-color: rgba(127, 127, 127, 0.22);
+}
+
+.pl-footer-button:focus {
+  box-shadow: inset 0 0 0 2px rgba(53, 132, 228, 0.75);
+}
+
+.pl-footer-button:insensitive {
+  opacity: 0.55;
+}
+
+.pl-footer-button-box {
+  spacing: 6px;
+}
+
+.pl-footer-timestamp {
+  font-size: 0.78em;
+  font-feature-settings: "tnum";
+  opacity: 0.65;
+  text-align: center;
+}
+
+.pl-gauge-center-value.usage-ok {
+  color: #2ec27e;
+}

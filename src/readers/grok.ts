@@ -12,7 +12,6 @@ const GROK_BASE_URL = "https://cli-chat-proxy.grok.com/v1";
 Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish");
 
 import { GROK_FIELDS } from "./fields.js";
-export { GROK_FIELDS };
 
 export class GrokReader extends BaseReader {
   private _http: HttpClient | null = null;

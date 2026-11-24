@@ -1,43 +1,40 @@
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
-
 import { PROVIDER_NAMES } from "../../src/constants.js";
 import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
 import type { ReaderResult } from "../../src/readers/base.js";
 import {
   CLAUDE_FIELDS,
   CODEX_FIELDS,
-  DEFAULT_PROVIDER_ZONE_FIELDS,
   GROK_FIELDS,
   OPENCODE_FIELDS,
   PROVIDER_FIELDS,
 } from "../../src/readers/fields.js";
 import {
-  buildOverviewRowModel,
   CAIRO_LINE_CAP_ROUND,
-  chunkGauges,
-  chunkPairs,
-  clampRatio,
-  computeGaugeGeometry,
-  computeStatusMicroMeter,
-  cycleTab,
+  GAUGE_END_ANGLE,
+  GAUGE_START_ANGLE,
+  GAUGE_SWEEP_ANGLE,
+  TONE_RGB,
   disposeCairoContext,
   drawMicroRing,
   drawMiniCapsule,
   drawRadialGauge,
-  extractWindowSuffix,
-  GAUGE_END_ANGLE,
-  GAUGE_START_ANGLE,
-  GAUGE_SWEEP_ANGLE,
-  getAvailableTabs,
   isCairoContext,
+} from "../../src/ui/cairoDrawing.js";
+import type { CairoContextLike } from "../../src/ui/cairoDrawing.js";
+import {
+  buildOverviewRowModel,
+  chunkGauges,
+  chunkPairs,
+  computeGaugeGeometry,
+  computeStatusMicroMeter,
+  cycleTab,
+  getAvailableTabs,
   partitionProviderPanel,
   providerDetailStructureKey,
   resolveActiveTab,
-  TONE_RGB,
   toneToRgb,
 } from "../../src/ui/cockpitModel.js";
-import type { CairoContextLike } from "../../src/ui/cockpitModel.js";
+import { clampRatio, extractWindowSuffix } from "../../src/ui/usageSnapshot.js";
 
 interface RecordedCairoOp {
   readonly op: string;
@@ -88,28 +85,6 @@ describe("src/readers/fields", () => {
       expect(defs.length).toBeGreaterThan(0);
       const names = defs.map((d) => d.name);
       expect(new Set(names).size).toBe(names.length);
-    }
-  });
-
-  it("matches gschema.xml default status-fields and panel-fields for every provider", () => {
-    const schemaPath = join(
-      process.cwd(),
-      "src/schemas/org.gnome.shell.extensions.gnome-provider-limits.gschema.xml",
-    );
-    const xml = readFileSync(schemaPath, "utf8");
-
-    for (const provider of PROVIDER_NAMES) {
-      for (const zone of ["status", "panel"] as const) {
-        const keyName = `${provider}-${zone}-fields`;
-        const keyPattern = new RegExp(
-          `<key\\s+name="${keyName}"[^>]*>[\\s\\S]*?<default>\\s*\\[([\\s\\S]*?)\\]\\s*</default>`,
-        );
-        const match = keyPattern.exec(xml);
-        expect(match).not.toBeNull();
-        const rawList = match?.[1] ?? "";
-        const schemaDefaults = Array.from(rawList.matchAll(/'([^']+)'/g), (m) => m[1]);
-        expect(DEFAULT_PROVIDER_ZONE_FIELDS[provider][zone]).toEqual(schemaDefaults);
-      }
     }
   });
 });

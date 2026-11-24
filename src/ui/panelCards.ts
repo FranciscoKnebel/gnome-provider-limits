@@ -7,7 +7,7 @@ import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { resolveLocale } from "../helpers/locale.js";
 import { normalizeProvidersOrder, providerDisplayName } from "../helpers/provider-settings.js";
-import type { BaseReader, ReaderResult } from "../readers/base.js";
+import type { BaseReader, FieldDef, ReaderResult } from "../readers/base.js";
 import { computeBarWidthPx, planPanel } from "./cardPlan.js";
 import type {
   BannerKind,
@@ -68,6 +68,7 @@ function bannerStyleClass(kind: BannerKind): string {
 export class CardsPanelSection implements PanelStyleSection {
   private _settings: Gio.Settings;
   private _readers: Map<ProviderName, BaseReader>;
+  private readonly _fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>;
   private _running = false;
   private _cards: CardWidgets[] = [];
   private _emptyState: PanelEmptyState = "none";
@@ -75,9 +76,15 @@ export class CardsPanelSection implements PanelStyleSection {
   private _structureKey: string | null = null;
   readonly shell: PanelShell;
 
-  constructor(settings: Gio.Settings, readers: Map<ProviderName, BaseReader>, shell: PanelShell) {
+  constructor(
+    settings: Gio.Settings,
+    readers: Map<ProviderName, BaseReader>,
+    fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>,
+    shell: PanelShell,
+  ) {
     this._settings = settings;
     this._readers = readers;
+    this._fieldDefs = fieldDefs;
     this.shell = shell;
   }
 
@@ -103,7 +110,7 @@ export class CardsPanelSection implements PanelStyleSection {
       locale,
       getDisplayName: (name) => providerDisplayName(this._settings, name),
       getPanelFields: (name) => this._settings.get_strv(`${name}-panel-fields`),
-      getFieldDefs: (name) => this._readers.get(name)?.FIELDS,
+      getFieldDefs: (name) => this._fieldDefs[name],
       t: _,
     });
 

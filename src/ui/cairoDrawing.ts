@@ -1,4 +1,4 @@
-import type { GaugeGeometry, GaugeTone, MicroMeterSpec, RgbTuple } from "./cockpitModel.js";
+import type { GaugeGeometry, GaugeTone, MicroMeterSpec, RgbTuple } from "./gaugeTypes.js";
 
 export const CAIRO_LINE_CAP_ROUND = 1;
 
@@ -14,21 +14,6 @@ export const TONE_RGB: Record<GaugeTone, RgbTuple> = {
 };
 
 export const TRACK_RGBA: readonly [number, number, number, number] = [0.5, 0.5, 0.5, 0.24];
-
-export interface CairoContextLike {
-  save(): void;
-  restore(): void;
-  newPath(): void;
-  newSubPath(): void;
-  moveTo(x: number, y: number): void;
-  lineTo(x: number, y: number): void;
-  arc(xc: number, yc: number, radius: number, angle1: number, angle2: number): void;
-  setLineWidth(width: number): void;
-  setLineCap(cap: number): void;
-  setSourceRGBA(r: number, g: number, b: number, a: number): void;
-  stroke(): void;
-  $dispose?: () => void;
-}
 
 export interface CairoContextLike {
   save(): void;

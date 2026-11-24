@@ -1,7 +1,5 @@
 import type { FieldTone } from "./fieldRows.js";
-import type { StatusAttention } from "./matrixPlan.js";
-
-export type HealthTone = "ok" | "warning" | "critical" | "partial" | "error" | "idle";
+import type { ProviderAttention, ProviderTone } from "./providerTypes.js";
 
 export interface ToneClassTarget {
   add_style_class_name(styleClass: string): void;
@@ -38,7 +36,7 @@ export function applyToneClass(target: ToneClassTarget, tone: FieldTone | undefi
   if (tone) target.add_style_class_name(`usage-${tone}`);
 }
 
-export function applyHealthToneClass(target: ToneClassTarget, tone: HealthTone): void {
+export function applyHealthToneClass(target: ToneClassTarget, tone: ProviderTone): void {
   for (const styleClass of HEALTH_TONE_CLASSES) {
     target.remove_style_class_name(styleClass);
   }
@@ -60,7 +58,7 @@ export function applyQuietToneClass(
 export function applyStatusAttentionClass(
   segmentTarget: ToneClassTarget,
   valueTarget: ToneClassTarget | null,
-  attention: StatusAttention,
+  attention: ProviderAttention,
 ): void {
   for (const styleClass of ATTENTION_CLASSES) {
     segmentTarget.remove_style_class_name(styleClass);

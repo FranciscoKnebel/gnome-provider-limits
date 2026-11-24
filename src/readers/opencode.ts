@@ -25,7 +25,6 @@ const OPENCODE_USAGE_URL = "https://opencode.ai/zen/go/v1/usage";
 Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish");
 
 import { OPENCODE_FIELDS } from "./fields.js";
-export { OPENCODE_FIELDS };
 
 export class OpenCodeReader extends BaseReader {
   private _http: HttpClient | null = null;

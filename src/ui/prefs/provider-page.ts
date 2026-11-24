@@ -15,7 +15,7 @@ import {
 } from "../../helpers/provider-settings.js";
 import { moveAdjacentValue } from "../../helpers/reorder.js";
 import type { FieldDef, FieldType } from "../../readers/base.js";
-import { DEFAULT_PROVIDER_ZONE_FIELDS, PROVIDER_FIELDS } from "../../readers/fields.js";
+import { PROVIDER_FIELDS } from "../../readers/fields.js";
 import { gettext as _ } from "./gettext.js";
 import {
   bindSetting,
@@ -157,9 +157,8 @@ function buildFieldMatrixGroup(
   });
   resetButton.add_css_class("flat");
   resetButton.connect("clicked", () => {
-    const defaults = DEFAULT_PROVIDER_ZONE_FIELDS[provider];
-    settings.set_strv(statusKey, [...defaults.status]);
-    settings.set_strv(panelKey, [...defaults.panel]);
+    settings.reset(statusKey);
+    settings.reset(panelKey);
   });
   group.set_header_suffix(resetButton);
 
@@ -297,7 +296,6 @@ export const ProviderExpanderRow = GObject.registerClass(
         index?: number;
         totalCount?: number;
         onMove?: (offset: -1 | 1) => void;
-        initialExpanded?: boolean;
       },
     ) {
       super._init({
@@ -313,10 +311,6 @@ export const ProviderExpanderRow = GObject.registerClass(
       this._bindings = [];
 
       bindSetting(this._settings, `${provider}-enabled`, this, "enable-expansion", this._bindings);
-
-      if (options?.initialExpanded && settings.get_boolean(`${provider}-enabled`)) {
-        this.expanded = true;
-      }
 
       this._signalIds.push(
         settings.connect(`changed::${provider}-display-name`, () => {

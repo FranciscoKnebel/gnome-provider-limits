@@ -1,9 +1,14 @@
 import Clutter from "gi://Clutter";
 import St from "gi://St";
 
-import { planStatusBar } from "./cardPlan.js";
-import type { StatusBarPlan as CardsStatusBarPlan } from "./cardPlan.js";
-import type { StatusBarRenderContext, StatusBarRenderer } from "./statusBar.js";
+import type { ProviderName } from "../constants.js";
+import { ReaderStatus } from "../readers/base.js";
+import type { FieldView } from "./fieldViews.js";
+import { deriveStatusBarSegments } from "./fieldViews.js";
+import type { ProviderTone } from "./providerTypes.js";
+import { structureKey } from "./renderStructure.js";
+import type { StatusBarRenderContext } from "./statusBar.js";
+import { StatusBarRenderer } from "./statusBarRenderer.js";
 import { applyHealthToneClass, applyToneClass } from "./tone.js";
 
 interface PillWidgets {
@@ -11,20 +16,66 @@ interface PillWidgets {
   values: St.Label[];
 }
 
-export class PillsStatusBarRenderer implements StatusBarRenderer {
+interface PillPlan {
+  provider: ProviderName;
+  displayName: string;
+  status: ReaderStatus;
+  healthTone: ProviderTone;
+  isPartial: boolean;
+  stateTag: string | null;
+  stateAccessibleText: string | null;
+  rows: readonly FieldView[];
+  key: string;
+}
+
+interface PillsPlan {
+  readonly key: string;
+  loading: boolean;
+  loadingAccessibleText: string;
+  pills: readonly PillPlan[];
+}
+
+function planPills(context: StatusBarRenderContext): PillsPlan {
+  const pills: PillPlan[] = deriveStatusBarSegments(context).map((segment) => ({
+    provider: segment.provider,
+    displayName: segment.displayName,
+    status: segment.result.status,
+    healthTone: segment.health.tone,
+    isPartial: segment.result.status === ReaderStatus.PARTIAL,
+    stateTag: segment.health.stateTag,
+    stateAccessibleText: segment.health.stateAccessibleText,
+    rows: segment.views,
+    key: JSON.stringify([
+      segment.provider,
+      segment.displayName,
+      segment.result.status,
+      context.locale,
+      segment.health.stateTag ?? "",
+      segment.views.map((row) => row.name ?? row.label),
+    ]),
+  }));
+
+  const loading = pills.length === 0 && context.results.size === 0 && context.hasEnabledProviders;
+  return {
+    key: structureKey([
+      context.locale,
+      loading ? "loading" : "ready",
+      ...pills.map((pill) => pill.key),
+    ]),
+    loading,
+    loadingAccessibleText: context.t("Loading provider limits…"),
+    pills,
+  };
+}
+
+export class PillsStatusBarRenderer extends StatusBarRenderer<PillsPlan> {
   private _pills: PillWidgets[] = [];
-  private _context: StatusBarRenderContext | null = null;
-  private _plan: CardsStatusBarPlan | null = null;
 
-  constructor(private readonly _parent: St.BoxLayout) {}
-
-  statusKey(context: StatusBarRenderContext): string {
-    return this._planFor(context).structureKey;
+  protected plan(context: StatusBarRenderContext): PillsPlan {
+    return planPills(context);
   }
 
-  build(context: StatusBarRenderContext): void {
-    const plan = this._planFor(context);
-
+  protected build(plan: PillsPlan): void {
     if (plan.loading) {
       const loadingPill = new St.BoxLayout({
         style_class: "pl-status-pill pl-status-pill-loading",
@@ -44,7 +95,7 @@ export class PillsStatusBarRenderer implements StatusBarRenderer {
       });
       loadingLabel.accessible_name = plan.loadingAccessibleText;
       loadingPill.add_child(loadingLabel);
-      this._parent.add_child(loadingPill);
+      this.parent.add_child(loadingPill);
       return;
     }
 
@@ -95,13 +146,12 @@ export class PillsStatusBarRenderer implements StatusBarRenderer {
         return valueLabel;
       });
 
-      this._parent.add_child(pill);
+      this.parent.add_child(pill);
       this._pills.push({ dot, values });
     }
   }
 
-  update(context: StatusBarRenderContext): void {
-    const plan = this._planFor(context);
+  protected update(plan: PillsPlan): void {
     plan.pills.forEach((pillPlan, index) => {
       const widgets = this._pills[index];
       if (!widgets) return;
@@ -118,32 +168,7 @@ export class PillsStatusBarRenderer implements StatusBarRenderer {
     });
   }
 
-  dispose(): void {
-    let child = this._parent.get_first_child();
-    while (child) {
-      const next = child.get_next_sibling();
-      child.destroy();
-      child = next;
-    }
+  protected onDispose(): void {
     this._pills = [];
-    this._context = null;
-    this._plan = null;
-  }
-
-  private _planFor(context: StatusBarRenderContext): CardsStatusBarPlan {
-    if (this._context !== context || !this._plan) {
-      this._plan = planStatusBar({
-        order: context.order,
-        results: context.results,
-        hasEnabledProviders: context.hasEnabledProviders,
-        locale: context.locale,
-        getShortDisplayName: (name) => context.shortDisplayName(name),
-        getStatusFields: (name) => context.statusFields(name),
-        getFieldDefs: (name) => context.fieldDefs(name),
-        t: (text) => context.t(text),
-      });
-      this._context = context;
-    }
-    return this._plan;
   }
 }

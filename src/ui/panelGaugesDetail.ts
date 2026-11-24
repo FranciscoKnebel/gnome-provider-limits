@@ -6,22 +6,12 @@ import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import type { ProviderName } from "../constants.js";
 import { formatAbsoluteTimestamp } from "../formatters.js";
 import { providerDisplayName } from "../helpers/provider-settings.js";
-import type { BaseReader, ReaderResult } from "../readers/base.js";
+import type { FieldDef, ReaderResult } from "../readers/base.js";
 import { ReaderStatus } from "../readers/base.js";
-import { PROVIDER_FIELDS } from "../readers/fields.js";
-import {
-  disposeCairoContext,
-  drawRadialGauge,
-  isCairoContext,
-  partitionProviderPanel,
-  providerDetailStructureKey,
-} from "./cockpitModel.js";
-import type {
-  BentoTileItem,
-  GaugeGeometry,
-  PartitionedProviderPanel,
-  RadialGaugeItem,
-} from "./cockpitModel.js";
+import { disposeCairoContext, drawRadialGauge, isCairoContext } from "./cairoDrawing.js";
+import { partitionProviderPanel, providerDetailStructureKey } from "./cockpitModel.js";
+import type { BentoTileItem, PartitionedProviderPanel, RadialGaugeItem } from "./cockpitModel.js";
+import type { GaugeGeometry } from "./gaugeTypes.js";
 import type { PanelShell } from "./panelShell.js";
 import { applyToneClass } from "./tone.js";
 
@@ -59,7 +49,7 @@ interface CalloutPlan {
 
 export interface DetailHost {
   readonly settings: Gio.Settings;
-  readonly readers: Map<ProviderName, BaseReader>;
+  readonly fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>;
   readonly shell: PanelShell;
   readonly translate: (message: string) => string;
 }
@@ -81,8 +71,7 @@ export class DetailRenderer {
 
   render(provider: ProviderName, result: ReaderResult, locale: string): void {
     const displayName = providerDisplayName(this._host.settings, provider);
-    const reader = this._host.readers.get(provider);
-    const fieldsDefs = reader?.FIELDS ?? PROVIDER_FIELDS[provider];
+    const fieldsDefs = this._host.fieldDefs[provider];
     const isError =
       result.status === ReaderStatus.ERROR || result.status === ReaderStatus.UNAVAILABLE;
 

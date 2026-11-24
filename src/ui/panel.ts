@@ -3,12 +3,13 @@ import * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
 import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
-import type { BaseReader, ReaderResult } from "../readers/base.js";
+import type { BaseReader, FieldDef, ReaderResult } from "../readers/base.js";
+import { resolveFieldDefs } from "../readers/fields.js";
 import { CardsPanelSection } from "./panelCards.js";
 import { CompactPanelSection } from "./panelCompact.js";
 import { GaugesPanelSection } from "./panelGauges.js";
 import { PanelShell, type PanelStyleSection } from "./panelShell.js";
-import { isPanelStyle, type PanelStyle, type StyleDispatch } from "./styles.js";
+import { resolvePanelStyle, type PanelStyle, type StyleDispatch } from "./styles.js";
 
 export type { PanelStyle } from "./styles.js";
 export type { PanelStyleSection } from "./panelShell.js";
@@ -16,6 +17,7 @@ export type { PanelStyleSection } from "./panelShell.js";
 export class PanelWidget extends PopupMenu.PopupMenuSection {
   private readonly _settings: Gio.Settings;
   private readonly _readers: Map<ProviderName, BaseReader>;
+  private readonly _fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>;
   private readonly _openPreferences: () => void;
   private readonly _onRefresh: () => void;
   private readonly _closeMenu: () => void;
@@ -37,13 +39,27 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
     super();
     this._settings = settings;
     this._readers = readers;
+    this._fieldDefs = resolveFieldDefs();
     this._openPreferences = openPreferences;
     this._onRefresh = onRefresh;
     this._closeMenu = closeMenu;
     this._sections = {
-      gauges: () => new GaugesPanelSection(settings, this._readers, this._createShell("gauges")),
-      cards: () => new CardsPanelSection(settings, this._readers, this._createShell("cards")),
-      compact: () => new CompactPanelSection(settings, this._readers, this._createShell("compact")),
+      gauges: () =>
+        new GaugesPanelSection(
+          settings,
+          this._readers,
+          this._fieldDefs,
+          this._createShell("gauges"),
+        ),
+      cards: () =>
+        new CardsPanelSection(settings, this._readers, this._fieldDefs, this._createShell("cards")),
+      compact: () =>
+        new CompactPanelSection(
+          settings,
+          this._readers,
+          this._fieldDefs,
+          this._createShell("compact"),
+        ),
     };
 
     this._ensureSection();
@@ -54,8 +70,7 @@ export class PanelWidget extends PopupMenu.PopupMenuSection {
   }
 
   private _resolveStyle(): PanelStyle {
-    const styleSetting = this._settings.get_string("panel-style");
-    return isPanelStyle(styleSetting) ? styleSetting : "gauges";
+    return resolvePanelStyle(this._settings.get_string("panel-style"));
   }
 
   private _createShell(variant: PanelStyle): PanelShell {

@@ -796,9 +796,10 @@ test("Panel swaps style sections on setting change and forwards render and runni
   }
   const created = [];
   class SectionStub {
-    constructor(settings, readers, shell) {
+    constructor(settings, readers, fieldDefs, shell) {
       this.settings = settings;
       this.readers = readers;
+      this.fieldDefs = fieldDefs;
       this.shell = shell;
       this.rendered = [];
       this.running = null;
@@ -820,14 +821,15 @@ test("Panel swaps style sections on setting change and forwards render and runni
   class CardsStub extends SectionStub {}
   class CompactStub extends SectionStub {}
 
-  const { isPanelStyle } = load("src/ui/styles.ts", "({ isPanelStyle })");
+  const { resolvePanelStyle } = load("src/ui/styles.ts", "({ resolvePanelStyle })");
   const K = load("src/ui/panel.ts", "PanelWidget", {
     PopupMenu: { PopupMenuSection: Section },
     GaugesPanelSection: GaugesStub,
     CardsPanelSection: CardsStub,
     CompactPanelSection: CompactStub,
     PanelShell: ShellStub,
-    isPanelStyle,
+    resolvePanelStyle,
+    resolveFieldDefs: () => ({}),
     _: (message) => message,
   });
 
@@ -882,9 +884,28 @@ test("Panel swaps style sections on setting change and forwards render and runni
   assert.equal(created[1].destroyed, true);
   assert.equal(created[2].shell.options.footerVariant, "compact");
 
+  style = "not-a-style";
+  fireStyleChange();
+  assert.equal(created.length, 4);
+  assert.ok(created[3] instanceof GaugesStub, "unknown style falls back to DEFAULT_PANEL_STYLE");
+  assert.equal(created[3].shell.options.footerVariant, "gauges");
+
   panel.destroy();
   assert.equal(created[2].destroyed, true);
   assert.equal(listeners.size, 0);
+});
+
+test("setScrollViewChild uses add_actor when set_child is unavailable", () => {
+  const { setScrollViewChild } = load("src/helpers/scroll.ts", "({ setScrollViewChild })");
+  const actor = {};
+
+  const modernCalls = [];
+  setScrollViewChild({ set_child: (child) => modernCalls.push(child) }, actor);
+  assert.deepEqual(modernCalls, [actor]);
+
+  const legacyCalls = [];
+  setScrollViewChild({ add_actor: (child) => legacyCalls.push(child) }, actor);
+  assert.deepEqual(legacyCalls, [actor]);
 });
 
 test("PanelShell footer actors persist and focus scrolling is wired for every panel style", () => {
@@ -980,15 +1001,20 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
   }
 
   const focusCalls = [];
-  const PanelShell = load("src/ui/panelShell.ts", "PanelShell", {
-    Clutter: {
-      ActorAlign: { CENTER: 0, START: 1, END: 2 },
-      KEY_Return: 1,
-      KEY_KP_Enter: 2,
-      KEY_space: 3,
-      EVENT_STOP: 1,
-      EVENT_PROPAGATE: 0,
-    },
+  const Clutter = {
+    ActorAlign: { CENTER: 0, START: 1, END: 2 },
+    KEY_Return: 1,
+    KEY_KP_Enter: 2,
+    KEY_space: 3,
+    KEY_Left: 4,
+    KEY_Right: 5,
+    EVENT_STOP: 1,
+    EVENT_PROPAGATE: 0,
+  };
+  const { bindActivation } = load("src/helpers/keyboard.ts", "({ bindActivation })", { Clutter });
+  const { PanelShell } = load("src/ui/panelShell.ts", "({ PanelShell })", {
+    Clutter,
+    bindActivation,
     GLib: { getenv: () => null },
     St: {
       BoxLayout: Actor,
@@ -1009,6 +1035,7 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
     },
     PopupMenu: { PopupBaseMenuItem: Actor, PopupMenuSection: MenuSectionStub },
     ensureActorVisibleInScrollView: (scroll, row) => focusCalls.push([scroll, row]),
+    setScrollViewChild: (scroll, actor) => scroll.set_child(actor),
     formatTimestampTemplate: (_pattern, at, locale) => (at === null ? "" : `${at}:${locale}`),
     resolveLocale: (setting, messages, lang) => setting || messages || lang || "en",
   });
@@ -1028,6 +1055,8 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
     });
 
     const footer = shell.footer;
+    assert.equal(footer.running, false, `${style}: footer owns its initial running state`);
+
     if (style === "compact") {
       assert.equal(shell.items[0], footer.row, `${style}: toolbar stays above the scroll area`);
     } else {
@@ -1039,7 +1068,6 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
     }
     const persistent = {
       row: footer.row,
-      toolbar: footer.toolbar,
       refresh: footer.refreshControl,
       spinner: footer.spinner,
       timestamp: footer.lastRefreshLabel,
@@ -1069,7 +1097,6 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
     shell.setRunning(true);
     shell.setLastRefreshAt(123);
     assert.equal(shell.footer.row, persistent.row, `${style}: footer row persists`);
-    assert.equal(shell.footer.toolbar, persistent.toolbar, `${style}: toolbar persists`);
     assert.equal(shell.footer.refreshControl, persistent.refresh, `${style}: refresh persists`);
     assert.equal(shell.footer.spinner, persistent.spinner, `${style}: spinner persists`);
     assert.equal(
@@ -1079,6 +1106,12 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
     );
     assert.equal(shell.footer.settingsControl, persistent.settings, `${style}: settings persists`);
     assert.equal(shell.footer.spinner.playing, true, `${style}: spinner plays while running`);
+    assert.equal(shell.footer.running, true, `${style}: footer owns its running state`);
+    assert.equal(
+      shell.footer.refreshControl.styleClasses.has("pl-footer-action-disabled"),
+      style === "cards",
+      `${style}: disabled style comes from the footer spec`,
+    );
     assert.equal(
       shell.footer.lastRefreshLabel.text,
       "123:en",
@@ -1088,6 +1121,7 @@ test("PanelShell footer actors persist and focus scrolling is wired for every pa
     footer.refreshControl.fire("clicked");
     assert.equal(refreshes, 1, `${style}: refresh stays disabled while running`);
     shell.setRunning(false);
+    assert.equal(footer.running, false, `${style}: footer running state clears`);
     footer.refreshControl.fire("clicked");
     assert.equal(refreshes, 2, `${style}: refresh re-enabled after running`);
 
@@ -1126,4 +1160,163 @@ test("late destruction of an old preferences window cannot tear down a reopened 
   secondSignals.get("close-request")();
   assert.equal(cleaned, 2);
   assert.equal(active.size, 0);
+});
+
+test("keyboard activation is shared across buttons and key-press fallbacks", () => {
+  const Clutter = {
+    KEY_Return: 1,
+    KEY_KP_Enter: 2,
+    KEY_space: 3,
+    KEY_Left: 4,
+    EVENT_STOP: 1,
+    EVENT_PROPAGATE: 0,
+  };
+  const { isActivationKey, bindActivation } = load(
+    "src/helpers/keyboard.ts",
+    "({ isActivationKey, bindActivation })",
+    { Clutter },
+  );
+
+  assert.equal(isActivationKey(Clutter.KEY_Return), true);
+  assert.equal(isActivationKey(Clutter.KEY_KP_Enter), true);
+  assert.equal(isActivationKey(Clutter.KEY_space), true);
+  assert.equal(isActivationKey(Clutter.KEY_Left), false);
+
+  class Actor {
+    handlers = new Map();
+    connect(name, fn) {
+      const list = this.handlers.get(name) ?? [];
+      list.push(fn);
+      this.handlers.set(name, list);
+      return list.length;
+    }
+    fire(name, ...args) {
+      return (this.handlers.get(name) ?? []).map((fn) => fn(this, ...args));
+    }
+  }
+  let activations = 0;
+  const forwarded = [];
+  const actor = new Actor();
+  bindActivation(actor, () => activations++, {
+    pointerSignals: ["clicked"],
+    onOtherKey: (e) => {
+      forwarded.push(e.get_key_symbol());
+      return 42;
+    },
+  });
+
+  assert.deepEqual([...actor.handlers.keys()], ["clicked", "key-press-event"]);
+  actor.fire("clicked");
+  assert.equal(activations, 1);
+  assert.equal(
+    actor.fire("key-press-event", { get_key_symbol: () => Clutter.KEY_KP_Enter })[0],
+    Clutter.EVENT_STOP,
+  );
+  assert.equal(activations, 2);
+  assert.equal(actor.fire("key-press-event", { get_key_symbol: () => Clutter.KEY_Left })[0], 42);
+  assert.deepEqual(forwarded, [Clutter.KEY_Left]);
+  assert.equal(activations, 2);
+});
+
+test("status bar renderer plans once per render and owns structure rebuilds", () => {
+  const destroyed = [];
+  const parent = {
+    children: [],
+    add_child(child) {
+      this.children.push(child);
+      child.parent = this;
+    },
+    get_first_child() {
+      return this.children[0] ?? null;
+    },
+  };
+  const makeChild = (id) => ({
+    id,
+    parent: null,
+    get_next_sibling() {
+      const siblings = this.parent?.children ?? [];
+      return siblings[siblings.indexOf(this) + 1] ?? null;
+    },
+    destroy() {
+      destroyed.push(this.id);
+      if (this.parent) this.parent.children = this.parent.children.filter((c) => c !== this);
+    },
+  });
+  const { StatusBarRenderer } = load("src/ui/statusBarRenderer.ts", "({ StatusBarRenderer })");
+
+  const plans = [];
+  const builds = [];
+  const updates = [];
+  class Renderer extends StatusBarRenderer {
+    plan(context) {
+      plans.push(context.key);
+      return { key: context.key, value: context.value };
+    }
+    build(plan) {
+      builds.push(plan.key);
+      const child = makeChild(plan.key);
+      this.parent.add_child(child);
+    }
+    update(plan) {
+      updates.push(plan.value);
+    }
+  }
+  const renderer = new Renderer(parent);
+
+  renderer.render({ key: "a", value: 1 });
+  assert.deepEqual(plans, ["a"], "one plan per render");
+  assert.deepEqual(builds, ["a"], "first render builds");
+  assert.deepEqual(updates, []);
+  assert.equal(parent.children.length, 1);
+
+  renderer.render({ key: "a", value: 2 });
+  assert.deepEqual(plans, ["a", "a"], "one plan per render on update");
+  assert.deepEqual(builds, ["a"], "same structure key updates in place");
+  assert.deepEqual(updates, [2]);
+  assert.equal(parent.children.length, 1);
+
+  renderer.render({ key: "b", value: 3 });
+  assert.deepEqual(plans, ["a", "a", "b"]);
+  assert.deepEqual(builds, ["a", "b"], "changed structure key rebuilds");
+  assert.deepEqual(destroyed, ["a"], "old children are disposed on rebuild");
+  assert.equal(parent.children.length, 1);
+
+  renderer.dispose();
+  assert.deepEqual(destroyed, ["a", "b"]);
+  assert.equal(parent.children.length, 0);
+
+  renderer.render({ key: "b", value: 4 });
+  assert.deepEqual(builds, ["a", "b", "b"], "dispose clears the structure key");
+  assert.deepEqual(updates, [2]);
+});
+
+test("review findings stay consolidated in shared helpers and field lookup", () => {
+  const statusBar = readFileSync("src/ui/statusBar.ts", "utf8");
+  const panel = readFileSync("src/ui/panel.ts", "utf8");
+  const fields = readFileSync("src/readers/fields.ts", "utf8");
+  const shell = readFileSync("src/ui/panelShell.ts", "utf8");
+  const compactPanel = readFileSync("src/ui/panelCompact.ts", "utf8");
+  const overview = readFileSync("src/ui/panelGaugesOverview.ts", "utf8");
+  const renderers = [
+    readFileSync("src/ui/statusBarPills.ts", "utf8"),
+    readFileSync("src/ui/statusBarGauges.ts", "utf8"),
+    readFileSync("src/ui/statusBarCompact.ts", "utf8"),
+  ];
+
+  assert.match(fields, /export function resolveFieldDefs/);
+  for (const source of [statusBar, panel]) {
+    assert.match(source, /import\s*\{\s*resolveFieldDefs\s*\}/);
+    assert.doesNotMatch(source, /function resolveFieldDefs/);
+  }
+  assert.doesNotMatch(statusBar, /statusKey|_structureKey/);
+  for (const source of renderers) {
+    assert.match(source, /extends StatusBarRenderer/);
+    assert.doesNotMatch(source, /_planFor|private _context|statusKey\(/);
+  }
+  for (const source of [shell, compactPanel, overview]) {
+    assert.match(source, /from "\.\.\/helpers\/keyboard\.js"/);
+    assert.doesNotMatch(source, /KEY_KP_Enter/);
+  }
+  assert.doesNotMatch(compactPanel, /_bindButtonActivate/);
+  assert.doesNotMatch(shell, /_bindActivation\(/);
 });

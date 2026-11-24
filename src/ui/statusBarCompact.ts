@@ -1,12 +1,14 @@
 import Clutter from "gi://Clutter";
 import St from "gi://St";
 
-import { PROVIDER_NAMES, type ProviderName } from "../constants.js";
+import type { ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
-import type { FieldDef } from "../readers/base.js";
-import { planStatusBar } from "./matrixPlan.js";
-import type { StatusBarPlan as MatrixStatusBarPlan } from "./matrixPlan.js";
-import type { StatusBarRenderContext, StatusBarRenderer } from "./statusBar.js";
+import { ReaderStatus } from "../readers/base.js";
+import { deriveStatusBarSegments, statusBadgeText, toAttention } from "./fieldViews.js";
+import type { ProviderAttention } from "./providerTypes.js";
+import { structureKey } from "./renderStructure.js";
+import type { StatusBarRenderContext } from "./statusBar.js";
+import { StatusBarRenderer } from "./statusBarRenderer.js";
 import { applyStatusAttentionClass } from "./tone.js";
 
 interface CompactPooledSegment {
@@ -15,21 +17,94 @@ interface CompactPooledSegment {
   metricsLabel: St.Label | null;
 }
 
-export class CompactStatusBarRenderer implements StatusBarRenderer {
-  private _segments: CompactPooledSegment[] = [];
-  private _placeholder: St.Label | null = null;
-  private _context: StatusBarRenderContext | null = null;
-  private _plan: MatrixStatusBarPlan | null = null;
+interface CompactBadgePlan {
+  provider: ProviderName;
+  shortLabel: string;
+  metricsText: string;
+  attention: ProviderAttention;
+  accessibleText: string;
+  key: string;
+}
 
-  constructor(private readonly _parent: St.BoxLayout) {}
+interface CompactPlan {
+  state: "empty" | "loading" | "ready";
+  placeholderText: string | null;
+  badges: readonly CompactBadgePlan[];
+  key: string;
+}
 
-  statusKey(context: StatusBarRenderContext): string {
-    return this._planFor(context).key;
+function planCompact(context: StatusBarRenderContext): CompactPlan {
+  const tr = (text: string) => context.t(text);
+
+  if (!context.order.some((name) => context.isEnabled(name))) {
+    return {
+      state: "empty",
+      placeholderText: null,
+      badges: [],
+      key: structureKey(["empty", context.locale]),
+    };
   }
 
-  build(context: StatusBarRenderContext): void {
-    const plan = this._planFor(context);
+  const badges: CompactBadgePlan[] = deriveStatusBarSegments(context)
+    .filter((segment) => context.isEnabled(segment.provider))
+    .map((segment) => {
+      const shortLabel = segment.displayName || segment.provider;
+      const badgeWord = statusBadgeText(segment.health, tr);
 
+      if (segment.health.state === "error" || segment.health.state === "unavailable") {
+        return {
+          provider: segment.provider,
+          shortLabel,
+          metricsText: "!",
+          attention: toAttention(segment.health),
+          accessibleText: `${shortLabel} ${badgeWord}`.trim(),
+          key: JSON.stringify([segment.provider, shortLabel, 1]),
+        };
+      }
+
+      const joined = segment.views.map((view) => view.valueText).join("·");
+      const prefix = segment.result.status === ReaderStatus.PARTIAL ? "~" : "";
+      const metricsText = joined ? `${prefix}${joined}` : prefix;
+      const spokenRows = segment.views.map((view) => view.accessibleText).join(", ");
+      const headerPart = badgeWord ? `${shortLabel} ${badgeWord}` : shortLabel;
+      const accessibleText = spokenRows ? `${headerPart}: ${spokenRows}` : headerPart;
+
+      return {
+        provider: segment.provider,
+        shortLabel,
+        metricsText,
+        attention: toAttention(segment.health),
+        accessibleText,
+        key: JSON.stringify([segment.provider, shortLabel, metricsText ? 1 : 0]),
+      };
+    });
+
+  if (badges.length === 0 && context.results.size === 0) {
+    return {
+      state: "loading",
+      placeholderText: "…",
+      badges: [],
+      key: structureKey(["loading", context.locale]),
+    };
+  }
+
+  return {
+    state: "ready",
+    placeholderText: null,
+    badges,
+    key: structureKey(["ready", context.locale, ...badges.map((badge) => badge.key)]),
+  };
+}
+
+export class CompactStatusBarRenderer extends StatusBarRenderer<CompactPlan> {
+  private _segments: CompactPooledSegment[] = [];
+  private _placeholder: St.Label | null = null;
+
+  protected plan(context: StatusBarRenderContext): CompactPlan {
+    return planCompact(context);
+  }
+
+  protected build(plan: CompactPlan): void {
     if (plan.state === "loading" && plan.placeholderText) {
       const placeholder = new St.Label({
         text: plan.placeholderText,
@@ -37,7 +112,7 @@ export class CompactStatusBarRenderer implements StatusBarRenderer {
         y_align: Clutter.ActorAlign.CENTER,
       });
       placeholder.accessible_name = _("Reading provider limits…");
-      this._parent.add_child(placeholder);
+      this.parent.add_child(placeholder);
       this._placeholder = placeholder;
       return;
     }
@@ -72,14 +147,12 @@ export class CompactStatusBarRenderer implements StatusBarRenderer {
       }
 
       applyStatusAttentionClass(segment, metricsLabel ?? nameLabel, badge.attention);
-      this._parent.add_child(segment);
+      this.parent.add_child(segment);
       this._segments.push({ box: segment, nameLabel, metricsLabel });
     });
   }
 
-  update(context: StatusBarRenderContext): void {
-    const plan = this._planFor(context);
-
+  protected update(plan: CompactPlan): void {
     if (plan.state === "loading" && this._placeholder && plan.placeholderText) {
       this._placeholder.text = plan.placeholderText;
       return;
@@ -103,45 +176,8 @@ export class CompactStatusBarRenderer implements StatusBarRenderer {
     });
   }
 
-  dispose(): void {
-    let child = this._parent.get_first_child();
-    while (child) {
-      const next = child.get_next_sibling();
-      child.destroy();
-      child = next;
-    }
+  protected onDispose(): void {
     this._segments = [];
     this._placeholder = null;
-    this._context = null;
-    this._plan = null;
-  }
-
-  private _planFor(context: StatusBarRenderContext): MatrixStatusBarPlan {
-    if (this._context === context && this._plan) return this._plan;
-
-    const enabledProviders = new Set<ProviderName>();
-    const shortLabels = {} as Record<ProviderName, string>;
-    const statusFields = {} as Record<ProviderName, readonly string[]>;
-    const fieldDefs: Partial<Record<ProviderName, readonly FieldDef[]>> = {};
-
-    for (const name of PROVIDER_NAMES) {
-      if (context.isEnabled(name)) enabledProviders.add(name);
-      shortLabels[name] = context.shortDisplayName(name);
-      statusFields[name] = context.statusFields(name);
-      fieldDefs[name] = context.fieldDefs(name);
-    }
-
-    this._plan = planStatusBar({
-      order: context.order,
-      enabledProviders,
-      results: context.results,
-      shortLabels,
-      statusFields,
-      fieldDefs,
-      locale: context.locale,
-      t: (text) => context.t(text),
-    });
-    this._context = context;
-    return this._plan;
   }
 }

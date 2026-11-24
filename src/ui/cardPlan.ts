@@ -1,41 +1,22 @@
 import { type ProviderName } from "../constants.js";
 import { formatAbsoluteTimestamp } from "../formatters.js";
-import type { FieldDef, FieldResult, ReaderResult } from "../readers/base.js";
-import { FieldStatus, ReaderStatus } from "../readers/base.js";
+import type { FieldDef, ReaderResult } from "../readers/base.js";
+import { ReaderStatus } from "../readers/base.js";
 import type { FieldCategory } from "../readers/fields.js";
-import { getProviderFields } from "../readers/fields.js";
-import { getFieldRows } from "./fieldRows.js";
-import type { FieldRow, FieldTone } from "./fieldRows.js";
-import type { HealthTone } from "./tone.js";
+import { clampPercent, type FieldTone } from "./fieldRows.js";
+import type { FieldView } from "./fieldViews.js";
 import {
-  clampPercent,
-  collectFieldTones,
-  usageStructureKey,
-  worstFieldTone,
-} from "./usageSnapshot.js";
+  badgeForZone,
+  cardBadgeText,
+  deriveFieldViews,
+  deriveProviderHealth,
+} from "./fieldViews.js";
+import type { CardBadgeValue, ProviderTone } from "./providerTypes.js";
+import { structureKey } from "./renderStructure.js";
 
-export type CardBadgeKind = "live" | "cached" | "error" | "unavailable";
+export type CardBadgeKind = CardBadgeValue;
 export type BannerKind = "warning" | "error";
 export type PanelEmptyState = "none" | "disabled" | "loading";
-
-export interface StatusPillPlan {
-  provider: ProviderName;
-  displayName: string;
-  status: ReaderStatus;
-  healthTone: HealthTone;
-  isPartial: boolean;
-  stateTag: string | null;
-  stateAccessibleText: string | null;
-  rows: FieldRow[];
-  key: string;
-}
-
-export interface StatusBarPlan {
-  loading: boolean;
-  loadingAccessibleText: string;
-  pills: StatusPillPlan[];
-  structureKey: string;
-}
 
 export interface CardProgressRow {
   kind: "progress";
@@ -65,7 +46,7 @@ export interface ProviderCardPlan {
   provider: ProviderName;
   displayName: string;
   status: ReaderStatus;
-  healthTone: HealthTone;
+  healthTone: ProviderTone;
   badgeKind: CardBadgeKind;
   badgeText: string;
   lastUpdatedText: string | null;
@@ -85,27 +66,6 @@ export interface PanelPlan {
   structureKey: string;
 }
 
-export function computeProviderHealthTone(
-  status: ReaderStatus,
-  rows: readonly FieldRow[],
-  fields?: readonly FieldResult[],
-  fieldDefs?: readonly FieldDef[],
-): HealthTone {
-  if (status === ReaderStatus.DISABLED) return "idle";
-  if (status === ReaderStatus.ERROR || status === ReaderStatus.UNAVAILABLE) return "error";
-
-  const worst = worstFieldTone(collectFieldTones(rows, fields, fieldDefs));
-  if (worst === "critical") return "critical";
-  if (status === ReaderStatus.PARTIAL) return "partial";
-  if (worst === "warning") return "warning";
-  if (worst === "ok") return "ok";
-
-  const hasUsableField =
-    rows.some((r) => r.valueText !== "—") ||
-    (fields?.some((f) => f.status === FieldStatus.OK) ?? false);
-  return hasUsableField ? "ok" : "idle";
-}
-
 export function computeBarWidthPx(
   trackWidth: number,
   fillPercent: number,
@@ -117,127 +77,28 @@ export function computeBarWidthPx(
   return Math.min(effectiveTrack, Math.max(4, Math.round((effectiveTrack * clamped) / 100)));
 }
 
-export interface PlanStatusBarOptions {
-  order: readonly ProviderName[];
-  results: ReadonlyMap<ProviderName, ReaderResult>;
-  hasEnabledProviders: boolean;
-  locale: string;
-  getShortDisplayName: (provider: ProviderName) => string;
-  getStatusFields: (provider: ProviderName) => readonly string[];
-  getFieldDefs?: (provider: ProviderName) => readonly FieldDef[] | undefined;
-  t?: (s: string) => string;
-}
-
-export function planStatusBar(options: PlanStatusBarOptions): StatusBarPlan {
-  const tr = options.t ?? ((s: string) => s);
-  const pills: StatusPillPlan[] = [];
-
-  for (const provider of options.order) {
-    const result = options.results.get(provider);
-    if (!result || result.status === ReaderStatus.DISABLED) continue;
-
-    const defs = options.getFieldDefs
-      ? options.getFieldDefs(provider)
-      : getProviderFields(provider);
-    const displayName = options.getShortDisplayName(provider);
-    const rows = getFieldRows(
-      defs,
-      result,
-      options.getStatusFields(provider),
-      "status",
-      options.locale,
-      tr,
-    );
-    const healthTone = computeProviderHealthTone(result.status, rows, result.fields, defs);
-
-    let stateTag: string | null = null;
-    let stateAccessibleText: string | null = null;
-    const isPartial = result.status === ReaderStatus.PARTIAL;
-    if (result.status === ReaderStatus.ERROR) {
-      stateTag = tr("(error)");
-      stateAccessibleText = stateTag;
-    } else if (result.status === ReaderStatus.UNAVAILABLE) {
-      stateTag = tr("(unavailable)");
-      stateAccessibleText = stateTag;
-    } else if (isPartial) {
-      stateTag = "~";
-      stateAccessibleText = tr("Cached");
-    }
-
-    const key = JSON.stringify([
-      provider,
-      displayName,
-      result.status,
-      options.locale,
-      stateTag ?? "",
-      rows.map((r) => r.name ?? r.label),
-    ]);
-
-    pills.push({
-      provider,
-      displayName,
-      status: result.status,
-      healthTone,
-      isPartial,
-      stateTag,
-      stateAccessibleText,
-      rows,
-      key,
-    });
-  }
-
-  const loading = pills.length === 0 && options.results.size === 0 && options.hasEnabledProviders;
-  return {
-    loading,
-    loadingAccessibleText: tr("Loading provider limits…"),
-    pills,
-    structureKey: usageStructureKey([
-      options.locale,
-      loading ? "loading" : "ready",
-      ...pills.map((p) => p.key),
-    ]),
-  };
-}
-
 export interface PlanProviderCardOptions {
   provider: ProviderName;
   displayName: string;
   result: ReaderResult;
   panelFields: readonly string[];
-  fieldDefs?: readonly FieldDef[];
+  fieldDefs: readonly FieldDef[];
   locale: string;
   t?: (s: string) => string;
 }
 
 export function planProviderCard(options: PlanProviderCardOptions): ProviderCardPlan {
   const tr = options.t ?? ((s: string) => s);
-  const { provider, displayName, result, panelFields, locale } = options;
-  const defs = options.fieldDefs ?? getProviderFields(provider);
+  const { provider, displayName, result, panelFields, fieldDefs: defs, locale } = options;
 
   const isHardError =
     result.status === ReaderStatus.ERROR || result.status === ReaderStatus.UNAVAILABLE;
 
-  let badgeKind: CardBadgeKind;
-  let badgeText: string;
-  switch (result.status) {
-    case ReaderStatus.OK:
-      badgeKind = "live";
-      badgeText = tr("Live");
-      break;
-    case ReaderStatus.PARTIAL:
-      badgeKind = "cached";
-      badgeText = tr("Cached");
-      break;
-    case ReaderStatus.UNAVAILABLE:
-      badgeKind = "unavailable";
-      badgeText = tr("Unavailable");
-      break;
-    case ReaderStatus.ERROR:
-    default:
-      badgeKind = "error";
-      badgeText = tr("Error");
-      break;
-  }
+  const views = isHardError ? [] : deriveFieldViews(defs, result, panelFields, "panel", locale, tr);
+  const health = deriveProviderHealth(result, views, tr, defs);
+  const badgeKind: CardBadgeKind = badgeForZone(health, "card");
+  const badgeText = cardBadgeText(health, tr);
+  const healthTone = health.tone;
 
   let bannerKind: BannerKind | null = null;
   let bannerText: string | null = null;
@@ -252,30 +113,25 @@ export function planProviderCard(options: PlanProviderCardOptions): ProviderCard
     bannerText = result.lastError;
   }
 
-  const rawRows = isHardError ? [] : getFieldRows(defs, result, panelFields, "panel", locale, tr);
-  const healthTone = computeProviderHealthTone(result.status, rawRows, result.fields, defs);
-
   const lastUpdatedText =
     !isHardError && Number.isFinite(result.lastUpdated)
       ? tr("Last updated: %s").replace("%s", formatAbsoluteTimestamp(result.lastUpdated, locale))
       : null;
 
-  const rowsByName = new Map<string, FieldRow>();
-  for (const row of rawRows) {
-    if (row.name && !rowsByName.has(row.name)) {
-      rowsByName.set(row.name, row);
-    }
+  const rowsByName = new Map<string, FieldView>();
+  for (const row of views) {
+    rowsByName.set(row.name, row);
   }
 
-  const pairedResets = new Map<string, FieldRow>();
+  const pairedResets = new Map<string, FieldView>();
   const consumedResetNames = new Set<string>();
-  for (const row of rawRows) {
-    if (row.type !== "percent" || !row.name || !row.companionResetName) continue;
-    if (consumedResetNames.has(row.companionResetName)) continue;
-    const resetRow = rowsByName.get(row.companionResetName);
+  for (const row of views) {
+    if (row.type !== "percent" || row.resetName === null) continue;
+    if (consumedResetNames.has(row.resetName)) continue;
+    const resetRow = rowsByName.get(row.resetName);
     if (resetRow) {
       pairedResets.set(row.name, resetRow);
-      consumedResetNames.add(row.companionResetName);
+      consumedResetNames.add(row.resetName);
     }
   }
 
@@ -283,8 +139,8 @@ export function planProviderCard(options: PlanProviderCardOptions): ProviderCard
   const limitMetaRows: CardKeyValueRow[] = [];
   const telemetryRows: CardKeyValueRow[] = [];
 
-  for (const row of rawRows) {
-    const rowName = row.name ?? row.label;
+  for (const row of views) {
+    const rowName = row.name;
     if (consumedResetNames.has(rowName)) continue;
 
     const translatedLabel = tr(row.label);
@@ -370,7 +226,7 @@ export interface PlanPanelOptions {
   locale: string;
   getDisplayName: (provider: ProviderName) => string;
   getPanelFields: (provider: ProviderName) => readonly string[];
-  getFieldDefs?: (provider: ProviderName) => readonly FieldDef[] | undefined;
+  getFieldDefs: (provider: ProviderName) => readonly FieldDef[];
   t?: (s: string) => string;
 }
 
@@ -382,9 +238,7 @@ export function planPanel(options: PlanPanelOptions): PanelPlan {
     const result = options.results.get(provider);
     if (!result || result.status === ReaderStatus.DISABLED) continue;
 
-    const fieldDefs = options.getFieldDefs
-      ? options.getFieldDefs(provider)
-      : getProviderFields(provider);
+    const fieldDefs = options.getFieldDefs(provider);
     cards.push(
       planProviderCard({
         provider,
@@ -405,7 +259,7 @@ export function planPanel(options: PlanPanelOptions): PanelPlan {
         emptyTitle: tr("No providers enabled"),
         emptySubtitle: tr("Enable a provider in Settings to monitor usage limits."),
         cards: [],
-        structureKey: usageStructureKey([options.locale, "empty:disabled"]),
+        structureKey: structureKey([options.locale, "empty:disabled"]),
       };
     }
 
@@ -416,7 +270,7 @@ export function planPanel(options: PlanPanelOptions): PanelPlan {
         : tr("Waiting for provider data…"),
       emptySubtitle: null,
       cards: [],
-      structureKey: usageStructureKey([options.locale, "empty:loading"]),
+      structureKey: structureKey([options.locale, "empty:loading"]),
     };
   }
 
@@ -425,6 +279,6 @@ export function planPanel(options: PlanPanelOptions): PanelPlan {
     emptyTitle: null,
     emptySubtitle: null,
     cards,
-    structureKey: usageStructureKey([options.locale, ...cards.map((c) => c.key)]),
+    structureKey: structureKey([options.locale, ...cards.map((c) => c.key)]),
   };
 }

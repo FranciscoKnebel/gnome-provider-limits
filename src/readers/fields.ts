@@ -1,4 +1,4 @@
-import type { ProviderName } from "../constants.js";
+import { PROVIDER_NAMES, type ProviderName } from "../constants.js";
 import type { FieldDef } from "./base.js";
 
 export type FieldCategory = "limit" | "telemetry";
@@ -470,103 +470,12 @@ export function getProviderFields(provider: ProviderName): readonly FieldDef[] {
   return PROVIDER_FIELDS[provider] ?? [];
 }
 
-export interface ProviderDefaultZones {
-  readonly status: readonly string[];
-  readonly panel: readonly string[];
+/** Resolve all known providers into one field-definition lookup. */
+export function resolveFieldDefs(): Readonly<Record<ProviderName, readonly FieldDef[]>> {
+  const defs = {} as Record<ProviderName, readonly FieldDef[]>;
+  for (const name of PROVIDER_NAMES) defs[name] = getProviderFields(name);
+  return defs;
 }
-
-export const DEFAULT_PROVIDER_ZONE_FIELDS: Record<ProviderName, ProviderDefaultZones> = {
-  codex: {
-    status: ["used_percent_primary", "reset_at_primary"],
-    panel: [
-      "used_percent_secondary",
-      "reset_at_secondary",
-      "window_minutes_primary",
-      "window_minutes_secondary",
-      "limit_reached",
-      "plan_type",
-      "reset_credits_available",
-      "reset_credits_expire_at",
-    ],
-  },
-  claude: {
-    status: ["used_percent_session", "reset_at_session"],
-    panel: [
-      "used_percent_weekly",
-      "reset_at_weekly",
-      "used_percent_sonnet",
-      "used_percent_opus",
-      "has_extra_usage_enabled",
-      "extra_usage_disabled_reason",
-    ],
-  },
-  opencode: {
-    status: ["used_percent_rolling", "reset_at_rolling"],
-    panel: [
-      "used_percent_weekly",
-      "reset_at_weekly",
-      "used_percent_monthly",
-      "reset_at_monthly",
-      "limit_reached",
-      "total_cost",
-      "sessions_count",
-      "usage_source",
-    ],
-  },
-  grok: {
-    status: ["used_percent_credits", "reset_at_credits"],
-    panel: [
-      "remaining_percent_credits",
-      "prepaid_balance",
-      "unified_billing",
-      "plan_type",
-      "usage_source",
-    ],
-  },
-  cursor: {
-    status: ["used_percent_credits", "reset_at_credits"],
-    panel: [
-      "remaining_percent_credits",
-      "used_percent_auto",
-      "used_percent_api",
-      "remaining_credits",
-      "spend_limit_used",
-      "limit_reached",
-      "plan_type",
-      "usage_source",
-    ],
-  },
-  google: {
-    status: ["used_percent_session", "reset_at_session"],
-    panel: [
-      "used_percent_weekly",
-      "reset_at_weekly",
-      "used_percent_3p_session",
-      "used_percent_3p_weekly",
-      "limit_reached",
-      "plan_type",
-      "usage_source",
-    ],
-  },
-};
-
-export const DEFAULT_PROVIDER_STATUS_FIELDS: Record<ProviderName, readonly string[]> = {
-  codex: DEFAULT_PROVIDER_ZONE_FIELDS.codex.status,
-  claude: DEFAULT_PROVIDER_ZONE_FIELDS.claude.status,
-  opencode: DEFAULT_PROVIDER_ZONE_FIELDS.opencode.status,
-  grok: DEFAULT_PROVIDER_ZONE_FIELDS.grok.status,
-  cursor: DEFAULT_PROVIDER_ZONE_FIELDS.cursor.status,
-  google: DEFAULT_PROVIDER_ZONE_FIELDS.google.status,
-};
-
-export const DEFAULT_PROVIDER_PANEL_FIELDS: Record<ProviderName, readonly string[]> = {
-  codex: DEFAULT_PROVIDER_ZONE_FIELDS.codex.panel,
-  claude: DEFAULT_PROVIDER_ZONE_FIELDS.claude.panel,
-  opencode: DEFAULT_PROVIDER_ZONE_FIELDS.opencode.panel,
-  grok: DEFAULT_PROVIDER_ZONE_FIELDS.grok.panel,
-  cursor: DEFAULT_PROVIDER_ZONE_FIELDS.cursor.panel,
-  google: DEFAULT_PROVIDER_ZONE_FIELDS.google.panel,
-};
 
 const TELEMETRY_FIELD_NAMES = new Set<string>([
   "total_cost",

@@ -23,7 +23,6 @@ const CURSOR_PLAN_URL = `${CURSOR_BACKEND_URL}/aiserver.v1.DashboardService/GetP
 Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish");
 
 import { CURSOR_FIELDS } from "./fields.js";
-export { CURSOR_FIELDS };
 
 function makeRpcHeaders(token: string): Record<string, string> {
   return {

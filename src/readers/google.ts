@@ -48,7 +48,6 @@ if (Gio.FileEnumerator?.prototype) {
 }
 
 import { GOOGLE_FIELDS } from "./fields.js";
-export { GOOGLE_FIELDS };
 
 function makeGoogleHeaders(token: string): Record<string, string> {
   return {

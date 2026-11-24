@@ -24,7 +24,6 @@ const CODEX_USAGE_URL = "https://chatgpt.com/backend-api/wham/usage";
 const CODEX_RESET_CREDITS_URL = "https://chatgpt.com/backend-api/wham/rate-limit-reset-credits";
 
 import { CODEX_FIELDS } from "./fields.js";
-export { CODEX_FIELDS };
 
 Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish");
 

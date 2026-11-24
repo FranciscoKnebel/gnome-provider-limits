@@ -6,18 +6,25 @@ import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 
 import { PROVIDER_NAMES, type ProviderName } from "../constants.js";
 import { gettext as _ } from "../helpers/gettext.js";
+import { bindActivation } from "../helpers/keyboard.js";
 import { resolveLocale } from "../helpers/locale.js";
 import { normalizeProvidersOrder, providerDisplayName } from "../helpers/provider-settings.js";
 import type { BaseReader, FieldDef, ReaderResult } from "../readers/base.js";
 import {
-  clampFillRatio,
   planPanelMatrix,
   resolveProviderExpanded,
   toggleAllProvidersExpanded,
 } from "./matrixPlan.js";
 import type { MatrixDetailRow, PanelMatrixPlan, ProviderMatrixPlan } from "./matrixPlan.js";
-import type { PanelShell, PanelStyleSection, CompactToolbarControls } from "./panelShell.js";
+import type { PanelShell, PanelStyleSection } from "./panelShell.js";
 import { applyQuietToneClass, applyToneClass } from "./tone.js";
+import { clampFillRatio } from "./usageSnapshot.js";
+
+interface CompactToolbarControls {
+  readonly titleLabel: St.Label;
+  readonly expandAllButton: St.Button;
+  readonly expandAllLabel: St.Label;
+}
 
 interface DetailRowWidgets {
   microBar: St.Label | null;
@@ -49,7 +56,7 @@ interface ProviderSectionWidgets {
 
 export class CompactPanelSection implements PanelStyleSection {
   private _settings: Gio.Settings;
-  private _readers: Map<ProviderName, BaseReader>;
+  private readonly _fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>;
   private _running = false;
   private _lastResults: Map<ProviderName, ReaderResult> = new Map();
   private _lastRefreshAt: number | null = null;
@@ -61,12 +68,16 @@ export class CompactPanelSection implements PanelStyleSection {
   private _structureKey: string | null = null;
   readonly shell: PanelShell;
 
-  constructor(settings: Gio.Settings, readers: Map<ProviderName, BaseReader>, shell: PanelShell) {
+  constructor(
+    settings: Gio.Settings,
+    _readers: Map<ProviderName, BaseReader>,
+    fieldDefs: Readonly<Record<ProviderName, readonly FieldDef[]>>,
+    shell: PanelShell,
+  ) {
     this._settings = settings;
-    this._readers = readers;
+    this._fieldDefs = fieldDefs;
     this.shell = shell;
-    this._controls = shell.getCompactControls();
-    this._bindButtonActivate(this._controls.expandAllButton, () => this._toggleAllProviders());
+    this._controls = this._buildToolbar();
     this.render(new Map(), null);
   }
 
@@ -116,7 +127,6 @@ export class CompactPanelSection implements PanelStyleSection {
     const displayNames = {} as Record<ProviderName, string>;
     const statusFields = {} as Record<ProviderName, readonly string[]>;
     const panelFields = {} as Record<ProviderName, readonly string[]>;
-    const fieldDefs: Partial<Record<ProviderName, readonly FieldDef[]>> = {};
 
     for (const name of PROVIDER_NAMES) {
       const enabled = this._settings.get_boolean(`${name}-enabled`);
@@ -125,9 +135,6 @@ export class CompactPanelSection implements PanelStyleSection {
       displayNames[name] = providerDisplayName(this._settings, name);
       statusFields[name] = this._settings.get_strv(`${name}-status-fields`);
       panelFields[name] = this._settings.get_strv(`${name}-panel-fields`);
-
-      const reader = this._readers.get(name);
-      if (reader) fieldDefs[name] = reader.FIELDS;
     }
 
     return planPanelMatrix({
@@ -138,7 +145,7 @@ export class CompactPanelSection implements PanelStyleSection {
       statusFields,
       panelFields,
       expandedOverrides: this._expandedOverrides,
-      fieldDefs,
+      fieldDefs: this._fieldDefs,
       locale,
       t: _,
     });
@@ -166,22 +173,53 @@ export class CompactPanelSection implements PanelStyleSection {
     this.render(this._lastResults, this._lastRefreshAt);
   }
 
-  private _bindButtonActivate(button: St.Button, onActivate: () => void): void {
-    button.connect("clicked", () => {
-      onActivate();
+  /** The compact toolbar is owned here; the shell only supplies the shared footer actors. */
+  private _buildToolbar(): CompactToolbarControls {
+    const footer = this.shell.footer;
+
+    const leftBox = new St.BoxLayout({
+      style_class: "provider-limits-hud-toolbar-left",
+      x_expand: true,
+      y_align: Clutter.ActorAlign.CENTER,
     });
-    button.connect("key-press-event", (_actor: Clutter.Actor, event: Clutter.Event) => {
-      const symbol = event.get_key_symbol();
-      if (
-        symbol === Clutter.KEY_Return ||
-        symbol === Clutter.KEY_KP_Enter ||
-        symbol === Clutter.KEY_space
-      ) {
-        onActivate();
-        return Clutter.EVENT_STOP;
-      }
-      return Clutter.EVENT_PROPAGATE;
+    const titleLabel = new St.Label({
+      text: _("Provider Limits"),
+      style_class: "provider-limits-hud-title",
+      y_align: Clutter.ActorAlign.CENTER,
     });
+    titleLabel.accessible_name = titleLabel.text;
+    leftBox.add_child(titleLabel);
+    leftBox.add_child(footer.lastRefreshLabel);
+
+    const actionsBox = new St.BoxLayout({
+      style_class: "provider-limits-hud-actions",
+      y_align: Clutter.ActorAlign.CENTER,
+    });
+    const expandAllLabel = new St.Label({
+      text: "▾",
+      style_class: "provider-limits-toolbar-glyph",
+      y_align: Clutter.ActorAlign.CENTER,
+    });
+    const expandAllButton = new St.Button({
+      child: expandAllLabel,
+      style_class: "provider-limits-icon-button",
+      reactive: true,
+      can_focus: true,
+      visible: false,
+      y_align: Clutter.ActorAlign.CENTER,
+    });
+    expandAllButton.accessible_name = _("Expand all");
+    bindActivation(expandAllButton, () => this._toggleAllProviders(), {
+      pointerSignals: ["clicked"],
+    });
+    actionsBox.add_child(expandAllButton);
+    actionsBox.add_child(footer.refreshControl);
+    actionsBox.add_child(footer.settingsControl);
+
+    footer.row.add_child(leftBox);
+    footer.row.add_child(actionsBox);
+
+    return { titleLabel, expandAllButton, expandAllLabel };
   }
 
   private _syncToolbar(plan: PanelMatrixPlan, lastRefreshAt: number | null): void {
@@ -320,29 +358,20 @@ export class CompactPanelSection implements PanelStyleSection {
       headerRow.add_style_class_name("provider-limits-matrix-group-divided");
     }
     headerRow.accessible_name = plan.headerAccessibleName;
-    headerRow.connect("button-release-event", () => {
-      this._toggleProvider(plan.provider);
-      return Clutter.EVENT_STOP;
-    });
-    headerRow.connect("key-press-event", (_actor: Clutter.Actor, event: Clutter.Event) => {
-      const symbol = event.get_key_symbol();
-      if (
-        symbol === Clutter.KEY_Return ||
-        symbol === Clutter.KEY_KP_Enter ||
-        symbol === Clutter.KEY_space
-      ) {
-        this._toggleProvider(plan.provider);
-        return Clutter.EVENT_STOP;
-      }
-      if (symbol === Clutter.KEY_Left) {
-        this._toggleProvider(plan.provider, false);
-        return Clutter.EVENT_STOP;
-      }
-      if (symbol === Clutter.KEY_Right) {
-        this._toggleProvider(plan.provider, true);
-        return Clutter.EVENT_STOP;
-      }
-      return Clutter.EVENT_PROPAGATE;
+    bindActivation(headerRow, () => this._toggleProvider(plan.provider), {
+      pointerSignals: ["button-release-event"],
+      onOtherKey: (event) => {
+        const symbol = event.get_key_symbol();
+        if (symbol === Clutter.KEY_Left) {
+          this._toggleProvider(plan.provider, false);
+          return Clutter.EVENT_STOP;
+        }
+        if (symbol === Clutter.KEY_Right) {
+          this._toggleProvider(plan.provider, true);
+          return Clutter.EVENT_STOP;
+        }
+        return Clutter.EVENT_PROPAGATE;
+      },
     });
 
     const headerStack = new St.BoxLayout({
