@@ -81,13 +81,13 @@ export interface ReadOptions {
   force?: boolean;
 }
 
-export type ResetFieldStatus = FieldStatus.UNAVAILABLE | FieldStatus.NOT_APPLICABLE;
+export type NonOkFieldStatus = FieldStatus.UNAVAILABLE | FieldStatus.NOT_APPLICABLE;
 
 export interface WindowFieldStatus {
   /** Non-OK status for every field when the provider does not expose the window. */
-  readonly absent?: ResetFieldStatus;
+  readonly absent?: NonOkFieldStatus;
   /** Non-OK status for a missing reset timestamp; a present timestamp is always OK. */
-  readonly reset?: ResetFieldStatus;
+  readonly reset?: NonOkFieldStatus;
 }
 
 export abstract class BaseReader<P extends ProviderName = ProviderName> {

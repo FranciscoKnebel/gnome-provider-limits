@@ -14,6 +14,7 @@ import {
   PROVIDER_NAMES,
   type ProviderName,
 } from "./constants.js";
+import { assertNever } from "./helpers/assertNever.js";
 import { configureTranslations, gettext as _ } from "./helpers/gettext.js";
 import { resolveLocale } from "./helpers/locale.js";
 import { logError } from "./helpers/log.js";
@@ -35,10 +36,6 @@ import { viewContextFor } from "./ui/viewContext.js";
 const PROVIDER_LIMITS_UUID = "gnome-provider-limits@franciscoknebel.com";
 const MIN_REFRESH_INDICATOR_MS = 2000;
 const RENDER_DEBOUNCE_MS = 150;
-
-function assertNever(value: never): never {
-  throw new Error(`Unexpected provider: ${String(value)}`);
-}
 
 const ProviderLimitsIndicator = GObject.registerClass(
   class ProviderLimitsIndicator extends PanelMenu.Button {

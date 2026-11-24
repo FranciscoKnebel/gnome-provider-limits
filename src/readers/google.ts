@@ -1,6 +1,7 @@
 import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 
+import { assertNever } from "../helpers/assertNever.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { HttpClient, HttpError, TokenError } from "../helpers/http.js";
 import { logWarn } from "../helpers/log.js";
@@ -14,8 +15,8 @@ import {
   BaseReader,
   FieldStatus,
   type FieldResult,
+  type NonOkFieldStatus,
   type ReaderResult,
-  type ResetFieldStatus,
 } from "./base.js";
 import {
   GOOGLE_CLOUDCODE_DAILY_URL,
@@ -77,15 +78,10 @@ interface CandidateQuotaOutcome {
   endpointUsed: string;
 }
 
-const RESET_OVERRIDE: Record<GoogleWindowReset["state"], ResetFieldStatus | undefined> = {
-  present: undefined,
+const RESET_OVERRIDE: Record<Exclude<GoogleWindowReset["state"], "present">, NonOkFieldStatus> = {
   idle: FieldStatus.NOT_APPLICABLE,
   missing: FieldStatus.UNAVAILABLE,
 };
-
-function assertNever(value: never): never {
-  throw new Error(`unexpected Google window state: ${String(value)}`);
-}
 
 export class GoogleReader extends BaseReader<"google"> {
   private _http: HttpClient | null = null;
@@ -586,11 +582,13 @@ export class GoogleReader extends BaseReader<"google"> {
         case "present": {
           const data = window.usage;
           const resetAt = data.reset.state === "present" ? data.reset.at : null;
+          const resetOverride =
+            data.reset.state === "present" ? undefined : RESET_OVERRIDE[data.reset.state];
           fields.push(
             ...this._makeWindowFields(
               names,
               { used_percent: data.usedPercent, reset_at: resetAt },
-              { reset: RESET_OVERRIDE[data.reset.state] },
+              { reset: resetOverride },
             ),
           );
           break;

@@ -30,27 +30,23 @@ export interface GoogleWindowUsage {
   reset: GoogleWindowReset;
 }
 
-export type GoogleWindowId = "session" | "weekly" | "thirdPartySession" | "thirdPartyWeekly";
-
-const GOOGLE_WINDOW_IDS: readonly GoogleWindowId[] = [
+export const GOOGLE_WINDOW_IDS = [
   "session",
   "weekly",
   "thirdPartySession",
   "thirdPartyWeekly",
-];
+] as const;
+
+export type GoogleWindowId = (typeof GOOGLE_WINDOW_IDS)[number];
 
 export type GoogleWindow =
   | { readonly state: "present"; readonly usage: GoogleWindowUsage }
   | { readonly state: "absent" }
   | { readonly state: "malformed" };
 
-export interface GoogleUsage {
-  session: GoogleWindow;
-  weekly: GoogleWindow;
-  thirdPartySession: GoogleWindow;
-  thirdPartyWeekly: GoogleWindow;
-  limitReached: boolean;
-}
+export type GoogleUsage = Readonly<Record<GoogleWindowId, GoogleWindow>> & {
+  readonly limitReached: boolean;
+};
 
 type QuotaFamily = "gemini" | "3p";
 type QuotaWindow = "5h" | "weekly";
@@ -281,19 +277,14 @@ function preferExactWindow(exact: GoogleWindow, fallback: GoogleWindow): GoogleW
 }
 
 function buildGoogleUsage(windows: Record<GoogleWindowId, GoogleWindow>): GoogleUsage | null {
-  const present = [
-    windows.session,
-    windows.weekly,
-    windows.thirdPartySession,
-    windows.thirdPartyWeekly,
-  ].flatMap((window) => (window.state === "present" ? [window.usage] : []));
+  const present = GOOGLE_WINDOW_IDS.flatMap((id) => {
+    const window = windows[id];
+    return window.state === "present" ? [window.usage] : [];
+  });
   if (present.length === 0) return null;
 
   return {
-    session: windows.session,
-    weekly: windows.weekly,
-    thirdPartySession: windows.thirdPartySession,
-    thirdPartyWeekly: windows.thirdPartyWeekly,
+    ...windows,
     limitReached: present.some((window) => window.usedPercent >= 100),
   };
 }
