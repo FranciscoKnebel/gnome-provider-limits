@@ -200,9 +200,11 @@ authentication file in the Cursor preferences (`~/` is supported).
 
 Recent `cursor-agent` versions keep the session token in the GNOME keyring and leave only
 `{"storedIn": "os-secret-store"}` in `~/.config/cursor/auth.json`. For that marker the reader
-runs a read-only `secret-tool lookup service cursor-credentials account cursor-user` on every
-refresh, with the same validation as a disk credential and without caching or storing anything.
-The encrypted desktop IDE keyring state (`state.vscdb`) is intentionally not read.
+runs a read-only `secret-tool search --all service cursor-credentials account cursor-user` on
+every refresh with the same validation as a disk credential and without caching or storing
+anything.
+The search only returns already unlocked entries, so a locked keyring never triggers an unlock
+prompt. The encrypted desktop IDE keyring state (`state.vscdb`) is intentionally not read.
 
 When an SDK `apiKey` is present without a session token, the reader exchanges it for a
 short-lived bearer token via `https://api2.cursor.sh/auth/exchange_user_api_key` and

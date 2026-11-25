@@ -262,6 +262,34 @@ export async function run() {
     assertEqual(reader._http, null);
   });
 
+  await test("CursorReader keeps a custom cursor-cli-path isolated from environment auth", async () => {
+    const GLib = (await import("gi://GLib")).default;
+    const prevKey = GLib.getenv("CURSOR_API_KEY");
+    GLib.setenv("CURSOR_API_KEY", "env-should-not-be-used", true);
+    try {
+      Gio.File.prototype.load_contents_async = async () => encodeJson({ accessToken: "has space" });
+      let requests = 0;
+      let keyringCalls = 0;
+      const reader = newReader(async () => {
+        requests++;
+        return {};
+      }, "/explicit/invalid-auth.json");
+      reader._readKeyringCredential = async () => {
+        keyringCalls++;
+        return null;
+      };
+      const result = await reader.read();
+      assertEqual(result.status, "error");
+      assertEqual(requests, 0);
+      assertEqual(keyringCalls, 0);
+      assertEqual(result.lastError.includes("cursor-agent login"), true);
+      reader.destroy();
+    } finally {
+      if (prevKey === null) GLib.unsetenv("CURSOR_API_KEY");
+      else GLib.setenv("CURSOR_API_KEY", prevKey, true);
+    }
+  });
+
   await test("CursorReader fails closed on custom cursor-cli-path and cancels superseded concurrent reads", async () => {
     const GLib = (await import("gi://GLib")).default;
     const prevKey = GLib.getenv("CURSOR_API_KEY");

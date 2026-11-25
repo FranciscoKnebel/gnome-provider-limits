@@ -112,18 +112,18 @@ export class CursorReader extends BaseReader<"cursor"> {
         storedInOsKeyring ||= file.storedInOsKeyring;
         if (file.auth) return file.auth;
       }
-    }
 
-    const envAuth = parseCursorEnvAuth({
-      CURSOR_AUTH_TOKEN: GLib.getenv("CURSOR_AUTH_TOKEN"),
-      CURSOR_API_KEY: GLib.getenv("CURSOR_API_KEY"),
-      CURSOR_BACKEND_URL: GLib.getenv("CURSOR_BACKEND_URL"),
-      CURSOR_API_ENDPOINT: GLib.getenv("CURSOR_API_ENDPOINT"),
-      CURSOR_AUTH_API_BASE_URL: GLib.getenv("CURSOR_AUTH_API_BASE_URL"),
-    });
-    if (envAuth) {
-      pathsTried.push("auth-env");
-      return envAuth;
+      const envAuth = parseCursorEnvAuth({
+        CURSOR_AUTH_TOKEN: GLib.getenv("CURSOR_AUTH_TOKEN"),
+        CURSOR_API_KEY: GLib.getenv("CURSOR_API_KEY"),
+        CURSOR_BACKEND_URL: GLib.getenv("CURSOR_BACKEND_URL"),
+        CURSOR_API_ENDPOINT: GLib.getenv("CURSOR_API_ENDPOINT"),
+        CURSOR_AUTH_API_BASE_URL: GLib.getenv("CURSOR_AUTH_API_BASE_URL"),
+      });
+      if (envAuth) {
+        pathsTried.push("auth-env");
+        return envAuth;
+      }
     }
     if (!storedInOsKeyring) return null;
 
