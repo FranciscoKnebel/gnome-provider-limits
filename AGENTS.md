@@ -174,8 +174,10 @@ The suite is split between two runners:
 - [ ] No credentials cached beyond the `read()` call scope.
 - [ ] No files created outside GSettings (no cache/state files in v1).
 - [ ] `reader.destroy()` clears local variables (tokens, cookies).
-- [ ] No new dependencies that handle credentials (no keyring, no
-      libsecret).
+- [ ] No new dependencies that handle credentials. Never store credentials in
+      the keyring or add a keyring library. A read-only lookup through
+      `secret-tool` is allowed only for credentials the provider itself stored
+      there (ADR-0022); never cache the result or prompt the user.
 - [ ] No network calls to third-party endpoints (only provider APIs:
       chatgpt.com, api.anthropic.com, opencode.ai, cli-chat-proxy.grok.com,
       api2.cursor.sh, oauth2.googleapis.com, cloudcode-pa.googleapis.com,

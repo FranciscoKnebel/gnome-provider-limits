@@ -5,6 +5,11 @@ export interface CursorAuth {
   apiKey: string | null;
 }
 
+export interface CursorAuthFile {
+  readonly auth: CursorAuth | null;
+  readonly storedInOsKeyring: boolean;
+}
+
 export interface CursorUsage {
   usedPercentCredits: number | null;
   usedPercentAuto: number | null;
@@ -132,6 +137,17 @@ export function parseCursorAuth(text: string, now = Date.now()): CursorAuth | nu
 
   if (!accessToken && !apiKey) return null;
   return { accessToken, apiKey };
+}
+
+export function parseCursorAuthFile(text: string, now = Date.now()): CursorAuthFile {
+  let storedInOsKeyring = false;
+  try {
+    const raw: unknown = JSON.parse(text);
+    storedInOsKeyring = isRecord(raw) && raw.storedIn === "os-secret-store";
+  } catch {
+    storedInOsKeyring = false;
+  }
+  return { auth: parseCursorAuth(text, now), storedInOsKeyring };
 }
 
 export function parseCursorEnvAuth(

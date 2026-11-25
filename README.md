@@ -196,8 +196,13 @@ Then enable Cursor in the extension preferences. The reader checks
 `$CURSOR_HOME/sdk/auth.json` (`~/.cursor/sdk/auth.json`), `~/.config/cursor/auth.json`,
 and `~/.cursor/auth.json` on every refresh (falling back to `CURSOR_AUTH_TOKEN` or
 `CURSOR_API_KEY` when no custom file is configured). You can also specify an explicit
-authentication file in the Cursor preferences (`~/` is supported). The encrypted
-desktop IDE keyring state (`state.vscdb`) is intentionally not read.
+authentication file in the Cursor preferences (`~/` is supported).
+
+Recent `cursor-agent` versions keep the session token in the GNOME keyring and leave only
+`{"storedIn": "os-secret-store"}` in `~/.config/cursor/auth.json`. For that marker the reader
+runs a read-only `secret-tool lookup service cursor-credentials account cursor-user` on every
+refresh, with the same validation as a disk credential and without caching or storing anything.
+The encrypted desktop IDE keyring state (`state.vscdb`) is intentionally not read.
 
 When an SDK `apiKey` is present without a session token, the reader exchanges it for a
 short-lived bearer token via `https://api2.cursor.sh/auth/exchange_user_api_key` and

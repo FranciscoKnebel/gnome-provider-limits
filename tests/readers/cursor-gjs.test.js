@@ -88,6 +88,62 @@ export async function run() {
     reader.destroy();
   });
 
+  await test("CursorReader reads CLI credentials from the OS keyring when auth.json only stores a marker", async () => {
+    Gio.File.prototype.load_contents_async = async () =>
+      encodeJson({ storedIn: "os-secret-store" });
+
+    let keyringCalls = 0;
+    const reader = newReader(async (url, _body, options) => {
+      if (url.endsWith("/GetPlanInfo")) return { planInfo: { planName: "Pro" } };
+      assertEqual(options.headers.Authorization, "Bearer keyring-session-token");
+      return {
+        billingCycleEnd: "1751328000000",
+        planUsage: {
+          totalPercentUsed: 22,
+          autoPercentUsed: 10,
+          apiPercentUsed: 12,
+          remaining: 1200,
+          limit: 2000,
+        },
+        spendLimitUsage: { individualUsed: 350 },
+      };
+    });
+    reader._readKeyringCredential = async () => {
+      keyringCalls++;
+      return JSON.stringify({ accessToken: "keyring-session-token", refreshToken: "never-used" });
+    };
+
+    const result = await reader.read();
+    assertEqual(keyringCalls, 1);
+    assertEqual(result.status, "ok");
+    assertEqual(result.pathsTried.includes("auth-keyring"), true);
+    assertEqual(result.fields.find((field) => field.name === "used_percent_credits")?.value, 22);
+    assertEqual(
+      result.fields.find((field) => field.name === "reset_at_credits")?.value,
+      1751328000,
+    );
+    reader.destroy();
+  });
+
+  await test("CursorReader fails closed when the OS keyring has no usable credential", async () => {
+    Gio.File.prototype.load_contents_async = async () =>
+      encodeJson({ storedIn: "os-secret-store" });
+
+    for (const secret of [null, JSON.stringify({ accessToken: "has space" }), "not-json"]) {
+      let requests = 0;
+      const reader = newReader(async () => {
+        requests++;
+        return {};
+      });
+      reader._readKeyringCredential = async () => secret;
+      const result = await reader.read();
+      assertEqual(result.status, "error");
+      assertEqual(requests, 0);
+      assertEqual(result.lastError.includes("cursor-agent login"), true);
+      reader.destroy();
+    }
+  });
+
   await test("CursorReader falls back to apiKey exchange when direct accessToken is rejected", async () => {
     Gio.File.prototype.load_contents_async = async () =>
       encodeJson({
@@ -130,13 +186,19 @@ export async function run() {
     ]) {
       Gio.File.prototype.load_contents_async = async () => encodeJson(authPayload);
       let requests = 0;
+      let keyringCalls = 0;
       const reader = newReader(async () => {
         requests++;
         return {};
       });
+      reader._readKeyringCredential = async () => {
+        keyringCalls++;
+        return null;
+      };
       const result = await reader.read();
       assertEqual(result.status, "error");
       assertEqual(requests, 0);
+      assertEqual(keyringCalls, 0);
       reader.destroy();
     }
   });
