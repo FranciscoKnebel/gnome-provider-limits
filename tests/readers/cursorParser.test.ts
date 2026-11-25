@@ -6,6 +6,7 @@ import {
   normalizeCursorBackendUrl,
   normalizeCursorUsagePayload,
   parseCursorAuth,
+  parseCursorAuthFile,
   parseCursorEnvAuth,
   parseCursorExchangeResponse,
   parseCursorPlanInfo,
@@ -273,6 +274,29 @@ describe("Cursor authentication parsing", () => {
         now,
       ),
     ).toEqual({ accessToken: null, apiKey: "key_fallback" });
+  });
+
+  it("detects the OS keyring marker in cursor-agent CLI auth files", () => {
+    const validJwt = makeJwt({ sub: "user_1", exp: Math.floor(now / 1000) + 3600 });
+
+    expect(parseCursorAuthFile(JSON.stringify({ storedIn: "os-secret-store" }), now)).toEqual({
+      auth: null,
+      storedInOsKeyring: true,
+    });
+    expect(
+      parseCursorAuthFile(
+        JSON.stringify({ accessToken: validJwt, storedIn: "os-secret-store" }),
+        now,
+      ),
+    ).toEqual({ auth: { accessToken: validJwt, apiKey: null }, storedInOsKeyring: true });
+    expect(parseCursorAuthFile(JSON.stringify({ apiKey: "key_local" }), now)).toEqual({
+      auth: { accessToken: null, apiKey: "key_local" },
+      storedInOsKeyring: false,
+    });
+    expect(parseCursorAuthFile("not-json", now)).toEqual({
+      auth: null,
+      storedInOsKeyring: false,
+    });
   });
 
   it("validates JWT edge cases", () => {

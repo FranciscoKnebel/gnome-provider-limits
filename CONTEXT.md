@@ -157,7 +157,11 @@ endpoint on `https://api2.cursor.sh` (as defined in `@cursor/sdk`), with optiona
 plan enrichment from `DashboardService/GetPlanInfo`. Authenticated with an existing
 Cursor SDK credential (`~/.cursor/sdk/auth.json`, exchanged via
 `/auth/exchange_user_api_key`) or Cursor CLI session (`~/.config/cursor/auth.json`
-or `~/.cursor/auth.json`). Exposes combined credit usage (`used_percent_credits`,
+or `~/.cursor/auth.json`). When that file only carries the `os-secret-store`
+marker, the session token is read just in time from the GNOME keyring via a
+read-only `secret-tool search` (service `cursor-credentials`, account
+`cursor-user`) that skips locked items, validated as a disk credential and never
+cached. Exposes combined credit usage (`used_percent_credits`,
 `remaining_percent_credits`, `reset_at_credits`) alongside Cursor's separate
 Auto + Composer (`used_percent_auto`) and API (`used_percent_api`) pools,
 remaining included credits in USD (`remaining_credits`), and on-demand spend in

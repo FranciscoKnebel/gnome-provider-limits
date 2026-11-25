@@ -123,7 +123,12 @@ for (const phase of ["auth", "exchange", "usage", "plan"])
       expandHomePath: (p) => p,
       resolveCursorAuthPaths: () => ["/synthetic/auth.json"],
       parseCursorAuth: () => ({ accessToken: null, apiKey: "synthetic-key" }),
+      parseCursorAuthFile: () => ({
+        auth: { accessToken: null, apiKey: "synthetic-key" },
+        storedInOsKeyring: false,
+      }),
       parseCursorEnvAuth: () => null,
+      readCursorKeyringCredential: async () => null,
       parseCursorExchangeResponse: () => "synthetic-token",
       normalizeCursorUsagePayload: () => ({ usedPercentCredits: 10 }),
       parseCursorPlanInfo: () => ({ planName: "Pro", resetAt: null }),

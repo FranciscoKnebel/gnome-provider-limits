@@ -3,6 +3,7 @@ import GLib from "gi://GLib";
 
 import { gettext as _ } from "../helpers/gettext.js";
 import { HttpClient, TokenError } from "../helpers/http.js";
+import { readCursorKeyringCredential } from "../helpers/keyring.js";
 import { logWarn } from "../helpers/log.js";
 import { expandHomePath, resolveCursorAuthPaths } from "../helpers/paths.js";
 import { BaseReader, FieldStatus, type FieldResult, type ReaderResult } from "./base.js";
@@ -10,10 +11,12 @@ import {
   CURSOR_BACKEND_URL,
   normalizeCursorUsagePayload,
   parseCursorAuth,
+  parseCursorAuthFile,
   parseCursorEnvAuth,
   parseCursorExchangeResponse,
   parseCursorPlanInfo,
   type CursorAuth,
+  type CursorAuthFile,
   type CursorUsage,
 } from "./cursorParser.js";
 
@@ -50,16 +53,20 @@ export class CursorReader extends BaseReader<"cursor"> {
     if (this._destroyed) throw new Error("Cursor Reader destroyed");
   }
 
+  protected async _readKeyringCredential(cancellable: Gio.Cancellable): Promise<string | null> {
+    return readCursorKeyringCredential(cancellable);
+  }
+
   private async _readAuthFile(
     path: string,
     cancellable: Gio.Cancellable,
     warnIfMissing: boolean,
-  ): Promise<CursorAuth | null> {
+  ): Promise<CursorAuthFile | null> {
     try {
       const [contents] = await Gio.File.new_for_path(path).load_contents_async(cancellable);
       this._assertAlive();
       if (cancellable.is_cancelled()) return null;
-      return parseCursorAuth(new TextDecoder().decode(contents));
+      return parseCursorAuthFile(new TextDecoder().decode(contents));
     } catch (error) {
       this._assertAlive();
       if (cancellable.is_cancelled()) return null;
@@ -81,35 +88,51 @@ export class CursorReader extends BaseReader<"cursor"> {
     const customPath = this.settings.get_string("cursor-cli-path").trim();
     pathsTried.push("auth-file");
 
+    let storedInOsKeyring = false;
+
     if (customPath) {
-      return this._readAuthFile(expandHomePath(customPath, home), cancellable, true);
-    }
-
-    const candidates = resolveCursorAuthPaths(
-      {
-        CURSOR_HOME: GLib.getenv("CURSOR_HOME"),
-        XDG_CONFIG_HOME: GLib.getenv("XDG_CONFIG_HOME"),
-      },
-      home,
-    );
-
-    for (const candidate of candidates) {
-      const auth = await this._readAuthFile(candidate, cancellable, false);
+      const file = await this._readAuthFile(expandHomePath(customPath, home), cancellable, true);
       if (cancellable.is_cancelled()) return null;
-      if (auth) return auth;
-    }
+      if (!file) return null;
+      if (file.auth) return file.auth;
+      storedInOsKeyring = file.storedInOsKeyring;
+    } else {
+      const candidates = resolveCursorAuthPaths(
+        {
+          CURSOR_HOME: GLib.getenv("CURSOR_HOME"),
+          XDG_CONFIG_HOME: GLib.getenv("XDG_CONFIG_HOME"),
+        },
+        home,
+      );
 
-    const envAuth = parseCursorEnvAuth({
-      CURSOR_AUTH_TOKEN: GLib.getenv("CURSOR_AUTH_TOKEN"),
-      CURSOR_API_KEY: GLib.getenv("CURSOR_API_KEY"),
-      CURSOR_BACKEND_URL: GLib.getenv("CURSOR_BACKEND_URL"),
-      CURSOR_API_ENDPOINT: GLib.getenv("CURSOR_API_ENDPOINT"),
-      CURSOR_AUTH_API_BASE_URL: GLib.getenv("CURSOR_AUTH_API_BASE_URL"),
-    });
-    if (envAuth) {
-      pathsTried.push("auth-env");
+      for (const candidate of candidates) {
+        const file = await this._readAuthFile(candidate, cancellable, false);
+        if (cancellable.is_cancelled()) return null;
+        if (!file) continue;
+        storedInOsKeyring ||= file.storedInOsKeyring;
+        if (file.auth) return file.auth;
+      }
+
+      const envAuth = parseCursorEnvAuth({
+        CURSOR_AUTH_TOKEN: GLib.getenv("CURSOR_AUTH_TOKEN"),
+        CURSOR_API_KEY: GLib.getenv("CURSOR_API_KEY"),
+        CURSOR_BACKEND_URL: GLib.getenv("CURSOR_BACKEND_URL"),
+        CURSOR_API_ENDPOINT: GLib.getenv("CURSOR_API_ENDPOINT"),
+        CURSOR_AUTH_API_BASE_URL: GLib.getenv("CURSOR_AUTH_API_BASE_URL"),
+      });
+      if (envAuth) {
+        pathsTried.push("auth-env");
+        return envAuth;
+      }
     }
-    return envAuth;
+    if (!storedInOsKeyring) return null;
+
+    pathsTried.push("auth-keyring");
+    const secret = await this._readKeyringCredential(cancellable);
+    this._assertAlive();
+    if (cancellable.is_cancelled()) return null;
+    if (!secret) return null;
+    return parseCursorAuth(secret);
   }
 
   private async _exchangeApiKey(
