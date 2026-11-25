@@ -16,6 +16,8 @@ export enum ReaderStatus {
 export enum FieldStatus {
   OK = "ok",
   UNAVAILABLE = "unavailable",
+  /** The provider does not expose this field for the current plan or window. */
+  NOT_APPLICABLE = "not_applicable",
   ERROR = "error",
 }
 
@@ -66,8 +68,8 @@ export interface ReaderResult {
   readonly fromCache: boolean;
 }
 
-export function isHardError(result: ReaderResult): boolean {
-  return result.status === ReaderStatus.ERROR || result.status === ReaderStatus.UNAVAILABLE;
+export function isHardStatus(status: ReaderStatus): boolean {
+  return status === ReaderStatus.ERROR || status === ReaderStatus.UNAVAILABLE;
 }
 
 export function isLimitReached(fields: readonly FieldResult[] | undefined): boolean {
@@ -77,6 +79,18 @@ export function isLimitReached(fields: readonly FieldResult[] | undefined): bool
 
 export interface ReadOptions {
   force?: boolean;
+}
+
+export type AbsentFieldStatus = FieldStatus.UNAVAILABLE | FieldStatus.NOT_APPLICABLE;
+
+export function hasUsableFieldValue(value: unknown): boolean {
+  if (value === null || value === undefined) return false;
+  if (typeof value === "number") return Number.isFinite(value);
+  return true;
+}
+
+export function fieldStatusDegrades(status: FieldStatus): boolean {
+  return status === FieldStatus.UNAVAILABLE || status === FieldStatus.ERROR;
 }
 
 export abstract class BaseReader<P extends ProviderName = ProviderName> {
@@ -91,20 +105,20 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
 
   destroy(): void {}
 
+  /** OK requires a renderable value; null, undefined and non-finite numbers become UNAVAILABLE. */
   protected _makeField<T, Name extends FieldName<P>>(
     name: Name,
     value: T | null | undefined,
     status: FieldStatus,
     error?: string | null,
   ): FieldResult<T, Name> {
-    return { name, value: value ?? null, status, error: error ?? null };
-  }
-
-  protected _makeOptionalField<T, Name extends FieldName<P>>(
-    name: Name,
-    value: T | null,
-  ): FieldResult<T, Name> {
-    return this._makeField(name, value, value !== null ? FieldStatus.OK : FieldStatus.UNAVAILABLE);
+    return {
+      name,
+      value: value ?? null,
+      status:
+        status === FieldStatus.OK && !hasUsableFieldValue(value) ? FieldStatus.UNAVAILABLE : status,
+      error: error ?? null,
+    };
   }
 
   protected _makePercentFieldPair(
@@ -120,6 +134,17 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
     ];
   }
 
+  protected _makeAbsentWindowFields(
+    names: WindowFieldNames<P>,
+    status: AbsentFieldStatus,
+  ): FieldResult[] {
+    return [
+      this._makeField(names.used, null, status),
+      this._makeField(names.remaining, null, status),
+      this._makeField(names.reset, null, status),
+    ];
+  }
+
   protected _makeWindowFields(
     names: WindowFieldNames<P>,
     data:
@@ -129,15 +154,19 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
         }
       | null
       | undefined,
+    resetStatus: AbsentFieldStatus = FieldStatus.UNAVAILABLE,
   ): FieldResult[] {
+    if (!data) {
+      return this._makeAbsentWindowFields(names, FieldStatus.UNAVAILABLE);
+    }
     const percentStatus =
-      typeof data?.used_percent === "number" && Number.isFinite(data.used_percent)
+      typeof data.used_percent === "number" && Number.isFinite(data.used_percent)
         ? FieldStatus.OK
         : FieldStatus.UNAVAILABLE;
-    const resetStatus = data?.reset_at != null ? FieldStatus.OK : FieldStatus.UNAVAILABLE;
+    const resolvedResetStatus = data.reset_at != null ? FieldStatus.OK : resetStatus;
     return [
-      ...this._makePercentFieldPair(names, data?.used_percent ?? null, percentStatus),
-      this._makeField(names.reset, data?.reset_at ?? null, resetStatus),
+      ...this._makePercentFieldPair(names, data.used_percent ?? null, percentStatus),
+      this._makeField(names.reset, data.reset_at ?? null, resolvedResetStatus),
     ];
   }
 
@@ -226,9 +255,7 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
       return this._errorResult(`${prefix ?? this.providerName}: no usable fields.`, pathsTried);
     }
 
-    const hasUnavailable = fields.some(
-      (f) => f.status === FieldStatus.UNAVAILABLE || f.status === FieldStatus.ERROR,
-    );
+    const hasUnavailable = fields.some((f) => fieldStatusDegrades(f.status));
     return hasUnavailable
       ? this._partialResult(
           fields,

@@ -1,6 +1,7 @@
 import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
 import type { ReaderResult } from "../../src/readers/base.js";
 import { CODEX_FIELDS } from "../../src/readers/fields.js";
+import type { DisplayStatus } from "../../src/ui/displayStatus.js";
 import type { FieldTone } from "../../src/ui/fieldRows.js";
 import type { FieldView } from "../../src/ui/fieldViews.js";
 import { deriveFieldViews } from "../../src/ui/fieldViews.js";
@@ -22,6 +23,7 @@ function viewFor(tone: FieldTone | undefined, hasValue: boolean): FieldView {
     valueText: "",
     accessibleText: "",
     hasValue,
+    status: hasValue ? FieldStatus.OK : FieldStatus.UNAVAILABLE,
     tone,
     ratio: null,
     usageRatio: null,
@@ -169,7 +171,6 @@ describe("providerHealth pure helpers", () => {
   it("derives one ordered severity from status, worst tone, usable fields and last-known-good", () => {
     expect(deriveSeverity(ReaderStatus.ERROR, "critical", true, true)).toBe("error");
     expect(deriveSeverity(ReaderStatus.UNAVAILABLE, undefined, true, true)).toBe("unavailable");
-    expect(deriveSeverity(ReaderStatus.DISABLED, undefined, true, true)).toBe("idle");
     expect(deriveSeverity(ReaderStatus.PARTIAL, "warning", true, false)).toBe("partial-warning");
     expect(deriveSeverity(ReaderStatus.PARTIAL, "warning", true, true)).toBe("cached-warning");
     expect(deriveSeverity(ReaderStatus.PARTIAL, "critical", true, true)).toBe("critical-partial");
@@ -211,7 +212,7 @@ describe("providerHealth pure helpers", () => {
 
   it("derives attention from tones through the single severity value", () => {
     const attentionForTones = (
-      status: ReaderStatus,
+      status: DisplayStatus,
       tones: readonly (FieldTone | undefined)[],
     ): string => {
       const worst = worstFieldTone(tones);
@@ -224,13 +225,12 @@ describe("providerHealth pure helpers", () => {
     expect(attentionForTones(ReaderStatus.ERROR, [])).toBe("error");
   });
 
-  it("keeps all 80 status, tone, usable-field and last-known-good combinations identical", () => {
-    const statuses = [
+  it("keeps all 64 status, tone, usable-field and last-known-good combinations identical", () => {
+    const statuses: readonly DisplayStatus[] = [
       ReaderStatus.OK,
       ReaderStatus.PARTIAL,
       ReaderStatus.ERROR,
       ReaderStatus.UNAVAILABLE,
-      ReaderStatus.DISABLED,
     ];
     const tones: readonly (FieldTone | undefined)[] = [undefined, "ok", "warning", "critical"];
     let checked = 0;
@@ -247,9 +247,15 @@ describe("providerHealth pure helpers", () => {
               pathsTried: [],
               fields: [],
             };
+            const views =
+              status === ReaderStatus.PARTIAL
+                ? [viewFor(tone, hasUsableField), viewFor(undefined, false)]
+                : [viewFor(tone, hasUsableField)];
             const health = deriveProviderHealth({
-              result,
-              views: [viewFor(tone, hasUsableField)],
+              fields: result.fields,
+              fromCache: result.fromCache,
+              status,
+              views,
               fieldDefs: [],
               t: (text) => text,
             });
@@ -273,13 +279,14 @@ describe("providerHealth pure helpers", () => {
         }
       }
     }
-    expect(checked).toBe(80);
+    expect(checked).toBe(64);
   });
 
   it("uses the required data contract to compute health and localized state text", () => {
+    const resultStatus: DisplayStatus = ReaderStatus.PARTIAL;
     const result: ReaderResult = {
       provider: "codex",
-      status: ReaderStatus.PARTIAL,
+      status: resultStatus,
       fromCache: true,
       lastUpdated: 1_700_000_000_000,
       pathsTried: ["oauth-api", "last-known-good"],
@@ -291,13 +298,15 @@ describe("providerHealth pure helpers", () => {
       t: (text) => text,
     });
     const health = deriveProviderHealth({
-      result,
+      fields: result.fields,
+      fromCache: result.fromCache,
+      status: resultStatus,
       views,
       fieldDefs: CODEX_FIELDS,
       t: (text) => `T:${text}`,
     });
 
-    expect(isLastKnownGood(result)).toBeTrue();
+    expect(isLastKnownGood(resultStatus, result.fromCache)).toBeTrue();
     expect(health.severity).toBe("cached-warning");
     expect(health.state).toBe("cached");
     expect(health.tone).toBe("partial");
@@ -307,9 +316,12 @@ describe("providerHealth pure helpers", () => {
     expect(health.stateTag).toBe("~");
     expect(health.stateAccessibleText).toBe("T:Cached");
 
-    const errorResult: ReaderResult = { ...result, status: ReaderStatus.ERROR, pathsTried: [] };
+    const errorStatus: DisplayStatus = ReaderStatus.ERROR;
+    const errorResult: ReaderResult = { ...result, status: errorStatus, pathsTried: [] };
     const errorHealth = deriveProviderHealth({
-      result: errorResult,
+      fields: errorResult.fields,
+      fromCache: errorResult.fromCache,
+      status: errorStatus,
       views,
       fieldDefs: CODEX_FIELDS,
       t: (text) => `T:${text}`,

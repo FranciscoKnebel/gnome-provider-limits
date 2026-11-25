@@ -20,18 +20,34 @@ export interface GoogleAuth {
   projectId: string | null;
 }
 
+export type GoogleWindowReset =
+  | { readonly state: "present"; readonly at: number }
+  | { readonly state: "idle" }
+  | { readonly state: "missing" };
+
 export interface GoogleWindowUsage {
-  usedPercent: number | null;
-  resetAt: number | null;
+  usedPercent: number;
+  reset: GoogleWindowReset;
 }
 
-export interface GoogleUsage {
-  session: GoogleWindowUsage | null;
-  weekly: GoogleWindowUsage | null;
-  thirdPartySession: GoogleWindowUsage | null;
-  thirdPartyWeekly: GoogleWindowUsage | null;
-  limitReached: boolean | null;
-}
+export const GOOGLE_WINDOW_IDS = [
+  "session",
+  "weekly",
+  "thirdPartySession",
+  "thirdPartyWeekly",
+] as const;
+
+export type GoogleWindowId = (typeof GOOGLE_WINDOW_IDS)[number];
+
+export type GoogleWindow =
+  | { readonly state: "present"; readonly usage: GoogleWindowUsage }
+  | { readonly state: "unreported" }
+  | { readonly state: "disabled" }
+  | { readonly state: "malformed" };
+
+export type GoogleUsage = Readonly<Record<GoogleWindowId, GoogleWindow>> & {
+  readonly limitReached: boolean | null;
+};
 
 type QuotaFamily = "gemini" | "3p";
 type QuotaWindow = "5h" | "weekly";
@@ -155,8 +171,8 @@ function parseBucketWindowUsage(
   bucket: Record<string, unknown>,
   window: QuotaWindow,
   requestedAtMs: number,
-): GoogleWindowUsage | null {
-  if (bucket.disabled === true) return null;
+): GoogleWindow {
+  if (bucket.disabled === true) return { state: "disabled" };
 
   const rawResetSec = parseTimestampSeconds(bucket.resetTime);
   const rawFraction = bucket.remainingFraction;
@@ -164,7 +180,7 @@ function parseBucketWindowUsage(
   let usedPercent: number;
   let remainingFraction: number;
   if (rawFraction === undefined) {
-    if (rawResetSec === null) return null;
+    if (rawResetSec === null) return { state: "malformed" };
     remainingFraction = 0;
     usedPercent = 100;
   } else {
@@ -174,68 +190,111 @@ function parseBucketWindowUsage(
       rawFraction < 0 ||
       rawFraction > 1
     ) {
-      return null;
+      return { state: "malformed" };
     }
     remainingFraction = rawFraction;
     usedPercent = Math.round((1 - remainingFraction) * 10_000) / 100;
   }
 
-  let resetAt = rawResetSec;
+  let reset: GoogleWindowReset =
+    rawResetSec === null ? { state: "missing" } : { state: "present", at: rawResetSec };
   const hasDescription =
     typeof bucket.description === "string" && bucket.description.trim().length > 0;
   if (remainingFraction === 1 && !hasDescription && rawResetSec !== null) {
     const windowMs = window === "5h" ? FIVE_HOUR_MS : WEEKLY_MS;
     const expectedResetMs = requestedAtMs + windowMs;
     if (Math.abs(rawResetSec * 1000 - expectedResetMs) <= UNTOUCHED_WINDOW_TOLERANCE_MS) {
-      resetAt = null;
+      reset = { state: "idle" };
     }
   }
 
-  return { usedPercent, resetAt };
+  return { state: "present", usage: { usedPercent, reset } };
+}
+
+function resetAtOf(reset: GoogleWindowReset): number | null {
+  return reset.state === "present" ? reset.at : null;
+}
+
+// A present reset is most informative, then an idle untouched window, then a
+// missing timestamp.
+const RESET_RANK: Record<GoogleWindowReset["state"], number> = {
+  present: 2,
+  idle: 1,
+  missing: 0,
+};
+
+function resetRank(reset: GoogleWindowReset): number {
+  return RESET_RANK[reset.state];
 }
 
 function pickHigherUsage(
-  current: GoogleWindowUsage | null,
-  candidate: GoogleWindowUsage | null,
-): GoogleWindowUsage | null {
-  if (!candidate) return current;
-  if (!current) return candidate;
-  const curPct = current.usedPercent ?? -1;
-  const candPct = candidate.usedPercent ?? -1;
-  if (candPct > curPct) return candidate;
-  if (candPct < curPct) return current;
-  if (current.resetAt === null && candidate.resetAt !== null) return candidate;
-  if (
-    current.resetAt !== null &&
-    candidate.resetAt !== null &&
-    candidate.resetAt < current.resetAt
-  ) {
+  current: GoogleWindowUsage,
+  candidate: GoogleWindowUsage,
+): GoogleWindowUsage {
+  if (candidate.usedPercent > current.usedPercent) return candidate;
+  if (candidate.usedPercent < current.usedPercent) return current;
+  const currentRank = resetRank(current.reset);
+  const candidateRank = resetRank(candidate.reset);
+  if (candidateRank !== currentRank) return candidateRank > currentRank ? candidate : current;
+  const currentResetAt = resetAtOf(current.reset);
+  const candidateResetAt = resetAtOf(candidate.reset);
+  if (currentResetAt !== null && candidateResetAt !== null && candidateResetAt < currentResetAt) {
     return candidate;
   }
   return current;
 }
 
-function buildGoogleUsage(
-  session: GoogleWindowUsage | null,
-  weekly: GoogleWindowUsage | null,
-  thirdPartySession: GoogleWindowUsage | null,
-  thirdPartyWeekly: GoogleWindowUsage | null,
-): GoogleUsage | null {
-  const all = [session, weekly, thirdPartySession, thirdPartyWeekly];
-  if (all.every((w) => w === null)) return null;
+function windowIdFor(family: QuotaFamily, window: QuotaWindow): GoogleWindowId {
+  if (family === "gemini") return window === "5h" ? "session" : "weekly";
+  return window === "5h" ? "thirdPartySession" : "thirdPartyWeekly";
+}
 
-  const withPct = all.filter(
-    (w): w is GoogleWindowUsage & { usedPercent: number } =>
-      w !== null && typeof w.usedPercent === "number",
-  );
-  const limitReached = withPct.length > 0 ? withPct.some((w) => w.usedPercent >= 100) : null;
+function unreportedWindows(): Record<GoogleWindowId, GoogleWindow> {
+  return {
+    session: { state: "unreported" },
+    weekly: { state: "unreported" },
+    thirdPartySession: { state: "unreported" },
+    thirdPartyWeekly: { state: "unreported" },
+  };
+}
+
+// Present data beats failures, a malformed bucket is more actionable than an
+// explicit disable, and an unreported bucket is the weakest state.
+const WINDOW_RANK: Record<GoogleWindow["state"], number> = {
+  present: 3,
+  malformed: 2,
+  disabled: 1,
+  unreported: 0,
+};
+
+function windowRank(window: GoogleWindow): number {
+  return WINDOW_RANK[window.state];
+}
+
+function mergeWindows(current: GoogleWindow, candidate: GoogleWindow): GoogleWindow {
+  if (current.state === "present" && candidate.state === "present") {
+    return { state: "present", usage: pickHigherUsage(current.usage, candidate.usage) };
+  }
+  return windowRank(candidate) > windowRank(current) ? candidate : current;
+}
+
+// Equal-rank merges keep the current endpoint; exact aggregates win equal-rank
+// ties over fallback buckets.
+function preferExactWindow(exact: GoogleWindow, fallback: GoogleWindow): GoogleWindow {
+  return windowRank(exact) >= windowRank(fallback) ? exact : fallback;
+}
+
+function buildGoogleUsage(windows: Record<GoogleWindowId, GoogleWindow>): GoogleUsage | null {
+  const reported = GOOGLE_WINDOW_IDS.some((id) => windows[id].state !== "unreported");
+  if (!reported) return null;
+  const present = GOOGLE_WINDOW_IDS.flatMap((id) => {
+    const window = windows[id];
+    return window.state === "present" ? [window.usage] : [];
+  });
 
   return {
-    session,
-    weekly,
-    thirdPartySession,
-    thirdPartyWeekly,
-    limitReached,
+    ...windows,
+    limitReached: present.length > 0 ? present.some((window) => window.usedPercent >= 100) : null,
   };
 }
 
@@ -304,43 +363,22 @@ export function normalizeGoogleQuotaSummary(
     }
   }
 
-  let exactSession: GoogleWindowUsage | null = null;
-  let exactWeekly: GoogleWindowUsage | null = null;
-  let exact3pSession: GoogleWindowUsage | null = null;
-  let exact3pWeekly: GoogleWindowUsage | null = null;
-
-  let maxSession: GoogleWindowUsage | null = null;
-  let maxWeekly: GoogleWindowUsage | null = null;
-  let max3pSession: GoogleWindowUsage | null = null;
-  let max3pWeekly: GoogleWindowUsage | null = null;
+  const exact = unreportedWindows();
+  const fallback = unreportedWindows();
 
   for (const { groupId, bucket } of collected) {
     const meta = classifyBucket(bucket, groupId);
     if (!meta) continue;
-    const usage = parseBucketWindowUsage(bucket, meta.window, requestedAtMs);
-    if (!usage) continue;
-
-    if (meta.family === "gemini" && meta.window === "5h") {
-      if (meta.exactAggregate) exactSession = usage;
-      else maxSession = pickHigherUsage(maxSession, usage);
-    } else if (meta.family === "gemini" && meta.window === "weekly") {
-      if (meta.exactAggregate) exactWeekly = usage;
-      else maxWeekly = pickHigherUsage(maxWeekly, usage);
-    } else if (meta.family === "3p" && meta.window === "5h") {
-      if (meta.exactAggregate) exact3pSession = usage;
-      else max3pSession = pickHigherUsage(max3pSession, usage);
-    } else {
-      if (meta.exactAggregate) exact3pWeekly = usage;
-      else max3pWeekly = pickHigherUsage(max3pWeekly, usage);
-    }
+    const parsed = parseBucketWindowUsage(bucket, meta.window, requestedAtMs);
+    const id = windowIdFor(meta.family, meta.window);
+    const target = meta.exactAggregate ? exact : fallback;
+    target[id] = mergeWindows(target[id], parsed);
   }
 
-  return buildGoogleUsage(
-    exactSession ?? maxSession,
-    exactWeekly ?? maxWeekly,
-    exact3pSession ?? max3pSession,
-    exact3pWeekly ?? max3pWeekly,
-  );
+  for (const id of GOOGLE_WINDOW_IDS) {
+    exact[id] = preferExactWindow(exact[id], fallback[id]);
+  }
+  return buildGoogleUsage(exact);
 }
 
 export function normalizeGoogleAvailableModels(
@@ -349,10 +387,7 @@ export function normalizeGoogleAvailableModels(
 ): GoogleUsage | null {
   if (!isRecord(raw) || !isRecord(raw.models)) return null;
 
-  let session: GoogleWindowUsage | null = null;
-  let weekly: GoogleWindowUsage | null = null;
-  let thirdPartySession: GoogleWindowUsage | null = null;
-  let thirdPartyWeekly: GoogleWindowUsage | null = null;
+  const windows = unreportedWindows();
 
   for (const [modelId, model] of Object.entries(raw.models)) {
     if (!isRecord(model) || model.disabled === true) continue;
@@ -373,30 +408,49 @@ export function normalizeGoogleAvailableModels(
     if (!family) continue;
 
     if (isRecord(model.quotaInfo)) {
-      const usage = parseBucketWindowUsage(model.quotaInfo, "5h", requestedAtMs);
-      if (family === "gemini") session = pickHigherUsage(session, usage);
-      else thirdPartySession = pickHigherUsage(thirdPartySession, usage);
+      const id = windowIdFor(family, "5h");
+      windows[id] = mergeWindows(
+        windows[id],
+        parseBucketWindowUsage(model.quotaInfo, "5h", requestedAtMs),
+      );
     }
     if (isRecord(model.weeklyQuotaInfo)) {
-      const usage = parseBucketWindowUsage(model.weeklyQuotaInfo, "weekly", requestedAtMs);
-      if (family === "gemini") weekly = pickHigherUsage(weekly, usage);
-      else thirdPartyWeekly = pickHigherUsage(thirdPartyWeekly, usage);
+      const id = windowIdFor(family, "weekly");
+      windows[id] = mergeWindows(
+        windows[id],
+        parseBucketWindowUsage(model.weeklyQuotaInfo, "weekly", requestedAtMs),
+      );
     }
   }
 
-  return buildGoogleUsage(session, weekly, thirdPartySession, thirdPartyWeekly);
+  return buildGoogleUsage(windows);
+}
+
+export function hasPresentGoogleUsage(usage: GoogleUsage | null): boolean {
+  return usage !== null && GOOGLE_WINDOW_IDS.some((id) => usage[id].state === "present");
+}
+
+export function hasUsableGoogleUsage(usage: GoogleUsage | null): boolean {
+  return (
+    usage !== null &&
+    GOOGLE_WINDOW_IDS.some((id) => {
+      const window = usage[id];
+      return window.state === "present" || window.state === "disabled";
+    })
+  );
 }
 
 export function hasActiveGoogleUsage(usage: GoogleUsage | null): boolean {
   if (!usage) return false;
-  return [usage.session, usage.weekly, usage.thirdPartySession, usage.thirdPartyWeekly].some(
-    (w) => (w?.usedPercent ?? 0) > 0,
-  );
+  return GOOGLE_WINDOW_IDS.some((id) => {
+    const window = usage[id];
+    return window.state === "present" && window.usage.usedPercent > 0;
+  });
 }
 
 export function hasCompleteActiveGoogleUsage(usage: GoogleUsage | null): boolean {
   if (!usage || !hasActiveGoogleUsage(usage)) return false;
-  return usage.thirdPartySession !== null || usage.thirdPartyWeekly !== null;
+  return usage.thirdPartySession.state === "present" || usage.thirdPartyWeekly.state === "present";
 }
 
 export function mergeGoogleUsage(
@@ -405,22 +459,37 @@ export function mergeGoogleUsage(
 ): GoogleUsage | null {
   if (!primary) return secondary;
   if (!secondary) return primary;
-  return buildGoogleUsage(
-    pickHigherUsage(primary.session, secondary.session),
-    pickHigherUsage(primary.weekly, secondary.weekly),
-    pickHigherUsage(primary.thirdPartySession, secondary.thirdPartySession),
-    pickHigherUsage(primary.thirdPartyWeekly, secondary.thirdPartyWeekly),
-  );
+  const windows = unreportedWindows();
+  for (const id of GOOGLE_WINDOW_IDS) {
+    windows[id] = mergeWindows(primary[id], secondary[id]);
+  }
+  return buildGoogleUsage(windows);
 }
 
-export function parseGoogleTierName(raw: unknown): string | null {
+export interface GoogleTier {
+  id: string | null;
+  name: string | null;
+  supportsFiveHourWindows: boolean;
+}
+
+const TIERS_WITHOUT_FIVE_HOUR_WINDOWS = new Set(["free-tier"]);
+
+function tierString(record: Record<string, unknown> | null, key: string): string | null {
+  const value = record?.[key];
+  return typeof value === "string" && value.trim() ? value.trim() : null;
+}
+
+export function parseGoogleTier(raw: unknown): GoogleTier | null {
   if (!isRecord(raw)) return null;
   const paid = isRecord(raw.paidTier) ? raw.paidTier : null;
   const current = isRecord(raw.currentTier) ? raw.currentTier : null;
-  for (const candidate of [paid?.name, current?.name, paid?.id, current?.id]) {
-    if (typeof candidate === "string" && candidate.trim()) {
-      return candidate.trim();
-    }
-  }
-  return null;
+  // Paid tier wins per field; each field falls back independently to current tier.
+  const id = tierString(paid, "id") ?? tierString(current, "id");
+  const name = tierString(paid, "name") ?? tierString(current, "name");
+  if (!id && !name) return null;
+  return {
+    id,
+    name,
+    supportsFiveHourWindows: id === null || !TIERS_WITHOUT_FIVE_HOUR_WINDOWS.has(id),
+  };
 }

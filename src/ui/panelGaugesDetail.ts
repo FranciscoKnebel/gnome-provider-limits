@@ -5,7 +5,7 @@ import type * as PopupMenu from "resource:///org/gnome/shell/ui/popupMenu.js";
 import { gettext as _ } from "../helpers/gettext.js";
 import { connectRepaint, drawRadialGauge } from "./cairoDrawing.js";
 import { chunkGauges, chunkPairs, computeGaugeGeometry } from "./cockpitModel.js";
-import { diagnosticMessage, type Diagnostic, type ProviderDisplayModel } from "./displayModel.js";
+import { type Diagnostic, type ProviderDisplayModel } from "./displayModel.js";
 import { createErrorLabel } from "./errorLabel.js";
 import type { FieldView } from "./fieldViews.js";
 import type { RadialGaugeGeometry } from "./gaugeTypes.js";
@@ -58,7 +58,7 @@ export class DetailRenderer {
   private _derivePlan(context: DetailRenderContext): DetailRenderPlan {
     const { model, locale } = context;
     const facts = model.facts;
-    const isError = facts.isHardError;
+    const isError = facts.diagnostic.kind === "error";
 
     const gauges: GaugeRenderItem[] = isError
       ? []
@@ -71,7 +71,7 @@ export class DetailRenderer {
 
     return {
       diagnostic: facts.diagnostic,
-      calloutText: diagnosticMessage(model.result, facts.diagnostic),
+      calloutText: facts.diagnostic.kind === null ? null : facts.diagnostic.calloutText,
       isError,
       gaugeRows: chunkGauges(gauges),
       gaugeCount: gauges.length,
@@ -99,7 +99,7 @@ export class DetailRenderer {
       lastUpdatedText,
     } = plan;
 
-    if (diagnostic.kind !== null && diagnostic.badge !== null && message !== null) {
+    if (diagnostic.kind !== null && message !== null) {
       const row = this._addRow(null);
       const box = new St.BoxLayout({
         vertical: true,

@@ -10,6 +10,7 @@ import {
 } from "../../src/readers/fields.js";
 import type { ProviderDisplayModel } from "../../src/ui/displayModel.js";
 import { deriveDisplayModel } from "../../src/ui/displayModel.js";
+import type { DisplayStatus } from "../../src/ui/displayStatus.js";
 import { deriveFieldViews } from "../../src/ui/fieldViews.js";
 import { progressResetPresentation } from "../../src/ui/panelCards.js";
 import {
@@ -100,7 +101,7 @@ function panelContext(options: {
 }
 
 function toneOf(
-  status: ReaderStatus,
+  status: DisplayStatus,
   tones: readonly ("ok" | "warning" | "critical" | undefined)[],
   hasUsableField: boolean,
   lastKnownGood = false,
@@ -226,7 +227,6 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
 
   describe("provider health derivation", () => {
     it("prioritizes hard errors, critical limits, partial state, warnings, ok, and idle", () => {
-      expect(toneOf(ReaderStatus.DISABLED, [], false)).toBe("idle");
       expect(toneOf(ReaderStatus.ERROR, [], false)).toBe("error");
       expect(toneOf(ReaderStatus.UNAVAILABLE, [], false)).toBe("error");
       expect(toneOf(ReaderStatus.PARTIAL, ["critical"], true)).toBe("critical");
@@ -252,7 +252,9 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       expect(views.every((view) => view.type !== "percent")).toBeTrue();
       expect(
         deriveProviderHealth({
-          result,
+          fields: result.fields,
+          fromCache: result.fromCache,
+          status: ReaderStatus.OK,
           views,
           fieldDefs: CODEX_FIELDS,
           t: (text) => text,
@@ -301,7 +303,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       provider === "codex"
         ? ["used_percent_primary"]
         : provider === "claude"
-          ? ["used_percent_session"]
+          ? ["used_percent_session", "reset_at_session"]
           : [];
 
     const identity = (models: ProviderViewContext["models"]): string[] =>
@@ -309,7 +311,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         JSON.stringify([
           model.provider,
           model.shortDisplayName,
-          model.result.status,
+          model.facts.health.displayStatus,
           model.statusViews.map((view) => view.name),
         ]),
       );
@@ -338,7 +340,10 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
             fromCache: false,
             lastUpdated: 1000,
             lastError: "cached",
-            fields: [{ name: "used_percent_session", value: 60, status: FieldStatus.OK }],
+            fields: [
+              { name: "used_percent_session", value: 20, status: FieldStatus.OK },
+              { name: "reset_at_session", value: null, status: FieldStatus.UNAVAILABLE },
+            ],
           },
         ],
         [
@@ -442,7 +447,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
       expect(card.facts.badges.card).toBe("live");
       expect(card.facts.badges.cardText).toBe("Live");
       expect(card.facts.health.tone).toBe("warning");
-      expect(card.facts.diagnostic.text).toBeNull();
+      expect(card.facts.diagnostic).toEqual({ kind: null });
       expect(card.facts.views.limit.progress).toHaveSize(1);
       expect(card.facts.views.limit.progress[0].fillPercent).toBe(72);
       expect(card.facts.views.limit.progress[0].tone).toBe("warning");
@@ -516,7 +521,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         result: {
           provider: "claude",
           status: ReaderStatus.PARTIAL,
-          fromCache: false,
+          fromCache: true,
           lastUpdated: Date.now(),
           lastError: "CLI fallback failed; showing Last-Known-Good.",
           fields: [{ name: "used_percent_weekly", value: 25, status: FieldStatus.OK }],
@@ -525,8 +530,12 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         locale: "en",
       });
       expect(partialCard.facts.badges.card).toBe("cached");
-      expect(partialCard.facts.diagnostic.kind).toBe("warning");
-      expect(partialCard.facts.diagnostic.text).toContain("Last-Known-Good");
+      expect(partialCard.facts.diagnostic).toEqual({
+        kind: "warning",
+        cardText: "CLI fallback failed; showing Last-Known-Good.",
+        badge: "Cached",
+        calloutText: "CLI fallback failed; showing Last-Known-Good.",
+      });
       expect(partialCard.facts.views.limit.progress).toHaveSize(1);
 
       const errorCard = cardFor({
@@ -545,8 +554,12 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         locale: "en",
       });
       expect(errorCard.facts.badges.card).toBe("error");
-      expect(errorCard.facts.diagnostic.kind).toBe("error");
-      expect(errorCard.facts.diagnostic.text).toBe("Run codex login.");
+      expect(errorCard.facts.diagnostic).toEqual({
+        kind: "error",
+        cardText: "Run codex login.",
+        badge: "Error",
+        calloutText: "Run codex login.",
+      });
       expect(errorCard.facts.views.limit.progress).toEqual([]);
       expect(errorCard.facts.lastUpdatedText).toBeNull();
 
@@ -565,9 +578,12 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         locale: "en",
       });
       expect(unavailableCard.facts.badges.card).toBe("unavailable");
-      expect(unavailableCard.facts.diagnostic.kind).toBe("error");
-      expect(unavailableCard.facts.diagnostic.text).toBe("Unavailable");
-      expect(unavailableCard.facts.diagnostic.badge).toBe("Error");
+      expect(unavailableCard.facts.diagnostic).toEqual({
+        kind: "error",
+        cardText: "Unavailable",
+        badge: "Error",
+        calloutText: "Error",
+      });
     });
 
     it("derives empty, loading, ready and refresh-aware card states from the view", () => {

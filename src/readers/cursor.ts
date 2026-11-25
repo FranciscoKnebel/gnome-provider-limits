@@ -310,10 +310,10 @@ export class CursorReader extends BaseReader<"cursor"> {
         usage.usedPercentApi,
         FieldStatus.OK,
       ),
-      this._makeOptionalField("remaining_credits", usage.remainingCredits),
-      this._makeOptionalField("spend_limit_used", usage.spendLimitUsed),
-      this._makeOptionalField("limit_reached", usage.limitReached),
-      this._makeOptionalField("plan_type", plan),
+      this._makeField("remaining_credits", usage.remainingCredits, FieldStatus.OK),
+      this._makeField("spend_limit_used", usage.spendLimitUsed, FieldStatus.OK),
+      this._makeField("limit_reached", usage.limitReached, FieldStatus.OK),
+      this._makeField("plan_type", plan, FieldStatus.OK),
       this._makeField("usage_source", "api2.cursor.sh", FieldStatus.OK),
     ];
   }

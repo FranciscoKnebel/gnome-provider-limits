@@ -330,6 +330,7 @@ export async function run() {
   try {
     assertEqual(FieldStatus.OK, "ok");
     assertEqual(FieldStatus.UNAVAILABLE, "unavailable");
+    assertEqual(FieldStatus.NOT_APPLICABLE, "not_applicable");
     assertEqual(FieldStatus.ERROR, "error");
     results.push({ name: "FieldStatus enum values correct", passed: true });
   } catch (e) {
@@ -417,11 +418,14 @@ export async function run() {
       () =>
         new GoogleReader(new MockSettings(), "google")._fieldsFromUsage(
           {
-            session: null,
-            weekly: null,
-            thirdPartySession: null,
-            thirdPartyWeekly: null,
-            limitReached: null,
+            session: {
+              state: "present",
+              usage: { usedPercent: 0, reset: { state: "idle" } },
+            },
+            weekly: { state: "unreported" },
+            thirdPartySession: { state: "unreported" },
+            thirdPartyWeekly: { state: "unreported" },
+            limitReached: false,
           },
           null,
           "cloudcode-pa.googleapis.com",

@@ -3,7 +3,10 @@ import type Gio from "gi://Gio";
 import {
   BaseReader,
   FieldStatus,
+  fieldStatusDegrades,
+  hasUsableFieldValue,
   ReaderStatus,
+  type AbsentFieldStatus,
   type FieldResult,
   type PercentFieldNames,
   type ReaderResult,
@@ -45,6 +48,13 @@ class TestReader extends BaseReader {
     return this._makePercentFieldPair(names, usedPct, status);
   }
 
+  testMakeAbsentWindowFields(
+    names: WindowFieldNames<"codex">,
+    status: AbsentFieldStatus,
+  ): FieldResult[] {
+    return this._makeAbsentWindowFields(names, status);
+  }
+
   testMakeWindowFields(
     names: WindowFieldNames<"codex">,
     data:
@@ -54,8 +64,9 @@ class TestReader extends BaseReader {
         }
       | null
       | undefined,
+    resetStatus?: AbsentFieldStatus,
   ): FieldResult[] {
-    return this._makeWindowFields(names, data);
+    return this._makeWindowFields(names, data, resetStatus);
   }
 
   testOkResult(fields: readonly FieldResult[], pathsTried: readonly string[]): ReaderResult {
@@ -78,8 +89,9 @@ class TestReader extends BaseReader {
     fields: FieldResult[],
     pathsTried: readonly string[],
     prefix?: string,
+    partialError?: string,
   ): ReaderResult {
-    return this._classifyResult(fields, pathsTried, prefix);
+    return this._classifyResult(fields, pathsTried, prefix, partialError);
   }
 }
 
@@ -89,6 +101,10 @@ function okField(name: string): FieldResult {
 
 function unavailableField(name: string): FieldResult {
   return { name, value: null, status: FieldStatus.UNAVAILABLE };
+}
+
+function notApplicableField(name: string): FieldResult {
+  return { name, value: null, status: FieldStatus.NOT_APPLICABLE };
 }
 
 function errorField(name: string): FieldResult {
@@ -128,6 +144,26 @@ describe("BaseReader", () => {
         status: FieldStatus.OK,
         error: null,
       });
+    });
+
+    it("normalizes OK with a null value to UNAVAILABLE", () => {
+      const field = reader.testMakeField("empty_field", null, FieldStatus.OK);
+      expect(field.value).toBeNull();
+      expect(field.status).toBe(FieldStatus.UNAVAILABLE);
+    });
+
+    it("normalizes OK with a non-finite number to UNAVAILABLE", () => {
+      const field = reader.testMakeField("nan_field", Number.NaN, FieldStatus.OK);
+      expect(field.status).toBe(FieldStatus.UNAVAILABLE);
+      expect(hasUsableFieldValue(Number.NaN)).toBeFalse();
+      expect(hasUsableFieldValue(0)).toBeTrue();
+    });
+
+    it("classifies degrading field statuses", () => {
+      expect(fieldStatusDegrades(FieldStatus.OK)).toBeFalse();
+      expect(fieldStatusDegrades(FieldStatus.NOT_APPLICABLE)).toBeFalse();
+      expect(fieldStatusDegrades(FieldStatus.UNAVAILABLE)).toBeTrue();
+      expect(fieldStatusDegrades(FieldStatus.ERROR)).toBeTrue();
     });
 
     it("sets error to null when omitted", () => {
@@ -256,6 +292,33 @@ describe("BaseReader", () => {
       });
     });
 
+    it("marks an absent window with the provided status", () => {
+      const fields = reader.testMakeAbsentWindowFields(SECONDARY_NAMES, FieldStatus.NOT_APPLICABLE);
+
+      expect(fields).toHaveSize(3);
+      fields.forEach((f) => {
+        expect(f.status).toBe(FieldStatus.NOT_APPLICABLE);
+      });
+    });
+
+    it("uses the supplied reset status only when reset_at is null", () => {
+      const missingReset = reader.testMakeWindowFields(
+        PRIMARY_NAMES,
+        { used_percent: 25 },
+        FieldStatus.NOT_APPLICABLE,
+      );
+      expect(missingReset[2].value).toBeNull();
+      expect(missingReset[2].status).toBe(FieldStatus.NOT_APPLICABLE);
+
+      const presentReset = reader.testMakeWindowFields(
+        PRIMARY_NAMES,
+        { used_percent: 25, reset_at: 1700000000 },
+        FieldStatus.NOT_APPLICABLE,
+      );
+      expect(presentReset[2].value).toBe(1700000000);
+      expect(presentReset[2].status).toBe(FieldStatus.OK);
+    });
+
     it("handles string reset_at", () => {
       const fields = reader.testMakeWindowFields(PRIMARY_NAMES, {
         reset_at: "1700000000",
@@ -330,6 +393,21 @@ describe("BaseReader", () => {
       );
       expect(result.status).toBe(ReaderStatus.PARTIAL);
       expect(result.lastError).toBe("codex: some fields unavailable.");
+    });
+
+    it("returns OK when the only non-OK fields are NOT_APPLICABLE", () => {
+      const result = reader.testClassifyResult([okField("a"), notApplicableField("b")], ["p1"]);
+      expect(result.status).toBe(ReaderStatus.OK);
+      expect(result.lastError).toBeUndefined();
+    });
+
+    it("returns ERROR when every field is NOT_APPLICABLE", () => {
+      const result = reader.testClassifyResult(
+        [notApplicableField("a"), notApplicableField("b")],
+        ["p1"],
+      );
+      expect(result.status).toBe(ReaderStatus.ERROR);
+      expect(result.lastError).toBe("codex: no usable fields.");
     });
 
     it("uses prefix in PARTIAL lastError", () => {

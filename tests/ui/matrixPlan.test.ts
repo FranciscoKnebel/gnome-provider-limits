@@ -2,7 +2,7 @@ import { PROVIDER_NAMES, type ProviderName } from "../../src/constants.js";
 import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
 import type { FieldDef, ReaderResult } from "../../src/readers/base.js";
 import { PROVIDER_FIELDS } from "../../src/readers/fields.js";
-import { diagnosticMessage } from "../../src/ui/displayModel.js";
+import type { DisplayStatus } from "../../src/ui/displayStatus.js";
 import { clampFillRatio, type FieldTone } from "../../src/ui/fieldRows.js";
 import {
   areAllProvidersExpanded,
@@ -135,7 +135,7 @@ describe("matrixPlan", () => {
 
   describe("attention derivation from tones", () => {
     const attentionForTones = (
-      status: ReaderStatus,
+      status: DisplayStatus,
       tones: readonly (FieldTone | undefined)[],
     ): string => {
       const worst = worstFieldTone(tones);
@@ -163,7 +163,7 @@ describe("matrixPlan", () => {
         JSON.stringify([
           model.provider,
           model.shortDisplayName,
-          model.result.status,
+          model.facts.health.displayStatus,
           model.statusViews.map((view) => view.name),
         ]),
       );
@@ -232,7 +232,7 @@ describe("matrixPlan", () => {
       expect(models[0].facts.health.attention).toBe("quiet");
       expect(models[1].statusViews.map((view) => view.valueText).join("·")).toContain("82%·");
       expect(models[1].facts.health.attention).toBe("critical");
-      expect(models[2].result.status).toBe(ReaderStatus.ERROR);
+      expect(models[2].facts.health.displayStatus).toBe(ReaderStatus.ERROR);
       expect(models[2].facts.health.state).toBe("error");
       expect(models[2].facts.health.attention).toBe("error");
     });
@@ -379,10 +379,12 @@ describe("matrixPlan", () => {
       expect(facts.usage.header.fillRatio).toBe(0.75);
       expect(formatSegmentedBar(facts.usage.header.fillRatio ?? 0, 5)).toBe("▰▰▰▰▱");
       expect(facts.usage.header.tone).toBe("warning");
-      expect(facts.diagnostic.kind).toBe("warning");
-      expect(diagnosticMessage(model.result, facts.diagnostic)).toBe(
-        "Showing recent cached limits",
-      );
+      expect(facts.diagnostic).toEqual({
+        kind: "warning",
+        cardText: "Showing recent cached limits",
+        badge: "Partial",
+        calloutText: "Showing recent cached limits",
+      });
       expect(facts.lastUpdatedText).toContain("Last updated:");
 
       const limits = model.panelViews.filter((view) => view.category !== "telemetry");
@@ -500,17 +502,21 @@ describe("matrixPlan", () => {
       );
 
       const codexExpanded = expandedContext.models.find((model) => model.provider === "codex");
-      expect(codexExpanded?.facts.diagnostic.kind).toBe("error");
-      expect(
-        codexExpanded && diagnosticMessage(codexExpanded.result, codexExpanded.facts.diagnostic),
-      ).toBe("Codex login required");
+      expect(codexExpanded?.facts.diagnostic).toEqual({
+        kind: "error",
+        cardText: "Codex login required",
+        badge: "Error",
+        calloutText: "Codex login required",
+      });
 
       const claudeExpanded = expandedContext.models.find((model) => model.provider === "claude");
       expect(claudeExpanded?.facts.usage.header.summaryText).toBe("(unavailable)");
-      expect(claudeExpanded?.facts.diagnostic.text).toBe("Unavailable");
-      expect(
-        claudeExpanded && diagnosticMessage(claudeExpanded.result, claudeExpanded.facts.diagnostic),
-      ).toBe("Error");
+      expect(claudeExpanded?.facts.diagnostic).toEqual({
+        kind: "error",
+        cardText: "Unavailable",
+        badge: "Error",
+        calloutText: "Error",
+      });
     });
   });
 

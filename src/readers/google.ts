@@ -10,22 +10,35 @@ import {
   resolveGooglePrimaryAuthPaths,
   type Env,
 } from "../helpers/paths.js";
-import { BaseReader, FieldStatus, type FieldResult, type ReaderResult } from "./base.js";
+import {
+  BaseReader,
+  FieldStatus,
+  type FieldResult,
+  type AbsentFieldStatus,
+  type ReaderResult,
+  type WindowFieldNames,
+} from "./base.js";
 import {
   GOOGLE_CLOUDCODE_DAILY_URL,
   GOOGLE_OAUTH_TOKEN_URL,
+  GOOGLE_WINDOW_IDS,
   hasActiveGoogleUsage,
   hasCompleteActiveGoogleUsage,
+  hasPresentGoogleUsage,
+  hasUsableGoogleUsage,
   isAntigravityAuthPath,
   mergeGoogleUsage,
   normalizeGoogleAvailableModels,
   normalizeGoogleQuotaSummary,
   parseGoogleAuth,
-  parseGoogleTierName,
+  parseGoogleTier,
   parseGoogleTokenResponse,
   resolveGoogleQuotaEndpoints,
   type GoogleAuth,
+  type GoogleTier,
   type GoogleUsage,
+  type GoogleWindow,
+  type GoogleWindowId,
 } from "./googleParser.js";
 
 const GOOGLE_USER_AGENT = "antigravity/hub/2.24.0 (aidev_client; os_type=linux; arch=x64)";
@@ -69,6 +82,52 @@ interface CandidateQuotaOutcome {
   usage: GoogleUsage;
   endpointUsed: string;
 }
+
+interface GoogleWindowSpec {
+  readonly fields: WindowFieldNames<"google">;
+  readonly fiveHour: boolean;
+}
+
+const GOOGLE_WINDOW_SPECS: Record<GoogleWindowId, GoogleWindowSpec> = {
+  session: {
+    fiveHour: true,
+    fields: {
+      used: "used_percent_session",
+      remaining: "remaining_percent_session",
+      reset: "reset_at_session",
+    },
+  },
+  weekly: {
+    fiveHour: false,
+    fields: {
+      used: "used_percent_weekly",
+      remaining: "remaining_percent_weekly",
+      reset: "reset_at_weekly",
+    },
+  },
+  thirdPartySession: {
+    fiveHour: true,
+    fields: {
+      used: "used_percent_3p_session",
+      remaining: "remaining_percent_3p_session",
+      reset: "reset_at_3p_session",
+    },
+  },
+  thirdPartyWeekly: {
+    fiveHour: false,
+    fields: {
+      used: "used_percent_3p_weekly",
+      remaining: "remaining_percent_3p_weekly",
+      reset: "reset_at_3p_weekly",
+    },
+  },
+};
+
+const ABSENT_WINDOW_STATUS: Record<Exclude<GoogleWindow["state"], "present">, AbsentFieldStatus> = {
+  unreported: FieldStatus.UNAVAILABLE,
+  disabled: FieldStatus.NOT_APPLICABLE,
+  malformed: FieldStatus.UNAVAILABLE,
+};
 
 export class GoogleReader extends BaseReader<"google"> {
   private _http: HttpClient | null = null;
@@ -232,6 +291,7 @@ export class GoogleReader extends BaseReader<"google"> {
     const body = projectId ? { project: projectId } : {};
     const requestedAtMs = Date.now();
 
+    let summary: GoogleUsage | null = null;
     try {
       const summaryRaw = await this._http!.postJson(
         `${endpoint}/v1internal:retrieveUserQuotaSummary`,
@@ -244,8 +304,8 @@ export class GoogleReader extends BaseReader<"google"> {
       );
       this._assertAlive();
       if (cancellable.is_cancelled()) return null;
-      const summary = normalizeGoogleQuotaSummary(summaryRaw, requestedAtMs);
-      if (summary) return summary;
+      summary = normalizeGoogleQuotaSummary(summaryRaw, requestedAtMs);
+      if (hasPresentGoogleUsage(summary)) return summary;
     } catch (error) {
       this._assertAlive();
       if (cancellable.is_cancelled()) return null;
@@ -253,18 +313,31 @@ export class GoogleReader extends BaseReader<"google"> {
       logWarn("google quota summary request failed", error);
     }
 
-    const modelsRaw = await this._http!.postJson(
-      `${endpoint}/v1internal:fetchAvailableModels`,
-      body,
-      {
-        headers,
-        cancellable,
-        noRedirect: true,
-      },
-    );
-    this._assertAlive();
-    if (cancellable.is_cancelled()) return null;
-    return normalizeGoogleAvailableModels(modelsRaw, requestedAtMs);
+    try {
+      const modelsRaw = await this._http!.postJson(
+        `${endpoint}/v1internal:fetchAvailableModels`,
+        body,
+        {
+          headers,
+          cancellable,
+          noRedirect: true,
+        },
+      );
+      this._assertAlive();
+      if (cancellable.is_cancelled()) return null;
+      const merged = mergeGoogleUsage(
+        normalizeGoogleAvailableModels(modelsRaw, requestedAtMs),
+        summary,
+      );
+      return hasUsableGoogleUsage(merged) ? merged : null;
+    } catch (error) {
+      this._assertAlive();
+      if (cancellable.is_cancelled()) return null;
+      if (summary && hasUsableGoogleUsage(summary)) return summary;
+      if (error instanceof TokenError && error.statusCode === 401) throw error;
+      logWarn("google models request failed", error);
+      return null;
+    }
   }
 
   private async _queryQuotaWithToken(
@@ -483,7 +556,7 @@ export class GoogleReader extends BaseReader<"google"> {
 
       const { auth, accessToken, usage, endpointUsed } = resolved as CandidateQuotaOutcome;
 
-      let plan: string | null = null;
+      let tier: GoogleTier | null = null;
       pushOnce(pathsTried, "tier-api");
       try {
         const tierPayload = await this._http!.postJson(
@@ -499,7 +572,7 @@ export class GoogleReader extends BaseReader<"google"> {
         );
         this._assertAlive();
         if (cancellable.is_cancelled()) return cancelledResult();
-        plan = parseGoogleTierName(tierPayload);
+        tier = parseGoogleTier(tierPayload);
       } catch (error) {
         this._assertAlive();
         if (cancellable.is_cancelled()) return cancelledResult();
@@ -509,7 +582,7 @@ export class GoogleReader extends BaseReader<"google"> {
       this._assertAlive();
       if (cancellable.is_cancelled()) return cancelledResult();
 
-      const fields = this._fieldsFromUsage(usage, plan, endpointUsed);
+      const fields = this._fieldsFromUsage(usage, tier, endpointUsed);
 
       return this._finalizeResult(
         this._classifyResult(fields, pathsTried, "Google"),
@@ -525,57 +598,41 @@ export class GoogleReader extends BaseReader<"google"> {
 
   private _fieldsFromUsage(
     usage: GoogleUsage,
-    plan: string | null,
+    tier: GoogleTier | null,
     endpointUsed: string,
   ): FieldResult[] {
-    return [
-      ...this._makeWindowFields(
-        {
-          used: "used_percent_session",
-          remaining: "remaining_percent_session",
-          reset: "reset_at_session",
-        },
-        {
-          used_percent: usage.session?.usedPercent ?? null,
-          reset_at: usage.session?.resetAt ?? null,
-        },
-      ),
-      ...this._makeWindowFields(
-        {
-          used: "used_percent_weekly",
-          remaining: "remaining_percent_weekly",
-          reset: "reset_at_weekly",
-        },
-        {
-          used_percent: usage.weekly?.usedPercent ?? null,
-          reset_at: usage.weekly?.resetAt ?? null,
-        },
-      ),
-      ...this._makeWindowFields(
-        {
-          used: "used_percent_3p_session",
-          remaining: "remaining_percent_3p_session",
-          reset: "reset_at_3p_session",
-        },
-        {
-          used_percent: usage.thirdPartySession?.usedPercent ?? null,
-          reset_at: usage.thirdPartySession?.resetAt ?? null,
-        },
-      ),
-      ...this._makeWindowFields(
-        {
-          used: "used_percent_3p_weekly",
-          remaining: "remaining_percent_3p_weekly",
-          reset: "reset_at_3p_weekly",
-        },
-        {
-          used_percent: usage.thirdPartyWeekly?.usedPercent ?? null,
-          reset_at: usage.thirdPartyWeekly?.resetAt ?? null,
-        },
-      ),
-      this._makeOptionalField("limit_reached", usage.limitReached),
-      this._makeOptionalField("plan_type", plan),
-      this._makeField("usage_source", hostFromEndpoint(endpointUsed), FieldStatus.OK),
-    ];
+    const plan = tier?.name ?? tier?.id ?? null;
+    const weeklyOnlyTier = tier?.supportsFiveHourWindows === false;
+    const fields: FieldResult[] = [];
+    for (const id of GOOGLE_WINDOW_IDS) {
+      const spec = GOOGLE_WINDOW_SPECS[id];
+      const names = spec.fields;
+      const window = usage[id];
+      if (window.state === "present") {
+        const data = window.usage;
+        const resetAt = data.reset.state === "present" ? data.reset.at : null;
+        const resetStatus =
+          data.reset.state === "idle" ? FieldStatus.NOT_APPLICABLE : FieldStatus.UNAVAILABLE;
+        fields.push(
+          ...this._makeWindowFields(
+            names,
+            { used_percent: data.usedPercent, reset_at: resetAt },
+            resetStatus,
+          ),
+        );
+        continue;
+      }
+      const unsupportedPlanWindow =
+        window.state === "unreported" && spec.fiveHour && weeklyOnlyTier;
+      const status = unsupportedPlanWindow
+        ? FieldStatus.NOT_APPLICABLE
+        : ABSENT_WINDOW_STATUS[window.state];
+      fields.push(...this._makeAbsentWindowFields(names, status));
+    }
+
+    fields.push(this._makeField("limit_reached", usage.limitReached, FieldStatus.OK));
+    fields.push(this._makeField("plan_type", plan, FieldStatus.OK));
+    fields.push(this._makeField("usage_source", hostFromEndpoint(endpointUsed), FieldStatus.OK));
+    return fields;
   }
 }

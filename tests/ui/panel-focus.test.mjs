@@ -245,7 +245,6 @@ function loadCompact() {
         activations.set(target, { callback, options });
       },
       ReaderStatus: { PARTIAL: "partial" },
-      diagnosticMessage: (_result, diagnostic) => diagnostic.text,
       createErrorLabel: (text) => new Actor(stage, { text }),
       clampFillRatio: (value) => Math.min(1, Math.max(0, value ?? 0)),
       ...matrixPlan,
@@ -281,12 +280,11 @@ function compactContext() {
   const model = (provider) => ({
     provider,
     displayName: provider,
-    status: "ok",
-    result: { lastError: null },
     facts: {
+      health: { displayStatus: "ok" },
       badges: { status: "" },
       usage: { header: { fillRatio: 0.5, tone: "ok", summaryText: "50%" } },
-      diagnostic: { kind: null, text: null, badge: null },
+      diagnostic: { kind: null },
       panelViews: [],
       lastUpdatedText: null,
     },

@@ -1,8 +1,9 @@
 import type { ProviderName } from "../constants.js";
 import { formatAbsoluteTimestamp } from "../formatters.js";
 import type { FieldDef, ReaderResult } from "../readers/base.js";
-import { isHardError, ReaderStatus } from "../readers/base.js";
+import { isHardStatus, ReaderStatus } from "../readers/base.js";
 import { emptyMeter } from "./cairoDrawing.js";
+import type { DisplayStatus } from "./displayStatus.js";
 import type { FieldView, UsageFacts } from "./fieldViews.js";
 import { deriveFieldViews, meterFromViews, projectUsageFacts, selectViews } from "./fieldViews.js";
 import type { GaugeSpec } from "./gaugeTypes.js";
@@ -22,14 +23,15 @@ import {
   type ResetPairing,
 } from "./resetModel.js";
 
-export type DiagnosticKind = "error" | "warning" | null;
-
 /** The single diagnostic fact, selected by cards, compact rows and gauge callouts. */
-export interface Diagnostic {
-  readonly kind: DiagnosticKind;
-  readonly text: string | null;
-  readonly badge: string | null;
-}
+export type Diagnostic =
+  | { readonly kind: null }
+  | {
+      readonly kind: "warning" | "error";
+      readonly cardText: string;
+      readonly calloutText: string;
+      readonly badge: string;
+    };
 
 export interface DisplayBadges {
   readonly card: Presentation["cardBadge"];
@@ -49,8 +51,6 @@ export interface ProviderDisplayModel {
   readonly provider: ProviderName;
   readonly displayName: string;
   readonly shortDisplayName: string;
-  readonly result: ReaderResult;
-  readonly status: ReaderStatus;
   readonly statusViews: readonly FieldView[];
   readonly panelViews: readonly FieldView[];
   readonly resets: ReadonlyMap<string, ResetPairing>;
@@ -66,7 +66,6 @@ export interface ProviderDisplayFacts {
   readonly diagnostic: Diagnostic;
   readonly views: ClassifiedPanelViews;
   readonly lastUpdatedText: string | null;
-  readonly isHardError: boolean;
 }
 
 /** Everything deriveDisplayModel needs, with no surrounding provider context. */
@@ -121,50 +120,55 @@ function classifyPanelViews(
   return { progress, keyValue, limit, telemetry };
 }
 
-function deriveDiagnostic(result: ReaderResult, tr: (s: string) => string): Diagnostic {
-  if (isHardError(result)) {
-    return {
-      kind: "error",
-      text:
-        result.lastError ??
-        tr(result.status === ReaderStatus.UNAVAILABLE ? "Unavailable" : "Error"),
-      badge: tr("Error"),
-    };
+function deriveDiagnostic(
+  status: DisplayStatus,
+  lastError: string | null,
+  fromCache: boolean,
+  tr: (s: string) => string,
+): Diagnostic {
+  if (isHardStatus(status)) {
+    const badge = tr("Error");
+    const cardText = lastError ?? tr(status === ReaderStatus.UNAVAILABLE ? "Unavailable" : "Error");
+    return { kind: "error", cardText, calloutText: lastError ?? badge, badge };
   }
-  if (result.status === ReaderStatus.PARTIAL && result.lastError) {
+  if (status === ReaderStatus.PARTIAL && lastError) {
     return {
       kind: "warning",
-      text: result.lastError,
-      badge: result.fromCache ? tr(CACHED_LABEL) : tr("Partial"),
+      cardText: lastError,
+      calloutText: lastError,
+      badge: fromCache ? tr(CACHED_LABEL) : tr("Partial"),
     };
   }
-  return { kind: null, text: null, badge: null };
+  return { kind: null };
 }
 
-/**
- * Message for the compact and gauge error surfaces: lastError falling back to
- * the diagnostic badge. Cards use diagnostic.text directly, preserving the
- * "Unavailable" banner label when an unavailable result has no lastError.
- */
-export function diagnosticMessage(result: ReaderResult, diagnostic: Diagnostic): string | null {
-  if (diagnostic.kind === null || diagnostic.text === null) return null;
-  return diagnostic.kind === "warning" ? diagnostic.text : (result.lastError ?? diagnostic.badge);
-}
+type DisplayModelCore = Pick<ProviderDisplayModel, "statusViews" | "panelViews" | "resets">;
 
 function deriveDisplayFacts(
-  model: Omit<ProviderDisplayModel, "facts">,
-  derivation: DisplayModelOptions & { readonly allViews: readonly FieldView[] },
+  model: DisplayModelCore,
+  derivation: DisplayModelOptions & {
+    readonly allViews: readonly FieldView[];
+    readonly readerResult: ReaderResult;
+  },
 ): ProviderDisplayFacts {
-  const { result } = model;
-  const hardError = isHardError(result);
+  const hardError = isHardStatus(derivation.readerResult.status);
   const { fieldDefs, statusFields, locale, t: tr, allViews } = derivation;
+  const readerResult = derivation.readerResult;
 
   const resetTextFor = (view: FieldView): string | null => {
     const pairing = model.resets.get(view.name);
     return pairing ? resetSlotText(pairing, "status", locale, tr) : null;
   };
 
-  const health = deriveProviderHealth({ result, views: allViews, fieldDefs, t: tr });
+  const health = deriveProviderHealth({
+    fields: readerResult.fields,
+    fromCache: readerResult.fromCache,
+    status: readerResult.status,
+    views: allViews,
+    fieldDefs,
+    t: tr,
+  });
+  const displayStatus = health.displayStatus;
   const presentation = health.presentation;
   const badges: DisplayBadges = {
     card: presentation.cardBadge,
@@ -175,25 +179,37 @@ function deriveDisplayFacts(
   };
 
   const usage: ProviderDisplayUsage = {
-    header: projectUsageFacts(result, allViews, statusFields, {
+    header: projectUsageFacts(allViews, statusFields, {
       limitOnly: true,
       requireFiniteValue: true,
+      status: displayStatus,
       t: tr,
       resetTextFor,
     }),
     overview: projectUsageFacts(
-      result,
       allViews,
       [...new Set([...statusFields, ...derivation.panelFields])],
-      { t: tr, resetTextFor },
+      {
+        status: displayStatus,
+        t: tr,
+        resetTextFor,
+      },
     ),
   };
 
-  const diagnostic = deriveDiagnostic(result, tr);
+  const diagnostic = deriveDiagnostic(
+    displayStatus,
+    readerResult.lastError ?? null,
+    readerResult.fromCache,
+    tr,
+  );
   const views = classifyPanelViews(model.panelViews, model.resets);
   const lastUpdatedText =
-    !hardError && Number.isFinite(result.lastUpdated)
-      ? tr("Last updated: %s").replace("%s", formatAbsoluteTimestamp(result.lastUpdated, locale))
+    !hardError && Number.isFinite(readerResult.lastUpdated)
+      ? tr("Last updated: %s").replace(
+          "%s",
+          formatAbsoluteTimestamp(readerResult.lastUpdated, locale),
+        )
       : null;
 
   return {
@@ -206,7 +222,6 @@ function deriveDisplayFacts(
     diagnostic,
     views,
     lastUpdatedText,
-    isHardError: hardError,
   };
 }
 
@@ -219,7 +234,7 @@ export function deriveDisplayModel(
   if (result.status === ReaderStatus.DISABLED) return undefined;
 
   const { fieldDefs, statusFields, panelFields, locale, t: tr } = options;
-  const hardError = isHardError(result);
+  const hardError = isHardStatus(result.status);
   const searchOrder = [...new Set([...statusFields, ...panelFields])];
   const viewOptions = { zone: "status" as const, locale, t: tr };
   const allViews = hardError ? [] : deriveFieldViews(fieldDefs, result, searchOrder, viewOptions);
@@ -234,12 +249,14 @@ export function deriveDisplayModel(
     provider,
     displayName: options.displayName,
     shortDisplayName: options.shortDisplayName,
-    result,
-    status: result.status,
     statusViews,
     panelViews,
     resets,
   };
-  const facts = deriveDisplayFacts(modelBase, { ...options, allViews });
+  const facts = deriveDisplayFacts(modelBase, {
+    ...options,
+    allViews,
+    readerResult: result,
+  });
   return { ...modelBase, facts };
 }

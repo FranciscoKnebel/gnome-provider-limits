@@ -31,12 +31,11 @@ function providerModel(provider) {
   return {
     provider,
     displayName: provider,
-    status: "ok",
-    result: { lastError: null },
     facts: {
+      health: { displayStatus: "ok" },
       badges: { status: "" },
       usage: { header: { fillRatio: 0.5, tone: "ok", summaryText: "50%" } },
-      diagnostic: { kind: null, text: null, badge: null },
+      diagnostic: { kind: null },
       panelViews: [],
       lastUpdatedText: null,
     },
@@ -94,7 +93,6 @@ function loadCompact() {
     addPlaceholderIfNeeded,
     matrixMessages: () => ({}),
     createErrorLabel: (text, styleClass) => new Label({ text, style_class: styleClass }),
-    diagnosticMessage: (_result, diagnostic) => diagnostic.text,
   });
   return { ...api, activations };
 }

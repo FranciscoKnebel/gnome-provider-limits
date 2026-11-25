@@ -1,5 +1,6 @@
-import type { FieldDef, FieldResult, ReaderResult } from "../readers/base.js";
-import { FieldStatus, isLimitReached, ReaderStatus } from "../readers/base.js";
+import type { FieldDef, FieldResult } from "../readers/base.js";
+import { FieldStatus, fieldStatusDegrades, isLimitReached, ReaderStatus } from "../readers/base.js";
+import type { DisplayStatus } from "./displayStatus.js";
 import type { FieldTone } from "./fieldRows.js";
 import { fieldTone } from "./fieldRows.js";
 import type { FieldView } from "./fieldViews.js";
@@ -30,6 +31,7 @@ export const PROVIDER_SEVERITIES = [
 export type ProviderSeverity = (typeof PROVIDER_SEVERITIES)[number];
 
 export interface ProviderHealth {
+  readonly displayStatus: DisplayStatus;
   readonly severity: ProviderSeverity;
   readonly state: ProviderState;
   readonly tone: HealthTone;
@@ -198,20 +200,19 @@ export function collectFieldTones(
   return tones;
 }
 
-export function isLastKnownGood(result: ReaderResult): boolean {
-  return result.status === ReaderStatus.PARTIAL && result.fromCache;
+export function isLastKnownGood(status: DisplayStatus, fromCache: boolean): boolean {
+  return status === ReaderStatus.PARTIAL && fromCache;
 }
 
 /** The single derivation: all surface vocabularies are lookups over this value. */
 export function deriveSeverity(
-  status: ReaderStatus,
+  status: DisplayStatus,
   worstTone: FieldTone | undefined,
   hasUsableField: boolean,
   lastKnownGood: boolean,
 ): ProviderSeverity {
   if (status === ReaderStatus.ERROR) return "error";
   if (status === ReaderStatus.UNAVAILABLE) return "unavailable";
-  if (status === ReaderStatus.DISABLED) return "idle";
   if (status === ReaderStatus.PARTIAL) {
     if (worstTone === "critical") return "critical-partial";
     if (worstTone === "warning") return lastKnownGood ? "cached-warning" : "partial-warning";
@@ -223,30 +224,48 @@ export function deriveSeverity(
   return "idle";
 }
 
+function resolveDisplayStatus(
+  status: ReaderStatus,
+  fromCache: boolean,
+  views: readonly FieldView[],
+): DisplayStatus {
+  if (status === ReaderStatus.DISABLED) return ReaderStatus.UNAVAILABLE;
+  if (status !== ReaderStatus.PARTIAL || fromCache) return status;
+  return views.some((view) => fieldStatusDegrades(view.status)) ? status : ReaderStatus.OK;
+}
+
 /** The single health contract: all data is required, no injection knobs. */
 export interface ProviderHealthData {
-  readonly result: ReaderResult;
+  readonly fields: readonly FieldResult[];
+  readonly fromCache: boolean;
+  readonly status: ReaderStatus;
   readonly views: readonly FieldView[];
   readonly fieldDefs: readonly FieldDef[];
   readonly t: (s: string) => string;
 }
 
 export function deriveProviderHealth({
-  result,
+  fields,
+  fromCache,
+  status,
   views,
   fieldDefs,
   t: tr,
 }: ProviderHealthData): ProviderHealth {
-  const { status } = result;
-  const worstTone = worstFieldTone(collectFieldTones(views, result.fields, fieldDefs));
-  const hasUsableField =
-    views.some((view) => view.hasValue) ||
-    result.fields.some((field) => field.status === FieldStatus.OK);
-  const severity = deriveSeverity(status, worstTone, hasUsableField, isLastKnownGood(result));
+  const displayStatus = resolveDisplayStatus(status, fromCache, views);
+  const worstTone = worstFieldTone(collectFieldTones(views, fields, fieldDefs));
+  const hasUsableField = views.some((view) => view.hasValue);
+  const severity = deriveSeverity(
+    displayStatus,
+    worstTone,
+    hasUsableField,
+    isLastKnownGood(displayStatus, fromCache),
+  );
   const { presentation, state, tone, attention } = HEALTH_BY_SEVERITY[severity];
   const { pillTag, pillAccessibleText } = presentation;
 
   return {
+    displayStatus,
     severity,
     state,
     tone,

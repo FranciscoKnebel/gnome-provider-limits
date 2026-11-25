@@ -40,11 +40,30 @@ of it: the GSettings schema `<default>` arrays (`<provider>-status-fields` and
 appears by default.
 _Avoid_: Field registry, default zone metadata, duplicate field list.
 
+**Field Status**:
+The per-Field availability attached to a `FieldResult`: `OK`, `UNAVAILABLE`,
+`NOT_APPLICABLE`, or `ERROR`. `UNAVAILABLE` and `ERROR` degrade provider health when
+the Field is configured in the Status Bar or Panel. `NOT_APPLICABLE` means the
+Provider does not expose the Field for the current plan or window, so it never
+degrades health. Display status and diagnostics are computed from the configured
+status and panel Fields. Health tone remains provider-wide: any returned percent
+Field can raise urgency even when it is not selected. Missing usage stays
+unavailable, not zero.
+_Avoid_: Null field, missing value, absent metric.
+
+**Display Status**:
+The Reader Result status after excluding `DISABLED` and applying the configured
+Field policy. A `PARTIAL` result becomes `OK` when no selected Field degrades
+health and the result is not cached. `DisplayStatus` in `ui/displayStatus.ts` is the
+canonical type; health severity and diagnostics consume it.
+_Avoid_: Raw status, effective status, visible status.
+
 **FieldView**:
 The one zone-aware formatted projection of a Field, derived by
 `deriveFieldViews` in `fieldViews.ts`. Renderers consume its already computed
-`labelText`, `valueText`, `accessibleText`, `tone`, `ratio`, `fillPercent` and
-`errorText` without a second formatting stage or any provider-specific state.
+`labelText`, `valueText`, `accessibleText`, `status`, `tone`, `ratio`,
+`fillPercent` and `errorText` without a second formatting stage or any
+provider-specific state.
 _Avoid_: Field widget, formatted row, renderer-local field copy.
 
 **Status Bar**:
@@ -161,7 +180,11 @@ disk. Exposes Gemini 5-hour session and weekly windows (`used_percent_session`,
 `reset_at_session`, `used_percent_weekly`, `reset_at_weekly`) plus optional third-party
 Claude & GPT 5-hour and weekly pools on Antigravity (`used_percent_3p_session`,
 `used_percent_3p_weekly`). Untouched 0% windows whose distant reset time matches
-Google's idle placeholder horizon omit `reset_at` until active usage starts.
+Google's idle placeholder horizon omit `reset_at` and report it as not applicable
+until active usage starts. Windows the provider explicitly disables are not
+applicable. Unreported 5-hour windows are not applicable when the plan is known not
+to expose them, such as Antigravity Starter Quota; otherwise they stay unavailable,
+so truncated quota data still degrades the provider when that window is configured.
 _Avoid_: Google Cloud billing, Vertex AI pay-as-you-go spend, service-account keys.
 
 **Telemetry Field**:
@@ -189,9 +212,10 @@ _Avoid_: Per-style badge, renderer-local diagnostic, presentation cache.
 The one ordered health value for a Provider, `PROVIDER_SEVERITIES` in
 `providerHealth.ts`. State, tone, status attention and presentation come from
 one table keyed by it (`HEALTH_BY_SEVERITY`); the severity itself is derived
-from the ReaderResult status, worst field tone, usable-field presence and
-Last-Known-Good provenance. No surface recombines those attributes through a
-second table.
+from the Provider's display status (the Reader Result status adjusted for the
+configured fields and Last-Known-Good provenance), worst field tone, and
+usable-field presence. No surface recombines those attributes through a second
+table.
 _Avoid_: Health level, status color, per-style state.
 
 **View Phase**:

@@ -128,6 +128,374 @@ export async function run() {
     reader.destroy();
   });
 
+  await test("GoogleReader reports weekly-only plans with not-applicable 5h fields", async () => {
+    const weeklyReset = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+    Gio.File.prototype.load_contents_async = async () =>
+      encodeJson({
+        access_token: "ya29.live",
+        expiry_date: Date.now() + 3600_000,
+      });
+
+    const urls = [];
+    const reader = newReader({
+      postJson: async (url) => {
+        urls.push(url);
+        if (url.endsWith("/v1internal:retrieveUserQuotaSummary")) {
+          return {
+            groups: [
+              {
+                buckets: [
+                  {
+                    bucketId: "gemini-weekly",
+                    window: "weekly",
+                    remainingFraction: 1,
+                    resetTime: weeklyReset,
+                  },
+                  {
+                    bucketId: "3p-weekly",
+                    window: "weekly",
+                    remainingFraction: 0,
+                    resetTime: "2026-01-26T00:00:00Z",
+                    description: "You have hit your weekly limit.",
+                  },
+                ],
+              },
+            ],
+          };
+        }
+        if (url.endsWith("/v1internal:loadCodeAssist")) {
+          return {
+            paidTier: { id: "free-tier", name: "Antigravity Starter Quota" },
+          };
+        }
+        throw new Error(`unexpected URL ${url}`);
+      },
+    });
+
+    const result = await reader.read();
+    const value = (name) => result.fields.find((f) => f.name === name)?.value;
+    const status = (name) => result.fields.find((f) => f.name === name)?.status;
+    assertEqual(result.status, "ok");
+    assertEqual(result.lastError, undefined);
+    assertEqual(urls.length, 2);
+    assertEqual(value("used_percent_weekly"), 0);
+    assertEqual(value("remaining_percent_weekly"), 100);
+    assertEqual(value("used_percent_3p_weekly"), 100);
+    assertEqual(value("limit_reached"), true);
+    assertEqual(value("plan_type"), "Antigravity Starter Quota");
+    assertEqual(status("used_percent_session"), "not_applicable");
+    assertEqual(status("reset_at_session"), "not_applicable");
+    assertEqual(status("used_percent_3p_session"), "not_applicable");
+    assertEqual(status("reset_at_3p_session"), "not_applicable");
+    assertEqual(status("reset_at_weekly"), "not_applicable");
+    reader.destroy();
+  });
+
+  await test("GoogleReader keeps an active window with a missing reset timestamp partial", async () => {
+    Gio.File.prototype.load_contents_async = async () =>
+      encodeJson({
+        access_token: "ya29.live",
+        expiry_date: Date.now() + 3600_000,
+      });
+
+    const reader = newReader({
+      postJson: async (url) => {
+        if (url.endsWith("/v1internal:retrieveUserQuotaSummary")) {
+          return {
+            buckets: [
+              {
+                bucketId: "gemini-5h",
+                window: "5h",
+                remainingFraction: 0.5,
+              },
+            ],
+          };
+        }
+        if (url.endsWith("/v1internal:loadCodeAssist")) {
+          return { paidTier: { name: "Google AI Pro" } };
+        }
+        throw new Error(`unexpected URL ${url}`);
+      },
+    });
+
+    const result = await reader.read();
+    const field = (name) => result.fields.find((f) => f.name === name);
+    assertEqual(result.status, "partial");
+    assertEqual(field("used_percent_session")?.value, 50);
+    assertEqual(field("reset_at_session")?.status, "unavailable");
+    reader.destroy();
+  });
+
+  await test("GoogleReader reports a malformed window as unavailable without hiding valid data", async () => {
+    Gio.File.prototype.load_contents_async = async () =>
+      encodeJson({
+        access_token: "ya29.live",
+        expiry_date: Date.now() + 3600_000,
+      });
+
+    const reader = newReader({
+      postJson: async (url) => {
+        if (url.endsWith("/v1internal:retrieveUserQuotaSummary")) {
+          return {
+            buckets: [
+              {
+                bucketId: "gemini-5h",
+                window: "5h",
+                remainingFraction: 1.5,
+              },
+              {
+                bucketId: "gemini-weekly",
+                window: "weekly",
+                remainingFraction: 0.5,
+                resetTime: "2026-04-24T12:00:00Z",
+              },
+            ],
+          };
+        }
+        if (url.endsWith("/v1internal:loadCodeAssist")) {
+          return { paidTier: { name: "Google AI Pro" } };
+        }
+        throw new Error(`unexpected URL ${url}`);
+      },
+    });
+
+    const result = await reader.read();
+    const field = (name) => result.fields.find((f) => f.name === name);
+    assertEqual(result.status, "partial");
+    assertEqual(field("used_percent_session")?.status, "unavailable");
+    assertEqual(field("used_percent_weekly")?.value, 50);
+    reader.destroy();
+  });
+
+  await test("GoogleReader treats a disabled window as not applicable", async () => {
+    Gio.File.prototype.load_contents_async = async () =>
+      encodeJson({
+        access_token: "ya29.live",
+        expiry_date: Date.now() + 3600_000,
+      });
+
+    const reader = newReader({
+      postJson: async (url) => {
+        if (url.endsWith("/v1internal:retrieveUserQuotaSummary")) {
+          return {
+            buckets: [
+              {
+                bucketId: "gemini-5h",
+                window: "5h",
+                disabled: true,
+              },
+              {
+                bucketId: "gemini-weekly",
+                window: "weekly",
+                remainingFraction: 0.5,
+                resetTime: "2026-04-24T12:00:00Z",
+              },
+            ],
+          };
+        }
+        if (url.endsWith("/v1internal:loadCodeAssist")) {
+          return { paidTier: { name: "Google AI Pro" } };
+        }
+        throw new Error(`unexpected URL ${url}`);
+      },
+    });
+
+    const result = await reader.read();
+    const field = (name) => result.fields.find((f) => f.name === name);
+    assertEqual(result.status, "partial");
+    assertEqual(field("used_percent_session")?.status, "not_applicable");
+    assertEqual(field("used_percent_weekly")?.value, 50);
+    reader.destroy();
+  });
+
+  await test("GoogleReader reports an all-disabled window set as not applicable", async () => {
+    Gio.File.prototype.load_contents_async = async () =>
+      encodeJson({
+        access_token: "ya29.live",
+        expiry_date: Date.now() + 3600_000,
+      });
+
+    const reader = newReader({
+      postJson: async (url) => {
+        if (url.endsWith("/v1internal:retrieveUserQuotaSummary")) {
+          return {
+            buckets: [
+              { bucketId: "gemini-5h", window: "5h", disabled: true },
+              { bucketId: "gemini-weekly", window: "weekly", disabled: true },
+              { bucketId: "3p-5h", window: "5h", disabled: true },
+              { bucketId: "3p-weekly", window: "weekly", disabled: true },
+            ],
+          };
+        }
+        if (url.endsWith("/v1internal:fetchAvailableModels")) {
+          return { models: {} };
+        }
+        if (url.endsWith("/v1internal:loadCodeAssist")) {
+          return { paidTier: { id: "standard-tier", name: "Google AI Pro" } };
+        }
+        throw new Error(`unexpected URL ${url}`);
+      },
+    });
+
+    const result = await reader.read();
+    const field = (name) => result.fields.find((f) => f.name === name);
+    assertEqual(result.status, "partial");
+    for (const name of [
+      "used_percent_session",
+      "used_percent_weekly",
+      "used_percent_3p_session",
+      "used_percent_3p_weekly",
+    ]) {
+      assertEqual(field(name)?.status, "not_applicable");
+    }
+    assertEqual(field("limit_reached")?.status, "unavailable");
+    reader.destroy();
+  });
+
+  await test("GoogleReader falls back to models when the summary has no present window", async () => {
+    Gio.File.prototype.load_contents_async = async () =>
+      encodeJson({
+        access_token: "ya29.live",
+        expiry_date: Date.now() + 3600_000,
+      });
+
+    let summaryCalls = 0;
+    let modelCalls = 0;
+    const reader = newReader({
+      postJson: async (url) => {
+        if (url.endsWith("/v1internal:retrieveUserQuotaSummary")) {
+          summaryCalls++;
+          return {
+            buckets: [
+              { bucketId: "gemini-5h", window: "5h", remainingFraction: 1.5 },
+              { bucketId: "gemini-weekly", window: "weekly", remainingFraction: -0.1 },
+              { bucketId: "3p-5h", window: "5h", remainingFraction: 1.5 },
+              { bucketId: "3p-weekly", window: "weekly", remainingFraction: -0.1 },
+            ],
+          };
+        }
+        if (url.endsWith("/v1internal:fetchAvailableModels")) {
+          modelCalls++;
+          return {
+            models: {
+              "gemini-2.5-pro": {
+                modelProvider: "MODEL_PROVIDER_GOOGLE",
+                quotaInfo: {
+                  remainingFraction: 0.5,
+                  resetTime: "2026-04-20T06:00:00Z",
+                },
+                weeklyQuotaInfo: {
+                  remainingFraction: 0.8,
+                  resetTime: "2026-04-25T00:00:00Z",
+                },
+              },
+            },
+          };
+        }
+        if (url.endsWith("/v1internal:loadCodeAssist")) {
+          return { paidTier: { id: "standard-tier", name: "Google AI Pro" } };
+        }
+        throw new Error(`unexpected URL ${url}`);
+      },
+    });
+
+    const result = await reader.read();
+    assertEqual(summaryCalls, 1);
+    assertEqual(modelCalls, 1);
+    assertEqual(result.fields.find((f) => f.name === "used_percent_session")?.value, 50);
+    reader.destroy();
+  });
+
+  await test("GoogleReader keeps an all-disabled summary when the models fallback fails", async () => {
+    Gio.File.prototype.load_contents_async = async () =>
+      encodeJson({
+        access_token: "ya29.live",
+        expiry_date: Date.now() + 3600_000,
+      });
+
+    const reader = newReader({
+      postJson: async (url) => {
+        if (url.endsWith("/v1internal:retrieveUserQuotaSummary")) {
+          return {
+            buckets: [
+              { bucketId: "gemini-5h", window: "5h", disabled: true },
+              { bucketId: "gemini-weekly", window: "weekly", disabled: true },
+              { bucketId: "3p-5h", window: "5h", disabled: true },
+              { bucketId: "3p-weekly", window: "weekly", disabled: true },
+            ],
+          };
+        }
+        if (url.endsWith("/v1internal:fetchAvailableModels")) {
+          throw new NetworkError("models unavailable");
+        }
+        if (url.endsWith("/v1internal:loadCodeAssist")) {
+          return { paidTier: { id: "standard-tier", name: "Google AI Pro" } };
+        }
+        throw new Error(`unexpected URL ${url}`);
+      },
+    });
+
+    const result = await reader.read();
+    const field = (name) => result.fields.find((f) => f.name === name);
+    assertEqual(result.status, "partial");
+    assertEqual(field("used_percent_session")?.status, "not_applicable");
+    assertEqual(field("limit_reached")?.status, "unavailable");
+    reader.destroy();
+  });
+
+  await test("GoogleReader preserves Last-Known-Good when every summary window is malformed", async () => {
+    Gio.File.prototype.load_contents_async = async () =>
+      encodeJson({
+        access_token: "ya29.live",
+        expiry_date: Date.now() + 3600_000,
+      });
+
+    let malformed = false;
+    const reader = newReader({
+      postJson: async (url) => {
+        if (url.endsWith("/v1internal:retrieveUserQuotaSummary")) {
+          if (!malformed) {
+            return {
+              buckets: [
+                {
+                  bucketId: "gemini-weekly",
+                  window: "weekly",
+                  remainingFraction: 0.5,
+                  resetTime: "2026-04-24T12:00:00Z",
+                },
+              ],
+            };
+          }
+          return {
+            buckets: [
+              { bucketId: "gemini-5h", window: "5h", remainingFraction: 1.5 },
+              { bucketId: "gemini-weekly", window: "weekly", remainingFraction: -0.1 },
+            ],
+          };
+        }
+        if (url.endsWith("/v1internal:fetchAvailableModels")) {
+          return { models: {} };
+        }
+        if (url.endsWith("/v1internal:loadCodeAssist")) {
+          return { paidTier: { id: "standard-tier", name: "Google AI Pro" } };
+        }
+        throw new Error(`unexpected URL ${url}`);
+      },
+    });
+
+    const first = await reader.read();
+    assertEqual(first.status, "partial");
+    assertEqual(first.fromCache, false);
+    assertEqual(first.fields.find((f) => f.name === "used_percent_weekly")?.value, 50);
+
+    malformed = true;
+    const second = await reader.read();
+    assertEqual(second.status, "partial");
+    assertEqual(second.fromCache, true);
+    assertEqual(second.fields.find((f) => f.name === "used_percent_weekly")?.value, 50);
+    reader.destroy();
+  });
+
   await test("GoogleReader falls back to fetchAvailableModels and merges secondary endpoint when primary is idle", async () => {
     Gio.File.prototype.load_contents_async = async () =>
       encodeJson({
@@ -166,7 +534,7 @@ export async function run() {
             ],
           };
         }
-        return { currentTier: { name: "Google AI Pro" } };
+        return { currentTier: { id: "standard-tier", name: "Google AI Pro" } };
       },
     });
 
@@ -219,6 +587,54 @@ export async function run() {
     const result = await reader.read();
     assertEqual(result.status, "partial");
     assertEqual(quotaCalls, 2);
+    assertEqual(result.fields.find((f) => f.name === "used_percent_session")?.value, 50);
+    reader.destroy();
+  });
+
+  await test("GoogleReader refreshes OAuth when the models fallback rejects the token", async () => {
+    Gio.File.prototype.load_contents_async = async () =>
+      encodeJson({
+        access_token: "ya29.revoked",
+        expiry_date: Date.now() + 3600_000,
+        refresh_token: "1//backup-refresh",
+        client_id: "cid",
+        client_secret: "csecret",
+      });
+
+    let modelCalls = 0;
+    const reader = newReader({
+      postForm: async () => ({ access_token: "ya29.recovered" }),
+      postJson: async (url, _body, options) => {
+        if (url.endsWith("/v1internal:retrieveUserQuotaSummary")) {
+          return { buckets: [] };
+        }
+        if (url.endsWith("/v1internal:fetchAvailableModels")) {
+          modelCalls++;
+          if (options.headers.Authorization === "Bearer ya29.revoked") {
+            throw new TokenError("HTTP 401", 401);
+          }
+          assertEqual(options.headers.Authorization, "Bearer ya29.recovered");
+          return {
+            models: {
+              "gemini-2.5-pro": {
+                modelProvider: "MODEL_PROVIDER_GOOGLE",
+                quotaInfo: {
+                  remainingFraction: 0.5,
+                  resetTime: "2026-04-20T06:00:00Z",
+                },
+              },
+            },
+          };
+        }
+        if (url.endsWith("/v1internal:loadCodeAssist")) {
+          return { paidTier: { id: "standard-tier", name: "Google AI Pro" } };
+        }
+        throw new Error(`unexpected URL ${url}`);
+      },
+    });
+
+    const result = await reader.read();
+    assertEqual(modelCalls, 2);
     assertEqual(result.fields.find((f) => f.name === "used_percent_session")?.value, 50);
     reader.destroy();
   });
