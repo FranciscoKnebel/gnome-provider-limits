@@ -2,6 +2,12 @@ name: Checks
 
 on:
   workflow_call:
+    inputs:
+      upload_package:
+        description: Upload the validated extension ZIP for a release job
+        required: false
+        type: boolean
+        default: false
 
 jobs:
   check:
@@ -29,6 +35,14 @@ jobs:
 
       - name: Build and validate extension package
         run: npm run pack
+
+      - name: Upload release package artifact
+        if: ${{ inputs.upload_package }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: extension-package
+          path: dist/*.zip
+          if-no-files-found: error
 
       - uses: actions/upload-artifact@v7
         if: always()
