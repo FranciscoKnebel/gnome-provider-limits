@@ -87,6 +87,15 @@ npm run check
 
 npm version "$NEW_VERSION" --no-git-tag-version --allow-same-version
 
+node - "$NEW_VERSION" <<'NODE'
+const fs = require("node:fs");
+
+const metadataPath = "src/metadata.json";
+const metadata = JSON.parse(fs.readFileSync(metadataPath, "utf8"));
+metadata["version-name"] = process.argv[2];
+fs.writeFileSync(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`);
+NODE
+
 python3 - "$NEW_VERSION" <<'PY'
 from pathlib import Path
 import sys
@@ -107,7 +116,7 @@ for path in paths:
     path.write_text("".join(lines), encoding="utf-8")
 PY
 
-git add package.json package-lock.json src/po/gnome-provider-limits.pot src/po/*.po
+git add package.json package-lock.json src/metadata.json src/po/gnome-provider-limits.pot src/po/*.po
 git commit -m "release: $TAG"
 git tag -a "$TAG" -m "Release $TAG"
 
