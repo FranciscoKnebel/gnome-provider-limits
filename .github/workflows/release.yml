@@ -13,30 +13,62 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  validate-tag:
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+
+      - name: Verify tag version and main ancestry
+        run: |
+          set -euo pipefail
+          TAG_VERSION="${GITHUB_REF_NAME#v}"
+          PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+
+          if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Release tag must use vMAJOR.MINOR.PATCH, got $GITHUB_REF_NAME" >&2
+            exit 1
+          fi
+
+          if [[ "$TAG_VERSION" != "$PACKAGE_VERSION" ]]; then
+            echo "Tag $GITHUB_REF_NAME does not match package.json version $PACKAGE_VERSION" >&2
+            exit 1
+          fi
+
+          if ! git merge-base --is-ancestor "$GITHUB_SHA" refs/remotes/origin/main; then
+            echo "Release tag $GITHUB_REF_NAME is not on origin/main" >&2
+            exit 1
+          fi
+
   check:
+    needs: validate-tag
     uses: ./.github/workflows/checks.yml
+    permissions:
+      contents: read
+    with:
+      upload_package: true
 
   release:
     needs: check
     runs-on: ubuntu-26.04
     permissions:
+      actions: read
       contents: write
     steps:
-      - uses: actions/checkout@v7
-
-      - uses: actions/setup-node@v6
+      - name: Download validated extension package
+        uses: actions/download-artifact@v8
         with:
-          node-version: "24"
-          cache: npm
+          name: extension-package
+          path: dist
 
-      - run: npm ci
-
-      - run: sudo apt-get update && sudo apt-get install -y gettext libglib2.0-bin zip
-
-      - name: Build and pack extension
-        run: npm run pack
-
-      - name: Upload release artifact
+      - name: Publish GitHub release
         uses: softprops/action-gh-release@v3
         with:
           files: dist/*.zip
