@@ -260,6 +260,21 @@ and report SKIP otherwise (CI is headless). `npm run check:all` adds the GJS
 suite to `npm run check`; `npm run test:gjs` skips gracefully with a warning
 when `gjs` is not installed.
 
+## Releasing
+
+Run one release command from a clean, up-to-date `main` checkout:
+
+```bash
+npm run release -- patch
+```
+
+Use `minor` or `major` for those version bumps. The script uses the latest
+version tag on `origin` as the version source, updates `package.json`, the lock
+file, and translation headers, runs `npm run check`, then commits and pushes the
+release commit and tag together. The tag workflow verifies that the tag matches
+`package.json` and points into `main`, runs the checks, builds the extension ZIP
+once, and publishes that same ZIP to the GitHub release.
+
 See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow and guidelines.
 
 ### Landing page
