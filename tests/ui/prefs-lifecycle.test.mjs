@@ -6,6 +6,7 @@ test("preferences close disconnects bindings/pages and cancels pending rebuild; 
   const glib = timers();
   const K = load("src/prefs.ts", "ProviderLimitsPreferences", {
     ExtensionPreferences: class {},
+    Gio: { _promisify() {}, File: { prototype: {} } },
     GLib: glib,
     isDisposablePage: (p) => typeof p.cleanup === "function",
   });
@@ -23,21 +24,21 @@ test("preferences close disconnects bindings/pages and cancels pending rebuild; 
   };
   prefs.getSettings = () => settings;
   let cleanups = 0;
-  prefs._buildWindow = () => {
-    prefs._pages.push({ cleanup: () => cleanups++ });
-    if (prefs._languageChangedId) settings.disconnect(prefs._languageChangedId);
-    prefs._languageChangedId = settings.connect("enabled", () => {});
+  let state;
+  prefs._buildWindow = (_window, _settings, windowState) => {
+    state = windowState;
+    state.pages.push({ cleanup: () => cleanups++ });
   };
   for (let round = 0; round < 2; round++) {
     const signals = new Map();
     const window = { connect: (name, fn) => signals.set(name, fn), remove() {} };
     await prefs.fillPreferencesWindow(window);
-    prefs._scheduleWindowRebuild(window, settings);
+    prefs._scheduleWindowRebuild(window, settings, state);
     signals.get("close-request")();
     signals.get("destroy")();
     assert.equal(subscriptions.size, 0);
     assert.equal(glib.sources.size, 0);
-    assert.equal(prefs._pages.length, 0);
+    assert.equal(state.pages.length, 0);
   }
   assert.equal(cleanups, 2);
 });
@@ -45,6 +46,7 @@ test("preferences close disconnects bindings/pages and cancels pending rebuild; 
 test("late destruction of an old preferences window cannot tear down a reopened window", async () => {
   const K = load("src/prefs.ts", "ProviderLimitsPreferences", {
     ExtensionPreferences: class {},
+    Gio: { _promisify() {}, File: { prototype: {} } },
     GLib: timers(),
     isDisposablePage: () => true,
   });
@@ -60,7 +62,11 @@ test("late destruction of an old preferences window cannot tear down a reopened 
     disconnect: (key) => active.delete(key),
   };
   prefs.getSettings = () => settings;
-  prefs._buildWindow = () => prefs._pages.push({ cleanup: () => cleaned++ });
+  const states = [];
+  prefs._buildWindow = (_window, _settings, state) => {
+    states.push(state);
+    state.pages.push({ cleanup: () => cleaned++ });
+  };
   const firstSignals = new Map(),
     secondSignals = new Map();
   const window = (signals) => ({ connect: (name, fn) => signals.set(name, fn), remove() {} });
@@ -68,7 +74,8 @@ test("late destruction of an old preferences window cannot tear down a reopened 
   firstSignals.get("close-request")();
   await prefs.fillPreferencesWindow(window(secondSignals));
   firstSignals.get("destroy")();
-  assert.equal(prefs._pages.length, 1);
+  assert.equal(states[0].pages.length, 0);
+  assert.equal(states[1].pages.length, 1);
   assert.equal(active.size, 1);
   secondSignals.get("close-request")();
   assert.equal(cleaned, 2);

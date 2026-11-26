@@ -116,7 +116,7 @@ export async function run() {
     GLib.UriFlags.NONE,
   );
   const { configureTranslations } = await import(gettextUrl);
-  configureTranslations("/nonexistent-locale-path", "en");
+  await configureTranslations("/nonexistent-locale-path", "en");
 
   // Test 1: ProviderLimitsPreferencesPage can be constructed
   try {
