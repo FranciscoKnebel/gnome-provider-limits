@@ -39,9 +39,9 @@ echo "Fetching origin/main..."
 git fetch --no-tags origin main
 
 LOCAL_HEAD=$(git rev-parse HEAD)
-REMOTE_HEAD=$(git rev-parse refs/remotes/origin/main)
+REMOTE_HEAD=$(git rev-parse FETCH_HEAD)
 if [ "$LOCAL_HEAD" != "$REMOTE_HEAD" ]; then
-  echo "Local main must match origin/main before releasing." >&2
+  echo "Local main must match the fetched origin/main before releasing." >&2
   echo "Local:  $LOCAL_HEAD" >&2
   echo "Remote: $REMOTE_HEAD" >&2
   exit 1
