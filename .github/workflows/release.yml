@@ -31,6 +31,7 @@ jobs:
           set -euo pipefail
           TAG_VERSION="${GITHUB_REF_NAME#v}"
           PACKAGE_VERSION="$(node -p "require('./package.json').version")"
+          METADATA_VERSION_NAME="$(node -p "require('./src/metadata.json')['version-name'] || ''")"
 
           if [[ ! "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "Release tag must use vMAJOR.MINOR.PATCH, got $GITHUB_REF_NAME" >&2
@@ -39,6 +40,11 @@ jobs:
 
           if [[ "$TAG_VERSION" != "$PACKAGE_VERSION" ]]; then
             echo "Tag $GITHUB_REF_NAME does not match package.json version $PACKAGE_VERSION" >&2
+            exit 1
+          fi
+
+          if [[ "$TAG_VERSION" != "$METADATA_VERSION_NAME" ]]; then
+            echo "Tag $GITHUB_REF_NAME does not match metadata.json version-name $METADATA_VERSION_NAME" >&2
             exit 1
           fi
 
