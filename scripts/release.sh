@@ -96,6 +96,8 @@ metadata["version-name"] = process.argv[2];
 fs.writeFileSync(metadataPath, `${JSON.stringify(metadata, null, 2)}\n`);
 NODE
 
+npx oxfmt --write src/metadata.json
+
 python3 - "$NEW_VERSION" <<'PY'
 from pathlib import Path
 import sys
