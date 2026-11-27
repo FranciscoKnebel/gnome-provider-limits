@@ -406,6 +406,82 @@ export async function run() {
     reader.destroy();
   });
 
+  await test("GoogleReader supplements zero summary windows with per model usage", async () => {
+    Gio.File.prototype.load_contents_async = async () =>
+      encodeJson({
+        access_token: "ya29.live",
+        expiry_date: Date.now() + 3600_000,
+      });
+
+    let modelCalls = 0;
+    const reader = newReader({
+      postJson: async (url) => {
+        if (url.endsWith("/v1internal:retrieveUserQuotaSummary")) {
+          return {
+            buckets: [
+              {
+                bucketId: "gemini-5h",
+                window: "5h",
+                remainingFraction: 1,
+                resetTime: "2026-04-20T08:00:00Z",
+              },
+              {
+                bucketId: "gemini-weekly",
+                window: "weekly",
+                remainingFraction: 1,
+                resetTime: "2026-04-25T00:00:00Z",
+              },
+              {
+                bucketId: "3p-5h",
+                window: "5h",
+                remainingFraction: 1,
+                resetTime: "2026-04-20T08:00:00Z",
+              },
+              {
+                bucketId: "3p-weekly",
+                window: "weekly",
+                remainingFraction: 1,
+                resetTime: "2026-04-25T00:00:00Z",
+              },
+            ],
+          };
+        }
+        if (url.endsWith("/v1internal:fetchAvailableModels")) {
+          modelCalls++;
+          return {
+            models: {
+              "gemini-2.5-pro": {
+                modelProvider: "MODEL_PROVIDER_GOOGLE",
+                weeklyQuotaInfo: {
+                  remainingFraction: 0.89,
+                  resetTime: "2026-04-25T00:00:00Z",
+                },
+              },
+              "claude-sonnet": {
+                modelProvider: "MODEL_PROVIDER_ANTHROPIC",
+                weeklyQuotaInfo: {
+                  remainingFraction: 0,
+                  resetTime: "2026-04-25T00:00:00Z",
+                },
+              },
+            },
+          };
+        }
+        if (url.endsWith("/v1internal:loadCodeAssist")) {
+          return { paidTier: { id: "standard-tier", name: "Google AI Pro" } };
+        }
+        throw new Error(`unexpected URL ${url}`);
+      },
+    });
+
+    const result = await reader.read();
+    assertEqual(modelCalls, 1);
+    assertEqual(result.fields.find((field) => field.name === "used_percent_weekly")?.value, 11);
+    assertEqual(result.fields.find((field) => field.name === "used_percent_3p_weekly")?.value, 100);
+    assertEqual(result.fields.find((field) => field.name === "limit_reached")?.value, true);
+    reader.destroy();
+  });
+
   await test("GoogleReader keeps an all-disabled summary when the models fallback fails", async () => {
     Gio.File.prototype.load_contents_async = async () =>
       encodeJson({

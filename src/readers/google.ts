@@ -24,7 +24,6 @@ import {
   GOOGLE_WINDOW_IDS,
   hasActiveGoogleUsage,
   hasCompleteActiveGoogleUsage,
-  hasPresentGoogleUsage,
   hasUsableGoogleUsage,
   isAntigravityAuthPath,
   mergeGoogleUsage,
@@ -305,7 +304,7 @@ export class GoogleReader extends BaseReader<"google"> {
       this._assertAlive();
       if (cancellable.is_cancelled()) return null;
       summary = normalizeGoogleQuotaSummary(summaryRaw, requestedAtMs);
-      if (hasPresentGoogleUsage(summary)) return summary;
+      if (summary && hasActiveGoogleUsage(summary)) return summary;
     } catch (error) {
       this._assertAlive();
       if (cancellable.is_cancelled()) return null;
