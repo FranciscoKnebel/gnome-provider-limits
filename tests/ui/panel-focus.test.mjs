@@ -91,6 +91,42 @@ const Clutter = {
 };
 const { clearChildren } = load("src/helpers/children.ts", "({ clearChildren })");
 
+function overviewModel(provider) {
+  return {
+    provider,
+    displayName: provider,
+    badgeText: "badge",
+    badgeKind: "ok",
+    primaryText: "primary",
+    secondaryText: null,
+    tone: "ok",
+    meter: {},
+    accessibleText: provider,
+  };
+}
+
+function compactModel(provider) {
+  return {
+    provider,
+    displayName: provider,
+    facts: {
+      health: { displayStatus: "ok" },
+      badges: { status: "" },
+      usage: { header: { fillRatio: 0.5, tone: "ok", summaryText: "50%" } },
+      diagnostic: { kind: null },
+      panelViews: [],
+      lastUpdatedText: null,
+    },
+    panelViews: [],
+  };
+}
+
+function PopupMenuSection() {}
+
+function PanelStyleSection(shell) {
+  this.shell = shell;
+}
+
 function loadOverview() {
   const stage = new FocusStage();
   const headerItems = [];
@@ -139,17 +175,6 @@ function loadOverview() {
       return binding?.onOtherKey?.(event) ?? Clutter.EVENT_PROPAGATE;
     });
   };
-  const overviewModel = (provider) => ({
-    provider,
-    displayName: provider,
-    badgeText: "badge",
-    badgeKind: "ok",
-    primaryText: "primary",
-    secondaryText: null,
-    tone: "ok",
-    meter: {},
-    accessibleText: provider,
-  });
   const { OverviewRenderer } = load("src/ui/panelGaugesOverview.ts", "({ OverviewRenderer })", {
     Clutter,
     St,
@@ -224,7 +249,7 @@ function loadCompact() {
   }
   const activations = new Map();
   const { addPlaceholderIfNeeded } = load("src/ui/panelShell.ts", "({ addPlaceholderIfNeeded })", {
-    PopupMenu: { PopupMenuSection: class {} },
+    PopupMenu: { PopupMenuSection },
     phaseResult: () => ({ kind: "ready" }),
   });
   const matrixPlan = load(
@@ -248,11 +273,7 @@ function loadCompact() {
       createErrorLabel: (text) => new Actor(stage, { text }),
       clampFillRatio: (value) => Math.min(1, Math.max(0, value ?? 0)),
       ...matrixPlan,
-      PanelStyleSection: class {
-        constructor(shell) {
-          this.shell = shell;
-        }
-      },
+      PanelStyleSection,
       applyToneClass: () => {},
       emptyViewContext: () => ({ activeProviders: [], models: [], t: (text) => text }),
       addPlaceholderIfNeeded,
@@ -277,24 +298,11 @@ function headers(body) {
 }
 
 function compactContext() {
-  const model = (provider) => ({
-    provider,
-    displayName: provider,
-    facts: {
-      health: { displayStatus: "ok" },
-      badges: { status: "" },
-      usage: { header: { fillRatio: 0.5, tone: "ok", summaryText: "50%" } },
-      diagnostic: { kind: null },
-      panelViews: [],
-      lastUpdatedText: null,
-    },
-    panelViews: [],
-  });
   return {
     lastRefreshAt: null,
     view: {
       activeProviders: ["codex", "claude"],
-      models: [model("codex"), model("claude")],
+      models: [compactModel("codex"), compactModel("claude")],
       t: (text) => text,
     },
   };

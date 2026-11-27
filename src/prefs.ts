@@ -30,8 +30,10 @@ async function loadLanguages(extensionPath: string): Promise<LanguageEntry[]> {
       (e: unknown): e is LanguageEntry =>
         typeof e === "object" &&
         e !== null &&
-        typeof (e as LanguageEntry).code === "string" &&
-        typeof (e as LanguageEntry).name === "string",
+        "code" in e &&
+        typeof e.code === "string" &&
+        "name" in e &&
+        typeof e.name === "string",
     );
   } catch {
     log("gnome-provider-limits: failed to load languages.json; language dropdown will be empty");

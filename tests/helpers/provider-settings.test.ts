@@ -9,9 +9,9 @@ import {
 } from "../../src/helpers/provider-settings.js";
 
 function settingsWith(values: Record<string, string>): Gio.Settings {
-  return {
-    get_string: (key: string) => values[key] ?? "",
-  } as Gio.Settings;
+  const settings: Gio.Settings = Object.create(null);
+  settings.get_string = (key: string) => values[key] ?? "";
+  return settings;
 }
 
 describe("isProviderName", () => {

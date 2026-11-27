@@ -15,6 +15,23 @@ class CustomError extends Error {
   }
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function asRecord(value: unknown): Record<string, unknown> {
+  if (!isRecord(value)) throw new Error("expected an object");
+  return value;
+}
+
+function asRecordArray(value: unknown): Array<Record<string, unknown>> {
+  if (!Array.isArray(value)) throw new Error("expected an array");
+  return value.map((item) => {
+    if (!isRecord(item)) throw new Error("expected an object");
+    return item;
+  });
+}
+
 describe("redactForLog", () => {
   it("passes null and undefined through", () => {
     expect(redactForLog(null)).toBeNull();
@@ -37,16 +54,16 @@ describe("redactForLog", () => {
 
   it("redacts values under sensitive keys but keeps other values", () => {
     const input = { token: "abc", name: "user", nested: { access_token: "def", count: 5 } };
-    const output = redactForLog(input) as Record<string, unknown>;
+    const output = asRecord(redactForLog(input));
     expect(output.token).toBe("<redacted>");
     expect(output.name).toBe("user");
-    expect((output.nested as Record<string, unknown>).access_token).toBe("<redacted>");
-    expect((output.nested as Record<string, unknown>).count).toBe(5);
+    expect(asRecord(output.nested).access_token).toBe("<redacted>");
+    expect(asRecord(output.nested).count).toBe(5);
   });
 
   it("redacts keys that partially match sensitive names", () => {
     const input = { my_token_value: "secret", api_key_primary: "key123", client_secret: "shh" };
-    const output = redactForLog(input) as Record<string, unknown>;
+    const output = asRecord(redactForLog(input));
     expect(output.my_token_value).toBe("<redacted>");
     expect(output.api_key_primary).toBe("<redacted>");
     expect(output.client_secret).toBe("<redacted>");
@@ -78,30 +95,27 @@ describe("redactForLog", () => {
   });
 
   it("renders Errors as name, message and stack", () => {
-    const output = redactForLog(new Error("boom")) as Record<string, unknown>;
+    const output = asRecord(redactForLog(new Error("boom")));
     expect(output.name).toBe("Error");
     expect(output.message).toBe("boom");
     expect(String(output.stack)).toContain("boom");
   });
 
   it("masks secrets inside Error messages and stacks", () => {
-    const output = redactForLog(new Error(`Bearer ${JWT}`)) as Record<string, unknown>;
+    const output = asRecord(redactForLog(new Error(`Bearer ${JWT}`)));
     expect(String(output.message)).not.toContain(JWT);
     expect(String(output.stack)).not.toContain(JWT);
   });
 
   it("renders nested Errors", () => {
-    const output = redactForLog({ cause: new Error("boom") }) as Record<string, unknown>;
-    const cause = output.cause as Record<string, unknown>;
+    const output = asRecord(redactForLog({ cause: new Error("boom") }));
+    const cause = asRecord(output.cause);
     expect(cause.name).toBe("Error");
     expect(cause.message).toBe("boom");
   });
 
   it("includes own enumerable properties on Errors", () => {
-    const output = redactForLog(new CustomError("subprocess failed", "cli stderr", 3)) as Record<
-      string,
-      unknown
-    >;
+    const output = asRecord(redactForLog(new CustomError("subprocess failed", "cli stderr", 3)));
     expect(output.name).toBe("CustomError");
     expect(output.message).toBe("subprocess failed");
     expect(String(output.stack)).toContain("subprocess failed");
@@ -110,31 +124,29 @@ describe("redactForLog", () => {
   });
 
   it("masks secrets and sensitive keys in Error properties", () => {
-    const withSecret = redactForLog(new CustomError("failed", `Bearer ${JWT}`, 1)) as Record<
-      string,
-      unknown
-    >;
+    const withSecret = asRecord(redactForLog(new CustomError("failed", `Bearer ${JWT}`, 1)));
     expect(String(withSecret.stderr)).not.toContain(JWT);
 
-    const error = new Error("boom") as Error & Record<string, unknown>;
-    error.access_token = "secret";
-    error.payload = { token: "abc", name: "user" };
-    const output = redactForLog(error) as Record<string, unknown>;
+    const error = Object.assign(new Error("boom"), {
+      access_token: "secret",
+      payload: { token: "abc", name: "user" },
+    });
+    const output = asRecord(redactForLog(error));
     expect(output.access_token).toBe("<redacted>");
-    expect((output.payload as Record<string, unknown>).token).toBe("<redacted>");
-    expect((output.payload as Record<string, unknown>).name).toBe("user");
+    expect(asRecord(output.payload).token).toBe("<redacted>");
+    expect(asRecord(output.payload).name).toBe("user");
   });
 
   it("handles circular references on Errors", () => {
-    const error = new CustomError("boom", "stderr", 1) as CustomError & { self?: unknown };
+    const error: CustomError & { self?: unknown } = new CustomError("boom", "stderr", 1);
     error.self = error;
-    const output = redactForLog(error) as Record<string, unknown>;
+    const output = asRecord(redactForLog(error));
     expect(output.self).toBe("[Circular]");
   });
 
   it("redacts items in arrays recursively", () => {
     const input = [{ token: "abc" }, { name: "kept" }];
-    const output = redactForLog(input) as Array<Record<string, unknown>>;
+    const output = asRecordArray(redactForLog(input));
     expect(output[0].token).toBe("<redacted>");
     expect(output[1].name).toBe("kept");
   });
@@ -142,7 +154,7 @@ describe("redactForLog", () => {
   it("handles circular references", () => {
     const input: Record<string, unknown> = { name: "kept" };
     input.self = input;
-    const output = redactForLog(input) as Record<string, unknown>;
+    const output = asRecord(redactForLog(input));
     expect(output.name).toBe("kept");
     expect(output.self).toBe("[Circular]");
   });
@@ -157,7 +169,7 @@ describe("redactForLog", () => {
 
   it("preserves non-string primitives in objects", () => {
     const input = { used_percent: 42, allowed: true };
-    const output = redactForLog(input) as Record<string, unknown>;
+    const output = asRecord(redactForLog(input));
     expect(output.used_percent).toBe(42);
     expect(output.allowed).toBe(true);
   });

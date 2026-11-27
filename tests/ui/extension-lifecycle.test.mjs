@@ -2,6 +2,8 @@ import { test } from "node:test";
 
 import { assert, load, timers } from "../helpers/node-harness.mjs";
 
+function StubExtension() {}
+
 function indicator() {
   const glib = timers();
   glib.getenv = () => null;
@@ -16,7 +18,7 @@ function indicator() {
         }
       },
     },
-    Extension: class {},
+    Extension: StubExtension,
     GLib: glib,
     PROVIDER_NAMES: [],
     normalizeProvidersOrder: (a) => a,

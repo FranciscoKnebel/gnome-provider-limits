@@ -337,7 +337,7 @@ export class HttpClient {
 
   private _decodeBytes(bytes: GLib.Bytes | Uint8Array | null): string {
     if (!bytes) return "";
-    const data = bytes instanceof Uint8Array ? bytes : (bytes as GLib.Bytes).toArray();
+    const data = bytes instanceof Uint8Array ? bytes : bytes.toArray();
     return new TextDecoder().decode(data);
   }
 

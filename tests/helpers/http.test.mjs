@@ -2,6 +2,8 @@ import { test } from "node:test";
 
 import { assert, gio, load, timers } from "./node-harness.mjs";
 
+function StubClass() {}
+
 function httpHarness() {
   const glib = timers();
   glib.get_monotonic_time = () => 0;
@@ -11,7 +13,7 @@ function httpHarness() {
     {
       Gio: gio,
       GLib: glib,
-      Soup: { Session: class {}, Message: { new: () => ({}) } },
+      Soup: { Session: StubClass, Message: { new: () => ({}) } },
       RETRY_MAX_ATTEMPTS: 3,
       RETRY_DEADLINE_MS: 15000,
       nextRetry: load("src/helpers/retry.ts", "nextRetry", {
@@ -83,7 +85,7 @@ test("HTTP error construction through actual Codex Reader logging excludes provi
   const K = load("src/readers/codex.ts", "CodexReader", {
     CODEX_FIELDS: [],
     Gio: gio,
-    BaseReader: class {},
+    BaseReader: StubClass,
     HttpError,
     TokenError,
     ...logs,

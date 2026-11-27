@@ -45,7 +45,7 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 }
 
 function asWindow(value: unknown): CodexRateLimitWindow | null {
-  return isRecord(value) ? (value as CodexRateLimitWindow) : null;
+  return isRecord(value) ? value : null;
 }
 
 export function normalizeCodexResetCredits(value: unknown): CodexResetCredits | null {

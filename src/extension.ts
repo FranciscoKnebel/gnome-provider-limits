@@ -40,6 +40,10 @@ function assertNever(value: never): never {
   throw new Error(`Unexpected provider: ${String(value)}`);
 }
 
+function isRealMenu(menu: PanelMenu.Button["menu"]): menu is PopupMenu.PopupMenu {
+  return "addMenuItem" in menu;
+}
+
 const ProviderLimitsIndicator = GObject.registerClass(
   class ProviderLimitsIndicator extends PanelMenu.Button {
     declare _extension: Extension;
@@ -100,8 +104,9 @@ const ProviderLimitsIndicator = GObject.registerClass(
 
       // PanelMenu.Button always creates a real PopupMenu (only PopupDummyMenu when
       // dontCreateMenu=true, which we never pass). The type is a union though, so
-      // narrow to PopupMenu.PopupMenu before using addMenuItem.
-      const menu = this.menu as PopupMenu.PopupMenu;
+      // narrow it before using addMenuItem.
+      const menu = this.menu;
+      if (!isRealMenu(menu)) throw new Error("PanelWidget requires a PopupMenu");
       this._panel = new PanelWidget(
         this._settings,
         () => {

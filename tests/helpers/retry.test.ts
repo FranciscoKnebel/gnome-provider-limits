@@ -6,6 +6,12 @@ import {
   RETRY_MAX_ATTEMPTS,
 } from "../../src/helpers/retry.js";
 
+function expectDelay(delayMs: number | null, minMs: number, maxMs?: number): void {
+  if (delayMs === null) throw new Error("expected a retry delay");
+  expect(delayMs).toBeGreaterThanOrEqual(minMs);
+  if (maxMs !== undefined) expect(delayMs).toBeLessThan(maxMs);
+}
+
 describe("nextRetry defaults", () => {
   it("uses documented defaults", () => {
     expect(RETRY_MAX_ATTEMPTS).toBe(3);
@@ -47,8 +53,7 @@ describe("nextRetry", () => {
     });
 
     expect(delayMs).not.toBeNull();
-    expect(delayMs as number).toBeGreaterThanOrEqual(2000);
-    expect(delayMs as number).toBeLessThan(2500);
+    expectDelay(delayMs, 2000, 2500);
   });
 
   it("treats a zero Retry-After as no delay beyond jitter", () => {
@@ -68,10 +73,8 @@ describe("nextRetry", () => {
     const first = nextRetry({ attempt: 1, statusCode: 500, elapsedMs: 0, deadlineMs: 15_000 });
     const second = nextRetry({ attempt: 2, statusCode: 500, elapsedMs: 0, deadlineMs: 15_000 });
 
-    expect(first.delayMs as number).toBeGreaterThanOrEqual(1000);
-    expect(first.delayMs as number).toBeLessThan(1500);
-    expect(second.delayMs as number).toBeGreaterThanOrEqual(2000);
-    expect(second.delayMs as number).toBeLessThan(2500);
+    expectDelay(first.delayMs, 1000, 1500);
+    expectDelay(second.delayMs, 2000, 2500);
   });
 
   it("retries network errors with backoff", () => {
@@ -82,8 +85,7 @@ describe("nextRetry", () => {
       deadlineMs: 15_000,
     });
 
-    expect(delayMs as number).toBeGreaterThanOrEqual(1000);
-    expect(delayMs as number).toBeLessThan(1500);
+    expectDelay(delayMs, 1000, 1500);
   });
 
   it("does not retry 4xx other than 429", () => {
@@ -134,8 +136,7 @@ describe("nextRetry", () => {
         elapsedMs: 0,
         deadlineMs: 15_000,
       });
-      expect(delayMs as number).toBeGreaterThanOrEqual(2000);
-      expect(delayMs as number).toBeLessThan(2500);
+      expectDelay(delayMs, 2000, 2500);
     }
   });
 });

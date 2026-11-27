@@ -34,6 +34,24 @@ interface OpenCodeCredential {
 
 Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish");
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
+function firstRecord(value: unknown): Record<string, unknown> | null {
+  if (!Array.isArray(value)) return null;
+  const first: unknown = value[0];
+  return isRecord(first) ? first : null;
+}
+
+function asDbRow(row: Record<string, unknown> | null): OpenCodeDbRow | null {
+  if (!row) return null;
+  return {
+    sessions_count: typeof row.sessions_count === "number" ? row.sessions_count : null,
+    total_cost: typeof row.total_cost === "number" ? row.total_cost : null,
+  };
+}
+
 export class OpenCodeReader extends BaseReader<"opencode"> {
   private _http: HttpClient | null = null;
   private _cancellable: Gio.Cancellable | null = null;
@@ -131,8 +149,8 @@ export class OpenCodeReader extends BaseReader<"opencode"> {
     });
     if (!Array.isArray(rows)) return null;
     for (const row of rows) {
-      if (typeof row !== "object" || row === null || Array.isArray(row)) continue;
-      const value = (row as Record<string, unknown>).value;
+      if (!isRecord(row)) continue;
+      const value = row.value;
       if (typeof value !== "string") continue;
       const token = parseOpenCodeCredential(value);
       if (token) return token;
@@ -199,10 +217,8 @@ export class OpenCodeReader extends BaseReader<"opencode"> {
         { timeoutSeconds: 5 },
       ),
     ]);
-    const sessionRow = Array.isArray(sessions)
-      ? (sessions[0] as OpenCodeDbRow | undefined)
-      : undefined;
-    const costRow = Array.isArray(costs) ? (costs[0] as OpenCodeDbRow | undefined) : undefined;
+    const sessionRow = asDbRow(firstRecord(sessions));
+    const costRow = asDbRow(firstRecord(costs));
     if (!sessionRow && !costRow) return null;
     return normalizeOpenCodeDbRow({
       sessions_count: sessionRow?.sessions_count ?? null,

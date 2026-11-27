@@ -35,6 +35,17 @@ function makeRpcHeaders(token: string): Record<string, string> {
   };
 }
 
+function hasErrorMatches(
+  value: unknown,
+): value is { matches(domain: unknown, code: number): boolean } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "matches" in value &&
+    typeof value.matches === "function"
+  );
+}
+
 export class CursorReader extends BaseReader<"cursor"> {
   private _http: HttpClient | null = null;
   private _destroyed = false;
@@ -51,6 +62,12 @@ export class CursorReader extends BaseReader<"cursor"> {
 
   private _assertAlive(): void {
     if (this._destroyed) throw new Error("Cursor Reader destroyed");
+  }
+
+  private _getHttp(): HttpClient | null {
+    if (this._destroyed) return null;
+    if (!this._http) this._http = new HttpClient();
+    return this._http;
   }
 
   protected async _readKeyringCredential(cancellable: Gio.Cancellable): Promise<string | null> {
@@ -71,8 +88,7 @@ export class CursorReader extends BaseReader<"cursor"> {
       this._assertAlive();
       if (cancellable.is_cancelled()) return null;
       const isNotFound =
-        typeof (error as { matches?: unknown })?.matches === "function" &&
-        (error as GLib.Error).matches(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND);
+        hasErrorMatches(error) && error.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND);
       if (warnIfMissing || !isNotFound) {
         logWarn("cursor auth file unavailable", error);
       }
@@ -141,7 +157,9 @@ export class CursorReader extends BaseReader<"cursor"> {
     pathsTried: string[],
   ): Promise<string | null> {
     pathsTried.push("token-exchange");
-    const response = await this._http!.postJson(
+    const http = this._getHttp();
+    if (!http) return null;
+    const response = await http.postJson(
       CURSOR_EXCHANGE_URL,
       {},
       {
@@ -177,10 +195,17 @@ export class CursorReader extends BaseReader<"cursor"> {
       );
     }
 
-    if (!this._http) this._http = new HttpClient();
+    const http = this._getHttp();
+    if (!http) return cancelledResult();
 
     let bearerToken = auth.accessToken;
-    if (!bearerToken && auth.apiKey) {
+    if (!bearerToken) {
+      if (!auth.apiKey) {
+        return this._lastGoodOrError(
+          _("Cursor: login rejected. Run `cursor-agent login` to sign in again."),
+          pathsTried,
+        );
+      }
       try {
         bearerToken = await this._exchangeApiKey(auth.apiKey, cancellable, pathsTried);
       } catch (error) {
@@ -206,11 +231,11 @@ export class CursorReader extends BaseReader<"cursor"> {
     pathsTried.push("usage-api");
     let payload: unknown;
     try {
-      payload = await this._http.postJson(
+      payload = await http.postJson(
         CURSOR_USAGE_URL,
         {},
         {
-          headers: makeRpcHeaders(bearerToken!),
+          headers: makeRpcHeaders(bearerToken),
           cancellable,
           noRedirect: true,
         },
@@ -229,7 +254,7 @@ export class CursorReader extends BaseReader<"cursor"> {
             );
           }
           bearerToken = exchanged;
-          payload = await this._http.postJson(
+          payload = await http.postJson(
             CURSOR_USAGE_URL,
             {},
             {
@@ -274,11 +299,11 @@ export class CursorReader extends BaseReader<"cursor"> {
     let planResetAt: number | null = null;
     pathsTried.push("plan-api");
     try {
-      const planPayload = await this._http.postJson(
+      const planPayload = await http.postJson(
         CURSOR_PLAN_URL,
         {},
         {
-          headers: makeRpcHeaders(bearerToken!),
+          headers: makeRpcHeaders(bearerToken),
           cancellable,
           noRedirect: true,
         },

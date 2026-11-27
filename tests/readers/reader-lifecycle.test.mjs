@@ -2,6 +2,8 @@ import { test } from "node:test";
 
 import { assert, gio, load } from "../helpers/node-harness.mjs";
 
+class MockTokenError extends Error {}
+
 for (const phase of ["auth", "billing", "settings"])
   test(`Grok destruction during ${phase} prevents further requests`, async () => {
     let release;
@@ -53,7 +55,7 @@ for (const phase of ["auth", "billing", "settings"])
       normalizeGrokUsagePayload: () => ({ usedPercent: 1 }),
       logWarn() {},
       _: (s) => s,
-      TokenError: class {},
+      TokenError: MockTokenError,
     });
     const reader = new K();
     reader.settings = { get_string: () => "" };
@@ -135,7 +137,7 @@ for (const phase of ["auth", "exchange", "usage", "plan"])
       FieldStatus: { OK: "ok", UNAVAILABLE: "unavailable", NOT_APPLICABLE: "not_applicable" },
       logWarn() {},
       _: (s) => s,
-      TokenError: class {},
+      TokenError: MockTokenError,
     });
     const reader = new K();
     reader.settings = { get_string: () => "/synthetic/auth.json" };
@@ -264,7 +266,7 @@ for (const phase of ["auth", "refresh", "quota", "tier"])
       FieldStatus: { OK: "ok", UNAVAILABLE: "unavailable", NOT_APPLICABLE: "not_applicable" },
       logWarn() {},
       _: (s) => s,
-      TokenError: class {},
+      TokenError: MockTokenError,
     });
     const reader = new K();
     reader.settings = { get_string: () => "/synthetic/oauth_creds.json" };

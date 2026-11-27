@@ -45,7 +45,7 @@ class LastGoodTestReader extends BaseReader {
 }
 
 describe("last-known-good", () => {
-  const settings = {} as Gio.Settings;
+  const settings: Gio.Settings = Object.create(null);
   const field: FieldResult = {
     name: "used_percent_primary",
     value: 42,

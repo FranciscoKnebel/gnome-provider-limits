@@ -353,8 +353,8 @@ export async function run() {
 
   // ---------- Per-provider emitted-name contract ----------
   const assertContract = (provider, fields) => {
-    const declared = PROVIDER_FIELDS[provider].map((def) => def.name).sort();
-    const emitted = fields.map((field) => field.name).sort();
+    const declared = PROVIDER_FIELDS[provider].map((def) => def.name).toSorted();
+    const emitted = fields.map((field) => field.name).toSorted();
     assertDeepEqual(emitted, declared, `${provider} emitted field names`);
   };
 

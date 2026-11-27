@@ -25,6 +25,10 @@ const CODEX_RESET_CREDITS_URL = "https://chatgpt.com/backend-api/wham/rate-limit
 
 Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish");
 
+function isCodexLogRow(value: unknown): value is CodexLogRow {
+  return value !== null && typeof value === "object" && !Array.isArray(value);
+}
+
 export class CodexReader extends BaseReader<"codex"> {
   private _http: HttpClient | null = null;
   private _cancellable: Gio.Cancellable | null = null;
@@ -174,8 +178,11 @@ export class CodexReader extends BaseReader<"codex"> {
       { timeoutSeconds: 5 },
     );
 
-    const firstRow = Array.isArray(rows) ? (rows[0] as CodexLogRow | undefined) : undefined;
-    const body = firstRow?.feedback_log_body;
+    const firstRow: unknown = Array.isArray(rows) ? rows[0] : undefined;
+    const body =
+      isCodexLogRow(firstRow) && typeof firstRow.feedback_log_body === "string"
+        ? firstRow.feedback_log_body
+        : null;
     if (!body) return null;
 
     return parseCodexLogBody(body);

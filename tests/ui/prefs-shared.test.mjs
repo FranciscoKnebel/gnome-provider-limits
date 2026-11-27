@@ -4,6 +4,10 @@ import { assert, load } from "../helpers/node-harness.mjs";
 
 const { clearChildren } = load("src/helpers/children.ts", "({ clearChildren })");
 
+function ActionRow(props) {
+  Object.assign(this, props);
+}
+
 class ListBoxStub {
   constructor() {
     this.children = [];
@@ -65,11 +69,7 @@ function createHarness(initialValues) {
   };
   const { buildReorderableList } = load("src/ui/prefs/shared.ts", "({ buildReorderableList })", {
     Adw: {
-      ActionRow: class {
-        constructor(props) {
-          Object.assign(this, props);
-        }
-      },
+      ActionRow,
     },
     Gdk: {},
     Gio: {},

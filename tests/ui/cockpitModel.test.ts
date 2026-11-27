@@ -277,10 +277,10 @@ describe("meterFromViews", () => {
         locale: "en",
         t: (message) => message,
       });
-      expect(model).toBeDefined();
-      expect(model!.facts.meter.isError).toBeTrue();
-      expect(model!.facts.meter.hasValue).toBeFalse();
-      expect(model!.facts.meter.tone).toBe("critical");
+      if (!model) throw new Error("expected a model for codex");
+      expect(model.facts.meter.isError).toBeTrue();
+      expect(model.facts.meter.hasValue).toBeFalse();
+      expect(model.facts.meter.tone).toBe("critical");
     }
   });
 });

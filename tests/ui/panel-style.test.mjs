@@ -2,6 +2,10 @@ import { test } from "node:test";
 
 import { assert, load } from "../helpers/node-harness.mjs";
 
+const openPreferences = () => {};
+const onRefresh = () => {};
+const closeMenu = () => {};
+
 test("Panel swaps style sections on setting change and forwards render and running state", () => {
   class Actor {
     children = [];
@@ -114,9 +118,6 @@ test("Panel swaps style sections on setting change and forwards render and runni
   // Style ownership is central: the indicator re-renders on key change, so the
   // panel observes a new style through render(), not through its own signal handler.
   const fireStyleChange = () => panel.render(view, 100);
-  const openPreferences = () => {};
-  const onRefresh = () => {};
-  const closeMenu = () => {};
   const panel = new K(settings, openPreferences, onRefresh, closeMenu);
   assert.equal(created.length, 1);
   assert.ok(created[0] instanceof GaugesStub);
