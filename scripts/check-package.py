@@ -6,6 +6,10 @@ from zipfile import ZipFile
 
 path = Path('dist/gnome-provider-limits@franciscoknebel.com.shell-extension.zip')
 with ZipFile(path) as bundle:
+    entries = set(bundle.namelist())
+    assert 'schemas/gschemas.compiled' not in entries
+    assert 'ui/displayStatus.js' not in entries
+    assert 'ui/gaugeTypes.js' not in entries
     languages = json.loads(bundle.read('locale/languages.json'))
     for language in languages:
         catalog_path = f"locale/{language['code']}/LC_MESSAGES/gnome-provider-limits.mo"

@@ -66,9 +66,6 @@ const ProviderLimitsIndicator = GObject.registerClass(
       this._extension = extension;
       this._settings = extension.getSettings();
 
-      // Load only this extension’s catalog before constructing translated UI.
-      this._applyLanguageOverride();
-
       super._init(0.5, _("Provider Limits"));
 
       this._readers = new Map();
@@ -163,14 +160,15 @@ const ProviderLimitsIndicator = GObject.registerClass(
       }
       this._settingsChangedIds.push(
         this._settings.connect(`changed::language`, () => {
-          this._applyLanguageOverride();
-          onRender();
+          void this._applyLanguageOverride()
+            .then(onRender)
+            .catch((error: unknown) => logError("failed to update extension language", error));
         }),
       );
     }
 
-    private _applyLanguageOverride(): void {
-      configureTranslations(this._extension.path, this._settings.get_string("language"));
+    private _applyLanguageOverride(): Promise<void> {
+      return configureTranslations(this._extension.path, this._settings.get_string("language"));
     }
 
     private _onProviderEnabledChanged(name: ProviderName): void {
@@ -415,16 +413,44 @@ export default class ProviderLimitsExtension extends Extension {
   private _indicator: InstanceType<typeof ProviderLimitsIndicator> | null = null;
   private _settings: Gio.Settings | null = null;
   private _positionChangedId = 0;
+  private _startupLanguageChangedId = 0;
+  private _enableGeneration = 0;
 
   enable(): void {
-    this._selfHealLanguage();
-    this._settings = this.getSettings();
-    this._indicator = new ProviderLimitsIndicator(this);
-    this._registerIndicator(this._settings.get_string("status-bar-position"));
-    this._positionChangedId = this._settings.connect("changed::status-bar-position", () => {
-      if (!this._indicator || !this._settings) return;
-      Reflect.deleteProperty(Main.panel.statusArea, PROVIDER_LIMITS_UUID);
-      this._registerIndicator(this._settings.get_string("status-bar-position"));
+    const settings = this.getSettings();
+    this._selfHealLanguage(settings);
+    this._settings = settings;
+    const generation = ++this._enableGeneration;
+    let languageChangedDuringStartup = false;
+    this._startupLanguageChangedId = settings.connect("changed::language", () => {
+      languageChangedDuringStartup = true;
+    });
+
+    const initialize = async () => {
+      do {
+        languageChangedDuringStartup = false;
+        await configureTranslations(this.path, settings.get_string("language"));
+      } while (languageChangedDuringStartup && generation === this._enableGeneration);
+
+      if (generation !== this._enableGeneration || this._settings !== settings) return;
+      settings.disconnect(this._startupLanguageChangedId);
+      this._startupLanguageChangedId = 0;
+      this._indicator = new ProviderLimitsIndicator(this);
+      this._registerIndicator(settings.get_string("status-bar-position"));
+      this._positionChangedId = settings.connect("changed::status-bar-position", () => {
+        if (!this._indicator || !this._settings) return;
+        Reflect.deleteProperty(Main.panel.statusArea, PROVIDER_LIMITS_UUID);
+        this._registerIndicator(this._settings.get_string("status-bar-position"));
+      });
+    };
+    void initialize().catch((error: unknown) => {
+      if (generation !== this._enableGeneration) return;
+      if (this._startupLanguageChangedId) {
+        settings.disconnect(this._startupLanguageChangedId);
+        this._startupLanguageChangedId = 0;
+      }
+      this._settings = null;
+      logError("failed to initialize provider limits extension", error);
     });
   }
 
@@ -441,8 +467,7 @@ export default class ProviderLimitsExtension extends Extension {
     );
   }
 
-  private _selfHealLanguage(): void {
-    const settings = this.getSettings();
+  private _selfHealLanguage(settings: Gio.Settings): void {
     const lang = settings.get_string("language");
     if (!lang || !lang.trim()) return;
     const moPath = GLib.build_filenamev([
@@ -460,6 +485,11 @@ export default class ProviderLimitsExtension extends Extension {
   }
 
   disable(): void {
+    this._enableGeneration++;
+    if (this._settings && this._startupLanguageChangedId) {
+      this._settings.disconnect(this._startupLanguageChangedId);
+    }
+    this._startupLanguageChangedId = 0;
     if (this._settings && this._positionChangedId) {
       this._settings.disconnect(this._positionChangedId);
     }

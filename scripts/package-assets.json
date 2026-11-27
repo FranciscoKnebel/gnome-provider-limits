@@ -1,0 +1,23 @@
+{
+  "resetDirectories": ["dist/icons", "dist/po", "dist/schemas", "dist/src", "dist/tests"],
+  "createDirectories": ["dist/schemas"],
+  "copy": [
+    {
+      "source": "src/metadata.json",
+      "destination": "dist/metadata.json"
+    },
+    {
+      "source": "src/stylesheet.css",
+      "destination": "dist/stylesheet.css"
+    },
+    {
+      "source": "src/icons",
+      "destination": "dist/icons"
+    },
+    {
+      "source": "src/schemas/org.gnome.shell.extensions.gnome-provider-limits.gschema.xml",
+      "destination": "dist/schemas/org.gnome.shell.extensions.gnome-provider-limits.gschema.xml"
+    }
+  ],
+  "remove": ["dist/icons/.gitkeep", "dist/ui/displayStatus.js", "dist/ui/gaugeTypes.js"]
+}

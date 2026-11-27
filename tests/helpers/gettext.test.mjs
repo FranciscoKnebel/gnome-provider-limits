@@ -1,27 +1,33 @@
-import { readFileSync } from "node:fs";
+import { readFile } from "node:fs/promises";
 import { test } from "node:test";
 
 import { assert, load } from "./node-harness.mjs";
 
-test("Language override, system selection, self-heal and disable preserve shared gettext state", () => {
+test("Language override, system selection, self-heal and disable preserve shared gettext state", async () => {
   const env = { LANGUAGE: "de:en" };
   let domain = "gnome-shell";
   const parseCatalog = load("src/helpers/catalog.ts", "parseCatalog");
   const translations = load("src/helpers/gettext.ts", "({configureTranslations, gettext})", {
     GLib: {
       get_language_names: () => ["de", "en"],
-      file_get_contents: (path) => [true, readFileSync(path)],
       build_filenamev: (parts) => parts.join("/"),
+    },
+    Gio: {
+      _promisify() {},
+      File: {
+        prototype: {},
+        new_for_path: (path) => ({ load_contents_async: async () => [await readFile(path)] }),
+      },
     },
     GETTEXT_DOMAIN: "gnome-provider-limits",
     parseCatalog,
   });
   const unrelated = () => `${env.LANGUAGE}:${domain}`;
   const before = unrelated();
-  translations.configureTranslations("dist", "pt_BR");
+  await translations.configureTranslations("dist", "pt_BR");
   assert.equal(translations.gettext("Settings"), "Configurações");
   assert.equal(unrelated(), before);
-  translations.configureTranslations("dist", "");
+  await translations.configureTranslations("dist", "");
   assert.equal(translations.gettext("Settings"), "Einstellungen");
   assert.equal(unrelated(), before);
   const K = load("src/extension.ts", "ProviderLimitsExtension", {
@@ -44,7 +50,7 @@ test("Language override, system selection, self-heal and disable preserve shared
       selected = value;
     },
   });
-  extension._selfHealLanguage();
+  extension._selfHealLanguage(extension.getSettings());
   extension.disable();
   assert.equal(selected, "");
   assert.equal(unrelated(), before);

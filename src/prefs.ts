@@ -8,10 +8,21 @@ import { ProviderLimitsPreferencesPage, type LanguageEntry } from "./ui/prefs/ma
 import { ProvidersPage } from "./ui/prefs/provider-page.js";
 import { isDisposablePage } from "./ui/prefs/shared.js";
 
-function loadLanguages(extensionPath: string): LanguageEntry[] {
+interface PreferencesWindowState {
+  languageChangedId: number;
+  languageRebuildId: number | null;
+  pages: Adw.PreferencesPage[];
+  destroyed: boolean;
+  building: boolean;
+  languageChangedDuringBuild: boolean;
+}
+
+Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish");
+
+async function loadLanguages(extensionPath: string): Promise<LanguageEntry[]> {
   try {
     const path = GLib.build_filenamev([extensionPath, "locale", "languages.json"]);
-    const [, contents] = GLib.file_get_contents(path);
+    const [contents] = await Gio.File.new_for_path(path).load_contents_async(null);
     const text = new TextDecoder().decode(contents);
     const parsed = JSON.parse(text);
     if (!Array.isArray(parsed)) return [];
@@ -29,17 +40,11 @@ function loadLanguages(extensionPath: string): LanguageEntry[] {
 }
 
 export default class ProviderLimitsPreferences extends ExtensionPreferences {
-  private _languageChangedId = 0;
-  private _languageRebuildId: number | null = null;
-  private _pages: Adw.PreferencesPage[] = [];
-  private _windowDestroyed = false;
-  private _windowGeneration = 0;
-
-  private _removeAllPages(window: Adw.PreferencesWindow): void {
-    for (const page of this._pages) {
+  private _removeAllPages(window: Adw.PreferencesWindow, state: PreferencesWindowState): void {
+    for (const page of state.pages) {
       this._disposePage(window, page);
     }
-    this._pages = [];
+    state.pages = [];
   }
 
   private _disposePage(window: Adw.PreferencesWindow, page: Adw.PreferencesPage): void {
@@ -47,49 +52,62 @@ export default class ProviderLimitsPreferences extends ExtensionPreferences {
     window.remove(page);
   }
 
-  private _rebuildWindow(window: Adw.PreferencesWindow, settings: Gio.Settings): void {
-    this._removeAllPages(window);
-    this._buildWindow(window, settings);
+  private async _rebuildWindow(
+    window: Adw.PreferencesWindow,
+    settings: Gio.Settings,
+    state: PreferencesWindowState,
+  ): Promise<void> {
+    state.building = true;
+    this._removeAllPages(window, state);
+    await this._buildWindow(window, settings, state);
+    if (state.destroyed) return;
+    state.building = false;
+    this._schedulePendingLanguageChange(window, settings, state);
   }
 
-  private _buildWindow(window: Adw.PreferencesWindow, settings: Gio.Settings): void {
-    configureTranslations(this.path, settings.get_string("language"));
+  private async _buildWindow(
+    window: Adw.PreferencesWindow,
+    settings: Gio.Settings,
+    state: PreferencesWindowState,
+  ): Promise<void> {
+    await configureTranslations(this.path, settings.get_string("language"));
+    if (state.destroyed) return;
 
-    const mainPage = new ProviderLimitsPreferencesPage(settings, loadLanguages(this.path));
+    const languages = await loadLanguages(this.path);
+    if (state.destroyed) return;
+
+    const mainPage = new ProviderLimitsPreferencesPage(settings, languages);
     window.add(mainPage);
-    this._pages.push(mainPage);
+    state.pages.push(mainPage);
 
     const providersPage = new ProvidersPage(settings);
     window.add(providersPage);
-    this._pages.push(providersPage);
+    state.pages.push(providersPage);
   }
 
-  fillPreferencesWindow(window: Adw.PreferencesWindow): Promise<void> {
+  async fillPreferencesWindow(window: Adw.PreferencesWindow): Promise<void> {
     const settings = this.getSettings();
-    this._windowDestroyed = false;
-    const generation = ++this._windowGeneration;
-
-    this._buildWindow(window, settings);
-
-    if (this._languageChangedId) {
-      settings.disconnect(this._languageChangedId);
-    }
-    this._languageChangedId = settings.connect("changed::language", () => {
-      this._scheduleWindowRebuild(window, settings);
-    });
+    const state: PreferencesWindowState = {
+      languageChangedId: 0,
+      languageRebuildId: null,
+      pages: [],
+      destroyed: false,
+      building: true,
+      languageChangedDuringBuild: false,
+    };
 
     const cleanup = () => {
-      if (this._windowDestroyed || generation !== this._windowGeneration) return;
-      this._windowDestroyed = true;
-      if (this._languageRebuildId !== null) {
-        GLib.Source.remove(this._languageRebuildId);
-        this._languageRebuildId = null;
+      if (state.destroyed) return;
+      state.destroyed = true;
+      if (state.languageRebuildId !== null) {
+        GLib.Source.remove(state.languageRebuildId);
+        state.languageRebuildId = null;
       }
-      if (this._languageChangedId) {
-        settings.disconnect(this._languageChangedId);
-        this._languageChangedId = 0;
+      if (state.languageChangedId) {
+        settings.disconnect(state.languageChangedId);
+        state.languageChangedId = 0;
       }
-      this._removeAllPages(window);
+      this._removeAllPages(window, state);
     };
     window.connect("close-request", () => {
       cleanup();
@@ -97,18 +115,46 @@ export default class ProviderLimitsPreferences extends ExtensionPreferences {
     });
     window.connect("destroy", cleanup);
 
-    return Promise.resolve();
+    state.languageChangedId = settings.connect("changed::language", () => {
+      if (state.destroyed) return;
+      if (state.building) {
+        state.languageChangedDuringBuild = true;
+        return;
+      }
+      this._scheduleWindowRebuild(window, settings, state);
+    });
+
+    await this._buildWindow(window, settings, state);
+    if (state.destroyed) return;
+    state.building = false;
+    this._schedulePendingLanguageChange(window, settings, state);
   }
 
-  private _scheduleWindowRebuild(window: Adw.PreferencesWindow, settings: Gio.Settings): void {
-    if (this._windowDestroyed) return;
-    if (this._languageRebuildId !== null) {
-      GLib.Source.remove(this._languageRebuildId);
+  private _schedulePendingLanguageChange(
+    window: Adw.PreferencesWindow,
+    settings: Gio.Settings,
+    state: PreferencesWindowState,
+  ): void {
+    if (!state.languageChangedDuringBuild || state.destroyed) return;
+    state.languageChangedDuringBuild = false;
+    this._scheduleWindowRebuild(window, settings, state);
+  }
+
+  private _scheduleWindowRebuild(
+    window: Adw.PreferencesWindow,
+    settings: Gio.Settings,
+    state: PreferencesWindowState,
+  ): void {
+    if (state.destroyed) return;
+    if (state.languageRebuildId !== null) {
+      GLib.Source.remove(state.languageRebuildId);
     }
-    this._languageRebuildId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
-      this._languageRebuildId = null;
-      if (this._windowDestroyed) return GLib.SOURCE_REMOVE;
-      this._rebuildWindow(window, settings);
+    state.languageRebuildId = GLib.idle_add(GLib.PRIORITY_DEFAULT_IDLE, () => {
+      state.languageRebuildId = null;
+      if (state.destroyed) return GLib.SOURCE_REMOVE;
+      void this._rebuildWindow(window, settings, state).catch((error: unknown) => {
+        log(`gnome-provider-limits: failed to rebuild preferences window: ${String(error)}`);
+      });
       return GLib.SOURCE_REMOVE;
     });
   }

@@ -11,12 +11,12 @@ export async function run() {
   const unrelated = Gettext.dgettext("gnome-shell", "Settings");
   const results = [];
   try {
-    configureTranslations(path, "pt_BR");
+    await configureTranslations(path, "pt_BR");
     assertEqual(gettext("Settings"), "Configurações");
     assertEqual(GLib.getenv("LANGUAGE"), environment);
     assertEqual(Gettext.gettext("Settings"), defaultLookup);
     assertEqual(Gettext.dgettext("gnome-shell", "Settings"), unrelated);
-    configureTranslations(path, "");
+    await configureTranslations(path, "");
     assertEqual(GLib.getenv("LANGUAGE"), environment);
     assertEqual(Gettext.gettext("Settings"), defaultLookup);
     assertEqual(Gettext.dgettext("gnome-shell", "Settings"), unrelated);
