@@ -56,6 +56,58 @@ function resetTextFor(model: ProviderDisplayModel, viewName: string): string | u
     .resetText;
 }
 
+function withoutReset(name: string, type: FieldDef["type"]): FieldDef {
+  return {
+    name,
+    type,
+    label: name,
+    category: "limit",
+  };
+}
+
+function mockActor() {
+  const classes = new Set<string>(["existing"]);
+  return {
+    classes,
+    add_style_class_name: (cls: string) => classes.add(cls),
+    remove_style_class_name: (cls: string) => classes.delete(cls),
+  };
+}
+
+function statusFieldsFor(provider: ProviderName): readonly string[] {
+  return provider === "codex"
+    ? ["used_percent_primary"]
+    : provider === "claude"
+      ? ["used_percent_session", "reset_at_session"]
+      : [];
+}
+
+function modelIdentity(models: ProviderViewContext["models"]): string[] {
+  return models.map((model) =>
+    JSON.stringify([
+      model.provider,
+      model.shortDisplayName,
+      model.facts.health.displayStatus,
+      model.statusViews.map((view) => view.name),
+    ]),
+  );
+}
+
+function statusResults(value: number): Map<ProviderName, ReaderResult> {
+  return new Map([
+    [
+      "codex",
+      {
+        provider: "codex",
+        status: ReaderStatus.OK,
+        fromCache: false,
+        lastUpdated: 1000,
+        fields: [{ name: "used_percent_primary", value, status: FieldStatus.OK }],
+      },
+    ],
+  ]);
+}
+
 function segmentsContext(
   results: ReadonlyMap<ProviderName, ReaderResult>,
   statusFields: (provider: ProviderName) => readonly string[],
@@ -160,12 +212,6 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
           resetField: "reset_at_credits",
         }.resetField,
       ).toBe("reset_at_credits");
-      const withoutReset = (name: string, type: FieldDef["type"]): FieldDef => ({
-        name,
-        type,
-        label: name,
-        category: "limit",
-      });
       expect(withoutReset("used_percent", "percent").resetField ?? null).toBeNull();
       expect(withoutReset("custom_ratio", "percent").resetField ?? null).toBeNull();
       expect(withoutReset("reset_at_weekly", "timestamp").resetField ?? null).toBeNull();
@@ -194,15 +240,6 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
   });
 
   describe("tone class helpers", () => {
-    function mockActor() {
-      const classes = new Set<string>(["existing"]);
-      return {
-        classes,
-        add_style_class_name: (cls: string) => classes.add(cls),
-        remove_style_class_name: (cls: string) => classes.delete(cls),
-      };
-    }
-
     it("swaps usage tone classes cleanly", () => {
       const actor = mockActor();
       applyToneClass(actor, "warning");
@@ -299,25 +336,8 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
   });
 
   describe("status bar model derivation", () => {
-    const statusFields = (provider: ProviderName): readonly string[] =>
-      provider === "codex"
-        ? ["used_percent_primary"]
-        : provider === "claude"
-          ? ["used_percent_session", "reset_at_session"]
-          : [];
-
-    const identity = (models: ProviderViewContext["models"]): string[] =>
-      models.map((model) =>
-        JSON.stringify([
-          model.provider,
-          model.shortDisplayName,
-          model.facts.health.displayStatus,
-          model.statusViews.map((view) => view.name),
-        ]),
-      );
-
     it("returns no models when results are empty", () => {
-      expect(segmentsContext(new Map(), statusFields).models).toEqual([]);
+      expect(segmentsContext(new Map(), statusFieldsFor).models).toEqual([]);
     });
 
     it("skips disabled results and derives health tones, tags, and short labels", () => {
@@ -369,7 +389,7 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
         ],
       ]);
 
-      const models = segmentsContext(results, statusFields).models;
+      const models = segmentsContext(results, statusFieldsFor).models;
 
       expect(models).toHaveSize(3);
       expect(models.map((model) => model.facts.health.tone)).toEqual(["ok", "partial", "error"]);
@@ -386,24 +406,10 @@ describe("Fork 1 Quick Settings cards & progress bars view-model", () => {
     });
 
     it("keeps model identity stable across value updates while health tone escalates", () => {
-      const makeResults = (value: number) =>
-        new Map<ProviderName, ReaderResult>([
-          [
-            "codex",
-            {
-              provider: "codex",
-              status: ReaderStatus.OK,
-              fromCache: false,
-              lastUpdated: 1000,
-              fields: [{ name: "used_percent_primary", value, status: FieldStatus.OK }],
-            },
-          ],
-        ]);
+      const first = segmentsContext(statusResults(40), statusFieldsFor).models;
+      const second = segmentsContext(statusResults(88), statusFieldsFor).models;
 
-      const first = segmentsContext(makeResults(40), statusFields).models;
-      const second = segmentsContext(makeResults(88), statusFields).models;
-
-      expect(identity(second)).toEqual(identity(first));
+      expect(modelIdentity(second)).toEqual(modelIdentity(first));
       expect(first[0].facts.health.tone).toBe("ok");
       expect(second[0].facts.health.tone).toBe("critical");
       expect(first[0].facts.meter.ratio).toBeCloseTo(0.4, 5);

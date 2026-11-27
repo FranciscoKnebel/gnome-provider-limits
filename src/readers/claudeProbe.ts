@@ -42,14 +42,14 @@ export function normalizeExpiresAt(value: unknown): number | null {
   return null;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
+}
+
 function credentialObject(creds: unknown): Record<string, unknown> | null {
-  if (!creds || typeof creds !== "object" || Array.isArray(creds)) return null;
-  const record = creds as Record<string, unknown>;
-  if (record.claudeAiOauth === undefined) return record;
-  const nested = record.claudeAiOauth;
-  return nested && typeof nested === "object" && !Array.isArray(nested)
-    ? (nested as Record<string, unknown>)
-    : null;
+  if (!isRecord(creds)) return null;
+  if (creds.claudeAiOauth === undefined) return creds;
+  return isRecord(creds.claudeAiOauth) ? creds.claudeAiOauth : null;
 }
 
 export function credentialExpiresAt(creds: unknown): number | null {

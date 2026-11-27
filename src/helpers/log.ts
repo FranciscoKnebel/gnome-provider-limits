@@ -64,10 +64,9 @@ export function redactForLog(value: unknown, seen = new WeakSet<object>()): unkn
     return value.map((item) => redactForLog(item, seen));
   }
 
-  const obj = value as Record<string, unknown>;
   const result: Record<string, unknown> = {};
 
-  for (const [key, val] of Object.entries(obj)) {
+  for (const [key, val] of Object.entries(value)) {
     result[key] = isSensitiveKey(key) ? "<redacted>" : redactForLog(val, seen);
   }
 
@@ -93,10 +92,8 @@ export function errorSummary(error: unknown): Record<string, unknown> {
     type: ERROR_TYPES.has(error.name) ? error.name : "Error",
   };
   for (const key of ["statusCode", "exitCode"] as const) {
-    if (key in error) {
-      const value = (error as unknown as Record<string, unknown>)[key];
-      if (typeof value === "number" && Number.isFinite(value)) summary[key] = value;
-    }
+    const value: unknown = Reflect.get(error, key);
+    if (typeof value === "number" && Number.isFinite(value)) summary[key] = value;
   }
   return summary;
 }

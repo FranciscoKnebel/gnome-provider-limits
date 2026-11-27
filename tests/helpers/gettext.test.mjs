@@ -3,6 +3,8 @@ import { test } from "node:test";
 
 import { assert, load } from "./node-harness.mjs";
 
+function StubClass() {}
+
 test("Language override, system selection, self-heal and disable preserve shared gettext state", async () => {
   const env = { LANGUAGE: "de:en" };
   let domain = "gnome-shell";
@@ -32,8 +34,8 @@ test("Language override, system selection, self-heal and disable preserve shared
   assert.equal(unrelated(), before);
   const K = load("src/extension.ts", "ProviderLimitsExtension", {
     GObject: { registerClass: (k) => k },
-    PanelMenu: { Button: class {} },
-    Extension: class {},
+    PanelMenu: { Button: StubClass },
+    Extension: StubClass,
     GLib: {
       build_filenamev: (parts) => parts.join("/"),
       file_test: () => false,

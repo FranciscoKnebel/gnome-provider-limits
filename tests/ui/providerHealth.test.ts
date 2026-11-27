@@ -31,6 +31,14 @@ function viewFor(tone: FieldTone | undefined, hasValue: boolean): FieldView {
   };
 }
 
+function attentionForTones(
+  status: DisplayStatus,
+  tones: readonly (FieldTone | undefined)[],
+): string {
+  const worst = worstFieldTone(tones);
+  return HEALTH_BY_SEVERITY[deriveSeverity(status, worst, false, false)].attention;
+}
+
 /** Captured from the three lookup tables and pill mapping before they were collapsed. */
 const EXPECTED = {
   idle: {
@@ -211,14 +219,6 @@ describe("providerHealth pure helpers", () => {
   });
 
   it("derives attention from tones through the single severity value", () => {
-    const attentionForTones = (
-      status: DisplayStatus,
-      tones: readonly (FieldTone | undefined)[],
-    ): string => {
-      const worst = worstFieldTone(tones);
-      return HEALTH_BY_SEVERITY[deriveSeverity(status, worst, false, false)].attention;
-    };
-
     expect(attentionForTones(ReaderStatus.OK, ["ok", undefined])).toBe("quiet");
     expect(attentionForTones(ReaderStatus.PARTIAL, ["warning"])).toBe("warning");
     expect(attentionForTones(ReaderStatus.OK, ["warning", "critical"])).toBe("critical");

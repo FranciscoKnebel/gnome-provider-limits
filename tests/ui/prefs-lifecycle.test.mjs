@@ -2,10 +2,16 @@ import { test } from "node:test";
 
 import { assert, load, timers } from "../helpers/node-harness.mjs";
 
+function StubExtensionPreferences() {}
+
+function prefsWindow(signals) {
+  return { connect: (name, fn) => signals.set(name, fn), remove() {} };
+}
+
 test("preferences close disconnects bindings/pages and cancels pending rebuild; reopening is safe", async () => {
   const glib = timers();
   const K = load("src/prefs.ts", "ProviderLimitsPreferences", {
-    ExtensionPreferences: class {},
+    ExtensionPreferences: StubExtensionPreferences,
     Gio: { _promisify() {}, File: { prototype: {} } },
     GLib: glib,
     isDisposablePage: (p) => typeof p.cleanup === "function",
@@ -45,7 +51,7 @@ test("preferences close disconnects bindings/pages and cancels pending rebuild; 
 
 test("late destruction of an old preferences window cannot tear down a reopened window", async () => {
   const K = load("src/prefs.ts", "ProviderLimitsPreferences", {
-    ExtensionPreferences: class {},
+    ExtensionPreferences: StubExtensionPreferences,
     Gio: { _promisify() {}, File: { prototype: {} } },
     GLib: timers(),
     isDisposablePage: () => true,
@@ -69,10 +75,9 @@ test("late destruction of an old preferences window cannot tear down a reopened 
   };
   const firstSignals = new Map(),
     secondSignals = new Map();
-  const window = (signals) => ({ connect: (name, fn) => signals.set(name, fn), remove() {} });
-  await prefs.fillPreferencesWindow(window(firstSignals));
+  await prefs.fillPreferencesWindow(prefsWindow(firstSignals));
   firstSignals.get("close-request")();
-  await prefs.fillPreferencesWindow(window(secondSignals));
+  await prefs.fillPreferencesWindow(prefsWindow(secondSignals));
   firstSignals.get("destroy")();
   assert.equal(states[0].pages.length, 0);
   assert.equal(states[1].pages.length, 1);

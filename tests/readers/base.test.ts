@@ -12,7 +12,6 @@ import {
   type ReaderResult,
   type WindowFieldNames,
 } from "../../src/readers/base.js";
-import type { FieldName } from "../../src/readers/fields.js";
 
 const PRIMARY_NAMES = {
   used: "used_percent_primary",
@@ -33,11 +32,12 @@ class TestReader extends BaseReader {
 
   testMakeField<T>(
     name: string,
-    value: T | null,
+    value: T | null | undefined,
     status: FieldStatus,
     error?: string | null,
   ): FieldResult<T> {
-    return this._makeField(name as FieldName, value, status, error);
+    // @ts-expect-error test-only names exercise runtime behaviour, not the field-name contract.
+    return this._makeField(name, value, status, error);
   }
 
   testMakePercentFieldPair(
@@ -113,7 +113,7 @@ function errorField(name: string): FieldResult {
 
 describe("BaseReader", () => {
   let reader: TestReader;
-  const settings = {} as Gio.Settings;
+  const settings: Gio.Settings = Object.create(null);
 
   beforeEach(() => {
     reader = new TestReader(settings, "codex");
@@ -187,11 +187,7 @@ describe("BaseReader", () => {
     });
 
     it("uses null for undefined value", () => {
-      const field = reader.testMakeField(
-        "missing",
-        undefined as unknown as null,
-        FieldStatus.UNAVAILABLE,
-      );
+      const field = reader.testMakeField("missing", undefined, FieldStatus.UNAVAILABLE);
       expect(field.value).toBeNull();
     });
   });
@@ -466,7 +462,7 @@ describe("BaseReader", () => {
     }
 
     it("accepts only names declared in PROVIDER_FIELDS", () => {
-      const contractReader = new CodexContractReader({} as Gio.Settings, "codex");
+      const contractReader = new CodexContractReader(Object.create(null), "codex");
       expect(contractReader.declared().name).toBe("used_percent_primary");
     });
   });

@@ -98,6 +98,40 @@ function matrixContext(options: {
   return viewContextFromFixture(input);
 }
 
+function attentionForTones(
+  status: DisplayStatus,
+  tones: readonly (FieldTone | undefined)[],
+): string {
+  const worst = worstFieldTone(tones);
+  return HEALTH_BY_SEVERITY[deriveSeverity(status, worst, false, false)].attention;
+}
+
+function modelIdentity(models: ProviderViewContext["models"]): string[] {
+  return models.map((model) =>
+    JSON.stringify([
+      model.provider,
+      model.shortDisplayName,
+      model.facts.health.displayStatus,
+      model.statusViews.map((view) => view.name),
+    ]),
+  );
+}
+
+function codexResults(pct: number): Map<ProviderName, ReaderResult> {
+  return new Map([
+    [
+      "codex",
+      {
+        provider: "codex",
+        status: ReaderStatus.OK,
+        fromCache: false,
+        lastUpdated: Date.now(),
+        fields: [{ name: "used_percent_primary", value: pct, status: FieldStatus.OK }],
+      },
+    ],
+  ]);
+}
+
 function makeClassTracker(): {
   classes: Set<string>;
   add_style_class_name(c: string): void;
@@ -134,14 +168,6 @@ describe("matrixPlan", () => {
   });
 
   describe("attention derivation from tones", () => {
-    const attentionForTones = (
-      status: DisplayStatus,
-      tones: readonly (FieldTone | undefined)[],
-    ): string => {
-      const worst = worstFieldTone(tones);
-      return HEALTH_BY_SEVERITY[deriveSeverity(status, worst, false, false)].attention;
-    };
-
     it("stays quiet by default for ok or missing tones on OK status", () => {
       expect(attentionForTones(ReaderStatus.OK, ["ok", undefined])).toBe("quiet");
       expect(attentionForTones(ReaderStatus.OK, [])).toBe("quiet");
@@ -158,16 +184,6 @@ describe("matrixPlan", () => {
   });
 
   describe("status bar model derivation", () => {
-    const identity = (models: ProviderViewContext["models"]): string[] =>
-      models.map((model) =>
-        JSON.stringify([
-          model.provider,
-          model.shortDisplayName,
-          model.facts.health.displayStatus,
-          model.statusViews.map((view) => view.name),
-        ]),
-      );
-
     it("returns no models when results are empty", () => {
       expect(segmentsContext(new Map(), STATUS_FIELDS).models).toEqual([]);
     });
@@ -238,25 +254,12 @@ describe("matrixPlan", () => {
     });
 
     it("keeps model identity stable across value and attention changes", () => {
-      const makeResults = (pct: number) =>
-        new Map<ProviderName, ReaderResult>([
-          [
-            "codex",
-            {
-              provider: "codex",
-              status: ReaderStatus.OK,
-              fromCache: false,
-              lastUpdated: Date.now(),
-              fields: [{ name: "used_percent_primary", value: pct, status: FieldStatus.OK }],
-            },
-          ],
-        ]);
       const statusFields = { ...STATUS_FIELDS, codex: ["used_percent_primary"] };
 
-      const first = segmentsContext(makeResults(20), statusFields).models;
-      const second = segmentsContext(makeResults(91), statusFields).models;
+      const first = segmentsContext(codexResults(20), statusFields).models;
+      const second = segmentsContext(codexResults(91), statusFields).models;
 
-      expect(identity(second)).toEqual(identity(first));
+      expect(modelIdentity(second)).toEqual(modelIdentity(first));
       expect(first[0].facts.health.attention).toBe("quiet");
       expect(second[0].facts.health.attention).toBe("critical");
     });

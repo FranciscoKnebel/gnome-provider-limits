@@ -67,20 +67,20 @@ describe("deriveDisplayModel", () => {
       t: (text) => text,
     });
 
-    expect(model).toBeDefined();
-    expect(model?.provider).toBe("codex");
-    expect(model?.displayName).toBe("Codex Pro");
-    expect(model?.shortDisplayName).toBe("CX");
-    expect(model?.statusViews.map((view) => view.name)).toEqual([
+    if (!model) throw new Error("expected a model for codex");
+    expect(model.provider).toBe("codex");
+    expect(model.displayName).toBe("Codex Pro");
+    expect(model.shortDisplayName).toBe("CX");
+    expect(model.statusViews.map((view) => view.name)).toEqual([
       "used_percent_primary",
       "reset_at_primary",
     ]);
-    expect(model?.panelViews.map((view) => view.name)).toEqual(["plan_type"]);
-    expect(model!.facts.badges.card).toBe("live");
-    expect(model!.facts.badges.cardText).toBe("Live");
-    expect(model!.facts.health.tone).toBe("warning");
-    expect(model!.facts.meter.ratio).toBeCloseTo(0.64, 5);
-    expect(model!.facts.diagnostic.kind).toBeNull();
+    expect(model.panelViews.map((view) => view.name)).toEqual(["plan_type"]);
+    expect(model.facts.badges.card).toBe("live");
+    expect(model.facts.badges.cardText).toBe("Live");
+    expect(model.facts.health.tone).toBe("warning");
+    expect(model.facts.meter.ratio).toBeCloseTo(0.64, 5);
+    expect(model.facts.diagnostic.kind).toBeNull();
   });
 
   it("returns nothing for a disabled result, matching the context loop", () => {

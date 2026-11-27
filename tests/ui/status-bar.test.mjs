@@ -88,7 +88,7 @@ test("the view snapshot exposes one consistent set of provider settings", () => 
   assert.equal(view.activeProviders.includes("claude"), false);
   assert.equal(view.displayNames.codex, "Codex Pro");
   assert.equal(view.models.length, 0);
-  assert.deepEqual(Object.keys(view).sort(), [
+  assert.deepEqual(Object.keys(view).toSorted(), [
     "activeProviders",
     "displayNames",
     "locale",

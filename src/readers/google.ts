@@ -40,6 +40,17 @@ import {
   type GoogleWindowId,
 } from "./googleParser.js";
 
+function hasErrorMatches(
+  value: unknown,
+): value is { matches(domain: unknown, code: number): boolean } {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "matches" in value &&
+    typeof value.matches === "function"
+  );
+}
+
 const GOOGLE_USER_AGENT = "antigravity/hub/2.24.0 (aidev_client; os_type=linux; arch=x64)";
 const LOAD_CODE_ASSIST_BODY = {
   metadata: {
@@ -146,6 +157,12 @@ export class GoogleReader extends BaseReader<"google"> {
     if (this._destroyed) throw new Error("Google Reader destroyed");
   }
 
+  private _getHttp(): HttpClient | null {
+    if (this._destroyed) return null;
+    if (!this._http) this._http = new HttpClient();
+    return this._http;
+  }
+
   private async _discoverT3AntigravityTokenPaths(
     home: string,
     cancellable: Gio.Cancellable,
@@ -230,8 +247,7 @@ export class GoogleReader extends BaseReader<"google"> {
       this._assertAlive();
       if (cancellable.is_cancelled()) return null;
       const isNotFound =
-        typeof (error as { matches?: unknown })?.matches === "function" &&
-        (error as GLib.Error).matches(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND);
+        hasErrorMatches(error) && error.matches(Gio.IOErrorEnum, Gio.IOErrorEnum.NOT_FOUND);
       if (warnIfMissing || !isNotFound) {
         logWarn("google auth file unavailable", error);
       }
@@ -246,9 +262,11 @@ export class GoogleReader extends BaseReader<"google"> {
   ): Promise<string | null> {
     if (!auth.refreshToken || !auth.clientId || !auth.clientSecret) return null;
     pushOnce(pathsTried, "oauth-refresh");
+    const http = this._getHttp();
+    if (!http) return null;
     let response: unknown;
     try {
-      response = await this._http!.postForm(
+      response = await http.postForm(
         GOOGLE_OAUTH_TOKEN_URL,
         {
           client_id: auth.clientId,
@@ -289,10 +307,12 @@ export class GoogleReader extends BaseReader<"google"> {
     const headers = makeGoogleHeaders(token);
     const body = projectId ? { project: projectId } : {};
     const requestedAtMs = Date.now();
+    const http = this._getHttp();
+    if (!http) return null;
 
     let summary: GoogleUsage | null = null;
     try {
-      const summaryRaw = await this._http!.postJson(
+      const summaryRaw = await http.postJson(
         `${endpoint}/v1internal:retrieveUserQuotaSummary`,
         body,
         {
@@ -313,15 +333,11 @@ export class GoogleReader extends BaseReader<"google"> {
     }
 
     try {
-      const modelsRaw = await this._http!.postJson(
-        `${endpoint}/v1internal:fetchAvailableModels`,
-        body,
-        {
-          headers,
-          cancellable,
-          noRedirect: true,
-        },
-      );
+      const modelsRaw = await http.postJson(`${endpoint}/v1internal:fetchAvailableModels`, body, {
+        headers,
+        cancellable,
+        noRedirect: true,
+      });
       this._assertAlive();
       if (cancellable.is_cancelled()) return null;
       const merged = mergeGoogleUsage(
@@ -423,7 +439,6 @@ export class GoogleReader extends BaseReader<"google"> {
           if (!auth) continue;
 
           sawValidAuthFile = true;
-          if (!this._http) this._http = new HttpClient();
 
           let accessToken = auth.accessToken;
           if (!accessToken) {
@@ -557,8 +572,10 @@ export class GoogleReader extends BaseReader<"google"> {
 
       let tier: GoogleTier | null = null;
       pushOnce(pathsTried, "tier-api");
+      const http = this._getHttp();
+      if (!http) return cancelledResult();
       try {
-        const tierPayload = await this._http!.postJson(
+        const tierPayload = await http.postJson(
           `${endpointUsed}/v1internal:loadCodeAssist`,
           auth.projectId
             ? { ...LOAD_CODE_ASSIST_BODY, cloudaicompanionProject: auth.projectId }

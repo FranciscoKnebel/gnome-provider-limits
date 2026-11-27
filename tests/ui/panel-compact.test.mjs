@@ -51,6 +51,10 @@ const phaseResult = () => ({ kind: "ready" });
 
 function PopupMenuSection() {}
 
+function PanelStyleSection(shell) {
+  this.shell = shell;
+}
+
 function loadCompact() {
   const matrixPlan = load(
     "src/ui/matrixPlan.ts",
@@ -78,11 +82,7 @@ function loadCompact() {
     ReaderStatus: { PARTIAL: "partial" },
     clampFillRatio,
     ...matrixPlan,
-    PanelStyleSection: class {
-      constructor(shell) {
-        this.shell = shell;
-      }
-    },
+    PanelStyleSection,
     applyQuietToneClass: () => {},
     applyToneClass: () => {},
     emptyViewContext: () => ({
