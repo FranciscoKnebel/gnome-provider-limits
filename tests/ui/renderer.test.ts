@@ -2,7 +2,7 @@ import { resolveLocale } from "../../src/helpers/locale.js";
 import { currentRefreshInterval } from "../../src/helpers/refresh.js";
 import { clampFillRatio, clampPercent, fieldTone, percentTone } from "../../src/ui/fieldRows.js";
 
-describe("formatters", () => {
+describe("renderer formatters", () => {
   describe("resolveLocale", () => {
     it("returns settings override with normalized hyphens", () => {
       expect(resolveLocale("pt_BR", "en_US.utf8", "en_US.utf8")).toBe("pt-BR");

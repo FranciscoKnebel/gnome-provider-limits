@@ -5,17 +5,36 @@ updates:
     schedule:
       interval: weekly
     groups:
-      toolchain:
-        patterns:
-          - oxlint
-          - oxlint-tsgolint
-          - oxfmt
-          - typescript
       types:
         patterns:
           - "@types/*"
-          - "@girs/*"
+      npm-minor-patch:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+      npm-major:
+        patterns:
+          - "*"
+        update-types:
+          - "major"
+    # @girs major updates target a newer GNOME Shell stack. Keep them manual
+    # until the compatibility matrix in #65 is implemented.
+    ignore:
+      - dependency-name: "@girs/*"
+        update-types:
+          - "version-update:semver-major"
+      # TypeScript 7 removed the compiler API used by the test harness. Keep
+      # major updates manual until the harness migration in #64 is complete.
+      - dependency-name: "typescript"
+        update-types:
+          - "version-update:semver-major"
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
+    groups:
+      actions:
+        patterns:
+          - "*"

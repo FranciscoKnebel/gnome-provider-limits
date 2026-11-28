@@ -17,6 +17,13 @@ function mockCredentials(raw) {
   ];
 }
 
+function readerWithHttp(getJson) {
+  const reader = new ClaudeReader(new MockSettings(), "claude");
+  reader._http = { getJson, destroy() {} };
+  reader._readFromCli = async () => null;
+  return reader;
+}
+
 export async function run() {
   const results = [];
   const originalLoad = Gio.File.prototype.load_contents_async;
@@ -29,12 +36,6 @@ export async function run() {
     } finally {
       Gio.File.prototype.load_contents_async = originalLoad;
     }
-  };
-  const readerWithHttp = (getJson) => {
-    const reader = new ClaudeReader(new MockSettings(), "claude");
-    reader._http = { getJson, destroy() {} };
-    reader._readFromCli = async () => null;
-    return reader;
   };
   await test("Claude nested credentials reach OAuth and raw usage reaches fields", async () => {
     mockCredentials(JSON.parse(load("claude-credentials.json")));
