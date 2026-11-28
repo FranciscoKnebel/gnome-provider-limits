@@ -61,6 +61,9 @@ jobs:
 
       - run: npm ci
 
+      - name: Install catalog tooling
+        run: sudo apt-get update && sudo apt-get install -y gettext
+
       - name: Catalog tests
         run: npm run test:catalogs
 
