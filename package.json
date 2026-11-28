@@ -13,7 +13,7 @@
   "scripts": {
     "build": "tsc -p tsconfig.json && npm run build:stylesheet",
     "build:stylesheet": "node scripts/build-stylesheet.mjs",
-    "build:tests": "tsc -p tsconfig.test.json",
+    "build:tests": "rm -rf dist-test && tsc -p tsconfig.test.json",
     "clean": "rm -rf dist dist-test src/schemas/gschemas.compiled",
     "lint": "oxlint --type-aware --import-plugin --deny-warnings --report-unused-disable-directives",
     "lint:ci": "npm run lint -- --format=github",

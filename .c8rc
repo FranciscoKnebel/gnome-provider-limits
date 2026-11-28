@@ -1,8 +1,8 @@
 {
   "reporter": ["text", "lcov", "cobertura"],
   "check-coverage": true,
-  "lines": 70,
-  "statements": 70,
-  "functions": 75,
-  "branches": 75
+  "lines": 97,
+  "statements": 97,
+  "functions": 97,
+  "branches": 94
 }
