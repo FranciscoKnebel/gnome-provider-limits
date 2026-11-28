@@ -29,5 +29,6 @@ function run(command, args) {
   if (result.status !== 0) exit(result.status ?? 1);
 }
 
+run(NPM, ["run", "compile:mo"]);
 run(NPM, ["run", "build"]);
 run("gjs", ["-m", "tests/run-gjs-tests.mjs"]);
