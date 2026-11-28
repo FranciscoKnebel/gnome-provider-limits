@@ -24,6 +24,13 @@
     "import/no-cycle": "error",
     "import/no-duplicates": "error",
     "unicorn/prefer-node-protocol": "error",
+    "eslint/max-lines": ["error", { "max": 650, "skipBlankLines": true, "skipComments": true }],
+    "eslint/max-lines-per-function": [
+      "error",
+      { "max": 200, "skipBlankLines": true, "skipComments": true }
+    ],
+    "eslint/max-depth": ["error", 6],
+    "eslint/complexity": ["error", { "max": 45 }],
     "no-await-in-loop": "off"
   },
   "overrides": [
@@ -31,6 +38,15 @@
       "files": ["src/helpers/log.ts", "scripts/**", "tests/**"],
       "rules": {
         "no-console": "off"
+      }
+    },
+    {
+      "files": ["tests/**"],
+      "rules": {
+        "eslint/max-lines": "off",
+        "eslint/max-lines-per-function": "off",
+        "eslint/max-depth": "off",
+        "eslint/complexity": "off"
       }
     }
   ],
