@@ -1,11 +1,22 @@
 {
   "$schema": "./node_modules/oxfmt/configuration_schema.json",
   "printWidth": 100,
-  "indentStyle": "space",
-  "indentWidth": 2,
-  "quoteStyle": "single",
-  "trailingComma": "all",
+  "tabWidth": 2,
+  "useTabs": false,
+  "singleQuote": false,
   "semi": true,
+  "trailingComma": "all",
+  "endOfLine": "lf",
   "sortImports": true,
-  "ignorePatterns": ["dist/", "node_modules/"]
+  "ignorePatterns": [
+    "dist/",
+    "node_modules/",
+    "coverage/",
+    ".worktrees/",
+    "pages/_site/",
+    "pages/.jekyll-cache/",
+    "pages/vendor/",
+    "src/po/**",
+    "package-lock.json"
+  ]
 }

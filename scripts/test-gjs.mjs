@@ -1,6 +1,6 @@
 #!/usr/bin/env node
-import { spawnSync } from "child_process";
-import { exit } from "process";
+import { spawnSync } from "node:child_process";
+import { exit } from "node:process";
 
 const GJS_PROBE = spawnSync("gjs", ["--version"], { encoding: "utf-8" });
 
