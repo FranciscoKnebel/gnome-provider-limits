@@ -62,7 +62,7 @@ export class ProtocolError extends Error {
 
 export interface HttpRequestOptions {
   headers?: Record<string, string>;
-  cancellable?: Gio.Cancellable;
+  cancellable?: Gio.Cancellable | undefined;
   noRedirect?: boolean;
 }
 

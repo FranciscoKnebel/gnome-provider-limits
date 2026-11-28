@@ -4,10 +4,13 @@ export function readerResultsEqual(a: ReaderResult, b: ReaderResult): boolean {
   if (a.status !== b.status) return false;
   if (a.lastError !== b.lastError) return false;
   if (a.fields.length !== b.fields.length) return false;
-  return a.fields.every(
-    (f, i) =>
-      f.name === b.fields[i].name &&
-      f.status === b.fields[i].status &&
-      f.value === b.fields[i].value,
-  );
+  return a.fields.every((f, i) => {
+    const other = b.fields[i];
+    return (
+      other !== undefined &&
+      f.name === other.name &&
+      f.status === other.status &&
+      f.value === other.value
+    );
+  });
 }

@@ -128,7 +128,7 @@ export interface SubprocessOptions {
   timeoutSeconds?: number;
   cwd?: string;
   env?: Record<string, string>;
-  cancellable?: Gio.Cancellable;
+  cancellable?: Gio.Cancellable | undefined;
 }
 
 export interface SubprocessResult {

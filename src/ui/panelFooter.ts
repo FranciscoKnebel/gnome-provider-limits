@@ -267,7 +267,7 @@ export function buildHudFooter(options: FooterOptions): FooterBuild {
 
   const settingsIcon = icon(["emblem-system-symbolic"]);
   const settings = new St.Button({
-    child: settingsIcon ?? undefined,
+    ...(settingsIcon ? { child: settingsIcon } : {}),
     style_class: "provider-limits-icon-button",
     ...ACTION_PROPS,
   });

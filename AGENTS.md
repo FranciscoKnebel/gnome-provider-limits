@@ -34,6 +34,7 @@ npm ci                    # install deps
 npm run typecheck         # tsc --noEmit for src and tests
 npm run typecheck:src     # tsc --noEmit for src
 npm run typecheck:tests   # tsc --noEmit for tests
+npm run typecheck:scripts # check scripts with @ts-check
 npm run lint              # oxlint --type-aware, fails on warnings
 npm run lint:ci           # oxlint with GitHub annotations
 npm run lint:fix          # oxlint --type-aware --fix

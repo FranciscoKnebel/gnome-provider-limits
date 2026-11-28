@@ -19,6 +19,7 @@ export async function configureTranslations(
   for (const candidate of languages) {
     if (!/^[A-Za-z0-9_@.-]+$/.test(candidate)) continue;
     const code = candidate.split(".")[0];
+    if (!code) continue;
     try {
       const path = GLib.build_filenamev([
         extensionPath,

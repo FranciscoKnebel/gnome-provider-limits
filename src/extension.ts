@@ -245,7 +245,9 @@ const ProviderLimitsIndicator = GObject.registerClass(
         const nextResults = new Map<ProviderName, ReaderResult>();
 
         for (const [i, result] of settled.entries()) {
-          const name = entries[i].name;
+          const entry = entries[i];
+          if (!entry) continue;
+          const name = entry.name;
 
           if (!this._readers.has(name)) continue;
 

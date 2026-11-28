@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// @ts-check
 import { spawnSync } from "node:child_process";
 import { exit } from "node:process";
 
@@ -11,6 +12,10 @@ if (GJS_PROBE.error || GJS_PROBE.status !== 0) {
 
 const NPM = process.platform === "win32" ? "npm.cmd" : "npm";
 
+/**
+ * @param {string} command
+ * @param {string[]} args
+ */
 function run(command, args) {
   const result = spawnSync(command, args, { stdio: "inherit" });
   if (result.error) {
