@@ -9,43 +9,124 @@ on:
         type: boolean
         default: false
 
-jobs:
-  check:
-    runs-on: ubuntu-26.04
-    permissions:
-      contents: read
-    steps:
-      - uses: actions/checkout@v7
+permissions:
+  contents: read
 
-      - uses: actions/setup-node@v6
+jobs:
+  static:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
         with:
-          node-version: "24"
+          node-version-file: .nvmrc
           cache: npm
 
       - run: npm ci
 
-      - name: Install test dependencies
+      - name: Install i18n tooling
+        run: sudo apt-get update && sudo apt-get install -y gettext
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint
+        run: npm run lint:ci
+
+      - name: Format
+        run: npm run format:check
+
+      - name: i18n
+        run: npm run check:i18n
+
+      - name: Tooling configuration
+        run: npm run test:tooling
+
+  unit:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24"]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+
+      - run: npm ci
+
+      - name: Catalog tests
+        run: npm run test:catalogs
+
+      - name: Node tests
+        run: npm run test:node
+
+      - name: Jasmine tests with coverage
+        run: npm run test:jasmine
+
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: matrix.node == '24'
+        with:
+          name: coverage
+          path: coverage/
+
+  gjs:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install GJS runtime dependencies
         run: sudo apt-get update && sudo apt-get install -y gjs gir1.2-soup-3.0 gettext libglib2.0-bin zip gir1.2-gtk-4.0 gir1.2-adw-1 xvfb
 
-      - name: Run checks
-        run: npm run check
-
-      - name: Run GJS tests with a virtual display
+      - name: GJS tests
         run: xvfb-run -a npm run test:gjs
+
+  package:
+    needs: [static, unit, gjs]
+    runs-on: ubuntu-26.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+
+      - uses: actions/setup-node@249970729cb0ef3589644e2896645e5dc5ba9c38 # v6.5.0
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - run: npm ci
+
+      - name: Install packaging dependencies
+        run: sudo apt-get update && sudo apt-get install -y libglib2.0-bin zip python3
 
       - name: Build and validate extension package
         run: npm run pack
 
-      - name: Upload release package artifact
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         if: ${{ inputs.upload_package }}
-        uses: actions/upload-artifact@v7
         with:
           name: extension-package
           path: dist/*.zip
           if-no-files-found: error
 
-      - uses: actions/upload-artifact@v7
-        if: always()
+  actionlint:
+    runs-on: ubuntu-26.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: docker://rhysd/actionlint:1.7.7
         with:
-          name: coverage
-          path: coverage/
+          args: -color

@@ -1,0 +1,21 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    groups:
+      toolchain:
+        patterns:
+          - oxlint
+          - oxlint-tsgolint
+          - oxfmt
+          - typescript
+      types:
+        patterns:
+          - "@types/*"
+          - "@girs/*"
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
