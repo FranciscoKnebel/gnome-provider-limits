@@ -149,8 +149,8 @@ export abstract class BaseReader<P extends ProviderName = ProviderName> {
     names: WindowFieldNames<P>,
     data:
       | {
-          used_percent?: number | null;
-          reset_at?: number | string | null;
+          used_percent?: number | null | undefined;
+          reset_at?: number | string | null | undefined;
         }
       | null
       | undefined,

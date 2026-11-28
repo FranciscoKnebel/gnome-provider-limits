@@ -36,6 +36,7 @@
   ],
   "ignorePatterns": [
     "dist/",
+    "dist-test/",
     "node_modules/",
     "coverage/",
     ".worktrees/",

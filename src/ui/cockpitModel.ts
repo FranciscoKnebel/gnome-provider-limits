@@ -135,5 +135,5 @@ export function cycleTab(
   const resolved = resolveActiveTab(current, enabledProviders);
   const idx = tabs.indexOf(resolved);
   const nextIdx = (idx + direction + tabs.length) % tabs.length;
-  return tabs[nextIdx];
+  return tabs[nextIdx] ?? "overview";
 }

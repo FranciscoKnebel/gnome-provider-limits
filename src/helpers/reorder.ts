@@ -23,5 +23,7 @@ export function moveAdjacentValue(
   if (visibleIndex < 0 || targetIndex < 0 || targetIndex >= visibleValues.length) {
     return null;
   }
-  return reorderValue(values, source, visibleValues[targetIndex]);
+  const target = visibleValues[targetIndex];
+  if (target === undefined) return null;
+  return reorderValue(values, source, target);
 }

@@ -7,8 +7,8 @@ export interface CodexRateLimitWindow {
 }
 
 export interface CodexRateLimits {
-  allowed?: boolean;
-  limit_reached?: boolean;
+  allowed?: boolean | undefined;
+  limit_reached?: boolean | undefined;
   primary?: CodexRateLimitWindow | null;
   secondary?: CodexRateLimitWindow | null;
 }
@@ -19,9 +19,9 @@ export interface CodexResetCreditDetail {
 }
 
 export interface CodexResetCredits {
-  available_count?: number;
-  applicable_available_count?: number;
-  credits?: CodexResetCreditDetail[];
+  available_count?: number | undefined;
+  applicable_available_count?: number | undefined;
+  credits?: CodexResetCreditDetail[] | undefined;
 }
 
 export interface CodexResetCreditsSummary {
@@ -31,7 +31,7 @@ export interface CodexResetCreditsSummary {
 
 export interface CodexRateLimitsPayload {
   rate_limits?: CodexRateLimits;
-  plan_type?: string;
+  plan_type?: string | undefined;
   credits?: { balance?: string; has_credits?: boolean; unlimited?: boolean } | null;
   reset_credits?: CodexResetCredits | null;
 }

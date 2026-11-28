@@ -77,6 +77,7 @@ export function createMoveButtons(options: {
 }): Gtk.Box {
   const { settings, key, visibleValues, index, moveUpLabel, moveDownLabel } = options;
   const value = visibleValues[index];
+  if (value === undefined) return new Gtk.Box({ spacing: 2, valign: Gtk.Align.CENTER });
   const box = new Gtk.Box({ spacing: 2, valign: Gtk.Align.CENTER });
 
   const up = new Gtk.Button({

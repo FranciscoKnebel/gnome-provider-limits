@@ -1,6 +1,6 @@
 export interface ClaudeUsageWindow {
-  used_percent?: number;
-  reset_at?: number;
+  used_percent?: number | undefined;
+  reset_at?: number | undefined;
 }
 
 export interface ClaudeUsagePayload {
@@ -8,7 +8,7 @@ export interface ClaudeUsagePayload {
   seven_day?: ClaudeUsageWindow | null;
   seven_day_sonnet?: ClaudeUsageWindow | null;
   seven_day_opus?: ClaudeUsageWindow | null;
-  extra_usage?: { enabled?: boolean; disabled_reason?: string } | null;
+  extra_usage?: { enabled?: boolean | undefined; disabled_reason?: string | undefined } | null;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {

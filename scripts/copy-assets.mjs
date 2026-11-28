@@ -1,3 +1,4 @@
+// @ts-check
 import { cp, mkdir, readFile, rm } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -5,7 +6,9 @@ import { fileURLToPath } from "node:url";
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const repositoryRoot = path.resolve(scriptDirectory, "..");
 const configPath = path.join(scriptDirectory, "package-assets.json");
+/** @type {{ resetDirectories: string[], createDirectories: string[], copy: { source: string, destination: string }[], remove: string[] }} */
 const config = JSON.parse(await readFile(configPath, "utf8"));
+/** @param {string} relativePath */
 const resolvePath = (relativePath) => path.resolve(repositoryRoot, relativePath);
 
 for (const directory of config.resetDirectories) {

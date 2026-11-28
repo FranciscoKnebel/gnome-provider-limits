@@ -1,3 +1,4 @@
+// @ts-check
 import { readFileSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -13,16 +14,20 @@ const sources = [
   "src/styles/base.css",
 ];
 
+/** @param {string} css */
 function normalize(css) {
   return css
     .replace(/\/\*[\s\S]*?\*\//g, "")
     .split("\n")
-    .map((line) => line.trimEnd())
-    .filter((line) => line.trim() !== "")
+    .map((/** @type {string} */ line) => line.trimEnd())
+    .filter((/** @type {string} */ line) => line.trim() !== "")
     .join("\n");
 }
 
-/** Single source of truth for the generated stylesheet, shared with its test. */
+/**
+ * Single source of truth for the generated stylesheet, shared with its test.
+ * @param {string} [root]
+ */
 export function buildStylesheet(root = defaultRoot) {
   const body = sources
     .map((relative) => normalize(readFileSync(join(root, relative), "utf8")))

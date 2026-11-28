@@ -63,7 +63,9 @@ function decodeBase64UrlUtf8(input: string): string | null {
   let buffer = 0;
   let bits = 0;
   for (let i = 0; i < normalized.length; i++) {
-    const idx = BASE64_ALPHABET.indexOf(normalized[i]);
+    const char = normalized[i];
+    if (char === undefined) return null;
+    const idx = BASE64_ALPHABET.indexOf(char);
     if (idx < 0) return null;
     buffer = (buffer << 6) | idx;
     bits += 6;
