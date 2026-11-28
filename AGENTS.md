@@ -20,7 +20,7 @@ already have a canonical name.
 
 ### Prerequisites
 
-- Node.js 22+
+- Node.js 22+ (CI runs Node 22, 24 and 26; the pinned development version is 26)
 - GNOME Shell 45+ (for local testing)
 - `glib-compile-schemas` (from `libglib2.0-dev-bin` or equivalent)
 - `gnome-extensions` CLI (bundled with GNOME Shell)
