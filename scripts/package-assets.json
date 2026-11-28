@@ -1,5 +1,5 @@
 {
-  "resetDirectories": ["dist/icons", "dist/po", "dist/schemas", "dist/src", "dist/tests"],
+  "resetDirectories": ["dist/icons", "dist/po", "dist/schemas", "dist/src"],
   "createDirectories": ["dist/schemas"],
   "copy": [
     {
@@ -19,5 +19,5 @@
       "destination": "dist/schemas/org.gnome.shell.extensions.gnome-provider-limits.gschema.xml"
     }
   ],
-  "remove": ["dist/icons/.gitkeep", "dist/ui/displayStatus.js", "dist/ui/gaugeTypes.js"]
+  "remove": ["dist/icons/.gitkeep"]
 }

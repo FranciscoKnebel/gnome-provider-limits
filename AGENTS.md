@@ -80,6 +80,11 @@ shim is local-only and guarded.
 - No comments unless necessary for clarity. Code should be self-documenting.
 - One responsibility per file. Readers in `src/readers/`, UI in `src/ui/`,
   IO wrappers in `src/helpers/`, formatting in `src/formatters.ts`.
+- Modules that only declare types use a `.d.ts` file so the build never emits
+  empty JavaScript.
+- Current size budgets are 650 lines per file, 200 lines per function, depth
+  6, and cyclomatic complexity 45. Lower them when the affected files are
+  refactored; do not raise them without a documented reason.
 
 ### Folder structure
 
@@ -163,6 +168,9 @@ The suite is split between two runners:
   gracefully when `gjs` is not installed.
 
 - One `*.test.ts` per module, in `tests/`.
+- Coverage is collected from the Jasmine suite and enforced by `c8` at 90%
+  lines, statements, functions, and branches. Raise the values
+  when the suite improves; never lower them without a written justification.
 - Gio/Soup mocks live in the GJS tests (`tests/mocks/`); pure modules are
   tested in Node. No test makes live provider network calls.
 - Use real payload fixtures (JSON/SQLite) captured from provider disk for
