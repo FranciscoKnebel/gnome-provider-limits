@@ -113,7 +113,7 @@ jobs:
       - run: npm ci
 
       - name: Install packaging dependencies
-        run: sudo apt-get update && sudo apt-get install -y libglib2.0-bin zip python3
+        run: sudo apt-get update && sudo apt-get install -y gettext libglib2.0-bin zip python3
 
       - name: Build and validate extension package
         run: npm run pack
