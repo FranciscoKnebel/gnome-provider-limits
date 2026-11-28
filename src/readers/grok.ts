@@ -14,7 +14,7 @@ Gio._promisify(Gio.File.prototype, "load_contents_async", "load_contents_finish"
 export class GrokReader extends BaseReader<"grok"> {
   private _http: HttpClient | null = null;
   private _destroyed = false;
-  private _cancellable = new Gio.Cancellable();
+  private readonly _cancellable = new Gio.Cancellable();
 
   override destroy(): void {
     this._destroyed = true;

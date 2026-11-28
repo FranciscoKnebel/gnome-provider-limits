@@ -1,5 +1,5 @@
 import Clutter from "gi://Clutter";
-import Gio from "gi://Gio";
+import type Gio from "gi://Gio";
 import GObject from "gi://GObject";
 import St from "gi://St";
 
@@ -15,7 +15,7 @@ export const StatusBarWidget = GObject.registerClass(
     declare _style: StatusBarStyle | null;
     declare _renderer: StatusBarSectionRenderer | null;
 
-    _init(settings: Gio.Settings) {
+    override _init(settings: Gio.Settings) {
       super._init({
         style_class: "provider-limits-status-bar",
         y_align: Clutter.ActorAlign.CENTER,

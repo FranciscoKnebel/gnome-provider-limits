@@ -20,7 +20,7 @@ already have a canonical name.
 
 ### Prerequisites
 
-- Node.js 22+
+- Node.js 22+ (CI runs Node 22, 24 and 26; the pinned development version is 26)
 - GNOME Shell 45+ (for local testing)
 - `glib-compile-schemas` (from `libglib2.0-dev-bin` or equivalent)
 - `gnome-extensions` CLI (bundled with GNOME Shell)
@@ -31,13 +31,19 @@ already have a canonical name.
 
 ```bash
 npm ci                    # install deps
-npm run typecheck         # tsc --noEmit
-npm run lint              # oxlint --type-aware
+npm run typecheck         # tsc --noEmit for src and tests
+npm run typecheck:src     # tsc --noEmit for src
+npm run typecheck:tests   # tsc --noEmit for tests
+npm run lint              # oxlint --type-aware, fails on warnings
+npm run lint:ci           # oxlint with GitHub annotations
 npm run lint:fix          # oxlint --type-aware --fix
 npm run format            # oxfmt --write .
 npm run format:check      # oxfmt --check .
 npm run test              # Node jasmine suite
-npm run check             # typecheck + lint + format:check + check:i18n + test
+npm run test:node         # node:test suites
+npm run test:tooling      # validates oxlint/oxfmt configuration
+npm run check:static      # typecheck + lint + format + i18n + tooling
+npm run check             # check:static + catalogs + Node + Jasmine
 npm run check:all         # check + GJS suite (skips without gjs)
 npm run build             # tsc → dist/
 npm run schema:compile    # glib-compile-schemas src/schemas
@@ -64,12 +70,12 @@ shim is local-only and guarded.
 ### Code style
 
 - **TypeScript** with `strict: true`. No `any` without justification.
-- **oxfmt** formats code (Prettier-compatible, 100 char width, single
+- **oxfmt** formats code (Prettier-compatible, 100 char width, double
   quotes, trailing commas, semicolons). Run `npm run format` before
   committing.
 - **oxlint** lints code (correctness errors, suspicious warnings, perf
-  warnings). Run `npm run lint` before committing. Floating promises are
-  errors.
+  warnings) and fails on any warning. Run `npm run lint` before committing.
+  Floating promises are errors.
 - No comments unless necessary for clarity. Code should be self-documenting.
 - One responsibility per file. Readers in `src/readers/`, UI in `src/ui/`,
   IO wrappers in `src/helpers/`, formatting in `src/formatters.ts`.
@@ -146,7 +152,7 @@ The suite is split between two runners:
 
 - **Node + Jasmine** (`npm run test`): pure modules (parsers, formatters,
   helpers, UI logic extraction). IO is mocked and no GNOME stack is required.
-  `npm run check` runs this suite and is Node-only.
+  `npm run check` runs both the Node and Jasmine suites and is Node-only.
 - **GJS** (`npm run test:gjs`): builds `dist/` and runs
   `tests/run-gjs-tests.mjs` against the specs in `tests/helpers`,
   `tests/readers`, and `tests/ui`. Covers gi-dependent modules; CI runs it

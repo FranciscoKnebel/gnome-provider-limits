@@ -1,5 +1,5 @@
 import Adw from "gi://Adw";
-import Gio from "gi://Gio";
+import type Gio from "gi://Gio";
 import GObject from "gi://GObject";
 import Gtk from "gi://Gtk?version=4.0";
 
@@ -61,7 +61,7 @@ export const ProviderLimitsPreferencesPage = GObject.registerClass(
     declare _destroyCallbacks: (() => void)[];
     declare _bindings: SettingsBinding[];
 
-    _init(settings: Gio.Settings, languages: LanguageEntry[]) {
+    override _init(settings: Gio.Settings, languages: LanguageEntry[]) {
       super._init({
         title: _("General"),
         icon_name: "preferences-system-symbolic",

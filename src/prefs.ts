@@ -1,4 +1,4 @@
-import Adw from "gi://Adw";
+import type Adw from "gi://Adw";
 import Gio from "gi://Gio";
 import GLib from "gi://GLib";
 import { ExtensionPreferences } from "resource:///org/gnome/Shell/Extensions/js/extensions/prefs.js";
@@ -87,7 +87,7 @@ export default class ProviderLimitsPreferences extends ExtensionPreferences {
     state.pages.push(providersPage);
   }
 
-  async fillPreferencesWindow(window: Adw.PreferencesWindow): Promise<void> {
+  override async fillPreferencesWindow(window: Adw.PreferencesWindow): Promise<void> {
     const settings = this.getSettings();
     const state: PreferencesWindowState = {
       languageChangedId: 0,

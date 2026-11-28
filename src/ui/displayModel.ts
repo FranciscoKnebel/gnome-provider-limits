@@ -7,8 +7,7 @@ import type { DisplayStatus } from "./displayStatus.js";
 import type { FieldView, UsageFacts } from "./fieldViews.js";
 import { deriveFieldViews, meterFromViews, projectUsageFacts, selectViews } from "./fieldViews.js";
 import type { GaugeSpec } from "./gaugeTypes.js";
-import type { ProviderHealth } from "./providerHealth.js";
-import type { Presentation } from "./providerHealth.js";
+import type { ProviderHealth, Presentation } from "./providerHealth.js";
 import {
   cardBadgeText,
   CACHED_LABEL,

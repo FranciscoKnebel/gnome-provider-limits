@@ -1,5 +1,5 @@
 import Adw from "gi://Adw";
-import Gio from "gi://Gio";
+import type Gio from "gi://Gio";
 import GLib from "gi://GLib";
 import GObject from "gi://GObject";
 import Gtk from "gi://Gtk?version=4.0";
@@ -231,7 +231,7 @@ export const ProviderExpanderRow = GObject.registerClass(
     declare _destroyCallbacks: (() => void)[];
     declare _bindings: SettingsBinding[];
 
-    _init(
+    override _init(
       settings: Gio.Settings,
       provider: ProviderName,
       index?: number,
@@ -386,7 +386,7 @@ export const ProvidersPage = GObject.registerClass(
     declare _settings: Gio.Settings;
     declare _destroyCallbacks: (() => void)[];
 
-    _init(settings: Gio.Settings) {
+    override _init(settings: Gio.Settings) {
       super._init({
         title: _("Providers"),
         icon_name: "preferences-system-symbolic",

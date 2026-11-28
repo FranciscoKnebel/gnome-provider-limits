@@ -379,7 +379,7 @@ const ProviderLimitsIndicator = GObject.registerClass(
       if (!this._destroyed) this._restartRefreshTimer();
     }
 
-    destroy(): void {
+    override destroy(): void {
       this._destroyed = true;
       this._refreshGeneration++;
 
@@ -421,7 +421,7 @@ export default class ProviderLimitsExtension extends Extension {
   private _startupLanguageChangedId = 0;
   private _enableGeneration = 0;
 
-  enable(): void {
+  override enable(): void {
     const settings = this.getSettings();
     this._selfHealLanguage(settings);
     this._settings = settings;
@@ -489,7 +489,7 @@ export default class ProviderLimitsExtension extends Extension {
     settings.set_string("language", "");
   }
 
-  disable(): void {
+  override disable(): void {
     this._enableGeneration++;
     if (this._settings && this._startupLanguageChangedId) {
       this._settings.disconnect(this._startupLanguageChangedId);

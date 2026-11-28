@@ -79,8 +79,8 @@ interface EncodedBody {
 }
 
 export class HttpClient {
-  private _session: Soup.Session;
-  private _lifetime = new Gio.Cancellable();
+  private readonly _session: Soup.Session;
+  private readonly _lifetime = new Gio.Cancellable();
   private _destroyed = false;
 
   constructor(session?: Soup.Session) {

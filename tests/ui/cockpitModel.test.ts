@@ -1,7 +1,6 @@
 import { PROVIDER_NAMES } from "../../src/constants.js";
 import { FieldStatus, ReaderStatus } from "../../src/readers/base.js";
-import type { ReaderResult } from "../../src/readers/base.js";
-import type { FieldDef } from "../../src/readers/base.js";
+import type { FieldDef, ReaderResult } from "../../src/readers/base.js";
 import {
   CLAUDE_FIELDS,
   CODEX_FIELDS,

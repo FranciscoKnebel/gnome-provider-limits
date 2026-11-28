@@ -1,5 +1,6 @@
 {
-  "$schema": "https://oxc.rs/schema.json",
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["unicorn", "typescript", "oxc", "import"],
   "categories": {
     "correctness": "error",
     "suspicious": "warn",
@@ -9,14 +10,36 @@
   },
   "rules": {
     "no-unused-vars": "error",
-    "no-console": "off",
+    "no-console": "error",
     "no-underscore-dangle": "off",
-    "typescript/no-explicit-any": "warn",
-    "typescript/no-non-null-assertion": "warn",
+    "typescript/no-explicit-any": "error",
+    "typescript/no-non-null-assertion": "error",
+    "typescript/no-unsafe-type-assertion": "error",
+    "typescript/no-unnecessary-type-assertion": "error",
     "typescript/no-floating-promises": "error",
     "typescript/no-misused-promises": "error",
-    "import/no-cycle": "warn",
+    "typescript/consistent-type-imports": "error",
+    "typescript/prefer-readonly": "error",
+    "typescript/switch-exhaustiveness-check": "error",
+    "import/no-cycle": "error",
+    "import/no-duplicates": "error",
+    "unicorn/prefer-node-protocol": "error",
     "no-await-in-loop": "off"
   },
-  "ignorePatterns": ["dist/", "node_modules/"]
+  "overrides": [
+    {
+      "files": ["src/helpers/log.ts", "scripts/**", "tests/**"],
+      "rules": {
+        "no-console": "off"
+      }
+    }
+  ],
+  "ignorePatterns": [
+    "dist/",
+    "node_modules/",
+    "coverage/",
+    ".worktrees/",
+    "pages/_site/",
+    "pages/.jekyll-cache/"
+  ]
 }
